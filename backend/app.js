@@ -36,7 +36,7 @@ app.use("/dashboard", dashboardRoutes);
 app.use("/test-db", testRoutes);
 app.use("/functions", functionsRoutes);
 app.use("/auth", authRoutes);
-app.use("/function", functionDetailRoutes);
+app.use("/functions", functionDetailRoutes);
 
 // Fallback
 app.use((req, res) => {

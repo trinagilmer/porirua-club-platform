@@ -26,8 +26,9 @@ a { text-decoration: none; color: inherit; }
   top: 0;
   left: 0;
   right: 0;
-  height: 64px;
-  background: var(--dark);
+  height: 72px;
+  padding: 0 32px;
+  background: #121212; 
   color: #fff;
   display: flex;
   justify-content: space-between;
@@ -38,8 +39,9 @@ a { text-decoration: none; color: inherit; }
 }
 
 .header-left {
-  display: flex;
+ display: flex;
   align-items: center;
+  gap: 32px;
 }
 
 .logo-link {
@@ -61,7 +63,11 @@ a { text-decoration: none; color: inherit; }
   transition: color .2s ease;
 }
 
-.nav-links a:hover,
+.nav-links a:hover {
+  color: var(--accent);
+  transition: color 0.2s ease;
+}
+
 .nav-links a.active {
   color: var(--accent);
 }
@@ -120,13 +126,20 @@ a { text-decoration: none; color: inherit; }
 /* --- Tables --- */
 .table {
   width:100%;
+  overflow-x: auto;
+  display: block;
   border-collapse:collapse;
 }
 .table th, .table td {
-  padding:10px 14px;
-  border-bottom:1px solid #e5e5e5;
+  padding: 12px 16px;
+  white-space: nowrap;
+}
+.table td {
+    font-size: 0.95rem;
 }
 .table th {
+   background: var(--deep);
+  font-weight: 600;
   background: var(--primary);
   color:#fff;
   text-align:left;
@@ -193,6 +206,38 @@ a { text-decoration: none; color: inherit; }
   display: flex;
   align-items: center;
   justify-content: center;
+}
+/* --- Responsive Fixes --- */
+@media (min-width: 1400px) {
+  .main-content {
+    max-width: 1200px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .main-content {
+    padding: 96px 16px 40px;
+  }
+
+  .nav-links a {
+    margin-right: 12px;
+  }
+}
+
+@media (max-width: 900px) {
+  .nav-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .nav-links a {
+    font-size: 0.9rem;
+  }
+
+  .logo-img {
+    height: 32px;
+  }
 }
 
 
