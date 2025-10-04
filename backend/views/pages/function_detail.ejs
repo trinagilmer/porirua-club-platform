@@ -1,78 +1,82 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('../partials/head') %>
-  <title><%= fn.event_name %> - Edit Function</title>
+  <%- include('../partials/head', { title: fn.event_name + ' - Function Details' }) %>
 </head>
 <body>
   <%- include('../partials/header', { active: 'functions', user: user }) %>
 
   <main class="main-content">
-    <h1 style="color:var(--deep);">Edit Function: <%= fn.event_name %></h1>
+    <h1 style="color:var(--deep);margin-top:0;"><%= fn.event_name %></h1>
 
-    <form method="POST" action="/function/<%= fn.id %>/update" class="card" style="margin-bottom:20px;">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;">
+    <!-- Top Bar: Summary + Edit Button -->
+    <div class="card" style="margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">
         <div>
-          <label>Event Name</label>
-          <input type="text" name="event_name" value="<%= fn.event_name %>" required>
+          <p><strong>Status:</strong> <%= fn.status %></p>
+          <p><strong>Date:</strong> <%= fn.event_date ? fn.event_date.toISOString().slice(0,10) : '—' %> 
+             <%= fn.event_time ? '(' + fn.event_time + ')' : '' %></p>
+          <p><strong>Attendees:</strong> <%= fn.attendees || '—' %></p>
+          <p><strong>Room:</strong> <%= fn.room_id || '—' %></p>
+          <p><strong>Value:</strong> $<%= (fn.totals_price || 0).toLocaleString() %></p>
         </div>
-        <div>
-          <label>Status</label>
-          <select name="status">
-            <% ['lead','qualified','confirmed','balance_due','completed','cancelled'].forEach(s=>{ %>
-              <option value="<%= s %>" <%= fn.status===s?'selected':'' %>><%= s %></option>
-            <% }) %>
-          </select>
-        </div>
-        <div>
-          <label>Date</label>
-          <input type="date" name="event_date" value="<%= fn.event_date_str %>">
-        </div>
-        <div>
-          <label>Time</label>
-          <input type="text" name="event_time" value="<%= fn.event_time || '' %>" placeholder="18:00">
-        </div>
-        <div>
-          <label>Attendees</label>
-          <input type="number" name="attendees" value="<%= fn.attendees || '' %>">
-        </div>
-        <div>
-          <label>Room</label>
-          <input type="text" name="room_id" value="<%= fn.room_id || '' %>">
-        </div>
-        <div>
-          <label>Total Price ($)</label>
-          <input type="number" step="0.01" name="totals_price" value="<%= fn.totals_price || '' %>">
+        <div style="text-align:right;">
+          <a href="/functions/<%= fn.id %>/edit" class="btn">Edit Function</a>
+          <a href="/functions" class="btn ghost">Back to Functions</a>
         </div>
       </div>
-      <div style="margin-top:16px;">
-        <label>Notes</label>
-        <textarea name="notes" rows="4" style="width:100%;"><%= fn.notes || '' %></textarea>
-      </div>
-      <div style="margin-top:16px;text-align:right;">
-        <button class="btn">Save Changes</button>
-      </div>
-    </form>
-
-    <!-- Related Tabs -->
-    <div class="card">
-      <h2 style="color:var(--deep);margin-top:0;">Tasks</h2>
-      <% if (!tasks.length) { %>
-        <p>No tasks yet.</p>
-      <% } else { %>
-        <ul>
-          <% tasks.forEach(t=>{ %>
-            <li><strong><%= t.title %></strong> - <%= t.status %></li>
-          <% }) %>
-        </ul>
+      <% if (fn.notes) { %>
+        <div style="margin-top:16px;">
+          <h3>Notes</h3>
+          <p><%= fn.notes %></p>
+        </div>
       <% } %>
     </div>
 
+    <!-- Tasks Section -->
+    <div class="card">
+      <h2 style="color:var(--deep);margin-top:0;">Tasks</h2>
+      <% if (!tasks || !tasks.length) { %>
+        <p>No tasks yet.</p>
+      <% } else { %>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Status</th>
+              <th>Due</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% tasks.forEach(t=>{ %>
+              <tr>
+                <td><%= t.title %></td>
+                <td><%= t.status %></td>
+                <td><%= t.due_at ? t.due_at.toISOString().slice(0,10) : '—' %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+
+    <!-- Proposal Placeholder -->
     <div class="card">
       <h2 style="color:var(--deep);">Proposal</h2>
       <p>Proposal Builder coming next — this section will let you build, view, and send client proposals with menus, items, and pricing.</p>
     </div>
+
+    <!-- Documents -->
+    <% if (documents && documents.length) { %>
+      <div class="card">
+        <h2 style="color:var(--deep);">Documents</h2>
+        <ul>
+          <% documents.forEach(d => { %>
+            <li><a href="<%= d.file_url %>" target="_blank"><%= d.file_name %></a></li>
+          <% }) %>
+        </ul>
+      </div>
+    <% } %>
   </main>
 </body>
 </html>
-np

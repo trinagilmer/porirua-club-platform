@@ -63,7 +63,12 @@
           <% } else { events.forEach(e=>{ %>
             <tr>
               <td><div class="contact-icon"><%= e.event_name ? e.event_name.charAt(0).toUpperCase() : '?' %></div></td>
-              <td><strong><%= e.event_name %></strong></td>
+              <td>
+  <a href="/functions/<%= e.id %>" class="fn-link">
+  <strong><%= e.event_name %></strong>
+  </a>
+</td>
+
               <td><span class="status-<%= e.status %>"><%= e.status %></span></td>
               <td><%= e.event_date_str %><br><small><%= e.event_time || '' %></small></td>
               <td><%= e.attendees || '—' %></td>
@@ -72,8 +77,7 @@
               <td><%= e.last_contacted_str || '—' %></td>
               <td><%= e.created_str || '—' %></td>
               <td><%= e.owner_name || '—' %></td>
-              <td>
-                <a href="/functions/<%= e.id %>/edit" class="btn ghost small">✏️</a>
+              <td><a href="/functions/<%= e.id %>" class="btn">View ✏️</a>
                 <a href="/functions/<%= e.id %>/delete" class="btn ghost small">🗑️</a>
               </td>
             </tr>
