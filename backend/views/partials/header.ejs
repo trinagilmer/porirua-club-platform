@@ -1,3 +1,25 @@
-<header style="background:#111; color:#fff; padding:10px;">
-  <h1>Porirua Club Platform</h1>
+<header class="main-header">
+  <div class="header-left">
+    <a href="/dashboard" class="logo-link">
+      <img src="/img/pc-logo.png" alt="Porirua Club" class="logo-img" />
+    </a>
+    <nav class="nav-links">
+      <a href="/dashboard/functions" class="<%= active==='functions'?'active':'' %>">Functions</a>
+      <a href="/dashboard/restaurant" class="<%= active==='restaurant'?'active':'' %>">Restaurant</a>
+      <a href="/dashboard/events" class="<%= active==='events'?'active':'' %>">Club Events</a>
+      <a href="/dashboard/inbox" class="<%= active==='inbox'?'active':'' %>">Inbox</a>
+      <a href="/calendar" class="<%= active==='calendar'?'active':'' %>">Calendar</a>
+      <a href="/tasks" class="<%= active==='tasks'?'active':'' %>">Tasks</a>
+      <a href="/reports" class="<%= active==='reports'?'active':'' %>">Reports</a>
+      <a href="/settings" class="<%= active==='settings'?'active':'' %>">Settings</a>
+    </nav>
+  </div>
+  <div class="header-right">
+    <a href="/profile" class="profile-icon" title="My Profile">
+      <span class="user-circle">
+        <%= user && user.name ? user.name.charAt(0).toUpperCase() : 'P' %>
+      </span>
+    </a>
+  </div>
 </header>
+

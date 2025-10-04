@@ -70,7 +70,7 @@ router.get("/", async (req, res, next) => {
       LIMIT 10
     `);
 
-   res.render("pages/dashboard", {
+res.render("pages/dashboard", {
   title: "Dashboard",
   active: "dashboard",
   kpis,
@@ -79,8 +79,10 @@ router.get("/", async (req, res, next) => {
   leads,
   tasks,
   from: req.query.from || "",
-  to: req.query.to || ""
+  to: req.query.to || "",
+  user: req.session.user || null
 });
+
 
 
   } catch (err) {
