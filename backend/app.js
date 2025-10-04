@@ -21,8 +21,9 @@ app.set("views", path.join(__dirname, "views"));
 
 // Routes
 const indexRoutes = require("./routes/index");
+const testRoutes = require("./routes/test");
 app.use("/", indexRoutes);
-
+app.use("/test-db", testRoutes);
 // Fallback
 app.use((req, res) => {
   res.status(404).send("Page not found");
