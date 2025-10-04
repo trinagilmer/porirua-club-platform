@@ -27,10 +27,12 @@ app.set("views", path.join(__dirname, "views"));
 const indexRoutes = require("./routes/index");
 const dashboardRoutes = require("./routes/dashboard");
 const testRoutes = require("./routes/test");
+const functionsRoutes = require("./routes/functions");
 
 app.use("/", indexRoutes);
 app.use("/dashboard", dashboardRoutes);
 app.use("/test-db", testRoutes);
+app.use("/functions", functionsRoutes);
 
 // Fallback
 app.use((req, res) => {

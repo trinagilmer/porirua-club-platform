@@ -150,6 +150,50 @@ a { text-decoration: none; color: inherit; }
   color:var(--primary);
 }
 .btn.ghost:hover { background:var(--primary); color:#fff; }
+/* --- Status Bar --- */
+.status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  padding: 10px 16px;
+  margin-bottom: 24px;
+}
+
+.status-bar .filter {
+  margin-right: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: #f0f0f0;
+  color: var(--deep);
+}
+
+.status-bar .filter.active {
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.status-bar .right {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+}
+
+.contact-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--accent);
+  border-radius: 50%;
+  color: var(--deep);
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 
 

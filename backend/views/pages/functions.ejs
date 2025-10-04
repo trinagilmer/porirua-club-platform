@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('../partials/head') %>
+  <title>Functions Dashboard</title>
+</head>
+<body>
+  <%- include('../partials/header', { active: 'functions', user: user }) %>
+
+  <main class="main-content">
+    <h1 style="color:var(--deep);margin-top:0;">Functions Dashboard</h1>
+
+    <!-- Status Filter Bar -->
+    <div class="status-bar">
+      <a href="?status=active" class="filter <%= statusFilter==='active'?'active':'' %>">
+        Active ($<%= (totals.lead_value + totals.qualified_value + totals.confirmed_value + totals.balance_due_value).toLocaleString() %>)
+      </a>
+      <a href="?status=lead" class="filter <%= statusFilter==='lead'?'active':'' %>">
+        Lead ($<%= totals.lead_value.toLocaleString() %>)
+      </a>
+      <a href="?status=qualified" class="filter <%= statusFilter==='qualified'?'active':'' %>">
+        Qualified ($<%= totals.qualified_value.toLocaleString() %>)
+      </a>
+      <a href="?status=confirmed" class="filter <%= statusFilter==='confirmed'?'active':'' %>">
+        Confirmed ($<%= totals.confirmed_value.toLocaleString() %>)
+      </a>
+      <a href="?status=balance_due" class="filter <%= statusFilter==='balance_due'?'active':'' %>">
+        Balance Due ($<%= totals.balance_due_value.toLocaleString() %>)
+      </a>
+      <a href="?status=completed" class="filter <%= statusFilter==='completed'?'active':'' %>">
+        Completed YTD ($<%= totals.completed_value.toLocaleString() %>)
+      </a>
+
+      <div class="right">
+        <a href="?status=<%= statusFilter %>&mine=<%= !myOnly %>" class="btn ghost">
+          <%= myOnly ? 'All Events' : 'My Events' %>
+        </a>
+        <a href="/functions/new" class="btn">+ Add Event</a>
+      </div>
+    </div>
+
+    <!-- Event Table -->
+    <div class="card">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Contact</th>
+            <th>Event</th>
+            <th>Status</th>
+            <th>Date / Time</th>
+            <th>Guests</th>
+            <th>Space</th>
+            <th>Value</th>
+            <th>Last Contact</th>
+            <th>Created</th>
+            <th>Owner</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if(!events.length){ %>
+            <tr><td colspan="11">No events found</td></tr>
+          <% } else { events.forEach(e=>{ %>
+            <tr>
+              <td><div class="contact-icon"><%= e.event_name ? e.event_name.charAt(0).toUpperCase() : '?' %></div></td>
+              <td><strong><%= e.event_name %></strong></td>
+              <td><span class="status-<%= e.status %>"><%= e.status %></span></td>
+              <td><%= e.event_date_str %><br><small><%= e.event_time || '' %></small></td>
+              <td><%= e.attendees || '—' %></td>
+              <td><%= e.room_name || '—' %></td>
+              <td>$<%= (e.totals_price || 0).toLocaleString() %></td>
+              <td><%= e.last_contacted_str || '—' %></td>
+              <td><%= e.created_str || '—' %></td>
+              <td><%= e.owner_name || '—' %></td>
+              <td>
+                <a href="/functions/<%= e.id %>/edit" class="btn ghost small">✏️</a>
+                <a href="/functions/<%= e.id %>/delete" class="btn ghost small">🗑️</a>
+              </td>
+            </tr>
+          <% }) } %>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>
