@@ -1,8 +1,10 @@
 const express = require("express");
 const router = express.Router();
 
+// Redirect root to main dashboard
 router.get("/", (req, res) => {
-  res.render("pages/dashboard", { title: "Dashboard" });
+  res.redirect("/dashboard");
 });
 
 module.exports = router;
+
