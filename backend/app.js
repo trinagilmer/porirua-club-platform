@@ -28,11 +28,15 @@ const indexRoutes = require("./routes/index");
 const dashboardRoutes = require("./routes/dashboard");
 const testRoutes = require("./routes/test");
 const functionsRoutes = require("./routes/functions");
+const authRoutes = require("./routes/auth");
+const functionDetailRoutes = require("./routes/functionDetail");
 
 app.use("/", indexRoutes);
 app.use("/dashboard", dashboardRoutes);
 app.use("/test-db", testRoutes);
 app.use("/functions", functionsRoutes);
+app.use("/auth", authRoutes);
+app.use("/function", functionDetailRoutes);
 
 // Fallback
 app.use((req, res) => {

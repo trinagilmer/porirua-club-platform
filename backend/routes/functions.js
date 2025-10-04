@@ -1,12 +1,15 @@
 const express = require("express");
 const pool = require("../db");
 const { format } = require("date-fns");
-const { requireLogin } = require("../Middleware/authMiddleware");
+const { requireLogin } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
 // Functions Dashboard
-router.get("/", requireLogin, async (req, res, next) => {
+// router.get("/", requireLogin, async (req, res, next) => {
+router.get("/", async (req, res, next) => {
+
+
   try {
     const userId = req.session.user?.id;
     const statusFilter = req.query.status || "active";

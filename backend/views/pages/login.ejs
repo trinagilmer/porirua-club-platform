@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('../partials/head') %>
+  <title>Login</title>
+</head>
+<body style="background:#f8fafc;display:flex;align-items:center;justify-content:center;height:100vh;">
+  <form method="POST" action="/auth/login" style="background:#fff;padding:40px;border-radius:10px;box-shadow:0 4px 8px rgba(0,0,0,0.1);width:350px;">
+    <h2 style="color:var(--deep);margin-bottom:20px;">Porirua Club Login</h2>
+    <% if (error) { %>
+      <div style="color:red;margin-bottom:10px;"><%= error %></div>
+    <% } %>
+    <label>Email</label>
+    <input type="email" name="email" required style="width:100%;padding:8px;margin-bottom:10px;">
+    <label>Password</label>
+    <input type="password" name="password" required style="width:100%;padding:8px;margin-bottom:20px;">
+    <button type="submit" class="btn" style="width:100%;">Login</button>
+    <div style="text-align:center;margin-top:10px;">
+      <a href="/auth/register">Create an account</a>
+    </div>
+  </form>
+</body>
+</html>
