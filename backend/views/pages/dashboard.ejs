@@ -2,12 +2,169 @@
 <html lang="en">
 <head>
   <%- include('../partials/head') %>
+  <title>Dashboard</title>
 </head>
 <body>
-  <%- include('../partials/header') %>
-  <div class="container">
-    <h2>Welcome to the Dashboard</h2>
-    <p>This is your first working view 🚀</p>
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <img src="/img/pc-logo.jpg" alt="Porirua Club" />
+      </div>
+      <nav>
+        <ul>
+          <li><a href="/dashboard" class="<%= active==='dashboard' ? 'active' : '' %>">Dashboard</a></li>
+          <li><a href="/calendar">Calendar</a></li>
+          <li><a href="/functions">Functions</a></li>
+          <li><a href="/restaurant">Restaurant</a></li>
+          <li><a href="/menus">Menus & Services</a></li>
+          <li><a href="/tasks">Tasks</a></li>
+          <li><a href="/contacts">Contacts</a></li>
+          <li><a href="/surveys">Surveys</a></li>
+          <li><a href="/reports">Reports</a></li>
+          <li><a href="/audit">Admin / Audit</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <main class="content">
+      <%- include('../partials/header', { active: 'dashboard' }) %>
+
+      <!-- Date Filters -->
+      <section class="filters">
+        <form method="get" class="date-filter">
+          <label>From: <input type="date" name="from" value="<%= from || '' %>" /></label>
+          <label>To: <input type="date" name="to" value="<%= to || '' %>" /></label>
+          <button type="submit" class="btn">Apply</button>
+          <a href="?range=week" class="btn ghost">This Week</a>
+          <a href="?range=month" class="btn ghost">This Month</a>
+        </form>
+      </section>
+
+      <!-- KPIs -->
+      <section class="kpis">
+        <div class="kpi-card">
+          <div class="kpi-label">Confirmed+ Revenue</div>
+          <div class="kpi-value">$<%= (kpis.confirmed_price || 0).toLocaleString() %></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Confirmed+ Cost</div>
+          <div class="kpi-value">$<%= (kpis.confirmed_cost || 0).toLocaleString() %></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Pipeline Value</div>
+          <div class="kpi-value">$<%= (kpis.pipeline_price || 0).toLocaleString() %></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Pipeline Leads</div>
+          <div class="kpi-value"><%= kpis.pipeline_count || 0 %></div>
+        </div>
+      </section>
+
+      <!-- Revenue Chart -->
+      <section class="chart-section">
+        <h2>Revenue Trend (Last 12 Months)</h2>
+        <canvas id="revenueChart" height="120"></canvas>
+      </section>
+
+      <script>
+        const revenueLabels = <%- JSON.stringify(graph.labels || []) %>;
+        const revenueData   = <%- JSON.stringify(graph.data   || []) %>;
+
+        const ctx = document.getElementById('revenueChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: revenueLabels,
+            datasets: [{
+              label: 'Revenue',
+              data: revenueData,
+              borderColor: '#2980b9',
+              backgroundColor: 'rgba(52,152,219,0.2)',
+              tension: 0.3,
+              fill: true
+            }]
+          },
+          options: {
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { beginAtZero: true, ticks: { callback: v => '$' + v.toLocaleString() } }
+            }
+          }
+        });
+      </script>
+
+      <!-- Upcoming Functions -->
+      <section class="card">
+        <h2>Upcoming Functions</h2>
+        <table class="pc-table">
+          <thead>
+            <tr>
+              <th>Date</th><th>Time</th><th>Event</th><th>Room</th><th>Guests</th><th>Status</th><th>Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (!upcoming.length) { %>
+              <tr><td colspan="7" class="muted">No upcoming functions</td></tr>
+            <% } else { %>
+              <% upcoming.forEach(fn => { %>
+                <tr>
+                  <td><%= fn.event_date?.toISOString().slice(0,10) %></td>
+                  <td><%= fn.event_time || '' %></td>
+                  <td><strong><%= fn.event_name %></strong></td>
+                  <td><%= fn.room_name || '—' %></td>
+                  <td><%= fn.attendees || '—' %></td>
+                  <td><span class="status-<%= fn.status %>"><%= fn.status %></span></td>
+                  <td>$<%= (fn.totals_price || 0).toLocaleString() %></td>
+                </tr>
+              <% }) %>
+            <% } %>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Recent Leads -->
+      <section class="card">
+        <h2>Recent Leads</h2>
+        <table class="pc-table">
+          <thead>
+            <tr><th>Date</th><th>Client</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <% if (!leads.length) { %>
+              <tr><td colspan="3" class="muted">No new leads</td></tr>
+            <% } else { %>
+              <% leads.forEach(ld => { %>
+                <tr>
+                  <td><%= ld.event_date?.toISOString().slice(0,10) %></td>
+                  <td><strong><%= ld.client_name %></strong></td>
+                  <td><span class="status-<%= ld.status %>"><%= ld.status %></span></td>
+                </tr>
+              <% }) %>
+            <% } %>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- My Tasks -->
+      <section class="card">
+        <h2>My Tasks</h2>
+        <% if (!tasks.length) { %>
+          <div class="muted">No open tasks</div>
+        <% } else { %>
+          <ul class="task-list">
+            <% tasks.forEach(t => { %>
+              <li>
+                <strong><%= t.title %></strong>
+                <% if (t.due_at) { %> <span class="muted">Due: <%= t.due_at.toISOString().slice(0,10) %></span> <% } %>
+              </li>
+            <% }) %>
+          </ul>
+        <% } %>
+      </section>
+    </main>
   </div>
 </body>
 </html>
+

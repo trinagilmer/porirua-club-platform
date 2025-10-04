@@ -70,16 +70,18 @@ router.get("/", async (req, res, next) => {
       LIMIT 10
     `);
 
-    // 6️⃣ --- Render Page ---
-    res.render("pages/dashboard", {
-      title: "Dashboard",
-      active: "dashboard",
-      kpis,
-      graph,
-      upcoming,
-      leads,
-      tasks
-    });
+   res.render("pages/dashboard", {
+  title: "Dashboard",
+  active: "dashboard",
+  kpis,
+  graph,
+  upcoming,
+  leads,
+  tasks,
+  from: req.query.from || "",
+  to: req.query.to || ""
+});
+
 
   } catch (err) {
     console.error("Dashboard error:", err);
