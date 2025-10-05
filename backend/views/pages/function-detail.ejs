@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('../partials/head') %>
+  <title><%= fn.event_name %> - Function Detail</title>
+</head>
+<body>
+  <%- include('../partials/header', { active: 'functions', user: user }) %>
+
+  <main class="main-content">
+    <h1 style="color:var(--deep);margin-top:0;"><%= fn.event_name %></h1>
+
+    <div style="display:grid;grid-template-columns:280px 1fr;gap:24px;align-items:start;">
+
+      <!-- 🧍‍♂️ CONTACT COLUMN -->
+      <div class="card">
+        <h3 style="margin-top:0;color:var(--deep);">Contact</h3>
+
+        <% if (fn.contact_name) { %>
+          <p><strong><%= fn.contact_name %></strong></p>
+          <p><%= fn.contact_company || '' %></p>
+          <p><a href="mailto:<%= fn.contact_email %>"><%= fn.contact_email %></a></p>
+          <p><%= fn.contact_phone %></p>
+        <% } else { %>
+          <p>No contact assigned yet.</p>
+        <% } %>
+
+        <form method="POST" action="/function/<%= fn.id %>/contact" style="margin-top:12px;">
+          <label>Select existing contact</label>
+          <select name="contact_id" style="width:100%;padding:6px;">
+            <option value="">— Select Contact —</option>
+            <% contacts.forEach(c => { %>
+              <option value="<%= c.id %>" <%= fn.contact_id === c.id ? 'selected' : '' %>>
+                <%= c.name %> (<%= c.email %>)
+              </option>
+            <% }) %>
+          </select>
+          <button class="btn" style="margin-top:8px;">Assign</button>
+        </form>
+
+        <hr style="margin:16px 0;">
+
+        <form method="POST" action="/function/<%= fn.id %>/add-contact">
+          <h4 style="margin:0 0 6px;color:var(--deep);">Add New Contact</h4>
+          <input type="text" name="name" placeholder="Name" required>
+          <input type="email" name="email" placeholder="Email">
+          <input type="text" name="phone" placeholder="Phone">
+          <input type="text" name="company" placeholder="Company">
+          <button class="btn" style="margin-top:8px;">Add Contact</button>
+        </form>
+      </div>
+
+      <!-- 📋 MAIN EVENT COLUMN -->
+      <div>
+
+        <!-- Event details -->
+        <div class="card">
+          <h3 style="margin-top:0;color:var(--deep);">Event Details</h3>
+          <p><strong>Status:</strong> <%= fn.status %></p>
+          <p><strong>Date:</strong> <%= fn.event_date %> at <%= fn.event_time || 'TBC' %></p>
+          <p><strong>Attendees:</strong> <%= fn.attendees || '—' %></p>
+          <p><strong>Total:</strong> $<%= fn.totals_price || 0 %></p>
+          <p><strong>Room:</strong> <%= fn.room_id || '—' %></p>
+          <p><strong>Notes:</strong> <%= fn.notes || 'No notes yet' %></p>
+
+          <a href="/function/<%= fn.id %>/edit" class="btn">Edit Function</a>
+        </div>
+
+        <!-- Tasks -->
+        <div class="card">
+          <h3 style="color:var(--deep);">Tasks</h3>
+          <% if (!tasks.length) { %>
+            <p>No tasks yet.</p>
+          <% } else { %>
+            <ul>
+              <% tasks.forEach(t => { %>
+                <li><strong><%= t.title %></strong> — <%= t.status %></li>
+              <% }) %>
+            </ul>
+          <% } %>
+        </div>
+
+        <!-- Notes -->
+        <div class="card">
+          <h3 style="color:var(--deep);">Notes</h3>
+          <% if (!notes.length) { %>
+            <p>No notes yet.</p>
+          <% } else { %>
+            <ul>
+              <% notes.forEach(n => { %>
+                <li><strong><%= n.created_at.toISOString().split('T')[0] %>:</strong> <%= n.content %></li>
+              <% }) %>
+            </ul>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
+

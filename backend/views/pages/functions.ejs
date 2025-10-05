@@ -2,88 +2,197 @@
 <html lang="en">
 <head>
   <%- include('../partials/head') %>
-  <title>Functions Dashboard</title>
+  <title><%= title %></title>
+  <style>
+    /* Page-specific polish */
+    .status-filters {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .status-filters a {
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--primary);
+      color: var(--primary);
+      background: #fff;
+      text-transform: capitalize;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+    }
+    .status-filters a.active {
+      background: var(--primary);
+      color: #fff;
+      font-weight: 600;
+    }
+    .status-filters a:hover {
+      background: var(--deep);
+      color: #fff;
+    }
+
+    .kpi-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .kpi {
+      background: var(--white);
+      border-left: 5px solid var(--primary);
+      border-radius: var(--radius);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      padding: 12px 16px;
+    }
+    .kpi .label {
+      color: #666;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+    }
+    .kpi .value {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--deep);
+    }
+
+    .table-actions a {
+      margin-right: 6px;
+    }
+    .add-btn {
+      float: right;
+      background: var(--accent);
+      color: var(--deep);
+      font-weight: 600;
+    }
+    .add-btn:hover {
+      background: var(--deep);
+      color: #fff;
+    }
+  </style>
 </head>
 <body>
   <%- include('../partials/header', { active: 'functions', user: user }) %>
 
   <main class="main-content">
-    <h1 style="color:var(--deep);margin-top:0;">Functions Dashboard</h1>
+    <h1 style="color:var(--deep); margin-top:0;">Functions Dashboard</h1>
 
-    <!-- Status Filter Bar -->
-    <div class="status-bar">
-      <a href="?status=active" class="filter <%= statusFilter==='active'?'active':'' %>">
-        Active ($<%= (totals.lead_value + totals.qualified_value + totals.confirmed_value + totals.balance_due_value).toLocaleString() %>)
-      </a>
-      <a href="?status=lead" class="filter <%= statusFilter==='lead'?'active':'' %>">
-        Lead ($<%= totals.lead_value.toLocaleString() %>)
-      </a>
-      <a href="?status=qualified" class="filter <%= statusFilter==='qualified'?'active':'' %>">
-        Qualified ($<%= totals.qualified_value.toLocaleString() %>)
-      </a>
-      <a href="?status=confirmed" class="filter <%= statusFilter==='confirmed'?'active':'' %>">
-        Confirmed ($<%= totals.confirmed_value.toLocaleString() %>)
-      </a>
-      <a href="?status=balance_due" class="filter <%= statusFilter==='balance_due'?'active':'' %>">
-        Balance Due ($<%= totals.balance_due_value.toLocaleString() %>)
-      </a>
-      <a href="?status=completed" class="filter <%= statusFilter==='completed'?'active':'' %>">
-        Completed YTD ($<%= totals.completed_value.toLocaleString() %>)
-      </a>
-
-      <div class="right">
-        <a href="?status=<%= statusFilter %>&mine=<%= !myOnly %>" class="btn ghost">
-          <%= myOnly ? 'All Events' : 'My Events' %>
-        </a>
-        <a href="/functions/new" class="btn">+ Add Event</a>
+    <!-- KPI Overview -->
+    <div class="kpi-bar">
+      <div class="kpi">
+        <div class="label">Leads</div>
+        <div class="value">$<%= totals.lead_value %></div>
+      </div>
+      <div class="kpi">
+        <div class="label">Qualified</div>
+        <div class="value">$<%= totals.qualified_value %></div>
+      </div>
+      <div class="kpi">
+        <div class="label">Confirmed</div>
+        <div class="value">$<%= totals.confirmed_value %></div>
+      </div>
+      <div class="kpi">
+        <div class="label">Balance Due</div>
+        <div class="value">$<%= totals.balance_due_value %></div>
+      </div>
+      <div class="kpi">
+        <div class="label">Completed YTD</div>
+        <div class="value">$<%= totals.completed_value %></div>
       </div>
     </div>
 
-    <!-- Event Table -->
-    <div class="card">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Contact</th>
-            <th>Event</th>
-            <th>Status</th>
-            <th>Date / Time</th>
-            <th>Guests</th>
-            <th>Space</th>
-            <th>Value</th>
-            <th>Last Contact</th>
-            <th>Created</th>
-            <th>Owner</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <% if(!events.length){ %>
-            <tr><td colspan="11">No events found</td></tr>
-          <% } else { events.forEach(e=>{ %>
-            <tr>
-              <td><div class="contact-icon"><%= e.event_name ? e.event_name.charAt(0).toUpperCase() : '?' %></div></td>
-              <td>
-  <a href="/functions/<%= e.id %>" class="fn-link">
-  <strong><%= e.event_name %></strong>
-  </a>
-</td>
+    <!-- Status Filters -->
+    <div class="status-filters">
+      <% ['active','lead','qualified','confirmed','balance_due','completed'].forEach(st => { %>
+        <a href="/functions?status=<%= st %>" class="<%= statusFilter === st ? 'active' : '' %>">
+          <%= st.replace('_',' ') %>
+        </a>
+      <% }) %>
+      <a href="/functions?mine=true" class="<%= myOnly ? 'active' : '' %>">My Events</a>
+      <a href="/functions" class="add-btn btn">+ Add Function</a>
+    </div>
 
-              <td><span class="status-<%= e.status %>"><%= e.status %></span></td>
-              <td><%= e.event_date_str %><br><small><%= e.event_time || '' %></small></td>
-              <td><%= e.attendees || '—' %></td>
-              <td><%= e.room_name || '—' %></td>
-              <td>$<%= (e.totals_price || 0).toLocaleString() %></td>
-              <td><%= e.last_contacted_str || '—' %></td>
-              <td><%= e.created_str || '—' %></td>
-              <td><%= e.owner_name || '—' %></td>
-              <td><a href="/functions/<%= e.id %>" class="btn">View ✏️</a>
-                <a href="/functions/<%= e.id %>/delete" class="btn ghost small">🗑️</a>
-              </td>
-            </tr>
-          <% }) } %>
-        </tbody>
-      </table>
+    <!-- Functions Table -->
+    <div class="card">
+<table class="table compact-table">
+  <thead>
+    <tr>
+      <th>Event</th>
+      <th>Status</th>
+      <th>Date</th>
+      <th>Attendees</th>
+      <th>Value ($)</th>
+      <th>Room</th>
+      <th>Owner</th>
+      <th>Created</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <% if (events.length === 0) { %>
+      <tr>
+        <td colspan="9" style="text-align:center; padding:16px;">
+          No functions found for this view.
+        </td>
+      </tr>
+    <% } else { %>
+      <% events.forEach(e => { %>
+        <tr>
+          <!-- Event + Contact -->
+          <td>
+            <a href="/functions/<%= e.id %>" class="event-link"><%= e.event_name %></a><br>
+            <% if (e.contact_name) { %>
+              <span class="subtext"><%= e.contact_name %></span>
+            <% } %>
+          </td>
+
+          <!-- Status with badge -->
+          <td>
+            <span class="status-badge status-<%= e.status %>"><%= e.status %></span>
+          </td>
+
+          <!-- Date + Time -->
+      <td>
+        <%= formatNZDate(e.event_date) %><br>
+        <% if (e.event_time) { %>
+        <span class="subtext">
+        <%= e.event_time.toString().slice(0, 5) %>
+       </span>
+       <% } %>
+      </td>
+
+
+          <!-- Attendees -->
+          <td><%= e.attendees || '' %></td>
+
+          <!-- Value -->
+          <td>
+            <% if (e.totals_price) { %>
+              $<%= Number(e.totals_price).toFixed(2) %>
+            <% } else { %>
+              —
+            <% } %>
+          </td>
+
+          <!-- Room -->
+          <td><%= e.room_name || '' %></td>
+
+          <!-- Owner -->
+          <td><%= e.owner_name || '' %></td>
+
+          <!-- Created -->
+          <td><%= formatNZDate(e.created_at) %></td>
+
+          <!-- Actions -->
+          <td class="table-actions">
+            <a href="/functions/<%= e.id %>" class="btn small">View</a>
+            <a href="/function/<%= e.id %>/edit" class="btn ghost small">Edit</a>
+          </td>
+        </tr>
+      <% }) %>
+    <% } %>
+  </tbody>
+</table>
     </div>
   </main>
 </body>
