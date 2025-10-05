@@ -402,6 +402,431 @@ input[type="text"]:focus, input[type="email"]:focus, select:focus {
     grid-template-columns: 1fr;
   }
 }
+/* ===========================
+   Function Detail Styling
+=========================== */
+.function-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.function-title {
+  color: var(--deep);
+  margin: 0;
+}
+.function-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* Tabs Bar */
+.tabs-bar {
+  position: sticky;
+  top: 72px;
+  z-index: 50;
+  display: flex;
+  gap: 16px;
+  background: var(--bg);
+  border-bottom: 2px solid #e0e0e0;
+  padding: 8px 4px;
+  margin-bottom: 20px;
+}
+.tabs-bar a {
+  padding: 8px 14px;
+  border-radius: 8px 8px 0 0;
+  background: #f1f1f1;
+  color: var(--deep);
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.tabs-bar a.active {
+  background: var(--white);
+  border: 1px solid #ddd;
+  border-bottom: 2px solid var(--white);
+  color: var(--primary);
+  font-weight: 600;
+}
+.tabs-bar a:hover {
+  background: #eaf6fc;
+  color: var(--primary);
+}
+
+/* Layout */
+.function-layout {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 1000px) {
+  .function-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Panels */
+.contact-panel {
+  min-width: 360px;
+}
+.detail-panel {
+  width: 100%;
+}
+.function-section h3 {
+  color: var(--deep);
+  margin-top: 0;
+}
+
+/* Forms */
+.function-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+.function-form input, 
+.function-form select {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-family: inherit;
+}
+.function-form button {
+  align-self: flex-start;
+}
+
+/* Tables */
+.contact-table th {
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.85rem;
+  text-align: left;
+  padding: 8px 10px;
+}
+.contact-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #eee;
+}
+.contact-table tr:hover {
+  background: #f4f8fb;
+}
+/* ===============================
+   CONTACT CARD LAYOUT
+=============================== */
+.contact-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.contact-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--white);
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 14px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.contact-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.07);
+}
+
+.contact-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.contact-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.contact-name {
+  color: var(--deep);
+  font-size: 1rem;
+  font-weight: 600;
+}
+.contact-email a {
+  color: var(--primary);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+.contact-email a:hover {
+  text-decoration: underline;
+}
+.contact-phone {
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.contact-actions {
+  margin-left: 8px;
+  position: relative;
+}
+.menu-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #666;
+}
+.menu-btn:hover {
+  color: var(--primary);
+}
+
+/* Add Contact Button */
+.add-contact-btn {
+  background: var(--accent);
+  color: var(--deep);
+  font-weight: 600;
+  width: 100%;
+  margin-top: 6px;
+}
+.add-contact-btn:hover {
+  background: var(--deep);
+  color: #fff;
+}
+
+/* Slide-in Edit Panel */
+.contact-edit-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 360px;
+  background: var(--white);
+  box-shadow: -2px 0 12px rgba(0,0,0,0.2);
+  padding: 24px;
+  z-index: 5000;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  visibility: hidden; /* stays in DOM, but invisible */
+  opacity: 0;
+}
+
+.contact-edit-panel.show {
+  transform: translateX(0);
+  visibility: visible;
+  opacity: 1;
+}
+
+
+
+/* Slide-in Add Contact Panel (reuse same animation) */
+#contactAddPanel {
+  background: var(--white);
+  border-left: 4px solid var(--primary);
+}
+#contactAddPanel.show {
+  transform: translateX(0);
+}
+
+/* Floating Add Button inside contact column */
+.add-contact-fab {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  font-size: 2rem;
+  line-height: 1;
+  cursor: pointer;
+  margin: 16px auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+.add-contact-fab:hover {
+  background: var(--deep);
+  transform: scale(1.05);
+}
+.primary-badge {
+  color: #f8b400;
+  font-size: 1.1rem;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.contact-card.primary {
+  border-left: 4px solid #f8b400;
+  background: #fff8e5;
+}
+
+.contact-card.primary:hover {
+  background: #fff4d1;
+}
+
+
+.menu-dropdown {
+  position: absolute;
+  top: 28px;
+  right: 0;
+  background: var(--white);
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  z-index: 100;
+}
+.menu-dropdown .menu-item {
+  padding: 8px 12px;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--deep);
+}
+.menu-dropdown .menu-item:hover {
+  background: #f4f6f8;
+}
+
+/* Keep this for hiding dropdown menus, not panels */
+.hidden {
+  display: none;
+}
+/* Ensure contact panel doesn't stretch weirdly */
+.contact-panel {
+  align-self: start;
+  position: relative;
+}
+
+/* Prevent dropdowns from pushing layout */
+.contact-actions {
+  position: relative;
+}
+
+/* Make sure hidden menus really vanish */
+.menu-dropdown.hidden {
+  display: none !important;
+}
+/* Add/Edit Contact Shared Panel */
+.contact-mode-switch {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.mode-btn {
+  flex: 1;
+  background: #f4f6f8;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-weight: 500;
+}
+.mode-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+/* Overlay */
+.panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.3);
+  z-index: 4000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease;
+}
+.panel-overlay.show {
+  opacity: 1;
+  visibility: visible;
+}
+/* ===============================
+   CONTACT PANEL ENHANCEMENTS
+=============================== */
+.contact-panel-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.tab-btn {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #ccc;
+  background: #f7f7f7;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.tab-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.tab-btn:hover {
+  background: #eaf6fc;
+  border-color: var(--primary);
+}
+
+.contact-search {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  margin-bottom: 8px;
+}
+
+.contact-dropdown {
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  height: 180px;
+  overflow-y: auto;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.contact-dropdown option {
+  padding: 6px 8px;
+  border-bottom: 1px solid #eee;
+}
+.contact-dropdown option:hover {
+  background: #eaf6fc;
+}
+
+.panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.3);
+  z-index: 4000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease;
+}
+.panel-overlay.show {
+  opacity: 1;
+  visibility: visible;
+}
 
 
 

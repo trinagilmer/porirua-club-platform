@@ -6,6 +6,7 @@ const session = require("express-session");
 const path = require("path");
 const { format } = require("date-fns");
 
+
 const app = express();
 
 /* =========================================================
@@ -65,11 +66,13 @@ const dashboardRoutes = require("./routes/dashboard");
 const testRoutes = require("./routes/test");
 const functionsRoutes = require("./routes/functions");
 const authRoutes = require("./routes/auth");
+const inboxRoutes = require("./routes/inbox");
 
 app.use("/", indexRoutes);
 app.use("/dashboard", dashboardRoutes);
 app.use("/test-db", testRoutes);
 app.use("/functions", functionsRoutes);
+app.use("/inbox", inboxRoutes);
 app.use("/auth", authRoutes);
 
 // 404 fallback

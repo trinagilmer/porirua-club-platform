@@ -1,10 +1,12 @@
 const express = require("express");
 const pool = require("../db");
-
 const router = express.Router();
 
+// ✅ Ensure all fetch() calls sending JSON work
+router.use(express.json());
+
 /* =========================================================
-   🧭 1. FUNCTIONS DASHBOARD (with multi-contact support)
+   🧭 1. FUNCTIONS DASHBOARD
 ========================================================= */
 router.get("/", async (req, res, next) => {
   try {
@@ -36,7 +38,8 @@ router.get("/", async (req, res, next) => {
                    'id', c.id,
                    'name', c.name,
                    'email', c.email,
-                   'phone', c.phone
+                   'phone', c.phone,
+                   'is_primary', fc.is_primary
                  )
                ) AS contacts
         FROM function_contacts fc
@@ -55,12 +58,11 @@ router.get("/", async (req, res, next) => {
 
     const { rows: events } = await pool.query(sql, params);
 
-    // Compute totals safely
+    // Normalize totals
     events.forEach(e => {
       e.totals_price = e.totals_price ? parseFloat(e.totals_price) : 0;
     });
 
-    // KPI summary
     const { rows: totals } = await pool.query(`
       SELECT
         COALESCE(SUM(CASE WHEN status='lead' THEN totals_price ELSE 0 END),0) AS lead_value,
@@ -81,18 +83,18 @@ router.get("/", async (req, res, next) => {
       myOnly,
     });
   } catch (err) {
+    console.error("❌ Error loading dashboard:", err);
     next(err);
   }
 });
 
 /* =========================================================
-   🧭 2. FUNCTION DETAIL VIEW (multi-contact enabled)
+   🧭 2. FUNCTION DETAIL VIEW
 ========================================================= */
 router.get("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Primary function data
     const { rows: fnRows } = await pool.query(`
       SELECT f.*, r.name AS room_name, u.name AS owner_name
       FROM functions f
@@ -104,16 +106,14 @@ router.get("/:id", async (req, res, next) => {
     const fn = fnRows[0];
     if (!fn) return res.status(404).send("Function not found");
 
-    // All linked contacts
     const { rows: linkedContacts } = await pool.query(`
-      SELECT c.id, c.name, c.email, c.phone, c.company
+      SELECT c.id, c.name, c.email, c.phone, c.company, fc.is_primary
       FROM function_contacts fc
       JOIN contacts c ON fc.contact_id = c.id
       WHERE fc.function_id = $1
-      ORDER BY c.name ASC;
+      ORDER BY fc.is_primary DESC, c.name ASC;
     `, [id]);
 
-    // Notes, tasks, docs (as before)
     const { rows: notes } = await pool.query(`
       SELECT id, note_type, content, created_at
       FROM function_notes
@@ -136,7 +136,6 @@ router.get("/:id", async (req, res, next) => {
       ORDER BY uploaded_at DESC;
     `, [id]);
 
-    // All contacts for dropdown
     const { rows: contacts } = await pool.query(`
       SELECT id, name, email FROM contacts ORDER BY name ASC;
     `);
@@ -159,48 +158,144 @@ router.get("/:id", async (req, res, next) => {
 });
 
 /* =========================================================
-   🧭 3. CONTACT MANAGEMENT (multi-link logic)
+   🧭 3. CONTACT MANAGEMENT ROUTES
 ========================================================= */
 
-// Link existing contact
-router.post("/:id/link-contact", async (req, res, next) => {
+// Link existing contact ✅ now returns JSON instead of redirect
+router.post("/:id/link-contact", async (req, res) => {
   const { id } = req.params;
   const { contact_id } = req.body;
   try {
     await pool.query(`
-      INSERT INTO function_contacts (function_id, contact_id)
-      VALUES ($1, $2)
+      INSERT INTO function_contacts (function_id, contact_id, is_primary, created_at)
+      VALUES ($1, $2, false, NOW())
       ON CONFLICT DO NOTHING;
     `, [id, contact_id]);
-    res.redirect(`/functions/${id}`);
+    res.json({ success: true });
   } catch (err) {
-    console.error("Error linking contact:", err);
-    next(err);
+    console.error("❌ Error linking contact:", err);
+    res.status(500).json({ success: false });
   }
 });
 
 // Add new contact + link
-router.post("/:id/new-contact", async (req, res, next) => {
+router.post("/:id/new-contact", async (req, res) => {
   const { id } = req.params;
   const { name, email, phone, company } = req.body;
   try {
-    const { rows: [newContact] } = await pool.query(`
-      INSERT INTO contacts (id, name, email, phone, company, created_at)
-      VALUES (gen_random_uuid(), $1, $2, $3, $4, NOW())
-      RETURNING id;
-    `, [name, email, phone, company]);
-
-    await pool.query(`
-      INSERT INTO function_contacts (function_id, contact_id)
-      VALUES ($1, $2);
-    `, [id, newContact.id]);
-
-    res.redirect(`/functions/${id}`);
+    const { rows } = await pool.query(
+      `INSERT INTO contacts (id, name, email, phone, company, created_at)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, NOW())
+       RETURNING id;`,
+      [name, email, phone, company]
+    );
+    const contact_id = rows[0].id;
+    await pool.query(
+      `INSERT INTO function_contacts (function_id, contact_id, is_primary, created_at)
+       VALUES ($1, $2, false, NOW())`,
+      [id, contact_id]
+    );
+    res.json({ success: true, contact_id });
   } catch (err) {
-    console.error("Error adding new contact:", err);
-    next(err);
+    console.error("❌ Error adding contact:", err);
+    res.status(500).json({ success: false });
+  }
+});
+
+// Remove contact
+router.post("/:id/remove-contact", async (req, res) => {
+  const { id } = req.params;
+  const { contact_id } = req.body;
+  try {
+    await pool.query(`DELETE FROM function_contacts WHERE function_id=$1 AND contact_id=$2`, [id, contact_id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error removing contact:", err);
+    res.status(500).json({ success: false });
+  }
+});
+
+// Set primary
+router.post("/:id/set-primary", async (req, res) => {
+  const { id } = req.params;
+  const { contact_id } = req.body;
+  try {
+    await pool.query(`UPDATE function_contacts SET is_primary=false WHERE function_id=$1`, [id]);
+    await pool.query(`UPDATE function_contacts SET is_primary=true WHERE function_id=$1 AND contact_id=$2`, [id, contact_id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error setting primary:", err);
+    res.status(500).json({ success: false });
+  }
+});
+
+/* =========================================================
+   🧭 EDIT CONTACT DETAILS
+========================================================= */
+router.post("/contacts/:id/update", async (req, res) => {
+  const { id } = req.params;
+  const { name, email, phone, company } = req.body;
+
+  try {
+    await pool.query(
+      `UPDATE contacts
+       SET name = $1, email = $2, phone = $3, company = $4
+       WHERE id = $5`,
+      [name, email, phone, company, id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error updating contact:", err);
+    res.status(500).json({ success: false, message: "Error updating contact" });
+  }
+});
+
+/* =========================================================
+   🧭 DELETE CONTACT
+========================================================= */
+router.delete("/contacts/:id/delete", async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query(`DELETE FROM function_contacts WHERE contact_id = $1`, [id]);
+    await pool.query(`DELETE FROM contacts WHERE id = $1`, [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error deleting contact:", err);
+    res.status(500).json({ success: false, message: "Error deleting contact" });
+  }
+});
+
+/* =========================================================
+   🧭 GET SINGLE CONTACT (for View)
+========================================================= */
+router.get("/contacts/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, email, phone, company, created_at
+       FROM contacts WHERE id = $1`,
+      [id]
+    );
+    if (rows.length === 0) return res.status(404).json({ message: "Not found" });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error("❌ Error loading contact:", err);
+    res.status(500).json({ message: "Error loading contact" });
+  }
+});
+
+
+// Fetch all contacts (for search)
+router.get("/api/contacts", async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT id, name, email FROM contacts ORDER BY name ASC`);
+    res.json(rows);
+  } catch (err) {
+    console.error("❌ Error loading contacts:", err);
+    res.status(500).json({ message: "Error loading contacts" });
   }
 });
 
 module.exports = router;
+
 

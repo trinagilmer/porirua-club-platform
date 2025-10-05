@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('../partials/head', { title: 'Inbox' }) %>
+</head>
+<body>
+  <%- include('../partials/header', { active: 'inbox', user: user }) %>
+  <main class="main-content">
+    <h1>Inbox</h1>
+    <% if (!messages.length) { %>
+      <p>No messages yet. Connect Microsoft 365 to start syncing emails.</p>
+    <% } else { %>
+      <ul>
+        <% messages.forEach(m => { %>
+          <li><strong><%= m.subject %></strong> - <%= m.from %></li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </main>
+</body>
+</html>
