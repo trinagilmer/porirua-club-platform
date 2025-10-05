@@ -10,60 +10,72 @@
   <main class="main-content">
     <h1 style="color:var(--deep);margin-top:0;"><%= fn.event_name %></h1>
 
-    <div style="display:grid;grid-template-columns:280px 1fr;gap:24px;align-items:start;">
+<div style="display:grid;grid-template-columns:380px 1fr;gap:24px;align-items:start;">
 
-      <!-- 🧍‍♂️ CONTACT COLUMN -->
-      <div class="card">
-        <h3 style="margin-top:0;color:var(--deep);">Contact</h3>
+      <!-- 🧍 CONTACTS COLUMN -->
+<div class="card">
+  <h3 style="margin-top:0;color:var(--deep);">Contacts</h3>
 
-        <% if (fn.contact_name) { %>
-          <p><strong><%= fn.contact_name %></strong></p>
-          <p><%= fn.contact_company || '' %></p>
-          <p><a href="mailto:<%= fn.contact_email %>"><%= fn.contact_email %></a></p>
-          <p><%= fn.contact_phone %></p>
-        <% } else { %>
-          <p>No contact assigned yet.</p>
-        <% } %>
+  <!-- Contact List -->
+  <div id="contactInfo">
+    <% if (linkedContacts.length > 0) { %>
+      <table class="compact-table" style="width:100%;margin-bottom:10px;">
+        <thead>
+          <tr>
+            <th>Name</th><th>Email</th><th>Phone</th><th>Company</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% linkedContacts.forEach(c => { %>
+            <tr>
+              <td><strong><%= c.name %></strong></td>
+              <td><a href="mailto:<%= c.email %>"><%= c.email %></a></td>
+              <td><%= c.phone || '' %></td>
+              <td><%= c.company || '' %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } else { %>
+      <p>No contacts assigned yet.</p>
+    <% } %>
+  </div>
 
-        <form method="POST" action="/function/<%= fn.id %>/contact" style="margin-top:12px;">
-          <label>Select existing contact</label>
-          <select name="contact_id" style="width:100%;padding:6px;">
-            <option value="">— Select Contact —</option>
-            <% contacts.forEach(c => { %>
-              <option value="<%= c.id %>" <%= fn.contact_id === c.id ? 'selected' : '' %>>
-                <%= c.name %> (<%= c.email %>)
-              </option>
-            <% }) %>
-          </select>
-          <button class="btn" style="margin-top:8px;">Assign</button>
-        </form>
+  <!-- Assign Existing -->
+  <form id="assignContactForm" action="/functions/<%= fn.id %>/link-contact" method="POST" style="margin-top:12px;">
+    <label style="font-weight:600;">Link existing contact</label>
+    <select name="contact_id" style="width:100%;padding:6px;border-radius:6px;margin-top:4px;">
+      <option value="">— Select Contact —</option>
+      <% contacts.forEach(c => { %>
+        <option value="<%= c.id %>"><%= c.name %> (<%= c.email %>)</option>
+      <% }) %>
+    </select>
+    <button class="btn" style="margin-top:8px;" type="submit">Link</button>
+  </form>
 
-        <hr style="margin:16px 0;">
+  <!-- Add New Contact -->
+  <form action="/functions/<%= fn.id %>/new-contact" method="POST" style="margin-top:12px;background:#f4f6f8;padding:12px;border-radius:8px;">
+    <label style="font-weight:600;">Add new contact</label>
+    <input type="text" name="name" placeholder="Name" required style="width:100%;margin-bottom:6px;">
+    <input type="email" name="email" placeholder="Email" required style="width:100%;margin-bottom:6px;">
+    <input type="text" name="phone" placeholder="Phone" style="width:100%;margin-bottom:6px;">
+    <input type="text" name="company" placeholder="Company" style="width:100%;margin-bottom:10px;">
+    <button type="submit" class="btn">Add + Link</button>
+  </form>
+</div>
 
-        <form method="POST" action="/function/<%= fn.id %>/add-contact">
-          <h4 style="margin:0 0 6px;color:var(--deep);">Add New Contact</h4>
-          <input type="text" name="name" placeholder="Name" required>
-          <input type="email" name="email" placeholder="Email">
-          <input type="text" name="phone" placeholder="Phone">
-          <input type="text" name="company" placeholder="Company">
-          <button class="btn" style="margin-top:8px;">Add Contact</button>
-        </form>
-      </div>
-
-      <!-- 📋 MAIN EVENT COLUMN -->
+      <!-- 📋 MAIN FUNCTION DETAILS -->
       <div>
-
-        <!-- Event details -->
         <div class="card">
           <h3 style="margin-top:0;color:var(--deep);">Event Details</h3>
           <p><strong>Status:</strong> <%= fn.status %></p>
-          <p><strong>Date:</strong> <%= fn.event_date %> at <%= fn.event_time || 'TBC' %></p>
+          <p><strong>Date:</strong> <%= formatNZDate(fn.event_date) %> at <%= fn.event_time || 'TBC' %></p>
           <p><strong>Attendees:</strong> <%= fn.attendees || '—' %></p>
           <p><strong>Total:</strong> $<%= fn.totals_price || 0 %></p>
-          <p><strong>Room:</strong> <%= fn.room_id || '—' %></p>
+          <p><strong>Room:</strong> <%= fn.room_name || '—' %></p>
           <p><strong>Notes:</strong> <%= fn.notes || 'No notes yet' %></p>
 
-          <a href="/function/<%= fn.id %>/edit" class="btn">Edit Function</a>
+          <a href="/functions/<%= fn.id %>/edit" class="btn">Edit Function</a>
         </div>
 
         <!-- Tasks -->
@@ -88,7 +100,7 @@
           <% } else { %>
             <ul>
               <% notes.forEach(n => { %>
-                <li><strong><%= n.created_at.toISOString().split('T')[0] %>:</strong> <%= n.content %></li>
+                <li><strong><%= formatNZDate(n.created_at) %>:</strong> <%= n.content %></li>
               <% }) %>
             </ul>
           <% } %>
@@ -96,6 +108,104 @@
       </div>
     </div>
   </main>
+
+  <!-- 💡 AJAX Contact Scripts -->
+  <script>
+  const fnId = "<%= fn.id %>";
+
+  // Toggle Add Contact form
+  document.getElementById('showAddContact').addEventListener('click', e => {
+    e.preventDefault();
+    const form = document.getElementById('addContactForm');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  });
+
+  // Save new contact + auto assign
+  document.getElementById('saveNewContact').addEventListener('click', async () => {
+    const name = document.getElementById('newContactName').value.trim();
+    const email = document.getElementById('newContactEmail').value.trim();
+    const phone = document.getElementById('newContactPhone').value.trim();
+    const company = document.getElementById('newContactCompany').value.trim();
+
+    if (!name || !email) {
+      alert('Name and Email are required.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/functions/${fnId}/add-contact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, phone, company })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        const c = data.contact;
+
+        // Update dropdown + contact display
+        const select = document.getElementById('contactSelect');
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = `${c.name} (${c.email})`;
+        select.appendChild(opt);
+        select.value = c.id;
+
+        document.getElementById('contactInfo').innerHTML = `
+          <p><strong>${c.name}</strong></p>
+          <p>${c.company || ''}</p>
+          <p><a href="mailto:${c.email}">${c.email}</a></p>
+          <p>${c.phone || ''}</p>
+        `;
+
+        // Hide and clear form
+        document.getElementById('addContactForm').style.display = 'none';
+        document.getElementById('newContactName').value = '';
+        document.getElementById('newContactEmail').value = '';
+        document.getElementById('newContactPhone').value = '';
+        document.getElementById('newContactCompany').value = '';
+        alert('Contact added and assigned successfully');
+      } else {
+        alert(data.message || 'Error saving contact');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to add contact');
+    }
+  });
+
+  // Assign existing contact
+  document.getElementById('assignContactForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const contactId = document.getElementById('contactSelect').value;
+    if (!contactId) return alert('Please select a contact.');
+
+    try {
+      const res = await fetch(`/functions/${fnId}/assign-contact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact_id: contactId })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        const c = data.contact;
+        document.getElementById('contactInfo').innerHTML = `
+          <p><strong>${c.name}</strong></p>
+          <p>${c.company || ''}</p>
+          <p><a href="mailto:${c.email}">${c.email}</a></p>
+          <p>${c.phone || ''}</p>
+        `;
+        alert('Contact assigned successfully');
+      } else alert(data.message || 'Error updating contact');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to assign contact');
+    }
+  });
+  </script>
+
 </body>
 </html>
+
 

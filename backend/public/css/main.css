@@ -301,6 +301,107 @@ a { text-decoration: none; color: inherit; }
 .status-balance_due { background: #f3b94c; color: #1c1c1c; }
 .status-completed { background: #3ba55d; }
 .status-cancelled { background: #d9534f; }
+/* --- UI Refinements (Porirua Club Enhancements) --- */
+
+/* Cards: subtle lift + uniform shadow */
+.card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+/* Contacts Table Styling */
+.contact-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+.contact-table th {
+  background: var(--primary);
+  color: #fff;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  text-align: left;
+  text-transform: uppercase;
+}
+.contact-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #eee;
+  font-size: 0.95rem;
+}
+.contact-table tr:hover {
+  background: #f4f8fb;
+}
+
+/* Form polish */
+input[type="text"], input[type="email"], select {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+input[type="text"]:focus, input[type="email"]:focus, select:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(107,180,222,0.2);
+}
+
+/* Buttons refinement */
+.btn {
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+/* Table scroll behaviour fix for overflow */
+.table {
+  display: block;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary) #f0f0f0;
+}
+.table::-webkit-scrollbar {
+  height: 8px;
+}
+.table::-webkit-scrollbar-thumb {
+  background-color: var(--primary);
+  border-radius: 4px;
+}
+.table::-webkit-scrollbar-track {
+  background-color: #f0f0f0;
+}
+
+/* Compact KPI improvement */
+.kpi .value {
+  color: var(--deep);
+  letter-spacing: -0.5px;
+}
+
+/* Better spacing for main layout */
+.main-content {
+  max-width: 1400px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+/* Status badge polish */
+.status-badge {
+  border-radius: 8px;
+  padding: 4px 10px;
+  letter-spacing: 0.3px;
+}
+
+/* Responsive adjustment for detail grid */
+@media (max-width: 1000px) {
+  .main-content > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr;
+  }
+}
 
 
 

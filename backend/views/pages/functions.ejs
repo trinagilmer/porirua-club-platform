@@ -139,12 +139,20 @@
       <% events.forEach(e => { %>
         <tr>
           <!-- Event + Contact -->
-          <td>
-            <a href="/functions/<%= e.id %>" class="event-link"><%= e.event_name %></a><br>
-            <% if (e.contact_name) { %>
-              <span class="subtext"><%= e.contact_name %></span>
-            <% } %>
-          </td>
+      <td>
+  <a href="/functions/<%= e.id %>" class="event-link"><%= e.event_name %></a><br>
+
+  <% if (e.contact_name) { %>
+    <span class="subtext">
+      <%= e.contact_name %>
+      <% if (e.extra_contacts > 0) { %>
+        <span style="color:#888;"> +<%= e.extra_contacts %></span>
+      <% } %>
+    </span>
+  <% } else { %>
+    <span class="subtext" style="color:#999;">No contact</span>
+  <% } %>
+</td>
 
           <!-- Status with badge -->
           <td>
