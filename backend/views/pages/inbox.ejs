@@ -2,20 +2,127 @@
 <html lang="en">
 <head>
   <%- include('../partials/head', { title: 'Inbox' }) %>
+  <style>
+    /* Extra inbox-specific styles layered on top of main.css */
+    .inbox-list { display: flex; flex-direction: column; gap: 10px; }
+    .message-card {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .message-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+      background: #fcfcfc;
+    }
+    .msg-left { flex: 1; overflow: hidden; }
+    .msg-from { font-weight: 600; color: #333; margin-bottom: 4px; }
+    .msg-subject { color: #0063B1; font-size: 0.95rem; font-weight: 500; }
+    .msg-preview { color: #666; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .msg-date { font-size: 0.8rem; color: #777; text-align: right; min-width: 150px; }
+  </style>
 </head>
 <body>
   <%- include('../partials/header', { active: 'inbox', user: user }) %>
+
   <main class="main-content">
-    <h1>Inbox</h1>
+    <div class="function-header">
+      <h1>📨 Inbox</h1>
+    </div>
+
+    <% if (error) { %>
+      <div class="card" style="background:#ffecec; color:#c00; padding:10px; margin-bottom:20px;">
+        <strong><%= error %></strong>
+      </div>
+    <% } %>
+
     <% if (!messages.length) { %>
-      <p>No messages yet. Connect Microsoft 365 to start syncing emails.</p>
+      <div class="card"><p>No messages found.</p></div>
     <% } else { %>
-      <ul>
-        <% messages.forEach(m => { %>
-          <li><strong><%= m.subject %></strong> - <%= m.from %></li>
+      <div class="inbox-list">
+        <% messages.forEach((m, i) => { %>
+          <div class="message-card" data-index="<%= i %>">
+            <div class="msg-left">
+              <div class="msg-from"><%= m.from?.emailAddress?.name || 'Unknown Sender' %></div>
+              <div class="msg-subject"><%= m.subject || '(No Subject)' %></div>
+              <div class="msg-preview"><%= m.bodyPreview?.slice(0, 140) || '' %></div>
+            </div>
+            <div class="msg-date"><%= new Date(m.receivedDateTime).toLocaleString() %></div>
+          </div>
         <% }) %>
-      </ul>
+      </div>
     <% } %>
   </main>
+
+  <!-- Message Modal -->
+  <div id="messageModal" class="modal hidden">
+    <div class="modal-content card">
+      <h2 id="modalSubject"></h2>
+      <p id="modalFrom" style="font-weight:600; margin-bottom:10px;"></p>
+      <p id="modalDate" style="color:#777; font-size:0.9rem; margin-bottom:20px;"></p>
+      <div id="modalBody" style="white-space:pre-wrap; line-height:1.4;"></div>
+      <div style="margin-top:20px; text-align:right;">
+        <button class="btn ghost" id="closeModalBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Frontend modal logic
+    const messages = <%- JSON.stringify(messages) %>;
+    const modal = document.getElementById('messageModal');
+    const closeBtn = document.getElementById('closeModalBtn');
+    const subjectEl = document.getElementById('modalSubject');
+    const fromEl = document.getElementById('modalFrom');
+    const dateEl = document.getElementById('modalDate');
+    const bodyEl = document.getElementById('modalBody');
+
+    document.querySelectorAll('.message-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const msg = messages[card.dataset.index];
+        subjectEl.textContent = msg.subject || '(No Subject)';
+        fromEl.textContent = msg.from?.emailAddress?.name + ' <' + msg.from?.emailAddress?.address + '>';
+        dateEl.textContent = new Date(msg.receivedDateTime).toLocaleString();
+        bodyEl.textContent = msg.bodyPreview || '(Message preview only)';
+        modal.classList.remove('hidden');
+      });
+    });
+
+    closeBtn.addEventListener('click', () => {
+      modal.classList.add('hidden');
+    });
+  </script>
+
+  <style>
+    /* Simple modal styling consistent with main.css aesthetic */
+    .modal.hidden { display: none; }
+    .modal {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+  </style>
 </body>
 </html>
+
+
