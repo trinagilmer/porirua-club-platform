@@ -89,12 +89,13 @@ router.get("/", async (req, res, next) => {
 });
 
 /* =========================================================
-   🧭 2. FUNCTION DETAIL VIEW (FIXED + UPGRADED)
+   🧭 2. FUNCTION DETAIL VIEW (with Unified Communications)
 ========================================================= */
 router.get("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
-    const activeTab = req.query.tab || "info"; // ✅ default tab
+    const activeTab = req.query.tab || "info";
+
     const { rows: fnRows } = await pool.query(`
       SELECT f.*, r.name AS room_name, u.name AS owner_name
       FROM functions f
@@ -102,56 +103,48 @@ router.get("/:id", async (req, res, next) => {
       LEFT JOIN users u ON f.owner_id = u.id
       WHERE f.id = $1;
     `, [id]);
-
     const fn = fnRows[0];
     if (!fn) return res.status(404).send("Function not found");
 
-    // Load related data
-    const { rows: linkedContacts } = await pool.query(`
-      SELECT c.id, c.name, c.email, c.phone, c.company, fc.is_primary
-      FROM function_contacts fc
-      JOIN contacts c ON fc.contact_id = c.id
-      WHERE fc.function_id = $1
-      ORDER BY fc.is_primary DESC, c.name ASC;
-    `, [id]);
-
-    const { rows: notes } = await pool.query(`
-      SELECT id, note_type, content, created_at
-      FROM function_notes
-      WHERE function_id = $1
-      ORDER BY created_at DESC;
-    `, [id]);
-
-    const { rows: tasks } = await pool.query(`
-      SELECT t.id, t.title, t.status, t.due_at, u.name AS assignee
-      FROM tasks t
-      LEFT JOIN users u ON t.assigned_user_id = u.id
-      WHERE t.function_id = $1
-      ORDER BY t.due_at ASC;
-    `, [id]);
-
-    const { rows: docs } = await pool.query(`
-      SELECT id, file_name, file_url, uploaded_at
-      FROM documents
-      WHERE function_id = $1
-      ORDER BY uploaded_at DESC;
-    `, [id]);
-
-    const { rows: contacts } = await pool.query(`
-      SELECT id, name, email FROM contacts ORDER BY name ASC;
-    `);
+    const [linkedContacts, notes, tasks, communications] = await Promise.all([
+      pool.query(`
+        SELECT c.id, c.name, c.email, c.phone, c.company, fc.is_primary
+        FROM function_contacts fc
+        JOIN contacts c ON fc.contact_id = c.id
+        WHERE fc.function_id = $1
+        ORDER BY fc.is_primary DESC, c.name ASC;
+      `, [id]),
+      pool.query(`
+        SELECT id, note_type, content, created_at
+        FROM function_notes
+        WHERE function_id = $1
+        ORDER BY created_at DESC;
+      `, [id]),
+      pool.query(`
+        SELECT t.id, t.title, t.status, t.due_at, u.name AS assignee
+        FROM tasks t
+        LEFT JOIN users u ON t.assigned_user_id = u.id
+        WHERE t.function_id = $1
+        ORDER BY t.due_at ASC;
+      `, [id]),
+      pool.query(`
+        SELECT entry_type, entry_id, message_type, subject, body, from_email, to_email, entry_date
+        FROM unified_communications
+        WHERE related_function = $1
+        ORDER BY entry_date DESC;
+      `, [id])
+    ]);
 
     res.render("pages/function-detail", {
       title: fn.event_name,
       active: "functions",
       user: req.session.user || null,
       fn,
-      notes,
-      tasks,
-      docs,
-      contacts,
-      linkedContacts,
-      activeTab, // ✅ fixes your error
+      notes: notes.rows,
+      tasks: tasks.rows,
+      linkedContacts: linkedContacts.rows,
+      communications: communications.rows,
+      activeTab,
     });
   } catch (err) {
     console.error("❌ Error loading function detail:", err);
@@ -159,52 +152,60 @@ router.get("/:id", async (req, res, next) => {
   }
 });
 
+
 /* =========================================================
-   🧭  FUNCTION COMMUNICATIONS TIMELINE
+   💬 4. FUNCTION COMMUNICATIONS VIEW
 ========================================================= */
 router.get("/:id/communications", async (req, res, next) => {
   try {
     const { id } = req.params;
+    const activeTab = "communications";
 
-    // Fetch all communications for this function
+    // Fetch function info (for title, context)
+    const { rows: fnRows } = await pool.query(`
+      SELECT f.id, f.event_name, u.name AS owner_name
+      FROM functions f
+      LEFT JOIN users u ON f.owner_id = u.id
+      WHERE f.id = $1;
+    `, [id]);
+    const fn = fnRows[0];
+    if (!fn) return res.status(404).send("Function not found");
+
+    // Fetch unified communications from view
     const { rows: comms } = await pool.query(`
-      SELECT entry_type, entry_id, subject, body, from_email, to_email,
-             message_type, entry_date, created_at
+      SELECT entry_type, entry_id, message_type, subject, body,
+             from_email, to_email, created_by, entry_date
       FROM unified_communications
       WHERE related_function = $1
       ORDER BY entry_date DESC;
     `, [id]);
 
-    // Assign grouping category
-    const groupedArray = comms.map(item => {
-      if (item.message_type === 'auto') return { ...item, group: 'Automated Messages' };
-      if (['inbound', 'outbound'].includes(item.message_type)) return { ...item, group: 'Messages' };
-      if (item.entry_type === 'note') return { ...item, group: 'Notes' };
-      return { ...item, group: 'Other' };
-    });
-
-    // Fetch function info for header
-    const { rows: fnRows } = await pool.query(`
-      SELECT id, event_name, status, event_date
-      FROM functions
-      WHERE id = $1;
-    `, [id]);
-
-    const fn = fnRows[0] || { id, event_name: `Function #${id}` };
+    // Group entries by date
+    const grouped = {};
+    for (const c of comms) {
+      const date = new Date(c.entry_date).toLocaleDateString("en-NZ", {
+        year: "numeric",
+        month: "short",
+        day: "numeric"
+      });
+      if (!grouped[date]) grouped[date] = [];
+      grouped[date].push(c);
+    }
 
     res.render("pages/function-communications", {
-      title: `${fn.event_name} — Communications`,
+      title: `Communications — ${fn.event_name}`,
       active: "functions",
+      activeTab,
       user: req.session.user || null,
       fn,
-      groupedArray
+      grouped,
     });
-
   } catch (err) {
     console.error("❌ Error loading communications:", err);
     next(err);
   }
 });
+
 
 
 /* =========================================================
