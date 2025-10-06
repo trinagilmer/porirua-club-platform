@@ -4,18 +4,22 @@
       <img src="/img/pc-logo.png" alt="Porirua Club" class="logo-img" />
     </a>
     <nav class="nav-links">
-  <a href="/functions" class="<%= active==='functions'?'active':'' %>">Functions</a>
-  <a href="/dashboard/restaurant" class="<%= active==='restaurant'?'active':'' %>">Restaurant</a>
-  <a href="/dashboard/events" class="<%= active==='events'?'active':'' %>">Club Events</a>
-  <a href="/inbox" class="<%= active==='inbox'?'active':'' %>">Inbox</a>
-  <a href="/calendar" class="<%= active==='calendar'?'active':'' %>">Calendar</a>
-  <a href="/tasks" class="<%= active==='tasks'?'active':'' %>">Tasks</a>
-  <a href="/reports" class="<%= active==='reports'?'active':'' %>">Reports</a>
-  <a href="/settings" class="<%= active==='settings'?'active':'' %>">Settings</a>
-</nav>
-
+      <a href="/functions" class="<%= active==='functions'?'active':'' %>">Functions</a>
+      <a href="/dashboard/restaurant" class="<%= active==='restaurant'?'active':'' %>">Restaurant</a>
+      <a href="/dashboard/events" class="<%= active==='events'?'active':'' %>">Club Events</a>
+      <a href="/inbox" class="<%= active==='inbox'?'active':'' %>">Inbox</a>
+      <a href="/calendar" class="<%= active==='calendar'?'active':'' %>">Calendar</a>
+      <a href="/tasks" class="<%= active==='tasks'?'active':'' %>">Tasks</a>
+      <a href="/reports" class="<%= active==='reports'?'active':'' %>">Reports</a>
+      <a href="/settings" class="<%= active==='settings'?'active':'' %>">Settings</a>
+    </nav>
   </div>
+
   <div class="header-right">
+    <!-- 🌗 Theme Toggle -->
+    <button id="themeToggle" class="btn ghost small" title="Toggle Dark Mode" aria-label="Toggle Theme">🌙</button>
+
+    <!-- 👤 User Profile -->
     <a href="/profile" class="profile-icon" title="My Profile">
       <span class="user-circle">
         <%= user && user.name ? user.name.charAt(0).toUpperCase() : 'P' %>
@@ -23,4 +27,8 @@
     </a>
   </div>
 </header>
+
+<!-- Global UI Script (Dark Mode, Toast, Loader) -->
+<script src="/js/ui.js"></script>
+
 

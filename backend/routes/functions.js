@@ -89,12 +89,12 @@ router.get("/", async (req, res, next) => {
 });
 
 /* =========================================================
-   🧭 2. FUNCTION DETAIL VIEW
+   🧭 2. FUNCTION DETAIL VIEW (FIXED + UPGRADED)
 ========================================================= */
 router.get("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
-
+    const activeTab = req.query.tab || "info"; // ✅ default tab
     const { rows: fnRows } = await pool.query(`
       SELECT f.*, r.name AS room_name, u.name AS owner_name
       FROM functions f
@@ -106,6 +106,7 @@ router.get("/:id", async (req, res, next) => {
     const fn = fnRows[0];
     if (!fn) return res.status(404).send("Function not found");
 
+    // Load related data
     const { rows: linkedContacts } = await pool.query(`
       SELECT c.id, c.name, c.email, c.phone, c.company, fc.is_primary
       FROM function_contacts fc
@@ -150,12 +151,14 @@ router.get("/:id", async (req, res, next) => {
       docs,
       contacts,
       linkedContacts,
+      activeTab, // ✅ fixes your error
     });
   } catch (err) {
     console.error("❌ Error loading function detail:", err);
     next(err);
   }
 });
+
 /* =========================================================
    🧭  FUNCTION COMMUNICATIONS TIMELINE
 ========================================================= */
