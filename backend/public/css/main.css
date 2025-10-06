@@ -1,5 +1,8 @@
-/* --- Core Palette --- */
+/* =========================================================
+   🌈 1. CORE VARIABLES & COLOR SYSTEM
+========================================================= */
 :root {
+  /* Base Palette */
   --primary: #6bb4de;
   --accent: #85dbb8;
   --deep: #317258;
@@ -7,76 +10,90 @@
   --text: #222;
   --bg: #f9fafb;
   --white: #fff;
+
+  /* Semantic Colors */
+  --success: #3ba55d;
+  --warning: #f3b94c;
+  --danger: #d9534f;
+  --info: #6bb4de;
+  --muted: #888;
+
+  /* Shadows & Radius */
   --radius: 10px;
+  --shadow-sm: 0 2px 4px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-lg: 0 6px 18px rgba(0,0,0,0.12);
+
+  /* Transitions & Spacing */
+  --anim-fast: 0.2s;
+  --anim-slow: 0.4s;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 40px;
 }
 
-/* --- Global --- */
+/* 🌙 DARK THEME VARIANTS */
+body.dark-theme {
+  --bg: #121212;
+  --text: #eaeaea;
+  --white: #1e1e1e;
+  --primary: #58a6ff;
+  --accent: #7dd3a4;
+  --deep: #2d6a4f;
+  --muted: #aaa;
+  --shadow-sm: 0 2px 4px rgba(255,255,255,0.05);
+  --shadow-md: 0 4px 12px rgba(255,255,255,0.08);
+  --shadow-lg: 0 6px 18px rgba(255,255,255,0.12);
+}
+
+/* =========================================================
+   🧱 2. BASE ELEMENTS
+========================================================= */
 body {
   margin: 0;
   font-family: "Inter", "Segoe UI", sans-serif;
   background: var(--bg);
   color: var(--text);
+  transition: background var(--anim-slow) ease, color var(--anim-slow) ease;
 }
+a {
+  text-decoration: none;
+  color: inherit;
+  transition: color var(--anim-fast) ease;
+}
+a:hover { color: var(--primary); }
 
-a { text-decoration: none; color: inherit; }
-
-/* --- Header --- */
+/* =========================================================
+   🧭 3. LAYOUT: HEADER, MAIN, GRID
+========================================================= */
 .main-header {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: 0; left: 0; right: 0;
   height: 72px;
-  padding: 0 32px;
-  background: #121212; 
+  padding: 0 var(--space-md);
+  background: var(--dark);
   color: #fff;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 24px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  box-shadow: var(--shadow-md);
   z-index: 1000;
+  transition: background var(--anim-slow);
 }
-
-.header-left {
- display: flex;
-  align-items: center;
-  gap: 32px;
-}
-
-.logo-link {
-  display: flex;
-  align-items: center;
-  margin-right: 32px;
-}
-
-.logo-img {
-  height: 40px;
-  width: auto;
-}
-
+.header-left { display: flex; align-items: center; gap: 32px; }
+.logo-link { display: flex; align-items: center; margin-right: 32px; }
+.logo-img { height: 40px; width: auto; }
 .nav-links a {
   margin-right: 18px;
   padding: 8px 0;
   color: #ccc;
   font-weight: 500;
-  transition: color .2s ease;
 }
-
-.nav-links a:hover {
-  color: var(--accent);
-  transition: color 0.2s ease;
-}
-
-.nav-links a.active {
-  color: var(--accent);
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-}
-
+.nav-links a:hover { color: var(--accent); }
+.nav-links a.active { color: var(--accent); }
+.header-right { display: flex; align-items: center; gap: 12px; }
 .user-circle {
   background: var(--accent);
   color: var(--deep);
@@ -86,351 +103,82 @@ a { text-decoration: none; color: inherit; }
   font-size: 1rem;
 }
 
-/* --- Main Layout --- */
 .main-content {
-  padding: 96px 24px 40px; /* top padding leaves room for fixed header */
+  padding: 96px var(--space-lg) 40px;
   max-width: 1400px;
   margin: auto;
+  transition: background var(--anim-slow);
 }
 
-/* --- KPI + Cards --- */
-.kpi-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit,minmax(200px,1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-}
+/* =========================================================
+   💳 4. COMPONENTS
+========================================================= */
 
-.kpi-card {
-  background: var(--white);
-  border-radius: var(--radius);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  padding: 16px 20px;
-  border-left: 5px solid var(--primary);
-  transition: transform .2s ease;
-}
-
-.kpi-card:hover { transform: translateY(-2px); }
-
-.kpi-label { color:#666; font-size:.9rem; }
-.kpi-value { font-size:1.6rem; font-weight:600; color:var(--deep); }
-
+/* --- Cards --- */
 .card {
   background: var(--white);
   border-radius: var(--radius);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  box-shadow: var(--shadow-sm);
   padding: 20px;
   margin-bottom: 24px;
+  transition: all var(--anim-fast) ease;
 }
-
-/* --- Tables --- */
-.table {
-  width:100%;
-  overflow-x: auto;
-  display: block;
-  border-collapse:collapse;
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
 }
-.table th, .table td {
-  padding: 12px 16px;
-  white-space: nowrap;
-}
-.table td {
-    font-size: 0.95rem;
-}
-.table th {
-   background: var(--deep);
-  font-weight: 600;
-  background: var(--primary);
-  color:#fff;
-  text-align:left;
-}
-.table tr:hover { background:#f4f8fb; }
 
 /* --- Buttons --- */
 .btn {
   background: var(--primary);
-  color:#fff;
-  padding:8px 14px;
-  border-radius:6px;
-  border:none;
-  cursor:pointer;
-  text-decoration:none;
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all var(--anim-fast) ease;
 }
-.btn:hover { background: var(--deep); }
+.btn:hover { background: var(--deep); transform: translateY(-1px); }
 .btn.ghost {
-  background:transparent;
-  border:1px solid var(--primary);
-  color:var(--primary);
-}
-.btn.ghost:hover { background:var(--primary); color:#fff; }
-/* --- Status Bar --- */
-.status-bar {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  background: #fff;
-  border-radius: var(--radius);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  padding: 10px 16px;
-  margin-bottom: 24px;
-}
-
-.status-bar .filter {
-  margin-right: 12px;
-  padding: 6px 12px;
-  border-radius: 6px;
-  background: #f0f0f0;
-  color: var(--deep);
-}
-
-.status-bar .filter.active {
-  background: var(--primary);
-  color: #fff;
-  font-weight: 600;
-}
-
-.status-bar .right {
-  margin-left: auto;
-  display: flex;
-  gap: 10px;
-}
-
-.contact-icon {
-  width: 32px;
-  height: 32px;
-  background: var(--accent);
-  border-radius: 50%;
-  color: var(--deep);
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-/* --- Responsive Fixes --- */
-@media (min-width: 1400px) {
-  .main-content {
-    max-width: 1200px;
-  }
-}
-
-@media (max-width: 1200px) {
-  .main-content {
-    padding: 96px 16px 40px;
-  }
-
-  .nav-links a {
-    margin-right: 12px;
-  }
-}
-
-@media (max-width: 900px) {
-  .nav-links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .nav-links a {
-    font-size: 0.9rem;
-  }
-
-  .logo-img {
-    height: 32px;
-  }
-}
-/* Compact Table Styling */
-.compact-table td {
-  padding: 8px 10px;
-  vertical-align: middle;
-  line-height: 1.3;
-}
-
-.event-link {
+  background: transparent;
+  border: 1px solid var(--primary);
   color: var(--primary);
-  font-weight: 600;
 }
+.btn.ghost:hover { background: var(--primary); color: #fff; }
+.btn.small { padding: 4px 8px; font-size: 0.85rem; }
 
-.subtext {
-  font-size: 0.85rem;
-  color: #666;
-}
-
-.btn.small {
-  padding: 4px 8px;
-  font-size: 0.85rem;
-}
-/* Compact Table Improvements */
-.compact-table td {
-  padding: 8px 10px;
-  vertical-align: middle;
-  line-height: 1.3;
-}
-
-.event-link {
-  color: var(--primary);
-  font-weight: 600;
-}
-
-.subtext {
-  font-size: 0.85rem;
-  color: #666;
-}
-
-/* Button Size */
-.btn.small {
-  padding: 4px 8px;
-  font-size: 0.85rem;
-}
-
-/* Status Badges */
-.status-badge {
-  display: inline-block;
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: capitalize;
-  color: #fff;
-}
-
-/* Status Colors */
-.status-lead { background: #6bb4de; }
-.status-qualified { background: #85dbb8; color: #1c1c1c; }
-.status-confirmed { background: #317258; }
-.status-balance_due { background: #f3b94c; color: #1c1c1c; }
-.status-completed { background: #3ba55d; }
-.status-cancelled { background: #d9534f; }
-/* --- UI Refinements (Porirua Club Enhancements) --- */
-
-/* Cards: subtle lift + uniform shadow */
-.card {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-}
-
-/* Contacts Table Styling */
-.contact-table {
+/* --- Tables --- */
+.table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 8px;
-}
-.contact-table th {
-  background: var(--primary);
-  color: #fff;
-  padding: 8px 10px;
-  font-size: 0.85rem;
-  text-align: left;
-  text-transform: uppercase;
-}
-.contact-table td {
-  padding: 8px 10px;
-  border-bottom: 1px solid #eee;
-  font-size: 0.95rem;
-}
-.contact-table tr:hover {
-  background: #f4f8fb;
-}
-
-/* Form polish */
-input[type="text"], input[type="email"], select {
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  padding: 6px 8px;
-  font-family: inherit;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-input[type="text"]:focus, input[type="email"]:focus, select:focus {
-  border-color: var(--primary);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(107,180,222,0.2);
-}
-
-/* Buttons refinement */
-.btn {
-  font-weight: 600;
-  transition: all 0.2s ease;
-}
-.btn:hover {
-  transform: translateY(-1px);
-}
-
-/* Table scroll behaviour fix for overflow */
-.table {
-  display: block;
   overflow-x: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--primary) #f0f0f0;
 }
-.table::-webkit-scrollbar {
-  height: 8px;
+.table th, .table td {
+  padding: 10px 14px;
+  text-align: left;
+  white-space: nowrap;
 }
-.table::-webkit-scrollbar-thumb {
-  background-color: var(--primary);
-  border-radius: 4px;
+.table th {
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
 }
-.table::-webkit-scrollbar-track {
-  background-color: #f0f0f0;
-}
+.table tr:hover { background: #f4f8fb; transition: background var(--anim-fast); }
 
-/* Compact KPI improvement */
-.kpi .value {
-  color: var(--deep);
-  letter-spacing: -0.5px;
-}
-
-/* Better spacing for main layout */
-.main-content {
-  max-width: 1400px;
-  padding-left: 40px;
-  padding-right: 40px;
-}
-
-/* Status badge polish */
-.status-badge {
-  border-radius: 8px;
-  padding: 4px 10px;
-  letter-spacing: 0.3px;
-}
-
-/* Responsive adjustment for detail grid */
-@media (max-width: 1000px) {
-  .main-content > div[style*="grid-template-columns"] {
-    grid-template-columns: 1fr;
-  }
-}
-/* ===========================
-   Function Detail Styling
-=========================== */
-.function-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-.function-title {
-  color: var(--deep);
-  margin: 0;
-}
-.function-actions {
-  display: flex;
-  gap: 10px;
-}
-
-/* Tabs Bar */
+/* --- Tabs --- */
 .tabs-bar {
   position: sticky;
   top: 72px;
-  z-index: 50;
   display: flex;
   gap: 16px;
   background: var(--bg);
   border-bottom: 2px solid #e0e0e0;
   padding: 8px 4px;
   margin-bottom: 20px;
+  z-index: 50;
 }
 .tabs-bar a {
   padding: 8px 14px;
@@ -438,7 +186,7 @@ input[type="text"]:focus, input[type="email"]:focus, select:focus {
   background: #f1f1f1;
   color: var(--deep);
   font-weight: 500;
-  transition: all 0.2s ease;
+  transition: all var(--anim-fast);
 }
 .tabs-bar a.active {
   background: var(--white);
@@ -447,386 +195,145 @@ input[type="text"]:focus, input[type="email"]:focus, select:focus {
   color: var(--primary);
   font-weight: 600;
 }
-.tabs-bar a:hover {
-  background: #eaf6fc;
-  color: var(--primary);
-}
+.tabs-bar a:hover { background: #eaf6fc; color: var(--primary); }
 
-/* Layout */
-.function-layout {
-  display: grid;
-  grid-template-columns: 380px 1fr;
-  gap: 24px;
-  align-items: start;
-}
-@media (max-width: 1000px) {
-  .function-layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Panels */
-.contact-panel {
-  min-width: 360px;
-}
-.detail-panel {
-  width: 100%;
-}
-.function-section h3 {
-  color: var(--deep);
-  margin-top: 0;
-}
-
-/* Forms */
-.function-form {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 12px;
-}
-.function-form input, 
-.function-form select {
-  width: 100%;
-  padding: 8px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  font-family: inherit;
-}
-.function-form button {
-  align-self: flex-start;
-}
-
-/* Tables */
-.contact-table th {
-  background: var(--primary);
-  color: #fff;
-  font-size: 0.85rem;
-  text-align: left;
-  padding: 8px 10px;
-}
-.contact-table td {
-  padding: 8px 10px;
-  border-bottom: 1px solid #eee;
-}
-.contact-table tr:hover {
-  background: #f4f8fb;
-}
-/* ===============================
-   CONTACT CARD LAYOUT
-=============================== */
-.contact-card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.contact-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--white);
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 10px 14px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-.contact-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(0,0,0,0.07);
-}
-
-.contact-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--primary);
-  color: #fff;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 12px;
-  flex-shrink: 0;
-}
-
-.contact-details {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.contact-name {
-  color: var(--deep);
-  font-size: 1rem;
-  font-weight: 600;
-}
-.contact-email a {
-  color: var(--primary);
-  text-decoration: none;
-  font-size: 0.9rem;
-}
-.contact-email a:hover {
-  text-decoration: underline;
-}
-.contact-phone {
-  font-size: 0.9rem;
-  color: #555;
-}
-
-.contact-actions {
-  margin-left: 8px;
-  position: relative;
-}
-.menu-btn {
-  background: none;
-  border: none;
-  font-size: 1.2rem;
-  cursor: pointer;
-  color: #666;
-}
-.menu-btn:hover {
-  color: var(--primary);
-}
-
-/* Add Contact Button */
-.add-contact-btn {
-  background: var(--accent);
-  color: var(--deep);
-  font-weight: 600;
-  width: 100%;
-  margin-top: 6px;
-}
-.add-contact-btn:hover {
-  background: var(--deep);
-  color: #fff;
-}
-
-/* Slide-in Edit Panel */
-.contact-edit-panel {
+/* --- Toast Notifications --- */
+.toast {
   position: fixed;
-  top: 0;
-  right: 0;
-  height: 100%;
-  width: 360px;
-  background: var(--white);
-  box-shadow: -2px 0 12px rgba(0,0,0,0.2);
-  padding: 24px;
-  z-index: 5000;
-  transform: translateX(100%);
-  transition: transform 0.3s ease;
-  visibility: hidden; /* stays in DOM, but invisible */
-  opacity: 0;
-}
-
-.contact-edit-panel.show {
-  transform: translateX(0);
-  visibility: visible;
-  opacity: 1;
-}
-
-
-
-/* Slide-in Add Contact Panel (reuse same animation) */
-#contactAddPanel {
-  background: var(--white);
-  border-left: 4px solid var(--primary);
-}
-#contactAddPanel.show {
-  transform: translateX(0);
-}
-
-/* Floating Add Button inside contact column */
-.add-contact-fab {
-  background: var(--primary);
+  bottom: 20px;
+  right: 20px;
+  background: var(--deep);
   color: #fff;
-  border: none;
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
-  font-size: 2rem;
-  line-height: 1;
-  cursor: pointer;
-  margin: 16px auto 0;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all var(--anim-slow);
+  z-index: 2000;
+}
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+.toast.success { background: var(--success); }
+.toast.warning { background: var(--warning); color: #1c1c1c; }
+.toast.error { background: var(--danger); }
+
+/* --- Loading Overlay --- */
+.loading-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(255,255,255,0.8);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  z-index: 3000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--anim-slow);
 }
-.add-contact-fab:hover {
-  background: var(--deep);
-  transform: scale(1.05);
+.loading-overlay.show {
+  opacity: 1;
+  visibility: visible;
 }
-.primary-badge {
-  color: #f8b400;
-  font-size: 1.1rem;
-  margin-left: 6px;
-  vertical-align: middle;
+.loading-overlay::after {
+  content: "";
+  width: 48px; height: 48px;
+  border: 4px solid var(--primary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-.contact-card.primary {
-  border-left: 4px solid #f8b400;
-  background: #fff8e5;
-}
-
-.contact-card.primary:hover {
-  background: #fff4d1;
-}
-
-
-.menu-dropdown {
-  position: absolute;
-  top: 28px;
-  right: 0;
+/* =========================================================
+   💬 5. COMMUNICATIONS PANEL
+========================================================= */
+.communications-panel {
   background: var(--white);
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 20px;
+}
+.comm-controls {
   display: flex;
-  flex-direction: column;
-  min-width: 160px;
-  z-index: 100;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 1rem;
 }
-.menu-dropdown .menu-item {
-  padding: 8px 12px;
-  text-align: left;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: var(--deep);
-}
-.menu-dropdown .menu-item:hover {
-  background: #f4f6f8;
-}
-
-/* Keep this for hiding dropdown menus, not panels */
-.hidden {
-  display: none;
-}
-/* Ensure contact panel doesn't stretch weirdly */
-.contact-panel {
-  align-self: start;
-  position: relative;
-}
-
-/* Prevent dropdowns from pushing layout */
-.contact-actions {
-  position: relative;
-}
-
-/* Make sure hidden menus really vanish */
-.menu-dropdown.hidden {
-  display: none !important;
-}
-/* Add/Edit Contact Shared Panel */
-.contact-mode-switch {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-.mode-btn {
-  flex: 1;
-  background: #f4f6f8;
-  border: 1px solid #ddd;
+.comm-controls input,
+.comm-controls select {
+  border: 1px solid #ccc;
   border-radius: 6px;
   padding: 6px 10px;
-  cursor: pointer;
-  font-weight: 500;
+  font-size: 0.95rem;
 }
-.mode-btn.active {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
+.comm-controls input { flex: 1; }
+.comm-group {
+  margin-bottom: 1.5rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all var(--anim-fast);
 }
-
-/* Overlay */
-.panel-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0,0,0,0.3);
-  z-index: 4000;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.3s ease;
-}
-.panel-overlay.show {
-  opacity: 1;
-  visibility: visible;
-}
-/* ===============================
-   CONTACT PANEL ENHANCEMENTS
-=============================== */
-.contact-panel-tabs {
+.comm-group-header {
+  background: #f6f6f6;
+  padding: 10px 14px;
   display: flex;
-  gap: 6px;
-  margin-bottom: 12px;
-}
-.tab-btn {
-  flex: 1;
-  padding: 8px;
-  border: 1px solid #ccc;
-  background: #f7f7f7;
-  border-radius: 6px;
-  font-weight: 600;
+  justify-content: space-between;
   cursor: pointer;
-  transition: background 0.2s ease;
+  font-weight: 600;
+  border-bottom: 1px solid #e0e0e0;
+  transition: background var(--anim-fast);
 }
-.tab-btn.active {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
-}
-.tab-btn:hover {
-  background: #eaf6fc;
-  border-color: var(--primary);
-}
+.comm-group-header:hover { background: #eaf6fc; color: var(--primary); }
+.comm-group-body.collapsed { display: none; }
 
-.contact-search {
-  width: 100%;
-  padding: 8px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  margin-bottom: 8px;
+/* =========================================================
+   🧩 6. UTILITIES
+========================================================= */
+.m-0 { margin: 0; }
+.mb-1 { margin-bottom: 4px; }
+.mb-2 { margin-bottom: 8px; }
+.mb-3 { margin-bottom: 16px; }
+.gap-1 { gap: 4px; }
+.gap-2 { gap: 8px; }
+.text-muted { color: var(--muted); }
+.text-primary { color: var(--primary); }
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
-
-.contact-dropdown {
-  width: 100%;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  height: 180px;
-  overflow-y: auto;
-  font-family: inherit;
-  font-size: 0.9rem;
+.divider {
+  border-top: 1px solid #e0e0e0;
+  margin: 20px 0;
 }
-
-.contact-dropdown option {
-  padding: 6px 8px;
-  border-bottom: 1px solid #eee;
-}
-.contact-dropdown option:hover {
-  background: #eaf6fc;
-}
-
-.panel-overlay {
+.sticky-actions {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0,0,0,0.3);
-  z-index: 4000;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.3s ease;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  gap: 10px;
+  z-index: 1000;
 }
-.panel-overlay.show {
-  opacity: 1;
-  visibility: visible;
+
+/* =========================================================
+   📱 7. RESPONSIVE
+========================================================= */
+@media (max-width: 1200px) {
+  .main-content { padding: 96px 16px 40px; }
+  .nav-links a { margin-right: 12px; }
 }
+@media (max-width: 900px) {
+  .nav-links { flex-wrap: wrap; gap: 8px; }
+  .nav-links a { font-size: 0.9rem; }
+  .logo-img { height: 32px; }
+}
+
 
 
 

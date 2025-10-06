@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('../partials/head') %>
+  <title><%= fn.event_name %> — Communications</title>
+</head>
+<body>
+  <%- include('../partials/header', { active: 'functions', user }) %>
+
+  <main class="main-content">
+    <div class="function-header">
+      <h1><%= fn.event_name %></h1>
+      <div class="function-actions">
+        <a href="/functions/<%= fn.id %>" class="btn">Back to Function</a>
+      </div>
+    </div>
+
+    <div class="tabs-bar">
+      <a href="/functions/<%= fn.id %>">Info</a>
+      <a href="/functions/<%= fn.id %>?tab=tasks">Tasks</a>
+      <a href="/functions/<%= fn.id %>?tab=notes">Notes</a>
+      <a href="/functions/<%= fn.id %>/communications" class="active">Communications</a>
+      <a href="/functions/<%= fn.id %>?tab=proposal">Proposal</a>
+    </div>
+
+    <div class="card communications-panel">
+
+      <!-- 🔍 Search + Filter -->
+      <div class="comm-controls">
+        <input type="text" id="commSearch" placeholder="Search communications..." />
+        <select id="commFilter">
+          <option value="all">All</option>
+          <option value="Automated Messages">Automated</option>
+          <option value="Messages">Messages</option>
+          <option value="Notes">Notes</option>
+        </select>
+      </div>
+
+      <% const groups = [...new Set(groupedArray.map(i => i.group))]; %>
+
+      <% groups.forEach(group => { %>
+        <div class="comm-group">
+          <button class="comm-group-header" data-group="<%= group %>">
+            <span><%= group %></span>
+            <span class="chevron">▼</span>
+          </button>
+          <div class="comm-group-body" id="group-<%= group.replace(/\s+/g,'-') %>">
+            <table class="table comm-table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Subject</th>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% groupedArray.filter(i => i.group === group).forEach(item => { %>
+                  <tr class="comm-row" data-group="<%= group %>">
+                    <td>
+                      <% if (item.message_type === 'inbound') { %>
+                        <span class="badge inbound">Inbound</span>
+                      <% } else if (item.message_type === 'outbound') { %>
+                        <span class="badge outbound">Sent</span>
+                      <% } else if (item.message_type === 'auto') { %>
+                        <span class="badge auto">Auto</span>
+                      <% } else if (item.entry_type === 'note') { %>
+                        <span class="badge note">Note</span>
+                      <% } else { %>
+                        <span class="badge other">Other</span>
+                      <% } %>
+                    </td>
+                    <td><%= item.subject || '(No subject)' %></td>
+                    <td><%= item.from_email || '' %></td>
+                    <td><%= item.to_email ? item.to_email.join(', ') : '' %></td>
+                    <td><%= new Date(item.entry_date).toLocaleString() %></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </main>
+
+  <script>
+    // 🔍 SEARCH + FILTER
+    const searchInput = document.getElementById('commSearch');
+    const filterSelect = document.getElementById('commFilter');
+    const rows = document.querySelectorAll('.comm-row');
+
+    searchInput.addEventListener('input', filterRows);
+    filterSelect.addEventListener('change', filterRows);
+
+    function filterRows() {
+      const term = searchInput.value.toLowerCase();
+      const filter = filterSelect.value;
+
+      rows.forEach(row => {
+        const group = row.dataset.group;
+        const text = row.textContent.toLowerCase();
+        const matchesText = text.includes(term);
+        const matchesGroup = filter === 'all' || filter === group;
+        row.style.display = matchesText && matchesGroup ? '' : 'none';
+      });
+    }
+
+    // ⬇️ COLLAPSIBLE GROUPS
+    document.querySelectorAll('.comm-group-header').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const groupBody = btn.nextElementSibling;
+        const open = groupBody.classList.toggle('collapsed');
+        btn.querySelector('.chevron').textContent = open ? '▶' : '▼';
+      });
+    });
+  </script>
+</body>
+</html>

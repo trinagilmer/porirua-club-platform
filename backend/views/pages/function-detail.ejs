@@ -16,13 +16,14 @@
       </div>
     </div>
 
-    <!-- Tabs Bar -->
-    <div class="tabs-bar">
-      <a href="?tab=info" class="active">Info</a>
-      <a href="?tab=tasks">Tasks</a>
-      <a href="?tab=notes">Notes</a>
-      <a href="?tab=proposal">Proposal</a>
-    </div>
+ <div class="tabs-bar">
+  <a href="/functions/<%= fn.id %>" class="<%= activeTab === 'info' ? 'active' : '' %>">Info</a>
+  <a href="/functions/<%= fn.id %>?tab=tasks" class="<%= activeTab === 'tasks' ? 'active' : '' %>">Tasks</a>
+  <a href="/functions/<%= fn.id %>?tab=notes" class="<%= activeTab === 'notes' ? 'active' : '' %>">Notes</a>
+  <a href="/functions/<%= fn.id %>/communications" class="<%= activeTab === 'communications' ? 'active' : '' %>">Communications</a>
+  <a href="/functions/<%= fn.id %>?tab=proposal" class="<%= activeTab === 'proposal' ? 'active' : '' %>">Proposal</a>
+</div>
+
 
     <!-- GRID LAYOUT -->
     <div class="function-layout">

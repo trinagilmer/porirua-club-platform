@@ -163,26 +163,31 @@ router.get("/:id/communications", async (req, res, next) => {
   try {
     const { id } = req.params;
 
+    // Fetch all communications for this function
     const { rows: comms } = await pool.query(`
-      SELECT entry_type, entry_id, subject, body, from_email, to_email, entry_date, created_at
+      SELECT entry_type, entry_id, subject, body, from_email, to_email,
+             message_type, entry_date, created_at
       FROM unified_communications
       WHERE related_function = $1
       ORDER BY entry_date DESC;
     `, [id]);
 
-    // Group by date (YYYY-MM-DD)
-    const grouped = comms.reduce((acc, item) => {
-      const date = item.entry_date ? item.entry_date.toISOString().split('T')[0] : 'Unknown';
-      if (!acc[date]) acc[date] = [];
-      acc[date].push(item);
-      return acc;
-    }, {});
+    // Assign grouping category
+    const groupedArray = comms.map(item => {
+      if (item.message_type === 'auto') return { ...item, group: 'Automated Messages' };
+      if (['inbound', 'outbound'].includes(item.message_type)) return { ...item, group: 'Messages' };
+      if (item.entry_type === 'note') return { ...item, group: 'Notes' };
+      return { ...item, group: 'Other' };
+    });
 
-    const groupedArray = Object.entries(grouped).map(([date, items]) => ({ date, items }));
+    // Fetch function info for header
+    const { rows: fnRows } = await pool.query(`
+      SELECT id, event_name, status, event_date
+      FROM functions
+      WHERE id = $1;
+    `, [id]);
 
-    // Fetch function details for page title/context
-    const { rows: fnRows } = await pool.query(`SELECT id, event_name FROM functions WHERE id = $1`, [id]);
-    const fn = fnRows[0] || { event_name: `Function #${id}` };
+    const fn = fnRows[0] || { id, event_name: `Function #${id}` };
 
     res.render("pages/function-communications", {
       title: `${fn.event_name} — Communications`,
@@ -191,11 +196,13 @@ router.get("/:id/communications", async (req, res, next) => {
       fn,
       groupedArray
     });
+
   } catch (err) {
     console.error("❌ Error loading communications:", err);
     next(err);
   }
 });
+
 
 /* =========================================================
    🧭 3. CONTACT MANAGEMENT ROUTES
