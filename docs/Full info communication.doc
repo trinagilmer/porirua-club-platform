@@ -1,0 +1,90 @@
+2. Database Tables
+communications
+Stores all inbound and outbound emails.
+Column	Type	Description
+id	uuid (PK)	Unique message ID
+direction	text	inbound or outbound
+subject	text	Email subject
+sender_email	text	From address
+recipient_emails	text[]	To/CC/BCC addresses
+body_html	text	Full HTML content
+body_preview	text	Snippet of the message
+received_at	timestamptz	Date received/sent
+function_id	uuid	Links to functions.id
+contact_id	uuid	Links to contacts.id
+created_at	timestamptz	Default NOW()
+Relationships
+•	communications.function_id → functions.id
+•	communications.contact_id → contacts.id
+•	Updates functions.last_contacted automatically.
+________________________________________
+3. Email Sending Flow
+Route: POST /inbox/send
+Purpose: Send messages from the shared mailbox using Microsoft Graph.
+POST /inbox/send
+Body:
+{
+  "to": "customer@example.com",
+  "subject": "Function Confirmation",
+  "htmlBody": "<p>Your booking is confirmed...</p>",
+  "functionId": "uuid-1234",
+  "contactId": "uuid-5678"
+}
+•	Sends email via sendMail Graph endpoint.
+•	Saves to Outlook “Sent Items.”
+•	Inserts a record in communications.
+•	Updates last_contacted.
+________________________________________
+4. Email Receiving Flow
+Route: GET /inbox
+Purpose: Fetch recent messages from the shared mailbox.
+•	Uses Graph API to fetch from /users/{shared_mailbox}/mailFolders('Inbox')/messages.
+•	Filters messages by:
+o	Keywords (e.g., Function, Booking, Proposal)
+o	Address (to/from @poriruaclub.co.nz)
+•	Displays results in a clean, scrollable table view.
+•	Future enhancement: click to view full email with attachments.
+________________________________________
+5. Linking Logic
+Emails are auto-linked where possible:
+Source	Match Criteria	Links To
+Inbound email	from matches a contact’s email	contact_id
+Inbound email	subject contains “Function #123” or “Booking ID”	function_id
+Outbound email	to matches contact email	contact_id
+Any email	forwarded manually from Outlook with ID tag	Creates or links to existing record
+________________________________________
+6. Future Enhancements
+Feature	Description	Priority
+📎 Attachments	Save/download attachments per message	★★★
+🧠 Smart Linking	Auto-detect function by subject, date, or sender	★★★★
+💬 Inline Replies	Send and view replies directly inside Inbox	★★★
+🕓 Contact History	Merge with notes, calls, and meetings timeline	★★★★★
+📱 Notifications	Notify owner when contact replies	★★★
+________________________________________
+7. Frontend Integration
+The following pages will surface communications:
+Page	Integration
+Function Detail	“Communication” tab shows inbound/outbound messages
+Contact View	“Email History” section lists all correspondence
+Inbox Dashboard	Central inbox, filter by contact/function
+Restaurant & Events Dashboards	Display last communication date
+________________________________________
+8. Security & Compliance
+•	Uses Microsoft Graph OAuth tokens (no passwords stored)
+•	Only allowed to act as events@poriruaclub.co.nz
+•	Fully logged through Outlook’s compliance trail
+•	Stored email bodies sanitized before rendering
+________________________________________
+9. Example Use Case
+1.	Customer fills function enquiry form → Email sent to events@poriruaclub.co.nz
+2.	Platform fetches email, detects contact by sender address
+3.	Creates new lead function and logs communication
+4.	Staff replies directly from platform → sent via shared mailbox
+5.	Both sides’ messages appear under Function → Communications tab
+________________________________________
+✅ Summary
+Once active, this system provides:
+•	Centralized visibility of all communication
+•	Seamless Outlook integration via Microsoft Graph
+•	Full audit trail in your own database
+•	Intelligent linking between functions, bookings, and contacts

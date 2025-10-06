@@ -1,3 +1,4 @@
+// backend/routes/auth.js
 const express = require("express");
 const bcrypt = require("bcrypt");
 const pool = require("../db");
@@ -18,7 +19,9 @@ router.post("/login", async (req, res, next) => {
   try {
     const { email, password } = req.body;
     const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
-    if (!rows.length) return res.render("pages/login", { error: "Invalid email or password" });
+
+    if (!rows.length)
+      return res.render("pages/login", { error: "Invalid email or password", title: "Login" });
 
     const user = rows[0];
     const valid = await bcrypt.compare(password, user.password_hash);
@@ -31,6 +34,7 @@ router.post("/login", async (req, res, next) => {
       email: user.email,
       role: user.role,
     };
+
     res.redirect("/dashboard");
   } catch (err) {
     next(err);
@@ -45,6 +49,7 @@ router.get("/register", (req, res) => {
 router.post("/register", async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
+
     const { rows: existing } = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
     if (existing.length)
       return res.render("pages/register", { error: "Email already in use", title: "Register" });
@@ -79,7 +84,6 @@ const msalConfig = {
   },
 };
 
-// 🧩 Debugging logs
 console.log("🔗 MSAL Authority:", msalConfig.auth.authority);
 console.log("🔑 Azure client credentials loaded?", {
   clientId: !!process.env.AZURE_CLIENT_ID,
@@ -89,14 +93,23 @@ console.log("🔑 Azure client credentials loaded?", {
 
 const cca = new msal.ConfidentialClientApplication(msalConfig);
 
-
-// --- Microsoft Login Redirect ---
+/**
+ * 🔹 Microsoft Graph Login — Redirect user to Microsoft Auth page
+ */
 router.get("/graph/login", async (req, res) => {
   try {
     const authCodeUrlParameters = {
-      scopes: ["User.Read", "Mail.Read", "Mail.Send", "offline_access"],
+      scopes: [
+        "User.Read",
+        "Mail.ReadWrite",
+        "Mail.Send",
+        "Mail.ReadWrite.Shared",
+        "Mail.Send.Shared",
+        "offline_access",
+      ],
       redirectUri: process.env.AZURE_REDIRECT_URI,
     };
+
     const url = await cca.getAuthCodeUrl(authCodeUrlParameters);
     res.redirect(url);
   } catch (err) {
@@ -105,11 +118,20 @@ router.get("/graph/login", async (req, res) => {
   }
 });
 
-// --- Microsoft Callback ---
+/**
+ * 🔹 Microsoft Graph Callback — Handle redirect & acquire token
+ */
 router.get("/graph/callback", async (req, res) => {
   const tokenRequest = {
     code: req.query.code,
-    scopes: ["User.Read", "Mail.Read", "Mail.Send", "offline_access"],
+    scopes: [
+      "User.Read",
+      "Mail.ReadWrite",
+      "Mail.Send",
+      "Mail.ReadWrite.Shared",
+      "Mail.Send.Shared",
+      "offline_access",
+    ],
     redirectUri: process.env.AZURE_REDIRECT_URI,
   };
 
@@ -117,10 +139,12 @@ router.get("/graph/callback", async (req, res) => {
     const response = await cca.acquireTokenByCode(tokenRequest);
     const msUser = response.account;
 
-    // Check if user already exists in your users table
-    const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [msUser.username]);
+    console.log("✅ Microsoft login success:", msUser.username);
 
+    // Find or create local user record
+    const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [msUser.username]);
     let user;
+
     if (rows.length) {
       user = rows[0];
     } else {
@@ -131,6 +155,7 @@ router.get("/graph/callback", async (req, res) => {
       user = insert.rows[0];
     }
 
+    // Store session user + Graph tokens
     req.session.user = {
       id: user.id,
       name: user.name,
@@ -141,8 +166,11 @@ router.get("/graph/callback", async (req, res) => {
     req.session.graphToken = response.accessToken;
     req.session.graphRefreshToken = response.refreshToken;
 
-    console.log("✅ Microsoft Graph login successful:", msUser.username);
-    res.redirect("/inbox"); // change this to your desired page
+    // 🔹 Use shared mailbox for all subsequent email actions
+    req.session.sharedMailbox = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
+
+    console.log(`📨 Shared mailbox configured: ${req.session.sharedMailbox}`);
+    res.redirect("/inbox");
   } catch (error) {
     console.error("❌ Microsoft login error:", error);
     res.status(500).send("Microsoft authentication failed.");
@@ -150,4 +178,3 @@ router.get("/graph/callback", async (req, res) => {
 });
 
 module.exports = router;
-

@@ -156,6 +156,46 @@ router.get("/:id", async (req, res, next) => {
     next(err);
   }
 });
+/* =========================================================
+   🧭  FUNCTION COMMUNICATIONS TIMELINE
+========================================================= */
+router.get("/:id/communications", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const { rows: comms } = await pool.query(`
+      SELECT entry_type, entry_id, subject, body, from_email, to_email, entry_date, created_at
+      FROM unified_communications
+      WHERE related_function = $1
+      ORDER BY entry_date DESC;
+    `, [id]);
+
+    // Group by date (YYYY-MM-DD)
+    const grouped = comms.reduce((acc, item) => {
+      const date = item.entry_date ? item.entry_date.toISOString().split('T')[0] : 'Unknown';
+      if (!acc[date]) acc[date] = [];
+      acc[date].push(item);
+      return acc;
+    }, {});
+
+    const groupedArray = Object.entries(grouped).map(([date, items]) => ({ date, items }));
+
+    // Fetch function details for page title/context
+    const { rows: fnRows } = await pool.query(`SELECT id, event_name FROM functions WHERE id = $1`, [id]);
+    const fn = fnRows[0] || { event_name: `Function #${id}` };
+
+    res.render("pages/function-communications", {
+      title: `${fn.event_name} — Communications`,
+      active: "functions",
+      user: req.session.user || null,
+      fn,
+      groupedArray
+    });
+  } catch (err) {
+    console.error("❌ Error loading communications:", err);
+    next(err);
+  }
+});
 
 /* =========================================================
    🧭 3. CONTACT MANAGEMENT ROUTES
