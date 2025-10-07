@@ -397,7 +397,496 @@ a:hover { color: var(--primary); }
 .timeline-entry.message { border-left: 4px solid var(--primary); }
 .timeline-entry.note { border-left: 4px solid var(--accent); }
 .timeline-entry.task { border-left: 4px solid var(--deep); }
+.contact-panel {
+  align-self: start;
+  position: relative;
+}
 
 
+.contact-edit-panel {
+  position: fixed;
+  right: 0;
+  width: 380px;
+  max-width: 90%;
+  background: #fff;
+  height: 100%;
+  top: 0;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  box-shadow: -4px 0 12px rgba(0,0,0,0.15);
+  z-index: 5000;
+  padding: 24px;
+}
+.contact-edit-panel.show {
+  transform: translateX(0);
+}
+.contact-edit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.function-layout {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 24px;
+  align-items: start;
+}
 
+.contact-panel {
+  align-self: start;
+  position: relative;
+}
 
+.detail-panel {
+  width: 100%;
+}
+/* ----------------------------
+   CONTACT MENU BUTTON + DROPDOWN
+-----------------------------*/
+.menu-btn {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: #666;
+  padding: 4px 8px;
+  line-height: 1;
+  border-radius: 6px;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.menu-btn:hover {
+  background: rgba(107, 180, 222, 0.1);
+  color: var(--primary);
+}
+
+.menu-dropdown {
+  position: absolute;
+  top: 36px;
+  right: 0;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  z-index: 1000;
+  padding: 4px 0;
+  animation: fadeIn 0.15s ease;
+}
+
+.menu-item {
+  padding: 10px 14px;
+  font-size: 0.92rem;
+  text-align: left;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--deep);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.menu-item:hover {
+  background: #f4f8fb;
+  color: var(--primary);
+}
+
+.menu-dropdown.hidden {
+  display: none !important;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* ===========================
+   CONTACT CARD VISUALS
+=========================== */
+.contact-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.contact-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--white);
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 14px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.contact-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.07);
+}
+
+/* Avatar (first letter circle) */
+.contact-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.contact-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.contact-name {
+  color: var(--deep);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.contact-email, .contact-phone {
+  font-size: 0.9rem;
+  color: #555;
+}
+
+/* Three-dot menu alignment */
+.contact-actions {
+  position: relative;
+  margin-left: 10px;
+}
+
+.menu-btn {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: #666;
+  border-radius: 6px;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+.menu-btn:hover {
+  background: rgba(107,180,222,0.1);
+  color: var(--primary);
+}
+
+/* Dropdown styling */
+.menu-dropdown {
+  position: absolute;
+  top: 36px;
+  right: 0;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  z-index: 1000;
+  padding: 4px 0;
+}
+
+.menu-item {
+  padding: 10px 14px;
+  font-size: 0.92rem;
+  text-align: left;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--deep);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.menu-item:hover {
+  background: #f4f8fb;
+  color: var(--primary);
+}
+/* ===========================
+   CONTACT VIEW MODAL
+=========================== */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  transition: opacity 0.25s ease;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-content {
+  background: #fff;
+  padding: 24px 28px;
+  border-radius: 12px;
+  width: 420px;
+  max-width: 90%;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+  animation: modalIn 0.25s ease;
+}
+
+.close {
+  float: right;
+  font-size: 1.6rem;
+  color: #555;
+  cursor: pointer;
+  font-weight: bold;
+  transition: color 0.2s ease;
+}
+.close:hover {
+  color: var(--primary);
+}
+
+.modal-content h2 {
+  margin-top: 0;
+  color: var(--deep);
+}
+
+.modal-content h4 {
+  margin-bottom: 8px;
+  color: var(--primary);
+}
+
+.modal-content ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.modal-content li {
+  padding: 6px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 0.9rem;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* ===========================
+   SLIDE-IN EDIT PANEL
+=========================== */
+.slide-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 360px;
+  background: var(--white);
+  box-shadow: -2px 0 12px rgba(0,0,0,0.2);
+  padding: 24px;
+  z-index: 5000;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+}
+.slide-panel.show {
+  transform: translateX(0);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.panel-header h3 {
+  margin: 0;
+  color: var(--deep);
+}
+
+.panel-form label {
+  margin-top: 10px;
+  font-weight: 600;
+  color: var(--deep);
+  font-size: 0.9rem;
+}
+
+.panel-form input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+
+.panel-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+/* ===========================
+   ADD CONTACT PANEL
+=========================== */
+.contact-panel-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #ccc;
+  background: #f7f7f7;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.tab-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.tab-btn:hover {
+  background: #eaf6fc;
+  border-color: var(--primary);
+}
+
+/* Contact Search & Dropdown */
+.contact-search {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  margin-bottom: 8px;
+}
+
+.contact-dropdown {
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  height: 180px;
+  overflow-y: auto;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.contact-dropdown option {
+  padding: 6px 8px;
+  border-bottom: 1px solid #eee;
+}
+
+.contact-dropdown option:hover {
+  background: #eaf6fc;
+}
+/* ===========================
+   CONTACT FAB BUTTON
+=========================== */
+.contact-panel {
+  position: relative;
+  padding-bottom: 64px; /* space for FAB */
+}
+
+.add-contact-fab {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  font-size: 1.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s ease;
+  z-index: 50;
+}
+
+.add-contact-fab:hover {
+  background: var(--deep);
+  transform: scale(1.08);
+}
+
+/* ===========================
+   TOAST NOTIFICATIONS
+=========================== */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--deep);
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.95rem;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.3s ease;
+  z-index: 99999;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+}
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.add-contact-fab {
+  position: fixed;
+  bottom: 40px;
+  right: 40px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 56px;
+  height: 56px;
+  font-size: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  transition: transform 0.2s ease, background 0.2s ease;
+  z-index: 2000;
+}
+
+.add-contact-fab:hover {
+  background: var(--deep);
+  transform: scale(1.05);
+}
+.slide-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 380px;
+  background: var(--white);
+  box-shadow: -2px 0 12px rgba(0,0,0,0.2);
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  z-index: 3000;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.slide-panel.show {
+  transform: translateX(0);
+}

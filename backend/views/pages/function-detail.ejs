@@ -2,57 +2,15 @@
 <html lang="en">
 <head>
   <%- include('../partials/head') %>
-  <title><%= fn.event_name %> — Function Detail</title>
-  <style>
-    /* Local enhancements just for this page (can move to CSS later) */
-    .comm-entry {
-      border-left: 4px solid var(--primary);
-      background: #fff;
-      padding: 12px 16px;
-      border-radius: 8px;
-      margin-bottom: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-      transition: transform .2s ease;
-    }
-    .comm-entry:hover { transform: translateY(-2px); }
-    .comm-meta {
-      font-size: 0.85rem;
-      color: #666;
-      margin-bottom: 4px;
-    }
-    .comm-subject {
-      font-weight: 600;
-      color: var(--deep);
-      margin-bottom: 6px;
-    }
-    .comm-body {
-      font-size: 0.9rem;
-      color: #444;
-      white-space: pre-line;
-    }
-    .comm-type {
-      text-transform: capitalize;
-      font-size: 0.75rem;
-      font-weight: 600;
-      background: var(--accent);
-      color: var(--deep);
-      padding: 3px 6px;
-      border-radius: 6px;
-      margin-right: 6px;
-    }
-    .no-comms {
-      color: #888;
-      font-style: italic;
-      text-align: center;
-      margin: 12px 0;
-    }
-  </style>
+  <title><%= fn.event_name %> - Function Detail</title>
 </head>
 <body>
   <%- include('../partials/header', { active: 'functions', user: user }) %>
 
-  <main class="main-content fade-in">
-    <!-- HEADER -->
+  <main class="main-content">
+    <!-- =========================
+         HEADER
+    ========================== -->
     <div class="function-header">
       <h1 class="function-title"><%= fn.event_name %></h1>
       <div class="function-actions">
@@ -60,31 +18,41 @@
       </div>
     </div>
 
-    <!-- TABS -->
+    <!-- =========================
+         TABS BAR
+    ========================== -->
     <div class="tabs-bar">
-      <a href="/functions/<%= fn.id %>?tab=info" class="<%= activeTab==='info'?'active':'' %>">Info</a>
-      <a href="/functions/<%= fn.id %>?tab=tasks" class="<%= activeTab==='tasks'?'active':'' %>">Tasks</a>
-      <a href="/functions/<%= fn.id %>?tab=notes" class="<%= activeTab==='notes'?'active':'' %>">Notes</a>
-      <a href="/functions/<%= fn.id %>?tab=communications" class="<%= activeTab==='communications'?'active':'' %>">Communications</a>
+      <a href="/functions/<%= fn.id %>" class="<%= activeTab === 'info' ? 'active' : '' %>">Info</a>
+      <a href="/functions/<%= fn.id %>?tab=tasks" class="<%= activeTab === 'tasks' ? 'active' : '' %>">Tasks</a>
+      <a href="/functions/<%= fn.id %>?tab=notes" class="<%= activeTab === 'notes' ? 'active' : '' %>">Notes</a>
+      <a href="/functions/<%= fn.id %>/communications" class="<%= activeTab === 'communications' ? 'active' : '' %>">Communications</a>
     </div>
 
+    <!-- =========================
+         GRID LAYOUT
+    ========================== -->
     <div class="function-layout">
-      <!-- LEFT: CONTACTS -->
-      <aside class="card contact-panel">
+      <!-- CONTACTS PANEL -->
+      <aside class="card contact-panel" style="position: relative;">
         <h3>Contacts</h3>
-        <div class="contact-card-list">
-          <% if (linkedContacts.length) { %>
+
+        <div id="contactInfo" class="contact-card-list">
+          <% if (linkedContacts.length > 0) { %>
             <% linkedContacts.forEach(c => { %>
               <div class="contact-card <%= c.is_primary ? 'primary' : '' %>">
                 <div class="contact-avatar"><%= c.name.charAt(0).toUpperCase() %></div>
+
                 <div class="contact-details">
                   <div class="contact-name">
                     <strong><%= c.name %></strong>
-                    <% if (c.is_primary) { %><span class="primary-badge">⭐</span><% } %>
+                    <% if (c.is_primary) { %>
+                      <span class="primary-badge" title="Primary Contact">⭐</span>
+                    <% } %>
                   </div>
-                  <div class="contact-email"><a href="mailto:<%= c.email %>"><%= c.email %></a></div>
-                  <div class="contact-phone"><%= c.phone || '' %></div>
+                  <div class="contact-email"><%= c.email || '—' %></div>
+                  <% if (c.phone) { %><div class="contact-phone"><%= c.phone %></div><% } %>
                 </div>
+
                 <div class="contact-actions">
                   <button class="menu-btn" data-id="<%= c.id %>">⋮</button>
                   <div class="menu-dropdown hidden" id="menu-<%= c.id %>">
@@ -100,127 +68,420 @@
               </div>
             <% }) %>
           <% } else { %>
-            <p>No contacts assigned yet.</p>
+            <p class="subtext">No contacts assigned yet.</p>
           <% } %>
         </div>
-        <button class="add-contact-fab" id="addContactBtn">+</button>
+
+        <!-- Floating Add Button -->
+        <button id="openAddPanelBtn" class="add-contact-fab" title="Add new contact">+</button>
       </aside>
 
-      <!-- RIGHT: DETAILS -->
+      <!-- DETAILS PANEL -->
       <section class="detail-panel">
-        <% if (activeTab === 'info') { %>
-          <div class="card function-section">
-            <h3>Event Details</h3>
-            <p><strong>Status:</strong> <%= fn.status %></p>
-            <p><strong>Date:</strong> <%= formatNZDate(fn.event_date) %> <%= fn.event_time || '' %></p>
-            <p><strong>Room:</strong> <%= fn.room_name || '—' %></p>
-            <p><strong>Attendees:</strong> <%= fn.attendees || '—' %></p>
-            <p><strong>Total:</strong> $<%= fn.totals_price || 0 %></p>
-            <p><strong>Owner:</strong> <%= fn.owner_name || 'Unassigned' %></p>
-          </div>
-        <% } %>
+        <div class="card function-section">
+          <h3>Event Details</h3>
+          <p><strong>Status:</strong> <%= fn.status %></p>
+          <p><strong>Date:</strong> <%= formatNZDate(fn.event_date) %> at <%= fn.event_time || 'TBC' %></p>
+          <p><strong>Room:</strong> <%= fn.room_name || '—' %></p>
+          <p><strong>Attendees:</strong> <%= fn.attendees || '—' %></p>
+          <p><strong>Total:</strong> $<%= fn.totals_price || 0 %></p>
+          <p><strong>Owner:</strong> <%= fn.owner_name || '—' %></p>
+          <p><strong>Notes:</strong> <%= fn.notes || 'No notes yet' %></p>
+        </div>
 
-        <% if (activeTab === 'tasks') { %>
-          <div class="card function-section">
-            <h3>Tasks</h3>
-            <% if (!tasks.length) { %><p>No tasks yet.</p><% } else { %>
-              <ul class="task-list">
-                <% tasks.forEach(t => { %>
-                  <li><strong><%= t.title %></strong> — <%= t.status %> <% if (t.due_at) { %>(Due <%= formatNZDate(t.due_at) %>)<% } %></li>
-                <% }) %>
-              </ul>
+        <!-- RECENT COMMUNICATIONS -->
+        <div class="card function-section">
+          <h3>Recent Communications</h3>
+          <% if (typeof grouped !== 'undefined' && Object.keys(grouped).length > 0) { %>
+            <% for (const date in grouped) { %>
+              <div class="comm-day-group">
+                <h4 class="comm-date"><%= date %></h4>
+                <ul class="comm-list">
+                  <% grouped[date].forEach(msg => { %>
+                    <li class="comm-entry <%= msg.entry_type %>">
+                      <% if (msg.entry_type === 'message') { %>
+                        📧 <strong><%= msg.subject || '(No subject)' %></strong><br>
+                        <small class="subtext"><%= msg.from_email %> → <%= (msg.to_email || []).join(', ') %></small>
+                      <% } else if (msg.entry_type === 'note') { %>
+                        📝 <strong>Note:</strong> <%= msg.body %>
+                      <% } else if (msg.entry_type === 'task') { %>
+                        ✅ <strong>Task:</strong> <%= msg.subject %>
+                      <% } %>
+                    </li>
+                  <% }) %>
+                </ul>
+              </div>
             <% } %>
-          </div>
-        <% } %>
+            <a href="/functions/<%= fn.id %>/communications" class="btn small" style="margin-top:8px;">View All</a>
+          <% } else { %>
+            <p>No communications yet.</p>
+          <% } %>
+        </div>
 
-        <% if (activeTab === 'notes') { %>
-          <div class="card function-section">
-            <h3>Notes</h3>
-            <% if (!notes.length) { %><p>No notes yet.</p><% } else { %>
-              <ul class="note-list">
-                <% notes.forEach(n => { %>
-                  <li><strong><%= formatNZDate(n.created_at) %>:</strong> <%= n.content %></li>
-                <% }) %>
-              </ul>
-            <% } %>
-          </div>
-        <% } %>
-
-        <% if (activeTab === 'communications') { %>
-          <div class="card function-section">
-            <h3>All Communications</h3>
-            <% if (!communications.length) { %>
-              <p class="no-comms">No communications found for this function.</p>
-            <% } else { %>
-              <% communications.forEach(c => { %>
-                <div class="comm-entry">
-                  <div class="comm-meta">
-                    <span class="comm-type"><%= c.entry_type %></span>
-                    <%= new Date(c.entry_date).toLocaleString('en-NZ') %>
-                  </div>
-                  <% if (c.subject) { %><div class="comm-subject"><%= c.subject %></div><% } %>
-                  <% if (c.body) { %><div class="comm-body"><%= c.body.substring(0, 300) %>...</div><% } %>
-                  <% if (c.from_email) { %>
-                    <div class="comm-meta">From: <%= c.from_email %></div>
+        <!-- TASKS -->
+        <div class="card function-section">
+          <h3>Tasks</h3>
+          <% if (!tasks.length) { %>
+            <p>No tasks yet.</p>
+          <% } else { %>
+            <ul class="task-list">
+              <% tasks.forEach(t => { %>
+                <li>
+                  <strong><%= t.title %></strong> — <%= t.status %>
+                  <% if (t.due_at) { %>
+                    <span class="subtext">(due <%= formatNZDate(t.due_at) %>)</span>
                   <% } %>
-                  <% if (c.to_email) { %>
-                    <div class="comm-meta">To: <%= c.to_email.join(', ') %></div>
-                  <% } %>
-                </div>
+                </li>
               <% }) %>
-            <% } %>
-          </div>
-        <% } %>
+            </ul>
+          <% } %>
+        </div>
       </section>
     </div>
   </main>
 
-  <!-- SLIDE-IN PANEL -->
-  <div id="contactPanel" class="contact-edit-panel">
-    <h3 id="contactPanelTitle">Add Contact</h3>
-    <input type="hidden" id="contactPanelMode" value="add">
-    <input type="hidden" id="editContactId">
-
-    <div class="contact-panel-tabs">
-      <button id="modeExisting" class="tab-btn active">Existing Contact</button>
-      <button id="modeNew" class="tab-btn">New Contact</button>
-    </div>
-
-    <div id="existingContactSection">
-      <input type="text" id="existingContactSearch" placeholder="Search existing contacts..." class="contact-search">
-      <select id="existingContactSelect" size="8" class="contact-dropdown"></select>
-      <button id="linkExistingBtn" class="btn" style="margin-top: 10px;">Link Selected</button>
-    </div>
-
-    <div id="newContactSection" class="hidden">
-      <input type="text" id="newContactName" placeholder="Name" required>
-      <input type="email" id="newContactEmail" placeholder="Email" required>
-      <input type="text" id="newContactPhone" placeholder="Phone">
-      <input type="text" id="newContactCompany" placeholder="Company">
-      <button type="button" id="saveNewContactBtn" class="btn">Save Contact</button>
-    </div>
-
-    <div class="panel-actions">
-      <button type="button" id="closePanel" class="btn ghost">Cancel</button>
-    </div>
-  </div>
-
-  <div id="panelOverlay" class="panel-overlay"></div>
-
-  <!-- VIEW CONTACT MODAL -->
+  <!-- 🔹 View Contact Modal -->
   <div id="viewContactModal" class="modal hidden">
     <div class="modal-content">
-      <h3>Contact Details</h3>
-      <div id="contactDetails"></div>
-      <h4>Recent Communications</h4>
-      <div id="contactEmails" class="mini-timeline"></div>
-      <button id="closeModalBtn" class="btn ghost">Close</button>
+      <span id="closeViewModal" class="close">&times;</span>
+      <div id="contactModalBody">Loading...</div>
     </div>
   </div>
 
-  <script src="/js/function-detail.js"></script>
+  <!-- 🔹 Edit Contact Slide Panel -->
+  <div id="editContactPanel" class="slide-panel hidden">
+    <div class="panel-header">
+      <h3>Edit Contact</h3>
+      <button id="closeEditPanel" class="close">&times;</button>
+    </div>
+    <form id="editContactForm" class="panel-form">
+      <input type="hidden" id="editContactId">
+      <label>Name</label><input type="text" id="editContactName" required>
+      <label>Email</label><input type="email" id="editContactEmail" required>
+      <label>Phone</label><input type="text" id="editContactPhone">
+      <label>Company</label><input type="text" id="editContactCompany">
+      <div class="panel-actions">
+        <button type="submit" class="btn">Save Changes</button>
+        <button type="button" id="cancelEdit" class="btn ghost">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- 🔹 Add / Link Contact Slide Panel -->
+  <div id="addContactPanel" class="slide-panel hidden">
+    <div class="panel-header">
+      <h3>Add Contact</h3>
+      <button id="closeAddPanel" class="close">&times;</button>
+    </div>
+
+    <div class="contact-panel-tabs">
+      <button id="tabNew" class="tab-btn active">New Contact</button>
+      <button id="tabExisting" class="tab-btn">Link Existing</button>
+    </div>
+
+    <!-- New Contact -->
+    <form id="newContactForm" class="panel-form">
+      <label>Name</label><input type="text" id="newName" required>
+      <label>Email</label><input type="email" id="newEmail" required>
+      <label>Phone</label><input type="text" id="newPhone">
+      <label>Company</label><input type="text" id="newCompany">
+      <div class="panel-actions">
+        <button type="submit" class="btn">Save Contact</button>
+      </div>
+    </form>
+
+    <!-- Existing Contact -->
+    <div id="existingContactSection" class="hidden">
+      <input type="text" id="searchContact" placeholder="Search contacts..." class="contact-search">
+      <select id="existingSelect" size="8" class="contact-dropdown"></select>
+      <div class="panel-actions">
+        <button id="linkExisting" class="btn">Link Selected</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+document.addEventListener("DOMContentLoaded", () => {
+  const fnId = "<%= fn.id %>";
+
+  /* ============================================================
+     🔹 GLOBAL HELPERS
+  ============================================================ */
+  const showToast = (message) => {
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.className = 'toast';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  };
+
+  /* ============================================================
+     🔹 CONTACT MENU HANDLERS (3-dot menu)
+  ============================================================ */
+  document.addEventListener('click', (e) => {
+    document.querySelectorAll('.menu-dropdown').forEach(d => d.classList.add('hidden'));
+
+    if (e.target.classList.contains('menu-btn')) {
+      e.stopPropagation();
+      const id = e.target.dataset.id;
+      const menu = document.getElementById(`menu-${id}`);
+      if (menu) menu.classList.toggle('hidden');
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.menu-dropdown')) e.stopPropagation();
+  });
+
+  /* ============================================================
+     🔹 VIEW CONTACT MODAL
+  ============================================================ */
+  const viewModal = document.getElementById('viewContactModal');
+  const closeViewModal = document.getElementById('closeViewModal');
+  const modalBody = document.getElementById('contactModalBody');
+
+  const openModal = (html) => {
+    modalBody.innerHTML = html;
+    viewModal.classList.remove('hidden');
+  };
+  const closeModal = () => viewModal.classList.add('hidden');
+
+  closeViewModal.addEventListener('click', closeModal);
+  window.addEventListener('click', (e) => { if (e.target === viewModal) closeModal(); });
+
+  document.addEventListener('click', async (e) => {
+    if (!e.target.classList.contains('view-btn')) return;
+    const contactId = e.target.dataset.id;
+    try {
+      const contact = await fetch(`/functions/contacts/${contactId}`).then(r => r.json());
+      let commsHTML = '';
+      try {
+        const comms = await fetch(`/functions/contacts/${contactId}/communications`).then(r => r.json());
+        if (Array.isArray(comms) && comms.length > 0) {
+          commsHTML = `<h4>Recent Communications</h4><ul>` +
+            comms.map(c => `<li><strong>${c.entry_type}</strong> — ${c.subject || c.body || ''}</li>`).join('') +
+            `</ul>`;
+        } else {
+          commsHTML = `<p>No communications yet.</p>`;
+        }
+      } catch {
+        commsHTML = `<p>(Communications unavailable)</p>`;
+      }
+
+      const html = `
+        <h2>${contact.name}</h2>
+        <p><strong>Email:</strong> ${contact.email || '—'}</p>
+        <p><strong>Phone:</strong> ${contact.phone || '—'}</p>
+        <p><strong>Company:</strong> ${contact.company || '—'}</p>
+        <hr/>${commsHTML}
+      `;
+      openModal(html);
+    } catch (err) {
+      openModal('<p>Failed to load contact details.</p>');
+    }
+  });
+
+  /* ============================================================
+     🔹 EDIT CONTACT PANEL
+  ============================================================ */
+  const editPanel = document.getElementById('editContactPanel');
+  const editForm = document.getElementById('editContactForm');
+
+  document.addEventListener('click', async (e) => {
+    if (!e.target.classList.contains('edit-btn')) return;
+    const contactId = e.target.dataset.id;
+    try {
+      const contact = await fetch(`/functions/contacts/${contactId}`).then(r => r.json());
+      document.getElementById('editContactId').value = contact.id;
+      document.getElementById('editContactName').value = contact.name || '';
+      document.getElementById('editContactEmail').value = contact.email || '';
+      document.getElementById('editContactPhone').value = contact.phone || '';
+      document.getElementById('editContactCompany').value = contact.company || '';
+      editPanel.classList.add('show');
+    } catch {
+      alert('Error loading contact details.');
+    }
+  });
+
+  document.getElementById('closeEditPanel').addEventListener('click', () => editPanel.classList.remove('show'));
+  document.getElementById('cancelEdit').addEventListener('click', () => editPanel.classList.remove('show'));
+
+  editForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('editContactId').value;
+    const name = document.getElementById('editContactName').value;
+    const email = document.getElementById('editContactEmail').value;
+    const phone = document.getElementById('editContactPhone').value;
+    const company = document.getElementById('editContactCompany').value;
+
+    const res = await fetch(`/functions/contacts/${id}/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, phone, company })
+    });
+    const data = await res.json();
+    if (data.success) {
+      editPanel.classList.remove('show');
+      showToast('✅ Contact updated');
+      location.reload();
+    } else alert('Failed to save contact.');
+  });
+
+  /* ============================================================
+     🔹 REMOVE / DELETE / PRIMARY
+  ============================================================ */
+  document.addEventListener('click', async (e) => {
+    const id = e.target.dataset.id;
+    if (e.target.classList.contains('remove-btn')) {
+      if (!confirm('Remove this contact from the function?')) return;
+      await fetch(`/functions/${fnId}/remove-contact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact_id: id })
+      });
+      showToast('Contact removed');
+      location.reload();
+    }
+    if (e.target.classList.contains('delete-btn')) {
+      if (!confirm('Permanently delete this contact?')) return;
+      await fetch(`/functions/contacts/${id}/delete`, { method: 'DELETE' });
+      showToast('Contact deleted');
+      location.reload();
+    }
+    if (e.target.classList.contains('primary-btn')) {
+      const res = await fetch(`/functions/${fnId}/set-primary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact_id: id })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('⭐ Primary contact updated');
+        location.reload();
+      } else alert('Failed to update primary contact.');
+    }
+  });
+
+  /* ============================================================
+     🔹 ADD / LINK CONTACT PANEL
+  ============================================================ */
+  const addPanel = document.getElementById('addContactPanel');
+  const openAddPanelBtn = document.getElementById('openAddPanelBtn');
+  const closeAddPanel = document.getElementById('closeAddPanel');
+  const tabNew = document.getElementById('tabNew');
+  const tabExisting = document.getElementById('tabExisting');
+  const newForm = document.getElementById('newContactForm');
+  const existingSection = document.getElementById('existingContactSection');
+  const searchInput = document.getElementById('searchContact');
+  const selectDropdown = document.getElementById('existingSelect');
+  const linkExistingBtn = document.getElementById('linkExisting');
+
+  // Open / Close Add Panel
+  if (openAddPanelBtn) openAddPanelBtn.addEventListener('click', () => addPanel.classList.add('show'));
+  if (closeAddPanel) closeAddPanel.addEventListener('click', () => addPanel.classList.remove('show'));
+
+  // Tab switching
+  if (tabNew && tabExisting) {
+    tabNew.addEventListener('click', () => {
+      tabNew.classList.add('active');
+      tabExisting.classList.remove('active');
+      newForm.classList.remove('hidden');
+      existingSection.classList.add('hidden');
+    });
+    tabExisting.addEventListener('click', () => {
+      tabExisting.classList.add('active');
+      tabNew.classList.remove('active');
+      newForm.classList.add('hidden');
+      existingSection.classList.remove('hidden');
+      loadContactsList();
+    });
+  }
+
+  // Load all contacts into dropdown
+  async function loadContactsList() {
+    try {
+      const res = await fetch('/functions/api/contacts');
+      const contacts = await res.json();
+      selectDropdown.innerHTML = '';
+      contacts.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = `${c.name} (${c.email || 'no email'})`;
+        selectDropdown.appendChild(opt);
+      });
+    } catch (err) {
+      console.error('❌ Error loading contact list:', err);
+    }
+  }
+
+  // Search contacts
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      const term = searchInput.value.toLowerCase();
+      Array.from(selectDropdown.options).forEach(opt => {
+        opt.style.display = opt.textContent.toLowerCase().includes(term) ? '' : 'none';
+      });
+    });
+  }
+
+  // Save new contact
+  if (newForm) {
+    newForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('newName').value.trim();
+      const email = document.getElementById('newEmail').value.trim();
+      const phone = document.getElementById('newPhone').value.trim();
+      const company = document.getElementById('newCompany').value.trim();
+      const res = await fetch(`/functions/${fnId}/new-contact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, phone, company })
+      });
+      const data = await res.json();
+      if (data.success) {
+        addPanel.classList.remove('show');
+        showToast('✅ Contact added');
+        location.reload();
+      } else alert('Error saving contact.');
+    });
+  }
+
+// ✅ Link existing contact
+if (linkExistingBtn) {
+  linkExistingBtn.addEventListener('click', async () => {
+    const contactId = selectDropdown.value;
+    if (!contactId) return alert('Please select a contact first.');
+    try {
+      const res = await fetch(`/functions/${fnId}/link-contact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact_id: contactId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        addPanel.classList.remove('show');
+        showToast('🔗 Contact linked successfully');
+        location.reload();
+      } else {
+        alert('Failed to link contact.');
+      }
+    } catch (err) {
+      console.error('❌ Error linking contact:', err);
+      alert('Server error while linking contact.');
+    }
+  });
+}
+
+});
+</script>
+
 </body>
 </html>
+
 
 
 

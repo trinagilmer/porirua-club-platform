@@ -346,6 +346,26 @@ router.get("/api/contacts", async (req, res) => {
     res.status(500).json({ message: "Error loading contacts" });
   }
 });
+/* =========================================================
+   💬 5. CONTACT COMMUNICATIONS FETCH
+========================================================= */
+router.get("/contacts/:id/communications", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows } = await pool.query(`
+      SELECT entry_type, entry_id, message_type, subject, body, from_email, to_email, entry_date
+      FROM unified_communications
+      WHERE related_contact = $1
+      ORDER BY entry_date DESC
+      LIMIT 10;
+    `, [id]);
+
+    res.json(rows);
+  } catch (err) {
+    console.error("❌ Error loading contact communications:", err);
+    res.status(500).json({ message: "Error loading communications" });
+  }
+});
 
 module.exports = router;
 

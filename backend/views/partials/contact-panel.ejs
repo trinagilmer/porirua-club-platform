@@ -1,0 +1,33 @@
+<!-- 💬 Slide-in Add/Edit Contact Panel (Form Only) -->
+<div id="contactPanel" class="contact-edit-panel">
+  <h3 id="contactPanelTitle">Add Contact</h3>
+
+  <input type="hidden" id="contactPanelMode" value="add">
+  <input type="hidden" id="editContactId">
+
+  <div class="contact-panel-tabs">
+    <button id="modeExisting" class="tab-btn active">Existing Contact</button>
+    <button id="modeNew" class="tab-btn">New Contact</button>
+  </div>
+
+  <div id="existingContactSection">
+    <input type="text" id="existingContactSearch" placeholder="Search existing contacts..." class="contact-search">
+    <select id="existingContactSelect" size="8" class="contact-dropdown"></select>
+    <button id="linkExistingBtn" class="btn" style="margin-top: 10px;">Link Selected</button>
+  </div>
+
+  <div id="newContactSection" class="hidden">
+    <input type="text" id="newContactName" placeholder="Name" required>
+    <input type="email" id="newContactEmail" placeholder="Email" required>
+    <input type="text" id="newContactPhone" placeholder="Phone">
+    <input type="text" id="newContactCompany" placeholder="Company">
+    <button type="button" id="saveNewContactBtn" class="btn">Save Contact</button>
+  </div>
+
+  <div class="panel-actions">
+    <button type="button" id="closePanel" class="btn ghost">Cancel</button>
+  </div>
+</div>
+
+<div id="panelOverlay" class="panel-overlay"></div>
+
