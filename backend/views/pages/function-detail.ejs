@@ -5,7 +5,7 @@
   <title><%= fn.event_name %> - Function Detail</title>
 </head>
 <body>
-  <%- include('../partials/header', { active: 'functions', user: user }) %>
+  <%- include('../partials/header', { active: 'functions', user }) %>
 
   <main class="main-content">
     <!-- =========================
@@ -32,8 +32,9 @@
          GRID LAYOUT
     ========================== -->
     <div class="function-layout">
-      <!-- CONTACTS PANEL -->
-      <aside class="card contact-panel" style="position: relative;">
+
+      <!-- CONTACT PANEL -->
+      <aside class="card contact-panel">
         <h3>Contacts</h3>
 
         <div id="contactInfo" class="contact-card-list">
@@ -41,13 +42,10 @@
             <% linkedContacts.forEach(c => { %>
               <div class="contact-card <%= c.is_primary ? 'primary' : '' %>">
                 <div class="contact-avatar"><%= c.name.charAt(0).toUpperCase() %></div>
-
                 <div class="contact-details">
                   <div class="contact-name">
                     <strong><%= c.name %></strong>
-                    <% if (c.is_primary) { %>
-                      <span class="primary-badge" title="Primary Contact">⭐</span>
-                    <% } %>
+                    <% if (c.is_primary) { %><span class="primary-badge" title="Primary Contact">⭐</span><% } %>
                   </div>
                   <div class="contact-email"><%= c.email || '—' %></div>
                   <% if (c.phone) { %><div class="contact-phone"><%= c.phone %></div><% } %>
@@ -72,12 +70,13 @@
           <% } %>
         </div>
 
-        <!-- Floating Add Button -->
+        <!-- ➕ Add Contact FAB -->
         <button id="openAddPanelBtn" class="add-contact-fab" title="Add new contact">+</button>
       </aside>
 
       <!-- DETAILS PANEL -->
       <section class="detail-panel">
+        <!-- EVENT DETAILS -->
         <div class="card function-section">
           <h3>Event Details</h3>
           <p><strong>Status:</strong> <%= fn.status %></p>
@@ -112,7 +111,7 @@
                 </ul>
               </div>
             <% } %>
-            <a href="/functions/<%= fn.id %>/communications" class="btn small" style="margin-top:8px;">View All</a>
+            <a href="/functions/<%= fn.id %>/communications" class="btn small mt-2">View All</a>
           <% } else { %>
             <p>No communications yet.</p>
           <% } %>
@@ -140,347 +139,14 @@
     </div>
   </main>
 
-  <!-- 🔹 View Contact Modal -->
-  <div id="viewContactModal" class="modal hidden">
-    <div class="modal-content">
-      <span id="closeViewModal" class="close">&times;</span>
-      <div id="contactModalBody">Loading...</div>
-    </div>
-  </div>
+  <!-- 🔹 Modals and Panels -->
+  <%- include('../partials/function-modals') %>
 
-  <!-- 🔹 Edit Contact Slide Panel -->
-  <div id="editContactPanel" class="slide-panel hidden">
-    <div class="panel-header">
-      <h3>Edit Contact</h3>
-      <button id="closeEditPanel" class="close">&times;</button>
-    </div>
-    <form id="editContactForm" class="panel-form">
-      <input type="hidden" id="editContactId">
-      <label>Name</label><input type="text" id="editContactName" required>
-      <label>Email</label><input type="email" id="editContactEmail" required>
-      <label>Phone</label><input type="text" id="editContactPhone">
-      <label>Company</label><input type="text" id="editContactCompany">
-      <div class="panel-actions">
-        <button type="submit" class="btn">Save Changes</button>
-        <button type="button" id="cancelEdit" class="btn ghost">Cancel</button>
-      </div>
-    </form>
-  </div>
-
-  <!-- 🔹 Add / Link Contact Slide Panel -->
-  <div id="addContactPanel" class="slide-panel hidden">
-    <div class="panel-header">
-      <h3>Add Contact</h3>
-      <button id="closeAddPanel" class="close">&times;</button>
-    </div>
-
-    <div class="contact-panel-tabs">
-      <button id="tabNew" class="tab-btn active">New Contact</button>
-      <button id="tabExisting" class="tab-btn">Link Existing</button>
-    </div>
-
-    <!-- New Contact -->
-    <form id="newContactForm" class="panel-form">
-      <label>Name</label><input type="text" id="newName" required>
-      <label>Email</label><input type="email" id="newEmail" required>
-      <label>Phone</label><input type="text" id="newPhone">
-      <label>Company</label><input type="text" id="newCompany">
-      <div class="panel-actions">
-        <button type="submit" class="btn">Save Contact</button>
-      </div>
-    </form>
-
-    <!-- Existing Contact -->
-    <div id="existingContactSection" class="hidden">
-      <input type="text" id="searchContact" placeholder="Search contacts..." class="contact-search">
-      <select id="existingSelect" size="8" class="contact-dropdown"></select>
-      <div class="panel-actions">
-        <button id="linkExisting" class="btn">Link Selected</button>
-      </div>
-    </div>
-  </div>
-
-  <script>
-document.addEventListener("DOMContentLoaded", () => {
-  const fnId = "<%= fn.id %>";
-
-  /* ============================================================
-     🔹 GLOBAL HELPERS
-  ============================================================ */
-  const showToast = (message) => {
-    const toast = document.createElement('div');
-    toast.textContent = message;
-    toast.className = 'toast';
-    document.body.appendChild(toast);
-    setTimeout(() => toast.classList.add('show'), 10);
-    setTimeout(() => {
-      toast.classList.remove('show');
-      setTimeout(() => toast.remove(), 300);
-    }, 3000);
-  };
-
-  /* ============================================================
-     🔹 CONTACT MENU HANDLERS (3-dot menu)
-  ============================================================ */
-  document.addEventListener('click', (e) => {
-    document.querySelectorAll('.menu-dropdown').forEach(d => d.classList.add('hidden'));
-
-    if (e.target.classList.contains('menu-btn')) {
-      e.stopPropagation();
-      const id = e.target.dataset.id;
-      const menu = document.getElementById(`menu-${id}`);
-      if (menu) menu.classList.toggle('hidden');
-    }
-  });
-
-  document.addEventListener('click', (e) => {
-    if (e.target.closest('.menu-dropdown')) e.stopPropagation();
-  });
-
-  /* ============================================================
-     🔹 VIEW CONTACT MODAL
-  ============================================================ */
-  const viewModal = document.getElementById('viewContactModal');
-  const closeViewModal = document.getElementById('closeViewModal');
-  const modalBody = document.getElementById('contactModalBody');
-
-  const openModal = (html) => {
-    modalBody.innerHTML = html;
-    viewModal.classList.remove('hidden');
-  };
-  const closeModal = () => viewModal.classList.add('hidden');
-
-  closeViewModal.addEventListener('click', closeModal);
-  window.addEventListener('click', (e) => { if (e.target === viewModal) closeModal(); });
-
-  document.addEventListener('click', async (e) => {
-    if (!e.target.classList.contains('view-btn')) return;
-    const contactId = e.target.dataset.id;
-    try {
-      const contact = await fetch(`/functions/contacts/${contactId}`).then(r => r.json());
-      let commsHTML = '';
-      try {
-        const comms = await fetch(`/functions/contacts/${contactId}/communications`).then(r => r.json());
-        if (Array.isArray(comms) && comms.length > 0) {
-          commsHTML = `<h4>Recent Communications</h4><ul>` +
-            comms.map(c => `<li><strong>${c.entry_type}</strong> — ${c.subject || c.body || ''}</li>`).join('') +
-            `</ul>`;
-        } else {
-          commsHTML = `<p>No communications yet.</p>`;
-        }
-      } catch {
-        commsHTML = `<p>(Communications unavailable)</p>`;
-      }
-
-      const html = `
-        <h2>${contact.name}</h2>
-        <p><strong>Email:</strong> ${contact.email || '—'}</p>
-        <p><strong>Phone:</strong> ${contact.phone || '—'}</p>
-        <p><strong>Company:</strong> ${contact.company || '—'}</p>
-        <hr/>${commsHTML}
-      `;
-      openModal(html);
-    } catch (err) {
-      openModal('<p>Failed to load contact details.</p>');
-    }
-  });
-
-  /* ============================================================
-     🔹 EDIT CONTACT PANEL
-  ============================================================ */
-  const editPanel = document.getElementById('editContactPanel');
-  const editForm = document.getElementById('editContactForm');
-
-  document.addEventListener('click', async (e) => {
-    if (!e.target.classList.contains('edit-btn')) return;
-    const contactId = e.target.dataset.id;
-    try {
-      const contact = await fetch(`/functions/contacts/${contactId}`).then(r => r.json());
-      document.getElementById('editContactId').value = contact.id;
-      document.getElementById('editContactName').value = contact.name || '';
-      document.getElementById('editContactEmail').value = contact.email || '';
-      document.getElementById('editContactPhone').value = contact.phone || '';
-      document.getElementById('editContactCompany').value = contact.company || '';
-      editPanel.classList.add('show');
-    } catch {
-      alert('Error loading contact details.');
-    }
-  });
-
-  document.getElementById('closeEditPanel').addEventListener('click', () => editPanel.classList.remove('show'));
-  document.getElementById('cancelEdit').addEventListener('click', () => editPanel.classList.remove('show'));
-
-  editForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const id = document.getElementById('editContactId').value;
-    const name = document.getElementById('editContactName').value;
-    const email = document.getElementById('editContactEmail').value;
-    const phone = document.getElementById('editContactPhone').value;
-    const company = document.getElementById('editContactCompany').value;
-
-    const res = await fetch(`/functions/contacts/${id}/update`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, phone, company })
-    });
-    const data = await res.json();
-    if (data.success) {
-      editPanel.classList.remove('show');
-      showToast('✅ Contact updated');
-      location.reload();
-    } else alert('Failed to save contact.');
-  });
-
-  /* ============================================================
-     🔹 REMOVE / DELETE / PRIMARY
-  ============================================================ */
-  document.addEventListener('click', async (e) => {
-    const id = e.target.dataset.id;
-    if (e.target.classList.contains('remove-btn')) {
-      if (!confirm('Remove this contact from the function?')) return;
-      await fetch(`/functions/${fnId}/remove-contact`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact_id: id })
-      });
-      showToast('Contact removed');
-      location.reload();
-    }
-    if (e.target.classList.contains('delete-btn')) {
-      if (!confirm('Permanently delete this contact?')) return;
-      await fetch(`/functions/contacts/${id}/delete`, { method: 'DELETE' });
-      showToast('Contact deleted');
-      location.reload();
-    }
-    if (e.target.classList.contains('primary-btn')) {
-      const res = await fetch(`/functions/${fnId}/set-primary`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact_id: id })
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast('⭐ Primary contact updated');
-        location.reload();
-      } else alert('Failed to update primary contact.');
-    }
-  });
-
-  /* ============================================================
-     🔹 ADD / LINK CONTACT PANEL
-  ============================================================ */
-  const addPanel = document.getElementById('addContactPanel');
-  const openAddPanelBtn = document.getElementById('openAddPanelBtn');
-  const closeAddPanel = document.getElementById('closeAddPanel');
-  const tabNew = document.getElementById('tabNew');
-  const tabExisting = document.getElementById('tabExisting');
-  const newForm = document.getElementById('newContactForm');
-  const existingSection = document.getElementById('existingContactSection');
-  const searchInput = document.getElementById('searchContact');
-  const selectDropdown = document.getElementById('existingSelect');
-  const linkExistingBtn = document.getElementById('linkExisting');
-
-  // Open / Close Add Panel
-  if (openAddPanelBtn) openAddPanelBtn.addEventListener('click', () => addPanel.classList.add('show'));
-  if (closeAddPanel) closeAddPanel.addEventListener('click', () => addPanel.classList.remove('show'));
-
-  // Tab switching
-  if (tabNew && tabExisting) {
-    tabNew.addEventListener('click', () => {
-      tabNew.classList.add('active');
-      tabExisting.classList.remove('active');
-      newForm.classList.remove('hidden');
-      existingSection.classList.add('hidden');
-    });
-    tabExisting.addEventListener('click', () => {
-      tabExisting.classList.add('active');
-      tabNew.classList.remove('active');
-      newForm.classList.add('hidden');
-      existingSection.classList.remove('hidden');
-      loadContactsList();
-    });
-  }
-
-  // Load all contacts into dropdown
-  async function loadContactsList() {
-    try {
-      const res = await fetch('/functions/api/contacts');
-      const contacts = await res.json();
-      selectDropdown.innerHTML = '';
-      contacts.forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c.id;
-        opt.textContent = `${c.name} (${c.email || 'no email'})`;
-        selectDropdown.appendChild(opt);
-      });
-    } catch (err) {
-      console.error('❌ Error loading contact list:', err);
-    }
-  }
-
-  // Search contacts
-  if (searchInput) {
-    searchInput.addEventListener('input', () => {
-      const term = searchInput.value.toLowerCase();
-      Array.from(selectDropdown.options).forEach(opt => {
-        opt.style.display = opt.textContent.toLowerCase().includes(term) ? '' : 'none';
-      });
-    });
-  }
-
-  // Save new contact
-  if (newForm) {
-    newForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const name = document.getElementById('newName').value.trim();
-      const email = document.getElementById('newEmail').value.trim();
-      const phone = document.getElementById('newPhone').value.trim();
-      const company = document.getElementById('newCompany').value.trim();
-      const res = await fetch(`/functions/${fnId}/new-contact`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, phone, company })
-      });
-      const data = await res.json();
-      if (data.success) {
-        addPanel.classList.remove('show');
-        showToast('✅ Contact added');
-        location.reload();
-      } else alert('Error saving contact.');
-    });
-  }
-
-// ✅ Link existing contact
-if (linkExistingBtn) {
-  linkExistingBtn.addEventListener('click', async () => {
-    const contactId = selectDropdown.value;
-    if (!contactId) return alert('Please select a contact first.');
-    try {
-      const res = await fetch(`/functions/${fnId}/link-contact`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact_id: contactId })
-      });
-      const data = await res.json();
-      if (data.success) {
-        addPanel.classList.remove('show');
-        showToast('🔗 Contact linked successfully');
-        location.reload();
-      } else {
-        alert('Failed to link contact.');
-      }
-    } catch (err) {
-      console.error('❌ Error linking contact:', err);
-      alert('Server error while linking contact.');
-    }
-  });
-}
-
-});
-</script>
-
+  <!-- 🔹 Script -->
+  <script src="/js/function-detail.js"></script>
 </body>
 </html>
+
 
 
 

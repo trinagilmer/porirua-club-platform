@@ -1,0 +1,78 @@
+<!-- 🔹 View Contact Modal -->
+<div id="viewContactModal" class="modal hidden">
+  <div class="modal-content">
+    <span id="closeViewModal" class="close">&times;</span>
+    <div id="contactModalBody">Loading contact...</div>
+  </div>
+</div>
+
+<!-- 🔹 Edit Contact Slide Panel -->
+<div id="editContactPanel" class="slide-panel hidden">
+  <div class="panel-header">
+    <h3>Edit Contact</h3>
+    <button id="closeEditPanel" class="close">&times;</button>
+  </div>
+
+  <form id="editContactForm" class="panel-form">
+    <input type="hidden" id="editContactId">
+
+    <label>Name</label>
+    <input type="text" id="editContactName" required>
+
+    <label>Email</label>
+    <input type="email" id="editContactEmail" required>
+
+    <label>Phone</label>
+    <input type="text" id="editContactPhone">
+
+    <label>Company</label>
+    <input type="text" id="editContactCompany">
+
+    <div class="panel-actions">
+      <button type="submit" class="btn">Save Changes</button>
+      <button type="button" id="cancelEdit" class="btn ghost">Cancel</button>
+    </div>
+  </form>
+</div>
+
+<!-- 🔹 Add / Link Contact Slide Panel -->
+<div id="addContactPanel" class="slide-panel hidden">
+  <div class="panel-header">
+    <h3>Add Contact</h3>
+    <button id="closeAddPanel" class="close">&times;</button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="contact-panel-tabs">
+    <button id="tabNew" class="tab-btn active">New Contact</button>
+    <button id="tabExisting" class="tab-btn">Link Existing</button>
+  </div>
+
+  <!-- 🆕 New Contact Form -->
+  <form id="newContactForm" class="panel-form">
+    <label>Name</label>
+    <input type="text" id="newName" required>
+
+    <label>Email</label>
+    <input type="email" id="newEmail" required>
+
+    <label>Phone</label>
+    <input type="text" id="newPhone">
+
+    <label>Company</label>
+    <input type="text" id="newCompany">
+
+    <div class="panel-actions">
+      <button type="submit" class="btn">Save Contact</button>
+    </div>
+  </form>
+
+  <!-- 🧩 Existing Contact Section -->
+  <div id="existingContactSection" class="hidden">
+    <input type="text" id="searchContact" placeholder="Search contacts..." class="contact-search">
+    <select id="existingSelect" size="8" class="contact-dropdown"></select>
+    <div class="panel-actions">
+      <button id="linkExisting" class="btn">Link Selected</button>
+    </div>
+  </div>
+</div>

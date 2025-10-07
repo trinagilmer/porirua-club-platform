@@ -734,35 +734,67 @@ a:hover { color: var(--primary); }
   gap: 8px;
 }
 /* ===========================
-   ADD CONTACT PANEL
+   CONTACT PANEL + ADD BUTTON
 =========================== */
-.contact-panel-tabs {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 12px;
+
+.contact-panel {
+  position: relative;               /* anchor for internal absolute elements */
+  padding-bottom: 72px;             /* room for the floating + button */
+  background: var(--white);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  overflow: hidden;
 }
 
-.tab-btn {
-  flex: 1;
-  padding: 8px;
-  border: 1px solid #ccc;
-  background: #f7f7f7;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.tab-btn.active {
+/* The floating + button inside the contact panel */
+.contact-panel .add-contact-fab {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
   background: var(--primary);
   color: #fff;
-  border-color: var(--primary);
+  border: none;
+  border-radius: 50%;
+  width: 52px;
+  height: 52px;
+  font-size: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transition: all 0.25s ease;
+  z-index: 10;
+  animation: fab-pop 0.25s ease-out;
 }
 
-.tab-btn:hover {
-  background: #eaf6fc;
-  border-color: var(--primary);
+.contact-panel .add-contact-fab:hover {
+  background: var(--deep);
+  transform: scale(1.08);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.25);
 }
+
+/* Simple pop-in animation when it loads */
+@keyframes fab-pop {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* When viewed on smaller screens, keep it centered and visible */
+@media (max-width: 900px) {
+  .contact-panel .add-contact-fab {
+    right: 50%;
+    transform: translateX(50%);
+    bottom: 12px;
+  }
+}
+
 
 /* Contact Search & Dropdown */
 .contact-search {
@@ -791,38 +823,6 @@ a:hover { color: var(--primary); }
 .contact-dropdown option:hover {
   background: #eaf6fc;
 }
-/* ===========================
-   CONTACT FAB BUTTON
-=========================== */
-.contact-panel {
-  position: relative;
-  padding-bottom: 64px; /* space for FAB */
-}
-
-.add-contact-fab {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
-  font-size: 1.8rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
-  transition: all 0.2s ease;
-  z-index: 50;
-}
-
-.add-contact-fab:hover {
-  background: var(--deep);
-  transform: scale(1.08);
-}
 
 /* ===========================
    TOAST NOTIFICATIONS
@@ -848,30 +848,6 @@ a:hover { color: var(--primary); }
   transform: translateY(0);
 }
 
-.add-contact-fab {
-  position: fixed;
-  bottom: 40px;
-  right: 40px;
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  border-radius: 50%;
-  width: 56px;
-  height: 56px;
-  font-size: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-  transition: transform 0.2s ease, background 0.2s ease;
-  z-index: 2000;
-}
-
-.add-contact-fab:hover {
-  background: var(--deep);
-  transform: scale(1.05);
-}
 .slide-panel {
   position: fixed;
   top: 0;
@@ -890,3 +866,31 @@ a:hover { color: var(--primary); }
 .slide-panel.show {
   transform: translateX(0);
 }
+.card h3 {
+  border-bottom: 1px solid #eee;
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+}
+
+.contact-card-list {
+  max-height: calc(100vh - 280px);
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.add-contact-fab {
+  background: var(--primary);
+  color: white;
+  font-size: 1.8rem;
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  border: none;
+  border-radius: 50%;
+  width: 52px;
+  height: 52px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+.add-contact-fab:hover { transform: scale(1.08); background: var(--deep); }

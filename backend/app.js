@@ -1,4 +1,6 @@
-// Load environment variables FIRST
+// =========================================================
+// 🌏 Load Environment Variables FIRST
+// =========================================================
 require("dotenv").config();
 
 const express = require("express");
@@ -6,11 +8,10 @@ const session = require("express-session");
 const path = require("path");
 const { format } = require("date-fns");
 
-
 const app = express();
 
 /* =========================================================
-   🌏 Global EJS Helpers
+   🌐 Global EJS Helpers (for formatting dates/times)
 ========================================================= */
 app.locals.formatNZDate = function (date) {
   try {
@@ -41,10 +42,11 @@ app.locals.formatNZDateTime = function (date, time) {
 };
 
 /* =========================================================
-   ⚙️ Middleware
+   ⚙️ Core Middleware
 ========================================================= */
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "changeme",
@@ -53,10 +55,35 @@ app.use(
   })
 );
 
-// Static files + EJS
+/* =========================================================
+   🧩 Static Files + EJS Views
+========================================================= */
+
+// ✅ Public directory for JS, CSS, Images
 app.use(express.static(path.join(__dirname, "public")));
+
+// ✅ EJS Templates
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
+
+/* =========================================================
+   🧠 Developer: Static Asset Health Check (optional)
+   Logs a warning if core static assets are missing
+========================================================= */
+if (process.env.NODE_ENV !== "production") {
+  const fs = require("fs");
+  const assetsToCheck = [
+    "public/js/function-detail.js",
+    "public/css/main.css",
+    "public/img/pc-logo.png",
+  ];
+
+  assetsToCheck.forEach((file) => {
+    if (!fs.existsSync(path.join(__dirname, file))) {
+      console.warn(`⚠️ Warning: Missing asset — ${file}`);
+    }
+  });
+}
 
 /* =========================================================
    🚏 Routes
@@ -75,13 +102,21 @@ app.use("/functions", functionsRoutes);
 app.use("/inbox", inboxRoutes);
 app.use("/auth", authRoutes);
 
-// 404 fallback
+/* =========================================================
+   🚨 404 Fallback
+========================================================= */
 app.use((req, res) => {
-  res.status(404).send("Page not found");
+  res.status(404).render("pages/404", {
+    title: "Page Not Found",
+    message: "The page you requested could not be found.",
+  });
 });
 
-// Start server
+/* =========================================================
+   🚀 Start Server
+========================================================= */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () =>
-  console.log(`🚀 Server running on http://localhost:${PORT}`)
-)
+  console.log(`✅ Porirua Club Platform running on http://localhost:${PORT}`)
+);
+
