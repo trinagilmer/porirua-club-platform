@@ -138,14 +138,21 @@
       </section>
     </div>
   </main>
+<!-- 🔹 Modals and Panels -->
+<%- include('../partials/function-modals') %>
 
-  <!-- 🔹 Modals and Panels -->
-  <%- include('../partials/function-modals') %>
-
-  <!-- 🔹 Script -->
-  <script src="/js/function-detail.js"></script>
+<!-- 🔹 Script -->
+<script>
+  window.fnContext = {
+    id: "<%= fn.id %>",
+    name: "<%= fn.event_name %>",
+    userId: "<%= user ? user.id : '' %>"
+  };
+</script>
+<script src="/js/function-detail.js"></script>
 </body>
 </html>
+
 
 
 
