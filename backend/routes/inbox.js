@@ -1,30 +1,99 @@
 /**
  * 📬 Porirua Club Platform
  * Module 2C: Enhanced Inbox + Linked Intelligence + Safe Normalization
- * Dependencies: ensureGraphToken, Supabase, graphService
  */
 
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
-const upload = multer(); // Handles memory uploads
+const upload = multer();
+const fetch = require("node-fetch");
+
 const { supabase } = require("../db");
 const { ensureGraphToken } = require("../middleware/graphTokenMiddleware");
 const { getValidGraphToken } = require("../utils/graphAuth");
 const graphService = require("../services/graphService");
 
-// 🧩 Apply Graph token validation to all inbox routes
-router.use(ensureGraphToken);
+/* ---------------------------------------------------------
+   🟩 1️⃣ Enhanced Supabase Inbox (Safe + Intelligent)
+--------------------------------------------------------- */
+router.get("/enhanced", async (req, res) => {
+  try {
+    const { data: messages, error } = await supabase
+      .from("messages")
+      .select(`
+        id, subject, body, message_type, created_at, received_at, from_email, to_email,
+        related_contact, related_function, related_booking,
+        contacts:related_contact(name, email, phone),
+        functions:related_function(event_name, event_date)
+      `)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    // ✅ Normalize safely
+    const enhancedMessages = (messages || []).map((m) => ({
+      id: m.id,
+      subject: m.subject || "(No Subject)",
+      body: m.body || "(No Content)",
+      from_email: m.from_email || "(Unknown sender)",
+      to_email: m.to_email || "(Unknown recipient)",
+      created_at: m.created_at || m.received_at || new Date().toISOString(),
+      related_contact: m.related_contact || null,
+      related_function: m.related_function || null,
+      contacts: m.contacts || null,
+      functions: m.functions || null,
+      source: "Supabase",
+    }));
+
+    const total = enhancedMessages.length;
+    const linked = enhancedMessages.filter(
+      (m) => m.related_contact || m.related_function
+    ).length;
+    const unlinked = total - linked;
+
+    // 🧠 Developer summary (for console)
+    console.log("========================================");
+    console.log("📊 Enhanced Inbox Summary");
+    console.log(`📦 Total: ${total}`);
+    console.log(`🔗 Linked: ${linked}`);
+    console.log(`❌ Unlinked: ${unlinked}`);
+    console.log(
+      "📧 Recent senders:",
+      enhancedMessages.slice(0, 5).map((m) => m.from_email)
+    );
+    console.log("========================================\n");
+
+    res.render("pages/inbox", {
+      user: req.session.user || null,
+      messages: enhancedMessages,
+      error: null,
+      enhanced: true,
+      stats: { total, linked, unlinked },
+    });
+  } catch (err) {
+    console.error("❌ [Enhanced Inbox] Error:", err);
+    res.render("pages/inbox", {
+      user: req.session.user || null,
+      messages: [],
+      error: "Failed to load enhanced inbox",
+      enhanced: true,
+      stats: { total: 0, linked: 0, unlinked: 0 },
+    });
+  }
+});
 
 /* ---------------------------------------------------------
-   📥 1️⃣ Microsoft Graph Inbox (Outlook Messages)
+   🟦 2️⃣ Outlook Inbox via Microsoft Graph
 --------------------------------------------------------- */
-router.get("/", async (req, res, next) => {
+router.get("/", ensureGraphToken, async (req, res, next) => {
   try {
     const sharedMailbox = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
     const keywords = ["Function", "Booking", "Proposal", "Porirua Club"];
-    const searchQuery = keywords.map(k => `"${k}"`).join(" OR ");
-    const graphUrl = `https://graph.microsoft.com/v1.0/users('${sharedMailbox}')/mailFolders('Inbox')/messages?$top=20&$search=${encodeURIComponent(searchQuery)}`;
+    const searchQuery = keywords.map((k) => `"${k}"`).join(" OR ");
+    const graphUrl = `https://graph.microsoft.com/v1.0/users('${sharedMailbox}')/mailFolders('Inbox')/messages?$top=20&$search=${encodeURIComponent(
+      searchQuery
+    )}`;
 
     const response = await fetch(graphUrl, {
       headers: {
@@ -35,38 +104,47 @@ router.get("/", async (req, res, next) => {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("❌ Graph API Error:", errText);
-      throw new Error(`Graph API failed: ${response.status} ${response.statusText}`);
+      throw new Error(`Graph API failed: ${response.status} ${response.statusText} – ${errText}`);
     }
 
     const data = await response.json();
-    console.log(`✅ Retrieved ${data.value?.length || 0} messages`);
+    console.log(`✅ [Graph Inbox] Retrieved ${data.value?.length || 0} messages`);
 
-    // ✅ Normalize messages to prevent "undefined from" crashes
-    const normalizedMessages = (data.value || []).map(m => ({
+    const messages = (data.value || []).map((m) => ({
       ...m,
+      from: m?.from?.emailAddress
+        ? m.from
+        : { emailAddress: { name: "(Unknown)", address: "(Unknown sender)" } },
+      toRecipients:
+        Array.isArray(m?.toRecipients) && m.toRecipients.length > 0
+          ? m.toRecipients
+          : [{ emailAddress: { name: "(Unknown)", address: "(Unknown recipient)" } }],
       source: "Outlook",
-      from: m.from || { emailAddress: { address: "(Unknown sender)", name: "(Unknown)" } },
-      toRecipients: m.toRecipients || [],
     }));
 
     res.render("pages/inbox", {
       user: req.session.user || null,
-      messages: normalizedMessages,
+      messages,
       error: null,
+      enhanced: false,
+      stats: {},
     });
   } catch (err) {
-    console.error("💥 Full error trace:", err);
+    console.error("💥 [Graph Inbox] Error:", err);
     next(err);
   }
 });
 
 /* ---------------------------------------------------------
-   📄 2️⃣ Message Detail View (Supabase Messages)
+   📄 3️⃣ Message Detail View (Supabase + Outlook fallback)
 --------------------------------------------------------- */
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req, res, next) => {
   try {
     const messageId = req.params.id;
+    const reserved = ["enhanced"];
+    if (reserved.includes(messageId.toLowerCase())) return next();
+
+    console.log(`🧠 [Message Detail] Called with ID: ${messageId}`);
 
     const { data: message, error } = await supabase
       .from("messages")
@@ -74,38 +152,63 @@ router.get("/:id", async (req, res) => {
       .eq("id", messageId)
       .single();
 
-    if (error) throw error;
-    if (!message) return res.status(404).send("Message not found");
+    if (error && error.code !== "PGRST116") throw error;
 
-    // 🧠 Normalize Supabase message (avoid .from undefined)
-    message.source = "Supabase";
-    if (message && typeof message.from === "object") {
-      message.from_email =
-        message.from?.emailAddress?.address ||
-        message.from_email ||
-        "(Unknown sender)";
+    if (!message) {
+      console.log("🟦 [Fallback] Fetching message from Outlook (Graph)");
+      const sharedMailbox = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
+      const graphUrl = `https://graph.microsoft.com/v1.0/users('${sharedMailbox}')/messages/${messageId}`;
+
+      const response = await fetch(graphUrl, {
+        headers: { Authorization: `Bearer ${req.session.graphToken}` },
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Graph fetch failed: ${response.status} ${text}`);
+      }
+
+      const graphMessage = await response.json();
+      const safeMessage = {
+        id: graphMessage.id,
+        subject: graphMessage.subject || "(No Subject)",
+        from_email: graphMessage.from?.emailAddress?.address || "(Unknown sender)",
+        to_email:
+          graphMessage.toRecipients?.[0]?.emailAddress?.address ||
+          "(Unknown recipient)",
+        body_html: graphMessage.body?.content || "(No content)",
+        created_at: graphMessage.receivedDateTime || new Date().toISOString(),
+        source: "Outlook",
+      };
+
+      return res.render("pages/messageDetail", {
+        message: safeMessage,
+        contacts: [],
+        functions: [],
+      });
     }
 
-    if (!message.to_email && message.to?.emailAddress?.address) {
-      message.to_email = message.to.emailAddress.address;
-    }
+    const [contactsRes, functionsRes] = await Promise.all([
+      supabase.from("contacts").select("id, name"),
+      supabase.from("functions").select("id, event_name"),
+    ]);
 
-    const { data: contacts } = await supabase.from("contacts").select("id, name");
-    const { data: functions } = await supabase.from("functions").select("id, event_name");
+    const safeMessage = {
+      ...message,
+      from_email: message.from_email || "(Unknown sender)",
+      to_email: message.to_email || "(Unknown recipient)",
+      subject: message.subject || "(No subject)",
+      body_html: message.body || "",
+      source: "Supabase",
+    };
 
     res.render("pages/messageDetail", {
-      message: {
-        ...message,
-        from_email: message.from_email || "(Unknown sender)",
-        to_email: message.to_email || "(Unknown recipient)",
-        subject: message.subject || "(No subject)",
-        body_html: message.body || "",
-      },
-      contacts,
-      functions,
+      message: safeMessage,
+      contacts: contactsRes.data || [],
+      functions: functionsRes.data || [],
     });
   } catch (err) {
-    console.error("❌ Error rendering message detail:", err.message);
+    console.error("❌ [Message Detail] Error:", err);
     res
       .status(500)
       .send(`<h2>Error rendering message detail</h2><pre>${err.message}</pre>`);
@@ -113,7 +216,7 @@ router.get("/:id", async (req, res) => {
 });
 
 /* ---------------------------------------------------------
-   🔗 3️⃣ Manual Link Route
+   🔗 4️⃣ Manual Link Route
 --------------------------------------------------------- */
 router.post("/link/:id", async (req, res) => {
   try {
@@ -131,17 +234,17 @@ router.post("/link/:id", async (req, res) => {
     if (error) throw error;
 
     console.log(
-      `🔗 Message ${messageId} linked to contact:${contact_id} / function:${function_id}`
+      `🔗 [Link] Message ${messageId} linked to contact:${contact_id} / function:${function_id}`
     );
     return res.json({ success: true, message: "Message successfully linked." });
   } catch (err) {
-    console.error("❌ Manual link failed:", err.message);
+    console.error("❌ [Link Route] Error:", err.message);
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
 /* ---------------------------------------------------------
-   💬 4️⃣ Reply with Attachments
+   💬 5️⃣ Reply with Attachments
 --------------------------------------------------------- */
 router.post("/reply/:id", upload.single("attachment"), async (req, res) => {
   const messageId = req.params.id;
@@ -150,9 +253,8 @@ router.post("/reply/:id", upload.single("attachment"), async (req, res) => {
 
   try {
     const accessToken = await getValidGraphToken(req);
-
-    // 🗂️ Upload attachment if exists
     let uploadedFile = null;
+
     if (file) {
       const filePath = `inbox/${Date.now()}_${file.originalname}`;
       const { data, error } = await supabase.storage
@@ -163,15 +265,14 @@ router.post("/reply/:id", upload.single("attachment"), async (req, res) => {
       uploadedFile = { name: file.originalname, path: data.path };
     }
 
-    // 📨 Fetch original message
     const { data: original, error: fetchError } = await supabase
       .from("messages")
       .select("*")
       .eq("id", messageId)
       .single();
+
     if (fetchError) throw fetchError;
 
-    // 🧩 Build reply payload
     const mailData = {
       to: original.from_email,
       subject,
@@ -187,10 +288,8 @@ router.post("/reply/:id", upload.single("attachment"), async (req, res) => {
         : [],
     };
 
-    // ✉️ Send via Microsoft Graph
     await graphService.sendMail(accessToken, mailData);
 
-    // 🧾 Insert outbound record
     const { error: insertError } = await supabase.from("messages").insert({
       conversation_id: original.conversation_id,
       from_email: "events@poriruaclub.co.nz",
@@ -204,7 +303,6 @@ router.post("/reply/:id", upload.single("attachment"), async (req, res) => {
     });
     if (insertError) throw insertError;
 
-    // 🧱 Log document if uploaded
     if (uploadedFile) {
       await supabase.from("documents").insert({
         message_id: messageId,
@@ -213,60 +311,11 @@ router.post("/reply/:id", upload.single("attachment"), async (req, res) => {
       });
     }
 
-    console.log(`✅ Reply sent successfully to ${original.from_email}`);
-    return res.redirect(`/inbox/${messageId}`);
+    console.log(`✅ [Reply] Sent successfully to ${original.from_email}`);
+    res.redirect(`/inbox/${messageId}`);
   } catch (err) {
-    console.error("❌ Reply failed:", err.message);
-    res
-      .status(500)
-      .send(`<h2>Reply Failed</h2><pre>${err.message}</pre>`);
-  }
-});
-
-/* ---------------------------------------------------------
-   🚀 5️⃣ Enhanced Inbox – Supabase-Joined Intelligence View
---------------------------------------------------------- */
-router.get("/enhanced", async (req, res) => {
-  try {
-    const { data: messages, error } = await supabase
-      .from("messages")
-      .select(`
-        id, subject, body, message_type, created_at, received_at, from_email, to_email,
-        related_contact, related_function, related_booking,
-        contacts:related_contact(name, email, phone),
-        functions:related_function(event_name, event_date)
-      `)
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
-
-    // Compute stats for filters
-    const total = messages.length;
-    const linked = messages.filter(m => m.related_contact || m.related_function).length;
-    const unlinked = total - linked;
-
-    // ✅ Add source badges
-    const enhancedMessages = messages.map(m => ({
-      ...m,
-      source: "Supabase",
-    }));
-
-    res.render("pages/inbox", {
-      user: req.session.user || null,
-      messages: enhancedMessages,
-      error: null,
-      enhanced: true,
-      stats: { total, linked, unlinked },
-    });
-  } catch (err) {
-    console.error("❌ Enhanced Inbox Error:", err);
-    res.render("pages/inbox", {
-      user: req.session.user || null,
-      messages: [],
-      error: "Failed to load enhanced inbox",
-      enhanced: true,
-      stats: { total: 0, linked: 0, unlinked: 0 },
-    });
+    console.error("❌ [Reply] Failed:", err.message);
+    res.status(500).send(`<h2>Reply Failed</h2><pre>${err.message}</pre>`);
   }
 });
 
