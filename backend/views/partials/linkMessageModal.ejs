@@ -1,0 +1,26 @@
+<div id="linkMessageModal" class="modal">
+  <div class="modal-content">
+    <form action="/inbox/link/<%= message.id %>" method="POST">
+      <h3>Link Message</h3>
+
+      <label>Contact</label>
+      <select name="contact_id" class="form-control">
+        <option value="">-- Select Contact --</option>
+        <% contacts.forEach(c => { %>
+          <option value="<%= c.id %>"><%= c.name %></option>
+        <% }) %>
+      </select>
+
+      <label>Function</label>
+      <select name="function_id" class="form-control">
+        <option value="">-- Select Function --</option>
+        <% functions.forEach(f => { %>
+          <option value="<%= f.id %>"><%= f.name %></option>
+        <% }) %>
+      </select>
+
+      <button type="submit" class="btn btn-primary">Link</button>
+      <button type="button" class="btn btn-secondary close">Cancel</button>
+    </form>
+  </div>
+</div>

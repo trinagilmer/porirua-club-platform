@@ -1,8 +1,8 @@
 // backend/routes/auth.js
 const express = require("express");
 const bcrypt = require("bcrypt");
-const pool = require("../db");
-const msal = require("@azure/msal-node");
+const { pool } = require("../db");
+const { cca } = require("../auth/msal"); // ✅ import the shared MSAL client
 
 const router = express.Router();
 
@@ -76,26 +76,7 @@ router.get("/logout", (req, res) => {
    MICROSOFT 365 LOGIN (MS GRAPH)
 ========================================================= */
 
-const msalConfig = {
-  auth: {
-    clientId: process.env.AZURE_CLIENT_ID,
-    authority: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}`,
-    clientSecret: process.env.AZURE_CLIENT_SECRET,
-  },
-};
-
-console.log("🔗 MSAL Authority:", msalConfig.auth.authority);
-console.log("🔑 Azure client credentials loaded?", {
-  clientId: !!process.env.AZURE_CLIENT_ID,
-  tenantId: !!process.env.AZURE_TENANT_ID,
-  secret: process.env.AZURE_CLIENT_SECRET ? "(set)" : "(missing)",
-});
-
-const cca = new msal.ConfidentialClientApplication(msalConfig);
-
-/**
- * 🔹 Microsoft Graph Login — Redirect user to Microsoft Auth page
- */
+// --- Step 1: Redirect user to Microsoft login page ---
 router.get("/graph/login", async (req, res) => {
   try {
     const authCodeUrlParameters = {
@@ -118,9 +99,7 @@ router.get("/graph/login", async (req, res) => {
   }
 });
 
-/**
- * 🔹 Microsoft Graph Callback — Handle redirect & acquire token
- */
+// --- Step 2: Handle Microsoft callback ---
 router.get("/graph/callback", async (req, res) => {
   const tokenRequest = {
     code: req.query.code,
@@ -139,9 +118,15 @@ router.get("/graph/callback", async (req, res) => {
     const response = await cca.acquireTokenByCode(tokenRequest);
     const msUser = response.account;
 
-    console.log("✅ Microsoft login success:", msUser.username);
+    // 🔐 Store Microsoft Graph tokens in session
+    req.session.graphToken = response.accessToken;
+    req.session.graphTokenExpires = Math.floor(response.expiresOn.getTime() / 1000);
+    req.session.account = response.account;
 
-    // Find or create local user record
+    console.log("✅ Microsoft login success:", msUser.username);
+    console.log("🕒 Token expires at:", response.expiresOn.toISOString());
+
+    // --- Sync Microsoft user with local database ---
     const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [msUser.username]);
     let user;
 
@@ -155,7 +140,7 @@ router.get("/graph/callback", async (req, res) => {
       user = insert.rows[0];
     }
 
-    // Store session user + Graph tokens
+    // 🧭 Save user + shared mailbox in session
     req.session.user = {
       id: user.id,
       name: user.name,
@@ -163,13 +148,10 @@ router.get("/graph/callback", async (req, res) => {
       role: user.role,
     };
 
-    req.session.graphToken = response.accessToken;
-    req.session.graphRefreshToken = response.refreshToken;
-
-    // 🔹 Use shared mailbox for all subsequent email actions
     req.session.sharedMailbox = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
-
     console.log(`📨 Shared mailbox configured: ${req.session.sharedMailbox}`);
+
+    // ✅ Redirect to inbox
     res.redirect("/inbox");
   } catch (error) {
     console.error("❌ Microsoft login error:", error);
@@ -177,4 +159,9 @@ router.get("/graph/callback", async (req, res) => {
   }
 });
 
+/* =========================================================
+   EXPORT
+========================================================= */
+
 module.exports = router;
+

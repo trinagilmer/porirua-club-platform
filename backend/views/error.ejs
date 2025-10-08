@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Error</title>
+  <style>
+    body { font-family: sans-serif; background: #fff5f5; color: #c53030; padding: 40px; }
+    pre { background: #fff; padding: 10px; border: 1px solid #fbb6b6; border-radius: 6px; color: #742a2a; }
+  </style>
+</head>
+<body>
+  <h1>💥 Application Error</h1>
+  <p><strong><%= error %></strong></p>
+  <pre><%= typeof stack !== 'undefined' ? stack : '' %></pre>
+</body>
+</html>

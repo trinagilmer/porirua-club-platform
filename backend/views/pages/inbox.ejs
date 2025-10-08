@@ -26,8 +26,49 @@
     .msg-subject { color: #0063B1; font-size: 0.95rem; font-weight: 500; }
     .msg-preview { color: #666; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .msg-date { font-size: 0.8rem; color: #777; text-align: right; min-width: 150px; }
+
+    /* --- NEW: Auto-Linker styles --- */
+    #autoLinkerPanel {
+      margin-top: 30px;
+      padding: 20px;
+      border-radius: 10px;
+      background: #f5f7fa;
+      border: 1px solid #e5e7eb;
+    }
+    #autoLinkerPanel h2 {
+      margin-top: 0;
+      font-size: 1.3rem;
+      color: #0f766e;
+    }
+    #runLinker {
+      background: #0f766e;
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      transition: background 0.2s;
+    }
+    #runLinker:hover { background: #115e59; }
+    #linkerLog {
+      margin-top: 12px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      font-size: 0.9rem;
+      color: #1e293b;
+      background: #fff;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      min-height: 60px;
+    }
+    .loading { color: #2563eb; }
+    .success { color: #16a34a; }
+    .error { color: #dc2626; }
   </style>
 </head>
+
 <body>
   <%- include('../partials/header', { active: 'inbox', user: user }) %>
 
@@ -58,9 +99,17 @@
         <% }) %>
       </div>
     <% } %>
+
+    <!-- 🧭 NEW: Auto-Linker panel -->
+    <div id="autoLinkerPanel">
+      <h2>🔗 Auto-Linker Service</h2>
+      <p>Automatically links incoming emails to existing contacts and functions.</p>
+      <button id="runLinker">Run Auto-Linker</button>
+      <div id="linkerLog"><em>Idle...</em></div>
+    </div>
   </main>
 
-  <!-- Message Modal -->
+  <!-- Message Modal (unchanged) -->
   <div id="messageModal" class="modal hidden">
     <div class="modal-content card">
       <h2 id="modalSubject"></h2>
@@ -74,7 +123,7 @@
   </div>
 
   <script>
-    // Frontend modal logic
+    // --- Modal Logic (existing) ---
     const messages = <%- JSON.stringify(messages) %>;
     const modal = document.getElementById('messageModal');
     const closeBtn = document.getElementById('closeModalBtn');
@@ -94,8 +143,31 @@
       });
     });
 
-    closeBtn.addEventListener('click', () => {
-      modal.classList.add('hidden');
+    closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
+
+    // --- NEW: Auto-Linker fetch logic ---
+    const runLinkerBtn = document.getElementById('runLinker');
+    const linkerLog = document.getElementById('linkerLog');
+
+    runLinkerBtn.addEventListener('click', async () => {
+      runLinkerBtn.disabled = true;
+      linkerLog.innerHTML = '<span class="loading">⏳ Running Auto-Linker...</span>';
+
+      try {
+        const res = await fetch('/inbox/match', { method: 'POST' });
+        const data = await res.json();
+
+        if (res.ok) {
+          linkerLog.innerHTML = '<span class="success">✅ Completed successfully</span>\\n' +
+            JSON.stringify(data, null, 2);
+        } else {
+          linkerLog.innerHTML = '<span class="error">❌ Error: ' + data.message + '</span>';
+        }
+      } catch (err) {
+        linkerLog.innerHTML = '<span class="error">💥 Request failed: ' + err.message + '</span>';
+      } finally {
+        runLinkerBtn.disabled = false;
+      }
     });
   </script>
 

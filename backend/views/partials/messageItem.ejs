@@ -1,0 +1,42 @@
+<div class="message-card"
+     data-id="<%= msg.id %>"
+     data-linked="<%= msg.related_contact || msg.related_function ? 'true' : 'false' %>"
+     data-has-function="<%= msg.related_function ? 'true' : 'false' %>"
+     data-has-booking="<%= msg.related_booking ? 'true' : 'false' %>">
+
+  <div class="msg-left">
+    <div class="msg-header">
+      <strong class="msg-subject"><%= msg.subject || '(No Subject)' %></strong>
+      <% if (msg.related_contact || msg.related_function) { %>
+        <span class="badge linked">Linked</span>
+      <% } else { %>
+        <span class="badge unlinked">Unlinked</span>
+      <% } %>
+    </div>
+
+    <div class="msg-meta">
+      <div class="msg-contact">
+        <% if (msg.contacts) { %>
+          👤 <span class="contact-name" title="<%= msg.contacts.email %>"><%= msg.contacts.name %></span>
+        <% } else { %>
+          <span class="contact-unlinked">No Contact</span>
+        <% } %>
+      </div>
+
+      <% if (msg.functions) { %>
+        <div class="msg-function">
+          🎉 <%= msg.functions.event_name %> 
+          <small>(<%= msg.functions.event_date ? new Date(msg.functions.event_date).toLocaleDateString() : '' %>)</small>
+        </div>
+      <% } %>
+    </div>
+
+    <div class="msg-preview"><%= (msg.body || '').slice(0, 120) %>...</div>
+  </div>
+
+  <div class="msg-right">
+    <span class="msg-date" data-time="<%= msg.received_at || msg.created_at %>">
+      <%= new Date(msg.received_at || msg.created_at).toLocaleString() %>
+    </span>
+  </div>
+</div>

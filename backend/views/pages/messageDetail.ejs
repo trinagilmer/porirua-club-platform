@@ -1,0 +1,66 @@
+<!-- views/pages/messageDetail.ejs -->
+<%- include('../partials/header') %>
+
+<div class="container mt-4">
+  <h2><%= message.subject || "(No Subject)" %></h2>
+
+  <!-- Universal From/To Logic -->
+  <p><strong>From:</strong>
+    <%= message.from?.emailAddress?.address 
+        || message.from_email 
+        || "(Unknown sender)" %>
+  </p>
+
+  <p><strong>To:</strong>
+    <%= message.to?.emailAddress?.address 
+        || message.to_email 
+        || "(Unknown recipient)" %>
+  </p>
+
+  <p><strong>Date:</strong>
+    <%= message.created_at 
+        ? new Date(message.created_at).toLocaleString()
+        : (message.receivedDateTime 
+          ? new Date(message.receivedDateTime).toLocaleString()
+          : "(Unknown date)") %>
+  </p>
+
+  <hr>
+
+  <div class="message-body">
+    <%- message.body_html 
+        || message.body_text 
+        || message.bodyPreview 
+        || message.body 
+        || "No content." %>
+  </div>
+
+  <% if (message.attachments && message.attachments.length > 0) { %>
+    <hr>
+    <h4>Attachments</h4>
+    <ul>
+      <% message.attachments.forEach(a => { %>
+        <li>
+          <a href="<%= a.file_url || a.filePath || '#' %>" target="_blank">
+            <%= a.file_name || a.name || "Unnamed attachment" %>
+          </a>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+
+  <div class="mt-4">
+    <button class="btn btn-outline-primary btn-link-message">Link</button>
+    <button class="btn btn-outline-success btn-reply-message">Reply</button>
+    <a href="/inbox" class="btn btn-secondary">Back to Inbox</a>
+  </div>
+</div>
+
+<!-- Include modals -->
+<%- include('../partials/linkMessageModal', { message, contacts, functions }) %>
+<%- include('../partials/replyModal', { message }) %>
+
+<script src="/js/inbox.js"></script>
+
+<%- include('../partials/footer') %>
+

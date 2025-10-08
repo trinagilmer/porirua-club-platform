@@ -1,0 +1,37 @@
+<div class="message-detail-inner">
+  <h2><%= msg.subject || '(No Subject)' %></h2>
+  <p><strong>From:</strong> <%= msg.from_email || 'Unknown' %></p>
+  <p><strong>To:</strong> <%= msg.to_email || 'Unknown' %></p>
+  <p><strong>Date:</strong> <%= new Date(msg.created_at).toLocaleString() %></p>
+
+  <hr>
+
+  <% if (msg.contacts) { %>
+    <div class="contact-card">
+      <h3>Contact Info</h3>
+      <p><strong><%= msg.contacts.name %></strong></p>
+      <p><%= msg.contacts.email %></p>
+      <% if (msg.contacts.phone) { %><p>📞 <%= msg.contacts.phone %></p><% } %>
+    </div>
+  <% } else { %>
+    <p class="muted">No linked contact.</p>
+  <% } %>
+
+  <% if (msg.functions) { %>
+    <div class="function-card">
+      <h3>Function</h3>
+      <p><strong><%= msg.functions.event_name %></strong></p>
+      <p><%= new Date(msg.functions.event_date).toLocaleDateString() %></p>
+    </div>
+  <% } %>
+
+  <hr>
+  <div class="message-body">
+    <pre><%= msg.body || '(No message body)' %></pre>
+  </div>
+
+  <div class="action-row">
+    <a href="/inbox/link/<%= msg.id %>" class="btn btn-outline-primary">Link</a>
+    <a href="/inbox/reply/<%= msg.id %>" class="btn btn-outline-success">Reply</a>
+  </div>
+</div>

@@ -1,11 +1,11 @@
-// =========================================================
-// 🌏 Load Environment Variables FIRST
-// =========================================================
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
+
+const { runStartupValidation } = require("./utils/startupValidator");
+runStartupValidation();
 
 const express = require("express");
 const session = require("express-session");
-const path = require("path");
 const { format } = require("date-fns");
 
 const app = express();
@@ -88,19 +88,24 @@ if (process.env.NODE_ENV !== "production") {
 /* =========================================================
    🚏 Routes
 ========================================================= */
+// ✅ Import route modules
 const indexRoutes = require("./routes/index");
 const dashboardRoutes = require("./routes/dashboard");
 const testRoutes = require("./routes/test");
 const functionsRoutes = require("./routes/functions");
-const authRoutes = require("./routes/auth");
+const authRoutes = require("./routes/auth"); // ✅ no destructuring needed anymore
 const inboxRoutes = require("./routes/inbox");
+const healthRouter = require("./routes/health");
 
+// ✅ Mount routes
 app.use("/", indexRoutes);
 app.use("/dashboard", dashboardRoutes);
 app.use("/test-db", testRoutes);
 app.use("/functions", functionsRoutes);
 app.use("/inbox", inboxRoutes);
-app.use("/auth", authRoutes);
+app.use("/auth", authRoutes); // ✅ works again
+app.use("/health", healthRouter);
+
 
 /* =========================================================
    🚨 404 Fallback

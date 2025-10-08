@@ -6,4 +6,8 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
 });
 
-module.exports = pool;
+console.log("✅ PostgreSQL connection pool initialized.");
+
+module.exports = { pool };
+
+

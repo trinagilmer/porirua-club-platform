@@ -1,0 +1,19 @@
+<div id="replyModal" class="modal">
+  <div class="modal-content">
+    <form action="/inbox/reply/<%= message.id %>" method="POST" enctype="multipart/form-data">
+      <h3>Reply to Message</h3>
+
+      <label>Subject</label>
+      <input type="text" name="subject" value="Re: <%= message.subject %>" class="form-control" readonly>
+
+      <label>Body</label>
+      <textarea name="body" rows="6" class="form-control" placeholder="Write your reply..."></textarea>
+
+      <label>Attachment (optional)</label>
+      <input type="file" name="attachment" class="form-control">
+
+      <button type="submit" class="btn btn-success">Send Reply</button>
+      <button type="button" class="btn btn-secondary close">Cancel</button>
+    </form>
+  </div>
+</div>
