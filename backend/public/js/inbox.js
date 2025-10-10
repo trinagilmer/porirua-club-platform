@@ -1,16 +1,15 @@
 /**
- * 📬 Porirua Club Platform – Enhanced Inbox Frontend
- * Module 2C: Linked Intelligence + Auto-Linker Integration
+ * 📬 Porirua Club Platform – Unified Inbox Frontend
+ * Supports: Inbox message navigation, Auto-Linker, Reply & Link Modals
  */
 
 document.addEventListener("DOMContentLoaded", () => {
-  const messages = window.messages || [];
-  const filterButtons = document.querySelectorAll(".filter-btn");
-  const messageCards = document.querySelectorAll(".message-card");
-  const detailContainer = document.getElementById("detailContainer");
+  console.log("📡 Unified Inbox JS Loaded");
 
-  // 🕓 Format relative time
-  const timeAgo = (date) => {
+  /* ---------------------------------------------------------
+     🕓 Relative time formatting
+  --------------------------------------------------------- */
+  const formatTimeAgo = (date) => {
     if (!date) return "";
     const seconds = Math.floor((new Date() - new Date(date)) / 1000);
     const intervals = [
@@ -18,111 +17,150 @@ document.addEventListener("DOMContentLoaded", () => {
       { label: "month", seconds: 2592000 },
       { label: "day", seconds: 86400 },
       { label: "hour", seconds: 3600 },
-      { label: "minute", seconds: 60 }
+      { label: "minute", seconds: 60 },
     ];
-    for (const interval of intervals) {
-      const count = Math.floor(seconds / interval.seconds);
-      if (count >= 1) {
-        return `${count} ${interval.label}${count > 1 ? "s" : ""} ago`;
-      }
+    for (const i of intervals) {
+      const count = Math.floor(seconds / i.seconds);
+      if (count >= 1) return `${count} ${i.label}${count > 1 ? "s" : ""} ago`;
     }
     return "just now";
   };
 
-  // Apply relative times
-  document.querySelectorAll(".msg-date").forEach(el => {
+  document.querySelectorAll(".msg-date").forEach((el) => {
     const t = el.dataset.time;
-    if (t) el.textContent = timeAgo(t);
+    if (t) el.textContent = formatTimeAgo(t);
   });
 
-  // 🧭 Filtering logic
-  filterButtons.forEach(btn => {
-    btn.addEventListener("click", () => {
-      filterButtons.forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      const type = btn.dataset.filter;
-
-      messageCards.forEach(card => {
-        const linked = card.dataset.linked === "true";
-        const hasFunction = card.dataset.hasFunction === "true";
-        const hasBooking = card.dataset.hasBooking === "true";
-
-        card.style.display = "flex"; // default visible
-
-        if (type === "linked" && !linked) card.style.display = "none";
-        if (type === "unlinked" && linked) card.style.display = "none";
-        if (type === "functions" && !hasFunction) card.style.display = "none";
-        if (type === "bookings" && !hasBooking) card.style.display = "none";
-      });
-    });
-  });
-
-  // 🧱 Select and show message detail
-  messageCards.forEach(card => {
-    card.addEventListener("click", () => {
-      messageCards.forEach(c => c.classList.remove("active"));
-      card.classList.add("active");
+  /* ---------------------------------------------------------
+     💌 Message cards → click to open detail page
+  --------------------------------------------------------- */
+  const messageCards = document.querySelectorAll(".message-card");
+  messageCards.forEach((card) => {
+    card.addEventListener("click", (e) => {
+      // Prevent clicks on internal buttons (if any)
+      if (e.target.closest("button, a")) return;
 
       const id = card.dataset.id;
-      const msg = messages.find(m => m.id === id);
-      if (!msg) return;
-
-      // Render partial inline
-      detailContainer.innerHTML = `
-        <div class="message-detail-inner">
-          <h2>${msg.subject || "(No Subject)"}</h2>
-          <p><strong>From:</strong> ${msg.from_email || "Unknown"}</p>
-          <p><strong>To:</strong> ${msg.to_email || "Unknown"}</p>
-          <p><strong>Date:</strong> ${new Date(msg.created_at).toLocaleString()}</p>
-          <hr>
-          ${msg.contacts ? `
-            <div class="contact-card">
-              <h3>Contact Info</h3>
-              <p><strong>${msg.contacts.name}</strong></p>
-              <p>${msg.contacts.email}</p>
-              ${msg.contacts.phone ? `<p>📞 ${msg.contacts.phone}</p>` : ""}
-            </div>` : `<p class="muted">No linked contact.</p>`}
-          ${msg.functions ? `
-            <div class="function-card">
-              <h3>Function</h3>
-              <p><strong>${msg.functions.event_name}</strong></p>
-              <p>${msg.functions.event_date ? new Date(msg.functions.event_date).toLocaleDateString() : ""}</p>
-            </div>` : ""}
-          <hr>
-          <div class="message-body"><pre>${msg.body || "(No message body)"}</pre></div>
-          <div class="action-row">
-            <a href="/inbox/link/${msg.id}" class="btn btn-outline-primary">Link</a>
-            <a href="/inbox/reply/${msg.id}" class="btn btn-outline-success">Reply</a>
-          </div>
-        </div>
-      `;
+      if (id) {
+        console.log(`📨 Opening message ${id}`);
+        window.location.href = `/inbox/${id}`;
+      } else {
+        console.warn("⚠️ Message card missing data-id");
+      }
     });
   });
 
-  // 🧠 Auto-Linker Integration
+  /* ---------------------------------------------------------
+     🧠 Auto-Linker integration (optional backend route)
+  --------------------------------------------------------- */
   const runLinkerBtn = document.getElementById("runLinker");
   const linkerLog = document.getElementById("linkerLog");
 
-  runLinkerBtn?.addEventListener("click", async () => {
-    runLinkerBtn.disabled = true;
-    linkerLog.innerHTML = '<span class="loading">⏳ Running Auto-Linker...</span>';
+  if (runLinkerBtn && linkerLog) {
+    runLinkerBtn.addEventListener("click", async () => {
+      runLinkerBtn.disabled = true;
+      linkerLog.innerHTML = '<span class="loading">⏳ Running Auto-Linker...</span>';
 
-    try {
-      const res = await fetch("/inbox/match", { method: "POST" });
-      const data = await res.json();
-      if (res.ok) {
-        linkerLog.innerHTML = `<span class="success">✅ Completed successfully</span>\n${JSON.stringify(data, null, 2)}`;
-      } else {
-        linkerLog.innerHTML = `<span class="error">❌ Error: ${data.message}</span>`;
+      try {
+        const res = await fetch("/inbox/match", { method: "POST" });
+        const data = await res.json();
+
+        if (res.ok) {
+          linkerLog.innerHTML = `
+            <span class="success">✅ Auto-Linker Completed</span>
+            <pre>${JSON.stringify(data, null, 2)}</pre>`;
+        } else {
+          linkerLog.innerHTML = `
+            <span class="error">❌ Error: ${data.message || "Unknown error"}</span>`;
+        }
+      } catch (err) {
+        console.error("💥 Auto-Linker failed:", err);
+        linkerLog.innerHTML = `<span class="error">💥 Request failed: ${err.message}</span>`;
+      } finally {
+        runLinkerBtn.disabled = false;
       }
-    } catch (err) {
-      linkerLog.innerHTML = `<span class="error">💥 Request failed: ${err.message}</span>`;
-    } finally {
-      runLinkerBtn.disabled = false;
+    });
+  }
+
+  /* ---------------------------------------------------------
+     💬 Modal Triggers (Message Detail Page)
+     — Bootstrap 5 Modals for Link / Reply
+  --------------------------------------------------------- */
+  window.addEventListener("load", () => {
+    console.log("🧩 Page fully loaded — checking for modal buttons...");
+    const replyBtn = document.querySelector(".btn-reply-message");
+    const linkBtn = document.querySelector(".btn-link-message");
+
+    if (!replyBtn && !linkBtn) {
+      console.log("ℹ️ No modal buttons found on this page.");
+      return;
+    }
+
+    console.log("✅ Modal buttons detected:", {
+      reply: !!replyBtn,
+      link: !!linkBtn,
+    });
+
+    const showModal = (id) => {
+      const el = document.getElementById(id);
+      if (!el) {
+        console.warn(`⚠️ Modal #${id} not found in DOM.`);
+        return;
+      }
+      const modal = new bootstrap.Modal(el);
+      modal.show();
+    };
+
+    if (replyBtn) {
+      replyBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        console.log("💬 Opening reply modal...");
+        showModal("replyMessageModal");
+      });
+    }
+
+    if (linkBtn) {
+      linkBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        console.log("🔗 Opening link modal...");
+        showModal("linkMessageModal");
+      });
     }
   });
 
-  console.log("📡 Enhanced Inbox JS active (Module 2C)");
+  /* ---------------------------------------------------------
+     ✅ Optional form feedback (Reply + Link)
+  --------------------------------------------------------- */
+  document.querySelectorAll("form").forEach((form) => {
+    form.addEventListener("submit", (e) => {
+      const btn = form.querySelector("button[type='submit']");
+      if (btn) {
+        const oldText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "⏳ Sending...";
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = oldText;
+        }, 3000);
+      }
+    });
+  });
+
+  /* ---------------------------------------------------------
+     🔔 Optional Toast Notifications
+  --------------------------------------------------------- */
+  const showToast = (msg, type = "success") => {
+    const toast = document.createElement("div");
+    toast.className = `toast align-items-center text-white bg-${
+      type === "success" ? "success" : type === "error" ? "danger" : "secondary"
+    } border-0 position-fixed bottom-0 end-0 m-4 p-3 fade show`;
+    toast.innerHTML = `<div>${msg}</div>`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.classList.remove("show"), 4000);
+  };
+
+  const flash = document.getElementById("flash-msg");
+  if (flash) showToast(flash.textContent, flash.dataset.type || "info");
 });
 
 

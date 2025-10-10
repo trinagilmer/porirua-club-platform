@@ -2,32 +2,91 @@
 <html lang="en">
 <head>
   <%- include('../partials/head', { title: 'Inbox' }) %>
+  <link rel="stylesheet" href="/css/inbox.css">
   <style>
-    /* --- Inbox Styles --- */
-    .inbox-list { display: flex; flex-direction: column; gap: 10px; }
+    /* --- Modern Unified Inbox Styling --- */
+    .inbox-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .inbox-header h1 {
+      font-weight: 700;
+      color: #0f766e;
+    }
+
+    .inbox-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
     .message-card {
       background: #fff;
       border-radius: 10px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
       padding: 16px 20px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      cursor: pointer;
       transition: all 0.15s ease;
+      text-decoration: none;
+      color: inherit;
     }
+
     .message-card:hover {
       transform: translateY(-2px);
-      box-shadow: 0 3px 10px rgba(0,0,0,0.15);
-      background: #fcfcfc;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+      background: #fafafa;
     }
-    .msg-left { flex: 1; overflow: hidden; }
-    .msg-from { font-weight: 600; color: #333; margin-bottom: 4px; }
-    .msg-subject { color: #0063B1; font-size: 0.95rem; font-weight: 500; }
-    .msg-preview { color: #666; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .msg-date { font-size: 0.8rem; color: #777; text-align: right; min-width: 150px; }
 
-    /* --- Enhanced Inbox Summary --- */
+    .msg-left {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .msg-from {
+      font-weight: 600;
+      color: #333;
+    }
+
+    .msg-subject {
+      color: #0f766e;
+      font-size: 0.95rem;
+      font-weight: 500;
+    }
+
+    .msg-preview {
+      color: #666;
+      font-size: 0.85rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .msg-date {
+      font-size: 0.8rem;
+      color: #777;
+      text-align: right;
+      min-width: 120px;
+    }
+
+    /* --- Linked/Unlinked Badges --- */
+    .badge {
+      border-radius: 8px;
+      font-size: 0.75rem;
+      padding: 4px 8px;
+      font-weight: 600;
+      margin-left: 6px;
+    }
+    .badge-linked { background: #dcfce7; color: #166534; }
+    .badge-unlinked { background: #fee2e2; color: #991b1b; }
+
+    /* --- Stats Panel --- */
     .stats-panel {
       display: flex;
       gap: 20px;
@@ -41,6 +100,15 @@
     .stat-box h3 { margin: 0; font-size: 1.4rem; color: #0f766e; }
     .stat-box p { margin: 4px 0 0; color: #374151; font-size: 0.9rem; }
 
+    /* --- Empty State --- */
+    .empty-box {
+      background: #fff;
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    }
+
     /* --- Auto-Linker --- */
     #autoLinkerPanel {
       margin-top: 30px;
@@ -48,11 +116,6 @@
       border-radius: 10px;
       background: #f5f7fa;
       border: 1px solid #e5e7eb;
-    }
-    #autoLinkerPanel h2 {
-      margin-top: 0;
-      font-size: 1.3rem;
-      color: #0f766e;
     }
     #runLinker {
       background: #0f766e;
@@ -77,42 +140,20 @@
       border: 1px solid #ddd;
       min-height: 60px;
     }
-    .loading { color: #2563eb; }
-    .success { color: #16a34a; }
-    .error { color: #dc2626; }
-
-    /* --- Modal --- */
-    .modal.hidden { display: none; }
-    .modal {
-      position: fixed; top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.4);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-    }
-    .modal-content {
-      background: white;
-      border-radius: 12px;
-      padding: 24px;
-      max-width: 600px;
-      width: 90%;
-      max-height: 80vh;
-      overflow-y: auto;
-    }
   </style>
 </head>
 
 <body>
   <%- include('../partials/header', { active: 'inbox', user: user }) %>
 
-  <main class="main-content">
-    <div class="function-header">
-      <h1>📨 Inbox</h1>
-      <% if (enhanced) { %>
-        <span style="font-size:0.95rem; color:#0f766e;">(Enhanced Mode)</span>
-      <% } %>
+  <main class="main-content container py-4">
+    <div class="inbox-header">
+      <div>
+        <h1>📨 Inbox</h1>
+        <% if (enhanced) { %>
+          <span style="font-size:0.95rem; color:#0f766e;">(Enhanced Mode)</span>
+        <% } %>
+      </div>
     </div>
 
     <% if (error) { %>
@@ -123,43 +164,48 @@
 
     <% if (enhanced && stats && stats.total) { %>
       <div class="stats-panel">
-        <div class="stat-box">
-          <h3><%= stats.total %></h3><p>Total Messages</p>
-        </div>
-        <div class="stat-box">
-          <h3><%= stats.linked %></h3><p>Linked</p>
-        </div>
-        <div class="stat-box">
-          <h3><%= stats.unlinked %></h3><p>Unlinked</p>
-        </div>
+        <div class="stat-box"><h3><%= stats.total %></h3><p>Total Messages</p></div>
+        <div class="stat-box"><h3><%= stats.linked %></h3><p>Linked</p></div>
+        <div class="stat-box"><h3><%= stats.unlinked %></h3><p>Unlinked</p></div>
       </div>
     <% } %>
 
     <% if (!messages || !messages.length) { %>
-      <div class="card"><p>No messages found.</p></div>
+      <div class="empty-box"><p>No messages found.</p></div>
     <% } else { %>
       <div class="inbox-list">
-        <% messages.forEach((m, i) => { 
-             const sender = m.from?.emailAddress?.name || m.from_email || "Unknown Sender";
+        <% messages.forEach((m) => { 
+             const sender = m.from_email || "Unknown Sender";
              const subject = m.subject || "(No Subject)";
-             const preview = m.bodyPreview || (m.body ? m.body.slice(0,140) : "(No content)");
-             const dateVal = m.receivedDateTime || m.received_at || m.created_at;
-             const displayDate = dateVal ? new Date(dateVal).toLocaleString() : "";
+             const preview = m.body ? m.body.slice(0, 120) : "(No content)";
+             const dateVal = m.received_at || m.created_at;
+             const linked = m.contact_name || m.function_name;
         %>
-          <div class="message-card" data-index="<%= i %>">
+          <div 
+            class="message-card"
+            data-id="<%= m.id %>"
+            data-linked="<%= linked ? 'true' : 'false' %>"
+          >
             <div class="msg-left">
-              <div class="msg-from"><%= sender %></div>
+              <div class="msg-from">
+                <%= sender %>
+                <% if (linked) { %>
+                  <span class="badge badge-linked">Linked</span>
+                <% } else { %>
+                  <span class="badge badge-unlinked">Unlinked</span>
+                <% } %>
+              </div>
               <div class="msg-subject"><%= subject %></div>
               <div class="msg-preview"><%= preview %></div>
             </div>
-            <div class="msg-date"><%= displayDate %></div>
+            <div class="msg-date" data-time="<%= dateVal %>"><%= dateVal ? new Date(dateVal).toLocaleString() : "" %></div>
           </div>
         <% }) %>
       </div>
     <% } %>
 
     <% if (enhanced) { %>
-      <!-- 🧭 Auto-Linker panel (Enhanced mode only) -->
+      <!-- 🧭 Auto-Linker Panel -->
       <div id="autoLinkerPanel">
         <h2>🔗 Auto-Linker Service</h2>
         <p>Automatically links incoming emails to existing contacts and functions.</p>
@@ -169,71 +215,11 @@
     <% } %>
   </main>
 
-  <!-- Modal -->
-  <div id="messageModal" class="modal hidden">
-    <div class="modal-content card">
-      <h2 id="modalSubject"></h2>
-      <p id="modalFrom" style="font-weight:600; margin-bottom:10px;"></p>
-      <p id="modalDate" style="color:#777; font-size:0.9rem; margin-bottom:20px;"></p>
-      <div id="modalBody" style="white-space:pre-wrap; line-height:1.4;"></div>
-      <div style="margin-top:20px; text-align:right;">
-        <button class="btn ghost" id="closeModalBtn">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    // --- Modal Logic ---
-    const messages = <%- JSON.stringify(messages || []) %>;
-    const modal = document.getElementById('messageModal');
-    const closeBtn = document.getElementById('closeModalBtn');
-    const subjectEl = document.getElementById('modalSubject');
-    const fromEl = document.getElementById('modalFrom');
-    const dateEl = document.getElementById('modalDate');
-    const bodyEl = document.getElementById('modalBody');
-
-    document.querySelectorAll('.message-card').forEach(card => {
-      card.addEventListener('click', () => {
-        const msg = messages[card.dataset.index];
-        subjectEl.textContent = msg.subject || '(No Subject)';
-        const sender = msg.from?.emailAddress?.address || msg.from_email || '(Unknown sender)';
-        fromEl.textContent = sender;
-        const dateVal = msg.receivedDateTime || msg.received_at || msg.created_at;
-        dateEl.textContent = dateVal ? new Date(dateVal).toLocaleString() : '(No date)';
-        bodyEl.textContent = msg.bodyPreview || msg.body?.slice(0, 400) || '(No content)';
-        modal.classList.remove('hidden');
-      });
-    });
-
-    closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
-
-    // --- Auto-Linker (Enhanced Mode Only) ---
-    const runLinkerBtn = document.getElementById('runLinker');
-    const linkerLog = document.getElementById('linkerLog');
-    if (runLinkerBtn) {
-      runLinkerBtn.addEventListener('click', async () => {
-        runLinkerBtn.disabled = true;
-        linkerLog.innerHTML = '<span class="loading">⏳ Running Auto-Linker...</span>';
-
-        try {
-          const res = await fetch('/inbox/match', { method: 'POST' });
-          const data = await res.json();
-          if (res.ok) {
-            linkerLog.innerHTML = '<span class="success">✅ Completed successfully</span>\\n' +
-              JSON.stringify(data, null, 2);
-          } else {
-            linkerLog.innerHTML = '<span class="error">❌ Error: ' + data.message + '</span>';
-          }
-        } catch (err) {
-          linkerLog.innerHTML = '<span class="error">💥 Request failed: ' + err.message + '</span>';
-        } finally {
-          runLinkerBtn.disabled = false;
-        }
-      });
-    }
-  </script>
+  <%- include('../partials/footer') %>
+  <script src="/js/inbox.js"></script>
 </body>
 </html>
+
 
 
 

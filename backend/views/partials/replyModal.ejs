@@ -1,19 +1,30 @@
-<div id="replyModal" class="modal">
-  <div class="modal-content">
-    <form action="/inbox/reply/<%= message.id %>" method="POST" enctype="multipart/form-data">
-      <h3>Reply to Message</h3>
+<!-- views/partials/replyModal.ejs -->
+<div class="modal fade" id="replyMessageModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content p-4">
+      <h4>📨 Reply to Message</h4>
+      <form action="/inbox/reply/<%= message.id %>" method="POST" enctype="multipart/form-data">
+        <div class="form-group mb-3">
+          <label for="subject">Subject</label>
+          <input type="text" name="subject" id="subject" class="form-control" value="Re: <%= message.subject || '' %>">
+        </div>
 
-      <label>Subject</label>
-      <input type="text" name="subject" value="Re: <%= message.subject %>" class="form-control" readonly>
+        <div class="form-group mb-3">
+          <label for="body">Message</label>
+          <textarea name="body" id="body" rows="6" class="form-control" placeholder="Write your reply..."></textarea>
+        </div>
 
-      <label>Body</label>
-      <textarea name="body" rows="6" class="form-control" placeholder="Write your reply..."></textarea>
+        <div class="form-group mb-3">
+          <label for="attachment">Attachment (optional)</label>
+          <input type="file" name="attachment" id="attachment" class="form-control">
+        </div>
 
-      <label>Attachment (optional)</label>
-      <input type="file" name="attachment" class="form-control">
-
-      <button type="submit" class="btn btn-success">Send Reply</button>
-      <button type="button" class="btn btn-secondary close">Cancel</button>
-    </form>
+        <div class="modal-footer d-flex justify-content-between">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success">📤 Send Reply</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
+

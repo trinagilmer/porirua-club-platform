@@ -1,37 +1,77 @@
-<div class="message-detail-inner">
-  <h2><%= msg.subject || '(No Subject)' %></h2>
-  <p><strong>From:</strong> <%= msg.from_email || 'Unknown' %></p>
-  <p><strong>To:</strong> <%= msg.to_email || 'Unknown' %></p>
-  <p><strong>Date:</strong> <%= new Date(msg.created_at).toLocaleString() %></p>
-
-  <hr>
-
-  <% if (msg.contacts) { %>
-    <div class="contact-card">
-      <h3>Contact Info</h3>
-      <p><strong><%= msg.contacts.name %></strong></p>
-      <p><%= msg.contacts.email %></p>
-      <% if (msg.contacts.phone) { %><p>📞 <%= msg.contacts.phone %></p><% } %>
-    </div>
-  <% } else { %>
-    <p class="muted">No linked contact.</p>
-  <% } %>
-
-  <% if (msg.functions) { %>
-    <div class="function-card">
-      <h3>Function</h3>
-      <p><strong><%= msg.functions.event_name %></strong></p>
-      <p><%= new Date(msg.functions.event_date).toLocaleDateString() %></p>
-    </div>
-  <% } %>
-
-  <hr>
-  <div class="message-body">
-    <pre><%= msg.body || '(No message body)' %></pre>
+<!-- views/partials/messageDetail.ejs -->
+<div class="message-detail-inner card shadow-sm p-4 rounded-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0" style="font-weight: 600;">
+      <%= msg.subject || "(No Subject)" %>
+    </h2>
+    <span class="badge bg-light text-dark px-3 py-2">
+      <%= msg.message_type === "outbound" ? "Sent" : "Received" %>
+    </span>
   </div>
 
-  <div class="action-row">
-    <a href="/inbox/link/<%= msg.id %>" class="btn btn-outline-primary">Link</a>
-    <a href="/inbox/reply/<%= msg.id %>" class="btn btn-outline-success">Reply</a>
+  <div class="text-muted mb-3 small">
+    <p><strong>From:</strong> <%= msg.from_email || "Unknown" %></p>
+    <p><strong>To:</strong> <%= msg.to_email || "Unknown" %></p>
+    <p><strong>Date:</strong>
+      <%= msg.created_at
+          ? new Date(msg.created_at).toLocaleString()
+          : "(Unknown date)" %>
+    </p>
+  </div>
+
+  <% if (msg.contact_name || msg.function_name) { %>
+    <hr>
+    <div class="linked-info mb-4">
+      <% if (msg.contact_name) { %>
+        <div class="mb-2">
+          <h5 class="fw-bold mb-1">👤 Linked Contact</h5>
+          <p class="mb-0"><%= msg.contact_name %></p>
+        </div>
+      <% } %>
+      <% if (msg.function_name) { %>
+        <div>
+          <h5 class="fw-bold mb-1">🎉 Linked Function</h5>
+          <p class="mb-0"><%= msg.function_name %></p>
+        </div>
+      <% } %>
+    </div>
+  <% } %>
+
+  <hr>
+
+  <div class="message-body">
+    <% if (msg.body_html) { %>
+      <div class="formatted-body"><%- msg.body_html %></div>
+    <% } else { %>
+      <pre><%= msg.body || "(No message body)" %></pre>
+    <% } %>
+  </div>
+
+  <% if (msg.attachments && msg.attachments.length > 0) { %>
+    <hr>
+    <div class="attachments mt-4">
+      <h5 class="fw-bold mb-3">📎 Attachments</h5>
+      <ul class="list-group list-group-flush">
+        <% msg.attachments.forEach(a => { %>
+          <li class="list-group-item">
+            <a href="<%= a.file_url || a.filePath || '#' %>" target="_blank">
+              <%= a.file_name || a.name || "Unnamed attachment" %>
+            </a>
+          </li>
+        <% }) %>
+      </ul>
+    </div>
+  <% } %>
+
+  <div class="d-flex justify-content-between align-items-center mt-4">
+    <div>
+      <a href="/inbox/link/<%= msg.id %>" class="btn btn-outline-primary">Link</a>
+      <a href="/inbox/reply/<%= msg.id %>" class="btn btn-outline-success">Reply</a>
+    </div>
+    <a href="/inbox" class="btn btn-secondary">Back to Inbox</a>
   </div>
 </div>
+
+
+
+

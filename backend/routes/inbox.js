@@ -1,211 +1,190 @@
 /**
- * 📬 Porirua Club Platform
- * Module 2C: Enhanced Inbox + Linked Intelligence + Safe Normalization
+ * 📬 Porirua Club Platform – Unified Inbox (Final Stable Version)
+ * Combines: PostgreSQL (pool) + Supabase (storage) + Microsoft Graph
  */
 
+const fetch = require("node-fetch"); // ✅ simple CommonJS import
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const upload = multer();
-const fetch = require("node-fetch");
 
-const { supabase } = require("../db");
+const { pool } = require("../db");
 const { ensureGraphToken } = require("../middleware/graphTokenMiddleware");
 const { getValidGraphToken } = require("../utils/graphAuth");
 const graphService = require("../services/graphService");
+const { createClient } = require("@supabase/supabase-js");
+
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+const SHARED_MAILBOX = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
+const SENDER_EMAIL = "events@poriruaclub.co.nz";
 
 /* ---------------------------------------------------------
-   🟩 1️⃣ Enhanced Supabase Inbox (Safe + Intelligent)
+   🔧 Utility: Deduplicate messages by ID
 --------------------------------------------------------- */
-router.get("/enhanced", async (req, res) => {
-  try {
-    const { data: messages, error } = await supabase
-      .from("messages")
-      .select(`
-        id, subject, body, message_type, created_at, received_at, from_email, to_email,
-        related_contact, related_function, related_booking,
-        contacts:related_contact(name, email, phone),
-        functions:related_function(event_name, event_date)
-      `)
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
-
-    // ✅ Normalize safely
-    const enhancedMessages = (messages || []).map((m) => ({
-      id: m.id,
-      subject: m.subject || "(No Subject)",
-      body: m.body || "(No Content)",
-      from_email: m.from_email || "(Unknown sender)",
-      to_email: m.to_email || "(Unknown recipient)",
-      created_at: m.created_at || m.received_at || new Date().toISOString(),
-      related_contact: m.related_contact || null,
-      related_function: m.related_function || null,
-      contacts: m.contacts || null,
-      functions: m.functions || null,
-      source: "Supabase",
-    }));
-
-    const total = enhancedMessages.length;
-    const linked = enhancedMessages.filter(
-      (m) => m.related_contact || m.related_function
-    ).length;
-    const unlinked = total - linked;
-
-    // 🧠 Developer summary (for console)
-    console.log("========================================");
-    console.log("📊 Enhanced Inbox Summary");
-    console.log(`📦 Total: ${total}`);
-    console.log(`🔗 Linked: ${linked}`);
-    console.log(`❌ Unlinked: ${unlinked}`);
-    console.log(
-      "📧 Recent senders:",
-      enhancedMessages.slice(0, 5).map((m) => m.from_email)
-    );
-    console.log("========================================\n");
-
-    res.render("pages/inbox", {
-      user: req.session.user || null,
-      messages: enhancedMessages,
-      error: null,
-      enhanced: true,
-      stats: { total, linked, unlinked },
-    });
-  } catch (err) {
-    console.error("❌ [Enhanced Inbox] Error:", err);
-    res.render("pages/inbox", {
-      user: req.session.user || null,
-      messages: [],
-      error: "Failed to load enhanced inbox",
-      enhanced: true,
-      stats: { total: 0, linked: 0, unlinked: 0 },
-    });
-  }
-});
+function dedupeMessages(messages) {
+  const seen = new Set();
+  return messages.filter((m) => {
+    const id = m.id || m.graph_id || m.subject + m.from_email;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
 
 /* ---------------------------------------------------------
-   🟦 2️⃣ Outlook Inbox via Microsoft Graph
+   🟩 1️⃣ Unified Inbox (Postgres + Graph Sync)
 --------------------------------------------------------- */
-router.get("/", ensureGraphToken, async (req, res, next) => {
+router.get("/", ensureGraphToken, async (req, res) => {
   try {
-    const sharedMailbox = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
-    const keywords = ["Function", "Booking", "Proposal", "Porirua Club"];
-    const searchQuery = keywords.map((k) => `"${k}"`).join(" OR ");
-    const graphUrl = `https://graph.microsoft.com/v1.0/users('${sharedMailbox}')/mailFolders('Inbox')/messages?$top=20&$search=${encodeURIComponent(
-      searchQuery
-    )}`;
+    const accessToken = req.session.graphToken;
+    if (!accessToken) throw new Error("Missing Graph token");
 
+    console.log("🔄 Fetching from Microsoft Graph...");
+    const graphUrl = `https://graph.microsoft.com/v1.0/users('${SHARED_MAILBOX}')/mailFolders('Inbox')/messages?$top=20`;
     const response = await fetch(graphUrl, {
-      headers: {
-        Authorization: `Bearer ${req.session.graphToken}`,
-        ConsistencyLevel: "eventual",
-      },
+      headers: { Authorization: `Bearer ${req.session.graphToken}` },
     });
 
-    if (!response.ok) {
+    console.log("📡 Graph response status:", response.status, response.statusText);
+
+    if (response.ok) {
+      const data = await response.json();
+      let inserted = 0;
+      let skipped = 0;
+
+      for (const m of data.value || []) {
+        if (!m.id || !m.from?.emailAddress?.address) {
+          console.warn(`⚠️ Skipped message with missing ID or sender: ${m.subject}`);
+          skipped++;
+          continue;
+        }
+
+        const fromEmail = m.from.emailAddress.address;
+        const subject = m.subject || "(No Subject)";
+        const body = m.bodyPreview || "";
+        const receivedAt = m.receivedDateTime || null;
+
+        const result = await pool.query(
+          `INSERT INTO messages (
+              graph_id, subject, body, from_email, to_email, received_at, message_type, created_at
+           )
+           VALUES ($1, $2, $3, $4, $5, $6, 'inbound', NOW())
+           ON CONFLICT (graph_id) DO NOTHING
+           RETURNING id;`,
+          [m.id, subject, body, fromEmail, SHARED_MAILBOX, receivedAt]
+        );
+
+        if (result.rowCount > 0) {
+          inserted++;
+          console.log(`✅ Inserted new message: ${subject} from ${fromEmail}`);
+        }
+      }
+
+      console.log(`📬 Graph sync complete → inserted: ${inserted}, skipped: ${skipped}`);
+    } else {
       const errText = await response.text();
-      throw new Error(`Graph API failed: ${response.status} ${response.statusText} – ${errText}`);
+      console.error("💥 Graph API failed:", response.status, response.statusText, errText);
     }
 
-    const data = await response.json();
-    console.log(`✅ [Graph Inbox] Retrieved ${data.value?.length || 0} messages`);
+    const dbRes = await pool.query(`
+      SELECT 
+        m.id, m.subject, m.body, m.from_email, m.to_email,
+        m.message_type, m.created_at, m.received_at,
+        c.name AS contact_name, f.event_name AS function_name
+      FROM messages m
+      LEFT JOIN contacts c ON m.related_contact = c.id
+      LEFT JOIN functions f ON m.related_function = f.id
+      ORDER BY m.created_at DESC;
+    `);
 
-    const messages = (data.value || []).map((m) => ({
-      ...m,
-      from: m?.from?.emailAddress
-        ? m.from
-        : { emailAddress: { name: "(Unknown)", address: "(Unknown sender)" } },
-      toRecipients:
-        Array.isArray(m?.toRecipients) && m.toRecipients.length > 0
-          ? m.toRecipients
-          : [{ emailAddress: { name: "(Unknown)", address: "(Unknown recipient)" } }],
-      source: "Outlook",
-    }));
+    const messages = dedupeMessages(
+      dbRes.rows.map((m) => ({
+        ...m,
+        subject: m.subject || "(No Subject)",
+        from_email: m.from_email || "(Unknown sender)",
+        to_email: m.to_email || "(Unknown recipient)",
+        created_at: m.created_at || m.received_at,
+      }))
+    );
+
+    const total = messages.length;
+    const linked = messages.filter((m) => m.contact_name || m.function_name).length;
+    const unlinked = total - linked;
 
     res.render("pages/inbox", {
       user: req.session.user || null,
       messages,
       error: null,
-      enhanced: false,
-      stats: {},
+      enhanced: true,
+      stats: { total, linked, unlinked },
+      active: "inbox",
     });
   } catch (err) {
-    console.error("💥 [Graph Inbox] Error:", err);
-    next(err);
+    console.error("❌ [Unified Inbox] Error:", err);
+    res.render("pages/inbox", {
+      user: req.session.user || null,
+      messages: [],
+      error: "Failed to load inbox",
+      enhanced: true,
+      stats: { total: 0, linked: 0, unlinked: 0 },
+      active: "inbox",
+    });
   }
 });
 
 /* ---------------------------------------------------------
-   📄 3️⃣ Message Detail View (Supabase + Outlook fallback)
+   📄 2️⃣ Message Detail (Postgres + Graph Fallback)
 --------------------------------------------------------- */
 router.get("/:id", async (req, res, next) => {
   try {
     const messageId = req.params.id;
-    const reserved = ["enhanced"];
+    const reserved = ["enhanced", "match", "reply", "link", "cleanup"];
     if (reserved.includes(messageId.toLowerCase())) return next();
 
-    console.log(`🧠 [Message Detail] Called with ID: ${messageId}`);
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(messageId)) {
+      console.warn(`⚠️ Skipping invalid UUID route: ${messageId}`);
+      return res.status(400).send(`<h2>Invalid message ID</h2><pre>${messageId}</pre>`);
+    }
 
-    const { data: message, error } = await supabase
-      .from("messages")
-      .select("*, documents(file_name, file_url)")
-      .eq("id", messageId)
-      .single();
-
-    if (error && error.code !== "PGRST116") throw error;
+    const dbRes = await pool.query(`SELECT * FROM messages WHERE id=$1 LIMIT 1;`, [messageId]);
+    let message = dbRes.rows[0];
 
     if (!message) {
-      console.log("🟦 [Fallback] Fetching message from Outlook (Graph)");
-      const sharedMailbox = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
-      const graphUrl = `https://graph.microsoft.com/v1.0/users('${sharedMailbox}')/messages/${messageId}`;
-
+      const accessToken = req.session.graphToken;
+      const graphUrl = `https://graph.microsoft.com/v1.0/users('${SHARED_MAILBOX}')/messages/${messageId}`;
       const response = await fetch(graphUrl, {
-        headers: { Authorization: `Bearer ${req.session.graphToken}` },
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
 
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Graph fetch failed: ${response.status} ${text}`);
-      }
-
+      if (!response.ok)
+        throw new Error(`Graph fetch failed: ${response.status} ${response.statusText}`);
       const graphMessage = await response.json();
-      const safeMessage = {
+
+      message = {
         id: graphMessage.id,
         subject: graphMessage.subject || "(No Subject)",
         from_email: graphMessage.from?.emailAddress?.address || "(Unknown sender)",
-        to_email:
-          graphMessage.toRecipients?.[0]?.emailAddress?.address ||
-          "(Unknown recipient)",
+        to_email: graphMessage.toRecipients?.[0]?.emailAddress?.address || "(Unknown recipient)",
         body_html: graphMessage.body?.content || "(No content)",
         created_at: graphMessage.receivedDateTime || new Date().toISOString(),
         source: "Outlook",
       };
-
-      return res.render("pages/messageDetail", {
-        message: safeMessage,
-        contacts: [],
-        functions: [],
-      });
     }
 
     const [contactsRes, functionsRes] = await Promise.all([
-      supabase.from("contacts").select("id, name"),
-      supabase.from("functions").select("id, event_name"),
+      pool.query("SELECT id, name FROM contacts;"),
+      pool.query("SELECT id, event_name FROM functions;"),
     ]);
 
-    const safeMessage = {
-      ...message,
-      from_email: message.from_email || "(Unknown sender)",
-      to_email: message.to_email || "(Unknown recipient)",
-      subject: message.subject || "(No subject)",
-      body_html: message.body || "",
-      source: "Supabase",
-    };
-
     res.render("pages/messageDetail", {
-      message: safeMessage,
-      contacts: contactsRes.data || [],
-      functions: functionsRes.data || [],
+      message,
+      contacts: contactsRes.rows,
+      functions: functionsRes.rows,
+      user: req.session.user || null,
+      active: "inbox",
     });
   } catch (err) {
     console.error("❌ [Message Detail] Error:", err);
@@ -216,43 +195,21 @@ router.get("/:id", async (req, res, next) => {
 });
 
 /* ---------------------------------------------------------
-   🔗 4️⃣ Manual Link Route
+   💬 3️⃣ Reply with Attachments
 --------------------------------------------------------- */
-router.post("/link/:id", async (req, res) => {
-  try {
-    const { contact_id, function_id } = req.body;
-    const messageId = req.params.id;
-
-    const { error } = await supabase
-      .from("messages")
-      .update({
-        related_contact: contact_id || null,
-        related_function: function_id || null,
-      })
-      .eq("id", messageId);
-
-    if (error) throw error;
-
-    console.log(
-      `🔗 [Link] Message ${messageId} linked to contact:${contact_id} / function:${function_id}`
-    );
-    return res.json({ success: true, message: "Message successfully linked." });
-  } catch (err) {
-    console.error("❌ [Link Route] Error:", err.message);
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-/* ---------------------------------------------------------
-   💬 5️⃣ Reply with Attachments
---------------------------------------------------------- */
-router.post("/reply/:id", upload.single("attachment"), async (req, res) => {
+router.post("/reply/:id", ensureGraphToken, upload.single("attachment"), async (req, res) => {
   const messageId = req.params.id;
   const { subject, body } = req.body;
   const file = req.file;
 
   try {
-    const accessToken = await getValidGraphToken(req);
+    let accessToken = req.session.graphToken;
+    if (!accessToken) {
+      accessToken = await getValidGraphToken(req);
+      if (!accessToken)
+        throw new Error("No Graph token available. Please log in again.");
+    }
+
     let uploadedFile = null;
 
     if (file) {
@@ -261,17 +218,13 @@ router.post("/reply/:id", upload.single("attachment"), async (req, res) => {
         .from("attachments")
         .upload(filePath, file.buffer, { contentType: file.mimetype });
 
-      if (error) throw error;
+      if (error) throw new Error(`Supabase upload failed: ${error.message}`);
       uploadedFile = { name: file.originalname, path: data.path };
     }
 
-    const { data: original, error: fetchError } = await supabase
-      .from("messages")
-      .select("*")
-      .eq("id", messageId)
-      .single();
-
-    if (fetchError) throw fetchError;
+    const origRes = await pool.query(`SELECT * FROM messages WHERE id=$1 LIMIT 1;`, [messageId]);
+    const original = origRes.rows[0];
+    if (!original) throw new Error("Original message not found");
 
     const mailData = {
       to: original.from_email,
@@ -290,32 +243,96 @@ router.post("/reply/:id", upload.single("attachment"), async (req, res) => {
 
     await graphService.sendMail(accessToken, mailData);
 
-    const { error: insertError } = await supabase.from("messages").insert({
-      conversation_id: original.conversation_id,
-      from_email: "events@poriruaclub.co.nz",
-      to_email: original.from_email,
-      subject,
-      body,
-      message_type: "outbound",
-      related_contact: original.related_contact || null,
-      related_function: original.related_function || null,
-      created_at: new Date(),
-    });
-    if (insertError) throw insertError;
+    await pool.query(
+      `INSERT INTO messages (message_type, from_email, to_email, subject, body, related_contact, related_function, created_at)
+       VALUES ('outbound', $1, $2, $3, $4, $5, $6, NOW());`,
+      [
+        SENDER_EMAIL,
+        original.from_email,
+        subject,
+        body,
+        original.related_contact || null,
+        original.related_function || null,
+      ]
+    );
 
     if (uploadedFile) {
-      await supabase.from("documents").insert({
-        message_id: messageId,
-        file_name: uploadedFile.name,
-        file_url: uploadedFile.path,
-      });
+      await pool.query(
+        `INSERT INTO documents (message_id, file_name, file_url)
+         VALUES ($1, $2, $3);`,
+        [messageId, uploadedFile.name, uploadedFile.path]
+      );
     }
 
-    console.log(`✅ [Reply] Sent successfully to ${original.from_email}`);
+    console.log(`✅ Reply sent successfully to ${original.from_email}`);
     res.redirect(`/inbox/${messageId}`);
   } catch (err) {
     console.error("❌ [Reply] Failed:", err.message);
     res.status(500).send(`<h2>Reply Failed</h2><pre>${err.message}</pre>`);
+  }
+});
+
+/* ---------------------------------------------------------
+   🧹 4️⃣ Inbox Cleanup Utility (with confirmation)
+--------------------------------------------------------- */
+router.get("/cleanup", async (req, res) => {
+  try {
+    if (!req.session.user) {
+      return res.status(403).send("<h3>Access denied. Please log in first.</h3>");
+    }
+
+    const { rows: countRows } = await pool.query(
+      `SELECT COUNT(*) AS count FROM messages WHERE graph_id IS NULL;`
+    );
+    const count = parseInt(countRows[0].count, 10);
+
+    if (count === 0) {
+      return res.send(`
+        <h2>✅ Cleanup Complete</h2>
+        <p>No messages with <code>graph_id IS NULL</code> found.</p>
+        <a href="/inbox" style="color:#0f766e;">← Back to Inbox</a>
+      `);
+    }
+
+    return res.send(`
+      <h2>⚠️ Confirm Cleanup</h2>
+      <p>This will permanently delete <strong>${count}</strong> messages without Graph IDs.</p>
+      <p>Are you sure you want to continue?</p>
+      <form action="/inbox/cleanup/confirm" method="POST" style="margin-top: 20px;">
+        <button type="submit" style="padding: 10px 15px; background-color: #b91c1c; color: white; border: none; border-radius: 5px;">Yes, Delete</button>
+        <a href="/inbox" style="margin-left: 15px; text-decoration:none; color:#0f766e;">Cancel</a>
+      </form>
+    `);
+  } catch (err) {
+    console.error("❌ [Cleanup Route] Error:", err);
+    res
+      .status(500)
+      .send(`<h3>💥 Cleanup Failed</h3><pre>${err.message}</pre>`);
+  }
+});
+
+/* ---------------------------------------------------------
+   🧹 4B️⃣ Confirm Delete (POST handler)
+--------------------------------------------------------- */
+router.post("/cleanup/confirm", async (req, res) => {
+  try {
+    if (!req.session.user) {
+      return res.status(403).send("<h3>Access denied. Please log in first.</h3>");
+    }
+
+    const result = await pool.query(`DELETE FROM messages WHERE graph_id IS NULL;`);
+    console.log(`🧹 Cleanup permanently removed ${result.rowCount} messages.`);
+
+    res.send(`
+      <h2>🧹 Cleanup Complete</h2>
+      <p>Deleted <strong>${result.rowCount}</strong> messages without Graph IDs.</p>
+      <a href="/inbox" style="color:#0f766e;">← Back to Inbox</a>
+    `);
+  } catch (err) {
+    console.error("❌ [Cleanup Confirm] Error:", err);
+    res
+      .status(500)
+      .send(`<h3>💥 Cleanup Failed</h3><pre>${err.message}</pre>`);
   }
 });
 

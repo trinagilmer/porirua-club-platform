@@ -194,3 +194,78 @@ body {
 }
 
 .message-det
+/* ========================================
+   💌 Message Detail Partial Styling
+   ======================================== */
+
+.message-detail-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  background: #fff;
+}
+
+.message-body {
+  background: #fafafa;
+  border-radius: 10px;
+  padding: 20px;
+  border: 1px solid #eee;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: #222;
+}
+
+.message-body pre {
+  white-space: pre-wrap;
+  font-family: inherit;
+  color: #333;
+}
+
+.message-body img {
+  max-width: 100%;
+  border-radius: 6px;
+  margin-top: 10px;
+}
+
+.message-body blockquote {
+  border-left: 3px solid #ccc;
+  padding-left: 10px;
+  color: #555;
+  font-style: italic;
+}
+
+.formatted-body {
+  font-size: 1rem;
+  color: #222;
+  line-height: 1.6;
+}
+
+.linked-info h5 {
+  color: #0f766e;
+}
+
+.attachments a:hover {
+  text-decoration: underline;
+  color: #0d6efd;
+}
+.modal-content {
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  border: none;
+}
+
+.modal-header {
+  background: #0f766e;
+  color: #fff;
+  border-bottom: none;
+}
+
+.modal-footer {
+  border-top: 1px solid #e5e7eb;
+}
+
+.btn-success {
+  background: #0f766e;
+  border: none;
+}
+.btn-success:hover {
+  background: #115e59;
+}

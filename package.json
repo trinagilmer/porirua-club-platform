@@ -27,6 +27,7 @@
   "homepage": "https://github.com/trinagilmer/porirua-club-platform#readme",
   "dependencies": {
     "@azure/msal-node": "^3.8.0",
+    "@supabase/supabase-js": "^2.74.0",
     "bcrypt": "^6.0.0",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
@@ -34,7 +35,7 @@
     "express": "^5.1.0",
     "express-session": "^1.18.2",
     "multer": "^2.0.2",
-    "node-fetch": "^3.3.2",
+    "node-fetch": "^2.7.0",
     "pg": "^8.16.3"
   },
   "devDependencies": {

@@ -894,3 +894,93 @@ a:hover { color: var(--primary); }
   transition: all 0.25s ease;
 }
 .add-contact-fab:hover { transform: scale(1.08); background: var(--deep); }
+/* 🩹 Bootstrap Modal Restoration */
+.modal {
+  position: fixed !important;
+  top: auto !important;
+  left: auto !important;
+  width: auto !important;
+  height: auto !important;
+  background: none !important;
+  display: none !important;
+  align-items: normal !important;
+  justify-content: normal !important;
+  z-index: auto !important;
+  transition: none !important;
+}
+
+.modal.show {
+  display: block !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+  z-index: 1055 !important;
+}
+
+.modal-content {
+  width: auto !important;
+  max-width: none !important;
+  border-radius: 0.5rem !important;
+}
+/* =========================================================
+   🩹 Bootstrap Modal Layout Fix
+   Ensures proper centering & responsive sizing
+========================================================= */
+
+.modal {
+  display: none;
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  outline: 0;
+  z-index: 1050 !important;
+}
+
+.modal-dialog {
+  position: relative;
+  margin: 1.75rem auto;
+  pointer-events: none;
+  max-width: 700px; /* ✅ adjust width here */
+}
+
+.modal-dialog-centered {
+  display: flex;
+  align-items: center;
+  min-height: calc(100% - 3.5rem);
+}
+
+.modal-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  pointer-events: auto;
+  background-color: #fff;
+  background-clip: padding-box;
+  border: none;
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+}
+
+.modal.show {
+  display: block !important;
+}
+
+.modal.fade .modal-dialog {
+  transform: translate(0, -20px);
+  transition: transform 0.3s ease-out;
+}
+.modal.fade.show .modal-dialog {
+  transform: translate(0, 0);
+}
+
+/* Optional: improve backdrop visibility */
+.modal-backdrop.show {
+  opacity: 0.55 !important;
+}
+
+/* Optional: make large modals use more width */
+.modal-lg .modal-dialog {
+  max-width: 900px;
+}

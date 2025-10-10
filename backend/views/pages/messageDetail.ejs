@@ -1,66 +1,224 @@
-<!-- views/pages/messageDetail.ejs -->
-<%- include('../partials/header') %>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('../partials/head', { title: message.subject || 'Message Detail' }) %>
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/inbox.css">
+  <style>
+    /* --- Message Detail Layout --- */
+    .message-detail-container {
+      max-width: 900px;
+      margin: 40px auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      padding: 30px 40px;
+    }
 
-<div class="container mt-4">
-  <h2><%= message.subject || "(No Subject)" %></h2>
+    .message-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 12px;
+    }
 
-  <!-- Universal From/To Logic -->
-  <p><strong>From:</strong>
-    <%= message.from?.emailAddress?.address 
-        || message.from_email 
-        || "(Unknown sender)" %>
-  </p>
+    .message-header h1 {
+      font-size: 1.5rem;
+      color: #0f766e;
+      margin: 0;
+      flex: 1;
+    }
 
-  <p><strong>To:</strong>
-    <%= message.to?.emailAddress?.address 
-        || message.to_email 
-        || "(Unknown recipient)" %>
-  </p>
+    .action-buttons {
+      display: flex;
+      gap: 10px;
+    }
 
-  <p><strong>Date:</strong>
-    <%= message.created_at 
-        ? new Date(message.created_at).toLocaleString()
-        : (message.receivedDateTime 
-          ? new Date(message.receivedDateTime).toLocaleString()
-          : "(Unknown date)") %>
-  </p>
+    .btn {
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
 
-  <hr>
+    .btn-primary {
+      background: #0f766e;
+      color: #fff;
+      border: none;
+    }
+    .btn-primary:hover { background: #115e59; }
 
-  <div class="message-body">
-    <%- message.body_html 
-        || message.body_text 
-        || message.bodyPreview 
-        || message.body 
-        || "No content." %>
-  </div>
+    .btn-outline {
+      border: 1px solid #0f766e;
+      color: #0f766e;
+      background: #fff;
+    }
+    .btn-outline:hover {
+      background: #e6fffa;
+    }
 
-  <% if (message.attachments && message.attachments.length > 0) { %>
-    <hr>
-    <h4>Attachments</h4>
-    <ul>
-      <% message.attachments.forEach(a => { %>
-        <li>
-          <a href="<%= a.file_url || a.filePath || '#' %>" target="_blank">
-            <%= a.file_name || a.name || "Unnamed attachment" %>
-          </a>
-        </li>
-      <% }) %>
-    </ul>
-  <% } %>
+    .message-meta {
+      font-size: 0.9rem;
+      color: #555;
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
 
-  <div class="mt-4">
-    <button class="btn btn-outline-primary btn-link-message">Link</button>
-    <button class="btn btn-outline-success btn-reply-message">Reply</button>
-    <a href="/inbox" class="btn btn-secondary">Back to Inbox</a>
+    .message-body {
+      white-space: pre-wrap;
+      line-height: 1.6;
+      color: #333;
+      margin-bottom: 30px;
+      font-size: 1rem;
+    }
+
+    .linked-info {
+      background: #f5f7fa;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-top: 15px;
+      font-size: 0.9rem;
+      color: #374151;
+    }
+
+    .linked-info h3 {
+      font-size: 1rem;
+      color: #0f766e;
+      margin-bottom: 8px;
+    }
+
+    /* --- Logo sizing fix --- */
+    .main-header .logo-img {
+      height: 48px !important;
+      width: auto !important;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- ✅ Standard site header -->
+  <%- include('../partials/header', { active: 'inbox', user: user }) %>
+
+  <main class="main-content">
+    <div class="message-detail-container">
+      <div class="message-header">
+        <h1><%= message.subject || '(No Subject)' %></h1>
+        <div class="action-buttons">
+          <a href="/inbox" class="btn btn-outline">← Back</a>
+          <button class="btn btn-outline btn-link-message">Link</button>
+          <button class="btn btn-primary btn-reply-message">Reply</button>
+        </div>
+      </div>
+
+      <div class="message-meta">
+        <p><strong>From:</strong> <%= message.from_email || 'Unknown sender' %></p>
+        <p><strong>To:</strong> <%= message.to_email || 'Unknown recipient' %></p>
+        <p><strong>Date:</strong> <%= message.created_at ? new Date(message.created_at).toLocaleString() : '' %></p>
+      </div>
+
+      <div class="message-body">
+        <% if (message.body_html) { %>
+          <div><%- message.body_html %></div>
+        <% } else { %>
+          <pre><%= message.body || '(No message body)' %></pre>
+        <% } %>
+      </div>
+
+      <% if (message.contact_name || message.function_name) { %>
+        <div class="linked-info">
+          <h3>Linked Information</h3>
+          <% if (message.contact_name) { %>
+            <p>👤 Contact: <%= message.contact_name %></p>
+          <% } %>
+          <% if (message.function_name) { %>
+            <p>🎉 Function: <%= message.function_name %></p>
+          <% } %>
+        </div>
+      <% } %>
+    </div>
+  </main>
+<!-- 🔗 Link Message Modal -->
+<div class="modal fade" id="linkMessageModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content p-3">
+      <div class="modal-header">
+        <h5 class="modal-title">Link Message</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form action="/inbox/link/<%= message.id %>" method="POST">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="contact_id" class="form-label">Link to Contact</label>
+            <select name="contact_id" class="form-select">
+              <option value="">-- None --</option>
+              <% contacts.forEach(c => { %>
+                <option value="<%= c.id %>"><%= c.name %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="function_id" class="form-label">Link to Function</label>
+            <select name="function_id" class="form-select">
+              <option value="">-- None --</option>
+              <% functions.forEach(f => { %>
+                <option value="<%= f.id %>"><%= f.event_name %></option>
+              <% }) %>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Link</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 
-<!-- Include modals -->
-<%- include('../partials/linkMessageModal', { message, contacts, functions }) %>
-<%- include('../partials/replyModal', { message }) %>
+<!-- 💬 Reply Message Modal -->
+<div class="modal fade" id="replyMessageModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content" style="border-radius: 12px; overflow: hidden;">
+      <div class="modal-header" style="background:#0f766e; color:#fff;">
+        <h5 class="modal-title">Reply to Message</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
 
-<script src="/js/inbox.js"></script>
+      <form action="/inbox/reply/<%= message.id %>" method="POST" enctype="multipart/form-data">
+        <div class="modal-body" style="padding:20px;">
+          <div class="mb-3">
+            <label class="form-label">Subject</label>
+            <input type="text" name="subject" class="form-control" value="Re: <%= message.subject || '' %>" required>
+          </div>
 
-<%- include('../partials/footer') %>
+          <div class="mb-3">
+            <label class="form-label">Message</label>
+            <textarea name="body" rows="6" class="form-control" placeholder="Type your reply..." required></textarea>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Attachment (optional)</label>
+            <input type="file" name="attachment" class="form-control">
+          </div>
+        </div>
+
+        <div class="modal-footer" style="background:#f8f9fa;">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success">Send Reply</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+  <%- include('../partials/footer') %>
+
+</body>
+</html>
+
 

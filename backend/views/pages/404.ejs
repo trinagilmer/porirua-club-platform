@@ -1,0 +1,24 @@
+<!-- backend/views/pages/404.ejs -->
+<%- include('../partials/header', { active: '', user: (typeof user !== 'undefined' ? user : null) }) %>
+
+
+<div class="container" style="text-align:center; padding: 100px 20px;">
+  <h1 style="font-size: 3rem; color: #d32f2f;">404</h1>
+  <h2 style="color:#444;">Page Not Found</h2>
+  <p>The page you’re looking for doesn’t exist or has been moved.</p>
+  <a href="/inbox" class="btn btn-primary" style="margin-top:20px;">⬅️ Back to Inbox</a>
+</div>
+
+<style>
+  .btn-primary {
+    background-color: #0f766e;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: 0.2s;
+  }
+  .btn-primary:hover {
+    background-color: #115e59;
+  }
+</style>
