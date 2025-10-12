@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <%- include('../partials/head') %>
+  <title>Notes — Function</title>
+  <style>
+    .note-card { background:#fff; padding:12px 16px; margin-bottom:10px; border-radius:8px; }
+    .note-meta { font-size:0.85em; color:#777; margin-bottom:6px; }
+    .note-actions { margin-top:8px; }
+    .note-editor { width:100%; min-height:100px; margin-top:6px; }
+  </style>
+</head>
+<body>
+  <%- include('../partials/header', { active: 'functions', user }) %>
+
+  <main class="main-content">
+    <div class="tabs-bar">
+  <a href="/functions/<%= fn.id %>" class="<%= activeTab === 'info' ? 'active' : '' %>">Info</a>
+  <a href="/functions/<%= fn.id %>/tasks" class="<%= activeTab === 'tasks' ? 'active' : '' %>">Tasks</a>
+  <a href="/functions/<%= fn.id %>/notes" class="<%= activeTab === 'notes' ? 'active' : '' %>">Notes</a>
+  <a href="/functions/<%= fn.id %>/communications" class="<%= activeTab === 'communications' ? 'active' : '' %>">Communications</a>
+</div>
+
+    <h1>Notes for <%= fn.event_name %></h1>
+
+    <form id="newNoteForm" class="card">
+      <textarea id="newNoteContent" placeholder="Write a new note..." class="note-editor"></textarea>
+      <button type="submit" class="btn">Add Note</button>
+    </form>
+
+    <div id="notesList">
+      <% if (notes && notes.length > 0) { %>
+        <% notes.forEach(n => { %>
+          <div class="note-card" data-id="<%= n.id %>">
+            <div class="note-meta">
+              By <%= n.author || 'Unknown' %> • <%= formatNZDate(n.created_at) %>
+            </div>
+            <div class="note-body" contenteditable="false"><%= n.content %></div>
+            <div class="note-actions">
+              <button class="btn small edit-note">Edit</button>
+              <button class="btn ghost small save-note hidden">Save</button>
+              <button class="btn ghost small delete-note">Delete</button>
+              <button class="btn ghost small print-note">🖨️ Print</button>
+            </div>
+          </div>
+        <% }) %>
+      <% } else { %>
+        <p>No notes yet.</p>
+      <% } %>
+    </div>
+  </main>
+
+  <script src="/js/function-notes.js"></script>
+</body>
+</html>

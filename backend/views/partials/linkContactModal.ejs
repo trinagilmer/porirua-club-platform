@@ -1,0 +1,80 @@
+<!-- views/partials/linkContactModal.ejs -->
+<div class="modal fade" id="linkContactModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content p-4">
+      <h4>📇 Link Message to Contact</h4>
+      <div id="contact-alert-area"></div>
+
+      <form action="/inbox/link-contact/<%= message.id %>" method="POST" id="linkContactForm">
+        <div class="form-group mb-3">
+          <label for="contact_id">Contact</label>
+          <select name="contact_id" id="contact_id" class="form-control">
+            <option value="">(none)</option>
+            <% contacts.forEach(c => { %>
+              <option value="<%= c.id %>" <%= String(message.related_contact) === String(c.id) ? 'selected' : '' %>>
+                <%= c.name %>
+              </option>
+            <% }) %>
+          </select>
+        </div>
+
+        <div id="contact-status" class="small text-muted mt-2"></div>
+
+        <div class="modal-footer d-flex justify-content-between">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">💾 Save Contact</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const form = document.getElementById("linkContactForm");
+  const alertArea = document.getElementById("contact-alert-area");
+  const statusDiv = document.getElementById("contact-status");
+  const messageId = "<%= message.id %>";
+
+  function showAlert(type, text) {
+    alertArea.innerHTML = `
+      <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        ${text}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>`;
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    statusDiv.textContent = "Saving...";
+    const formData = new FormData(form);
+    const contact_id = formData.get("contact_id");
+    const action = form.getAttribute("action");
+
+    try {
+      const res = await fetch(action, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact_id }),
+      });
+      const result = await res.json();
+
+      if (result.success) {
+        showAlert("success", "✅ Contact linked successfully!");
+        const modalEl = document.getElementById("linkContactModal");
+        modalEl.classList.remove("fade");
+        const modalInstance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        modalInstance.hide();
+        setTimeout(() => {
+          window.location.assign(`/inbox/${messageId}`);
+        }, 400);
+      } else {
+        showAlert("danger", result.error || "Failed to link contact.");
+      }
+    } catch (err) {
+      console.error("❌ Contact link failed:", err);
+      showAlert("danger", "An error occurred while linking the contact.");
+    }
+  });
+});
+</script>

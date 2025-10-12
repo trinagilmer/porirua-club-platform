@@ -1,14 +1,41 @@
 <!-- views/partials/messageDetail.ejs -->
 <div class="message-detail-inner card shadow-sm p-4 rounded-3">
+
+  <!-- Header -->
   <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="mb-0" style="font-weight: 600;">
-      <%= msg.subject || "(No Subject)" %>
-    </h2>
+    <h2 class="mb-0 fw-semibold"><%= msg.subject || "(No Subject)" %></h2>
     <span class="badge bg-light text-dark px-3 py-2">
       <%= msg.message_type === "outbound" ? "Sent" : "Received" %>
     </span>
   </div>
 
+  <!-- Quick Link Buttons -->
+  <div class="d-flex justify-content-end gap-2 mb-3">
+    <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#linkContactModal">
+      📇 Link Contact
+    </button>
+    <button class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#linkFunctionModal">
+      🧩 Link Function
+    </button>
+  </div>
+
+  <!-- Linked Info Banner -->
+  <% if (msg.contact_name || msg.function_name) { %>
+    <div class="alert alert-info mb-3">
+      <% if (msg.contact_name) { %>
+        📇 Linked to: <strong><%= msg.contact_name %></strong>
+      <% } %>
+      <% if (msg.function_name) { %>
+        <br>🧩 Function: <strong><%= msg.function_name %></strong>
+      <% } %>
+    </div>
+  <% } else { %>
+    <div class="alert alert-warning mb-3">
+      ⚠️ This message is not yet linked to any contact or function.
+    </div>
+  <% } %>
+
+  <!-- Meta Info -->
   <div class="text-muted mb-3 small">
     <p><strong>From:</strong> <%= msg.from_email || "Unknown" %></p>
     <p><strong>To:</strong> <%= msg.to_email || "Unknown" %></p>
@@ -19,26 +46,8 @@
     </p>
   </div>
 
-  <% if (msg.contact_name || msg.function_name) { %>
-    <hr>
-    <div class="linked-info mb-4">
-      <% if (msg.contact_name) { %>
-        <div class="mb-2">
-          <h5 class="fw-bold mb-1">👤 Linked Contact</h5>
-          <p class="mb-0"><%= msg.contact_name %></p>
-        </div>
-      <% } %>
-      <% if (msg.function_name) { %>
-        <div>
-          <h5 class="fw-bold mb-1">🎉 Linked Function</h5>
-          <p class="mb-0"><%= msg.function_name %></p>
-        </div>
-      <% } %>
-    </div>
-  <% } %>
-
+  <!-- Message Body -->
   <hr>
-
   <div class="message-body">
     <% if (msg.body_html) { %>
       <div class="formatted-body"><%- msg.body_html %></div>
@@ -47,6 +56,7 @@
     <% } %>
   </div>
 
+  <!-- Attachments -->
   <% if (msg.attachments && msg.attachments.length > 0) { %>
     <hr>
     <div class="attachments mt-4">
@@ -63,13 +73,16 @@
     </div>
   <% } %>
 
+  <!-- Footer Buttons -->
   <div class="d-flex justify-content-between align-items-center mt-4">
-    <div>
-      <a href="/inbox/link/<%= msg.id %>" class="btn btn-outline-primary">Link</a>
-      <a href="/inbox/reply/<%= msg.id %>" class="btn btn-outline-success">Reply</a>
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#linkContactModal">📇 Link Contact</button>
+      <button class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#linkFunctionModal">🧩 Link Function</button>
+      <a href="/inbox/reply/<%= msg.id %>" class="btn btn-outline-info btn-sm">💬 Reply</a>
     </div>
-    <a href="/inbox" class="btn btn-secondary">Back to Inbox</a>
+    <a href="/inbox" class="btn btn-secondary btn-sm">← Back to Inbox</a>
   </div>
+
 </div>
 
 

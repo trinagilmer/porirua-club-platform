@@ -21,58 +21,102 @@
     <!-- =========================
          TABS BAR
     ========================== -->
-    <div class="tabs-bar">
-      <a href="/functions/<%= fn.id %>" class="<%= activeTab === 'info' ? 'active' : '' %>">Info</a>
-      <a href="/functions/<%= fn.id %>?tab=tasks" class="<%= activeTab === 'tasks' ? 'active' : '' %>">Tasks</a>
-      <a href="/functions/<%= fn.id %>?tab=notes" class="<%= activeTab === 'notes' ? 'active' : '' %>">Notes</a>
-      <a href="/functions/<%= fn.id %>/communications" class="<%= activeTab === 'communications' ? 'active' : '' %>">Communications</a>
-    </div>
+   <div class="tabs-bar">
+  <a href="/functions/<%= fn.id %>" class="<%= activeTab === 'info' ? 'active' : '' %>">Info</a>
+  <a href="/functions/<%= fn.id %>/tasks" class="<%= activeTab === 'tasks' ? 'active' : '' %>">Tasks</a>
+  <a href="/functions/<%= fn.id %>/notes" class="<%= activeTab === 'notes' ? 'active' : '' %>">Notes</a>
+  <a href="/functions/<%= fn.id %>/communications" class="<%= activeTab === 'communications' ? 'active' : '' %>">Communications</a>
+</div>
+
 
     <!-- =========================
          GRID LAYOUT
     ========================== -->
     <div class="function-layout">
 
-      <!-- CONTACT PANEL -->
-      <aside class="card contact-panel">
-        <h3>Contacts</h3>
+<!-- CONTACT PANEL -->
+<aside class="contact-column">
+  <div class="card contact-panel">
+    <h3>Contacts</h3>
 
-        <div id="contactInfo" class="contact-card-list">
-          <% if (linkedContacts.length > 0) { %>
-            <% linkedContacts.forEach(c => { %>
-              <div class="contact-card <%= c.is_primary ? 'primary' : '' %>">
-                <div class="contact-avatar"><%= c.name.charAt(0).toUpperCase() %></div>
-                <div class="contact-details">
-                  <div class="contact-name">
-                    <strong><%= c.name %></strong>
-                    <% if (c.is_primary) { %><span class="primary-badge" title="Primary Contact">⭐</span><% } %>
-                  </div>
-                  <div class="contact-email"><%= c.email || '—' %></div>
-                  <% if (c.phone) { %><div class="contact-phone"><%= c.phone %></div><% } %>
-                </div>
-
-                <div class="contact-actions">
-                  <button class="menu-btn" data-id="<%= c.id %>">⋮</button>
-                  <div class="menu-dropdown hidden" id="menu-<%= c.id %>">
-                    <button class="menu-item view-btn" data-id="<%= c.id %>">View</button>
-                    <button class="menu-item edit-btn" data-id="<%= c.id %>">Edit</button>
-                    <% if (!c.is_primary) { %>
-                      <button class="menu-item primary-btn" data-id="<%= c.id %>">Make Primary</button>
-                    <% } %>
-                    <button class="menu-item remove-btn" data-id="<%= c.id %>">Remove</button>
-                    <button class="menu-item delete-btn" data-id="<%= c.id %>">Delete</button>
-                  </div>
-                </div>
+    <div id="contactInfo" class="contact-card-list">
+      <% if (linkedContacts.length > 0) { %>
+        <% linkedContacts.forEach(c => { %>
+          <div class="contact-card <%= c.is_primary ? 'primary' : '' %>">
+            <div class="contact-avatar"><%= c.name.charAt(0).toUpperCase() %></div>
+            <div class="contact-details">
+              <div class="contact-name">
+                <strong><%= c.name %></strong>
+                <% if (c.is_primary) { %>
+                  <span class="primary-badge" title="Primary Contact">⭐</span>
+                <% } %>
               </div>
-            <% }) %>
-          <% } else { %>
-            <p class="subtext">No contacts assigned yet.</p>
-          <% } %>
-        </div>
+              <div class="contact-email"><%= c.email || '—' %></div>
+              <% if (c.phone) { %><div class="contact-phone"><%= c.phone %></div><% } %>
+            </div>
 
-        <!-- ➕ Add Contact FAB -->
-        <button id="openAddPanelBtn" class="add-contact-fab" title="Add new contact">+</button>
-      </aside>
+            <div class="contact-actions">
+              <button class="menu-btn" data-id="<%= c.id %>">⋮</button>
+              <div class="menu-dropdown hidden" id="menu-<%= c.id %>">
+                <button class="menu-item view-btn" data-id="<%= c.id %>">View</button>
+                <button class="menu-item edit-btn" data-id="<%= c.id %>">Edit</button>
+                <% if (!c.is_primary) { %>
+                  <button class="menu-item primary-btn" data-id="<%= c.id %>">Make Primary</button>
+                <% } %>
+                <button class="menu-item remove-btn" data-id="<%= c.id %>">Remove</button>
+                <button class="menu-item delete-btn" data-id="<%= c.id %>">Delete</button>
+              </div>
+            </div>
+          </div>
+        <% }) %>
+      <% } else { %>
+        <p class="subtext">No contacts assigned yet.</p>
+      <% } %>
+    </div>
+
+    <!-- ➕ Add Contact FAB -->
+    <button id="openAddPanelBtn" class="add-contact-fab" title="Add new contact">+</button>
+  </div>
+
+  <!-- NOTES PANEL -->
+  <div class="card notes-panel mt-3">
+    <h3>Notes</h3>
+
+    <% if (notes && notes.length > 0) { %>
+      <ul class="note-list" id="noteList">
+        <% notes.forEach((n, index) => { %>
+          <li class="<%= index >= 3 ? 'hidden extra-note' : '' %>" data-note-id="<%= n.entry_id %>">
+            <div class="note-snippet" contenteditable="false"><%= n.body %></div>
+            <small class="subtext">
+              <%= n.author || 'Unknown' %> • <%= formatNZDate(n.entry_date) %>
+              <% if (n.updated_at && n.updated_at.toISOString) { %>
+                <br><span class="muted">(Edited <%= formatNZDate(n.updated_at) %>)</span>
+              <% } %>
+            </small>
+            <div class="note-actions mt-1">
+              <button class="btn ghost small edit-note">Edit</button>
+              <button class="btn ghost small save-note hidden">Save</button>
+              <button class="btn ghost small delete-note">Delete</button>
+            </div>
+          </li>
+        <% }) %>
+      </ul>
+
+      <% if (notes.length > 3) { %>
+        <button id="toggleNotesBtn" class="btn small mt-1 ghost">Show more</button>
+      <% } %>
+    <% } else { %>
+      <p>No notes yet.</p>
+    <% } %>
+
+    <form id="quickNoteForm" class="mt-2">
+      <textarea id="quickNoteInput" placeholder="Add a quick note..." 
+        style="width:100%; min-height:60px; resize:none; overflow:hidden;"></textarea>
+      <button type="submit" class="btn small mt-1">Add Note</button>
+    </form>
+  </div>
+</aside>
+
 
       <!-- DETAILS PANEL -->
       <section class="detail-panel">
@@ -87,7 +131,6 @@
           <p><strong>Owner:</strong> <%= fn.owner_name || '—' %></p>
           <p><strong>Notes:</strong> <%= fn.notes || 'No notes yet' %></p>
         </div>
-
         <!-- RECENT COMMUNICATIONS -->
         <div class="card function-section">
           <h3>Recent Communications</h3>
@@ -97,16 +140,23 @@
                 <h4 class="comm-date"><%= date %></h4>
                 <ul class="comm-list">
                   <% grouped[date].forEach(msg => { %>
-                    <li class="comm-entry <%= msg.entry_type %>">
-                      <% if (msg.entry_type === 'message') { %>
-                        📧 <strong><%= msg.subject || '(No subject)' %></strong><br>
-                        <small class="subtext"><%= msg.from_email %> → <%= (msg.to_email || []).join(', ') %></small>
-                      <% } else if (msg.entry_type === 'note') { %>
-                        📝 <strong>Note:</strong> <%= msg.body %>
-                      <% } else if (msg.entry_type === 'task') { %>
-                        ✅ <strong>Task:</strong> <%= msg.subject %>
-                      <% } %>
-                    </li>
+                <li class="comm-entry <%= msg.entry_type %>">
+  <% if (msg.entry_type === 'message') { %>
+    <a href="/messages/<%= msg.entry_id %>" class="entry-link">
+      📧 <strong><%= msg.subject || '(No subject)' %></strong>
+    </a><br>
+    <small class="subtext"><%= msg.from_email %> → <%= (msg.to_email || []).join(', ') %></small>
+  <% } else if (msg.entry_type === 'note') { %>
+    <a href="/notes/<%= msg.entry_id %>" class="entry-link">
+      📝 <strong>Note:</strong> <%= msg.body %>
+    </a>
+  <% } else if (msg.entry_type === 'task') { %>
+    <a href="/tasks/<%= msg.entry_id %>" class="entry-link">
+      ✅ <strong>Task:</strong> <%= msg.subject %>
+    </a>
+  <% } %>
+</li>
+
                   <% }) %>
                 </ul>
               </div>

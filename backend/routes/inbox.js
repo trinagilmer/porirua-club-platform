@@ -1,9 +1,9 @@
 /**
- * 📬 Porirua Club Platform – Unified Inbox (Final Stable Version)
+ * 📬 Porirua Club Platform – Unified Inbox (Final Enhanced Version)
  * Combines: PostgreSQL (pool) + Supabase (storage) + Microsoft Graph
  */
 
-const fetch = require("node-fetch"); // ✅ simple CommonJS import
+const fetch = require("node-fetch");
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
@@ -43,7 +43,7 @@ router.get("/", ensureGraphToken, async (req, res) => {
     console.log("🔄 Fetching from Microsoft Graph...");
     const graphUrl = `https://graph.microsoft.com/v1.0/users('${SHARED_MAILBOX}')/mailFolders('Inbox')/messages?$top=20`;
     const response = await fetch(graphUrl, {
-      headers: { Authorization: `Bearer ${req.session.graphToken}` },
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
 
     console.log("📡 Graph response status:", response.status, response.statusText);
@@ -75,16 +75,12 @@ router.get("/", ensureGraphToken, async (req, res) => {
           [m.id, subject, body, fromEmail, SHARED_MAILBOX, receivedAt]
         );
 
-        if (result.rowCount > 0) {
-          inserted++;
-          console.log(`✅ Inserted new message: ${subject} from ${fromEmail}`);
-        }
+        if (result.rowCount > 0) inserted++;
       }
 
       console.log(`📬 Graph sync complete → inserted: ${inserted}, skipped: ${skipped}`);
     } else {
-      const errText = await response.text();
-      console.error("💥 Graph API failed:", response.status, response.statusText, errText);
+      console.error("💥 Graph API failed:", response.status, response.statusText);
     }
 
     const dbRes = await pool.query(`
@@ -145,11 +141,24 @@ router.get("/:id", async (req, res, next) => {
     const uuidRegex =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(messageId)) {
-      console.warn(`⚠️ Skipping invalid UUID route: ${messageId}`);
       return res.status(400).send(`<h2>Invalid message ID</h2><pre>${messageId}</pre>`);
     }
 
-    const dbRes = await pool.query(`SELECT * FROM messages WHERE id=$1 LIMIT 1;`, [messageId]);
+    // ✅ Enhanced query with JOINs to fetch linked contact + function names
+    const dbRes = await pool.query(`
+      SELECT 
+        m.*, 
+        c.id AS contact_id,
+        c.name AS contact_name,
+        f.id AS function_id,
+        f.event_name AS function_name
+      FROM messages m
+      LEFT JOIN contacts c ON m.related_contact = c.id
+      LEFT JOIN functions f ON m.related_function = f.id
+      WHERE m.id = $1
+      LIMIT 1;
+    `, [messageId]);
+
     let message = dbRes.rows[0];
 
     if (!message) {
@@ -174,10 +183,20 @@ router.get("/:id", async (req, res, next) => {
       };
     }
 
-    const [contactsRes, functionsRes] = await Promise.all([
-      pool.query("SELECT id, name FROM contacts;"),
-      pool.query("SELECT id, event_name FROM functions;"),
-    ]);
+    const contactsRes = await pool.query("SELECT id, name FROM contacts;");
+
+    let functionsRes;
+    if (message.related_contact) {
+      functionsRes = await pool.query(`
+        SELECT DISTINCT f.id, f.event_name
+        FROM functions f
+        LEFT JOIN function_contacts fc ON fc.function_id = f.id
+        WHERE (f.contact_id::text = $1 OR fc.contact_id::text = $1)
+        ORDER BY f.event_name;
+      `, [message.related_contact]);
+    } else {
+      functionsRes = { rows: [] };
+    }
 
     res.render("pages/messageDetail", {
       message,
@@ -188,9 +207,7 @@ router.get("/:id", async (req, res, next) => {
     });
   } catch (err) {
     console.error("❌ [Message Detail] Error:", err);
-    res
-      .status(500)
-      .send(`<h2>Error rendering message detail</h2><pre>${err.message}</pre>`);
+    res.status(500).send(`<h2>Error rendering message detail</h2><pre>${err.message}</pre>`);
   }
 });
 
@@ -203,27 +220,21 @@ router.post("/reply/:id", ensureGraphToken, upload.single("attachment"), async (
   const file = req.file;
 
   try {
-    let accessToken = req.session.graphToken;
-    if (!accessToken) {
-      accessToken = await getValidGraphToken(req);
-      if (!accessToken)
-        throw new Error("No Graph token available. Please log in again.");
-    }
+    let accessToken = req.session.graphToken || (await getValidGraphToken(req));
+    if (!accessToken) throw new Error("No Graph token available. Please log in again.");
 
     let uploadedFile = null;
-
     if (file) {
       const filePath = `inbox/${Date.now()}_${file.originalname}`;
       const { data, error } = await supabase.storage
         .from("attachments")
         .upload(filePath, file.buffer, { contentType: file.mimetype });
-
       if (error) throw new Error(`Supabase upload failed: ${error.message}`);
       uploadedFile = { name: file.originalname, path: data.path };
     }
 
-    const origRes = await pool.query(`SELECT * FROM messages WHERE id=$1 LIMIT 1;`, [messageId]);
-    const original = origRes.rows[0];
+    const { rows } = await pool.query(`SELECT * FROM messages WHERE id=$1 LIMIT 1;`, [messageId]);
+    const original = rows[0];
     if (!original) throw new Error("Original message not found");
 
     const mailData = {
@@ -231,13 +242,11 @@ router.post("/reply/:id", ensureGraphToken, upload.single("attachment"), async (
       subject,
       body,
       attachments: uploadedFile
-        ? [
-            {
-              name: uploadedFile.name,
-              contentType: file.mimetype,
-              contentBytes: file.buffer.toString("base64"),
-            },
-          ]
+        ? [{
+            name: uploadedFile.name,
+            contentType: file.mimetype,
+            contentBytes: file.buffer.toString("base64"),
+          }]
         : [],
     };
 
@@ -264,7 +273,6 @@ router.post("/reply/:id", ensureGraphToken, upload.single("attachment"), async (
       );
     }
 
-    console.log(`✅ Reply sent successfully to ${original.from_email}`);
     res.redirect(`/inbox/${messageId}`);
   } catch (err) {
     console.error("❌ [Reply] Failed:", err.message);
@@ -273,68 +281,144 @@ router.post("/reply/:id", ensureGraphToken, upload.single("attachment"), async (
 });
 
 /* ---------------------------------------------------------
-   🧹 4️⃣ Inbox Cleanup Utility (with confirmation)
+   🧹 Cleanup Utility
 --------------------------------------------------------- */
 router.get("/cleanup", async (req, res) => {
   try {
-    if (!req.session.user) {
+    if (!req.session.user)
       return res.status(403).send("<h3>Access denied. Please log in first.</h3>");
-    }
 
-    const { rows: countRows } = await pool.query(
+    const { rows } = await pool.query(
       `SELECT COUNT(*) AS count FROM messages WHERE graph_id IS NULL;`
     );
-    const count = parseInt(countRows[0].count, 10);
+    const count = parseInt(rows[0].count, 10);
 
-    if (count === 0) {
-      return res.send(`
-        <h2>✅ Cleanup Complete</h2>
-        <p>No messages with <code>graph_id IS NULL</code> found.</p>
-        <a href="/inbox" style="color:#0f766e;">← Back to Inbox</a>
-      `);
-    }
+    if (count === 0)
+      return res.send(`<h2>✅ Cleanup Complete</h2><p>No orphaned messages found.</p>`);
 
-    return res.send(`
+    res.send(`
       <h2>⚠️ Confirm Cleanup</h2>
       <p>This will permanently delete <strong>${count}</strong> messages without Graph IDs.</p>
-      <p>Are you sure you want to continue?</p>
-      <form action="/inbox/cleanup/confirm" method="POST" style="margin-top: 20px;">
-        <button type="submit" style="padding: 10px 15px; background-color: #b91c1c; color: white; border: none; border-radius: 5px;">Yes, Delete</button>
-        <a href="/inbox" style="margin-left: 15px; text-decoration:none; color:#0f766e;">Cancel</a>
+      <form action="/inbox/cleanup/confirm" method="POST">
+        <button type="submit" style="padding:10px 15px;background-color:#b91c1c;color:white;border:none;border-radius:5px;">Yes, Delete</button>
+        <a href="/inbox" style="margin-left:15px;color:#0f766e;">Cancel</a>
       </form>
     `);
   } catch (err) {
-    console.error("❌ [Cleanup Route] Error:", err);
-    res
-      .status(500)
-      .send(`<h3>💥 Cleanup Failed</h3><pre>${err.message}</pre>`);
+    console.error("❌ [Cleanup] Error:", err);
+    res.status(500).send(`<h3>💥 Cleanup Failed</h3><pre>${err.message}</pre>`);
+  }
+});
+
+router.post("/cleanup/confirm", async (req, res) => {
+  try {
+    if (!req.session.user)
+      return res.status(403).send("<h3>Access denied. Please log in first.</h3>");
+
+    const result = await pool.query(`DELETE FROM messages WHERE graph_id IS NULL;`);
+    res.send(`<h2>🧹 Cleanup Complete</h2><p>Deleted <strong>${result.rowCount}</strong> messages.</p>`);
+  } catch (err) {
+    console.error("❌ [Cleanup Confirm] Error:", err);
+    res.status(500).send(`<h3>💥 Cleanup Failed</h3><pre>${err.message}</pre>`);
   }
 });
 
 /* ---------------------------------------------------------
-   🧹 4B️⃣ Confirm Delete (POST handler)
+   📡 API: Get all functions for a given contact
 --------------------------------------------------------- */
-router.post("/cleanup/confirm", async (req, res) => {
+router.get("/api/functions/by-contact/:contactId", async (req, res) => {
   try {
-    if (!req.session.user) {
-      return res.status(403).send("<h3>Access denied. Please log in first.</h3>");
-    }
+    const { contactId } = req.params;
+    const { rows } = await pool.query(`
+      SELECT DISTINCT f.id, f.event_name
+      FROM functions f
+      LEFT JOIN function_contacts fc ON fc.function_id = f.id
+      WHERE (f.contact_id::text = $1 OR fc.contact_id::text = $1)
+      ORDER BY f.event_name;
+    `, [contactId]);
 
-    const result = await pool.query(`DELETE FROM messages WHERE graph_id IS NULL;`);
-    console.log(`🧹 Cleanup permanently removed ${result.rowCount} messages.`);
-
-    res.send(`
-      <h2>🧹 Cleanup Complete</h2>
-      <p>Deleted <strong>${result.rowCount}</strong> messages without Graph IDs.</p>
-      <a href="/inbox" style="color:#0f766e;">← Back to Inbox</a>
-    `);
+    res.json(rows);
   } catch (err) {
-    console.error("❌ [Cleanup Confirm] Error:", err);
-    res
-      .status(500)
-      .send(`<h3>💥 Cleanup Failed</h3><pre>${err.message}</pre>`);
+    console.error("❌ [API] Error loading functions:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
-module.exports = router;
+/* ---------------------------------------------------------
+   🔗 Manual Link Message → Contact / Function
+--------------------------------------------------------- */
+router.post("/link/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    let { contact_id, function_id } = req.body;
 
+    // Get current values first
+    const { rows } = await pool.query(
+      `SELECT related_contact, related_function FROM messages WHERE id = $1`,
+      [id]
+    );
+    if (!rows.length) return res.status(404).json({ error: "Message not found" });
+
+    const current = rows[0];
+
+    // Keep what the user didn’t change
+    if (!contact_id) contact_id = current.related_contact;
+    if (!function_id) function_id = current.related_function;
+
+    await pool.query(
+      `UPDATE messages
+       SET related_contact = $1,
+           related_function = $2
+       WHERE id = $3`,
+      [contact_id || null, function_id || null, id]
+    );
+
+    res.json({
+      success: true,
+      redirectUrl: `/inbox/${id}`,
+      message: "Message linked successfully",
+    });
+  } catch (err) {
+    console.error("❌ [Link Message] Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+/* ---------------------------------------------------------
+   🔗 Separate Routes for Contact and Function Linking
+--------------------------------------------------------- */
+router.post("/link-contact/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { contact_id } = req.body;
+
+    await pool.query(
+      `UPDATE messages SET related_contact = $1 WHERE id = $2;`,
+      [contact_id || null, id]
+    );
+
+    res.json({ success: true, redirectUrl: `/inbox/${id}` });
+  } catch (err) {
+    console.error("❌ [Link Contact] Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/link-function/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { function_id } = req.body;
+
+    await pool.query(
+      `UPDATE messages SET related_function = $1 WHERE id = $2;`,
+      [function_id || null, id]
+    );
+
+    res.json({ success: true, redirectUrl: `/inbox/${id}` });
+  } catch (err) {
+    console.error("❌ [Link Function] Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+module.exports = router;
