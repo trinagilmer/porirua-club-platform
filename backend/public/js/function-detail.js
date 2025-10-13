@@ -296,11 +296,13 @@ if (quickForm && quickInput) {
     const content = quickInput.value.trim();
     if (!content) return alert("Please write a note first.");
 
+   const noteType = document.getElementById("noteType")?.value || "general";
     const res = await fetch(`/functions/${fnId}/notes/new`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
-    });
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ content, note_type: noteType }),
+});
+
 
     const data = await res.json();
     if (data.success) {

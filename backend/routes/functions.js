@@ -142,41 +142,67 @@ router.get("/:id/communications", async (req, res, next) => {
     next(err);
   }
 });
+/* =========================================================
+   🗒️ NOTES ROUTES
+========================================================= */
 router.get("/:id/notes", async (req, res) => {
   const { id } = req.params;
 
-  const fnRes = await pool.query(`SELECT id, event_name FROM functions WHERE id = $1;`, [id]);
-  const fn = fnRes.rows[0];
-  if (!fn) return res.status(404).send("Function not found");
+  try {
+    // ✅ Fetch the parent function name
+    const fnRes = await pool.query(
+      `SELECT id, event_name FROM functions WHERE id = $1;`,
+      [id]
+    );
+    const fn = fnRes.rows[0];
+    if (!fn) return res.status(404).send("Function not found");
 
-  const { rows: notes } = await pool.query(`
-    SELECT n.*, u.name AS author
-    FROM function_notes n
-    LEFT JOIN users u ON u.id = n.created_by
-    WHERE n.function_id = $1
-    ORDER BY n.created_at DESC;
-  `, [id]);
+    // ✅ Fetch notes with author name and updated timestamp
+    const { rows: notes } = await pool.query(
+      `
+      SELECT 
+        n.id AS entry_id,
+        n.function_id,
+        n.content AS body,
+        n.note_type,
+        n.created_at AS entry_date,
+        n.updated_at,
+        u.name AS author
+      FROM function_notes n
+      LEFT JOIN users u ON u.id = n.created_by
+      WHERE n.function_id = $1
+      ORDER BY n.created_at DESC;
+      `,
+      [id]
+    );
 
-  res.render("pages/function-notes", {
-    fn,
-    notes,
-    activeTab: "notes",
-    user: req.session.user
-  });
+    res.render("pages/function-notes", {
+      fn,
+      notes,
+      activeTab: "notes",
+      user: req.session.user
+    });
+  } catch (err) {
+    console.error("❌ Error loading notes:", err);
+    res.status(500).send("Failed to load notes");
+  }
 });
 
 
+// 🆕 Create a new note
 router.post("/:id/notes/new", async (req, res) => {
   const { id } = req.params;
-  const { content } = req.body;
-  const userId = req.session.user?.id || null; // prevent TypeError
+  const { content, note_type } = req.body;
+  const userId = req.session.user?.id || null;
 
   try {
-    await pool.query(`
-      INSERT INTO function_notes(function_id, content, created_by, created_at)
-      VALUES ($1, $2, $3, NOW())
-    `, [id, content, userId]);
-
+    await pool.query(
+      `
+      INSERT INTO function_notes (function_id, content, note_type, created_by, created_at)
+      VALUES ($1, $2, $3, $4, NOW());
+      `,
+      [id, content, note_type || "general", userId]
+    );
     res.json({ success: true });
   } catch (err) {
     console.error("❌ Error creating note:", err);
@@ -185,21 +211,44 @@ router.post("/:id/notes/new", async (req, res) => {
 });
 
 
+
+// ✏️ Update a note
 router.post("/notes/:noteId/update", async (req, res) => {
   const { noteId } = req.params;
-  const { content } = req.body;
-  await pool.query(`
-    UPDATE function_notes SET content = $1, updated_at = NOW() WHERE id = $2
-  `, [content, noteId]);
-  res.json({ success: true });
+  const { content, note_type } = req.body;
+
+  try {
+    await pool.query(
+      `
+      UPDATE function_notes
+      SET content = $1,
+          note_type = COALESCE($2, 'general'),
+          updated_at = NOW()
+      WHERE id = $3;
+      `,
+      [content, note_type, noteId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error updating note:", err);
+    res.status(500).json({ success: false });
+  }
 });
 
+
+
+// 🗑️ Delete a note
 router.delete("/notes/:noteId", async (req, res) => {
   const { noteId } = req.params;
-  await pool.query(`DELETE FROM function_notes WHERE id = $1`, [noteId]);
-  res.json({ success: true });
-});
 
+  try {
+    await pool.query(`DELETE FROM function_notes WHERE id = $1;`, [noteId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error deleting note:", err);
+    res.status(500).json({ success: false });
+  }
+});
 
 /* =========================================================
    🧭 2. FUNCTION DETAIL VIEW
@@ -220,6 +269,7 @@ router.get("/:id", async (req, res, next) => {
     const fn = fnRows[0];
     if (!fn) return res.status(404).send("Function not found");
 
+    // ✅ Load related data concurrently
     const [linkedContacts, notes, tasks, messages] = await Promise.all([
       pool.query(`
         SELECT c.id, c.name, c.email, c.phone, c.company, fc.is_primary
@@ -228,23 +278,42 @@ router.get("/:id", async (req, res, next) => {
         WHERE fc.function_id = $1
         ORDER BY fc.is_primary DESC, c.name ASC;
       `, [id]),
-      pool.query(`
-        SELECT id AS entry_id, 'note' AS entry_type, note_type AS message_type, content AS body,
-               created_at AS entry_date
-        FROM function_notes
-        WHERE function_id = $1
-      `, [id]),
-pool.query(`
-  SELECT id AS entry_id, 'task' AS entry_type, status AS message_type, title,
-         due_at, created_at AS entry_date
-  FROM tasks
-  WHERE function_id = $1 OR related_function_id = $1
 
-`, [id]),
+      // 🗒️ Notes (function-level only)
       pool.query(`
-        SELECT id AS entry_id, 'message' AS entry_type, message_type, subject, body, from_email, to_email, created_at AS entry_date
+        SELECT 
+          n.id AS entry_id,
+          'note' AS entry_type,
+          n.function_id,
+          n.contact_id,
+          n.note_type,
+          n.content AS body,
+          n.created_at AS entry_date,
+          n.updated_at,
+          u.name AS author
+        FROM function_notes n
+        LEFT JOIN users u ON u.id = n.created_by
+        WHERE n.function_id = $1
+          AND n.contact_id IS NULL
+        ORDER BY n.created_at DESC;
+      `, [id]),
+
+      // ✅ Tasks
+  pool.query(`
+  SELECT t.*, u.name AS assigned_to_name
+  FROM tasks t
+  LEFT JOIN users u ON u.id = t.assigned_to
+  WHERE t.function_id = $1
+  ORDER BY t.created_at DESC;
+`, [id]),
+
+
+      // ✅ Messages
+      pool.query(`
+        SELECT id AS entry_id, 'message' AS entry_type, message_type, subject, body,
+               from_email, to_email, created_at AS entry_date
         FROM messages
-        WHERE related_function = $1
+        WHERE related_function = $1;
       `, [id])
     ]);
 
@@ -254,6 +323,7 @@ pool.query(`
       ...tasks.rows
     ].sort((a, b) => new Date(b.entry_date) - new Date(a.entry_date));
 
+    // ✅ Render page
     res.render("pages/function-detail", {
       title: fn.event_name,
       active: "functions",
@@ -265,11 +335,13 @@ pool.query(`
       communications,
       activeTab,
     });
+
   } catch (err) {
     console.error("❌ Error loading function detail:", err);
     next(err);
   }
 });
+
 
 /* =========================================================
    📇 3. CONTACT MANAGEMENT (RESTFUL)

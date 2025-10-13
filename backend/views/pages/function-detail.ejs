@@ -109,11 +109,20 @@
       <p>No notes yet.</p>
     <% } %>
 
-    <form id="quickNoteForm" class="mt-2">
-      <textarea id="quickNoteInput" placeholder="Add a quick note..." 
-        style="width:100%; min-height:60px; resize:none; overflow:hidden;"></textarea>
-      <button type="submit" class="btn small mt-1">Add Note</button>
-    </form>
+<form id="quickNoteForm" class="mt-2">
+  <div class="form-inline">
+    <select id="noteType" style="width:35%; min-height:34px;">
+      <option value="general">General</option>
+      <option value="followup">Follow-up</option>
+      <option value="internal">Internal</option>
+      <option value="client">Client Note</option>
+    </select>
+    <textarea id="quickNoteInput" placeholder="Add a quick note..." 
+      style="width:64%; min-height:60px; resize:none; overflow:hidden;"></textarea>
+  </div>
+  <button type="submit" class="btn small mt-1">Add Note</button>
+</form>
+
   </div>
 </aside>
 
