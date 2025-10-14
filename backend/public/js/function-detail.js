@@ -45,20 +45,21 @@ document.addEventListener("DOMContentLoaded", () => {
   /* =========================================================
      👁️ View Contact Modal
   ========================================================== */
-  const viewModal = document.getElementById("viewContactModal");
-  const modalBody = document.getElementById("contactModalBody");
-  const closeViewModal = document.getElementById("closeViewModal");
+const viewModal = document.getElementById("viewContactModal");
+const modalBody = document.getElementById("contactModalBody");
+const closeViewModal = document.getElementById("closeViewModal");
 
-  const openModal = (html) => {
-    modalBody.innerHTML = html;
-    viewModal.classList.add("show");
-  };
-  const closeModal = () => viewModal.classList.remove("show");
+const openModal = (html) => {
+  modalBody.innerHTML = html;
+  viewModal.classList.remove("hidden"); // new: display flex (CSS controlled)
+};
+const closeModal = () => viewModal.classList.add("hidden"); // new: hides modal
+
 
   closeViewModal?.addEventListener("click", closeModal);
-  window.addEventListener("click", (e) => {
-    if (e.target === viewModal) closeModal();
-  });
+window.addEventListener("click", (e) => {
+  if (e.target.classList.contains("contact-modal")) closeModal();
+});
 
   document.addEventListener("click", async (e) => {
     if (!e.target.classList.contains("view-btn")) return;
@@ -99,66 +100,85 @@ document.addEventListener("DOMContentLoaded", () => {
       openModal("<p>Failed to load contact details.</p>");
     }
   });
+/* =========================================================
+   ✏️ Edit Contact Panel (with Overlay Integration)
+========================================================= */
+const editPanel = document.getElementById("editContactPanel");
+const editForm = document.getElementById("editContactForm");
 
-  /* =========================================================
-     ✏️ Edit Contact Panel
-  ========================================================== */
-  const editPanel = document.getElementById("editContactPanel");
-  const editForm = document.getElementById("editContactForm");
+// 🧭 Open Edit Panel
+document.addEventListener("click", async (e) => {
+  if (!e.target.classList.contains("edit-btn")) return;
+  const id = e.target.dataset.id;
 
-  document.addEventListener("click", async (e) => {
-    if (!e.target.classList.contains("edit-btn")) return;
-    const id = e.target.dataset.id;
+  try {
+    const res = await fetch(`/functions/${fnId}/contacts/${id}`);
+    if (!res.ok) throw new Error("Failed to fetch contact");
+    const contact = await res.json();
 
-    try {
-      const res = await fetch(`/functions/${fnId}/contacts/${id}`);
-      if (!res.ok) throw new Error("Failed to fetch contact");
-      const contact = await res.json();
+    // Populate fields
+    document.getElementById("editContactId").value = contact.id;
+    document.getElementById("editContactName").value = contact.name || "";
+    document.getElementById("editContactEmail").value = contact.email || "";
+    document.getElementById("editContactPhone").value = contact.phone || "";
+    document.getElementById("editContactCompany").value = contact.company || "";
 
-      document.getElementById("editContactId").value = contact.id;
-      document.getElementById("editContactName").value = contact.name;
-      document.getElementById("editContactEmail").value = contact.email;
-      document.getElementById("editContactPhone").value = contact.phone;
-      document.getElementById("editContactCompany").value = contact.company;
-      editPanel.classList.add("show");
-    } catch (err) {
-      console.error(err);
-      showToast("⚠️ Could not load contact");
-    }
-  });
+    // Show the edit panel & overlay
+    editPanel.classList.remove("hidden");
+    editPanel.classList.add("panel-open");
+    overlay?.classList.add("active");
+  } catch (err) {
+    console.error("⚠️ Edit Panel Error:", err);
+    showToast("⚠️ Could not load contact");
+  }
+});
 
-  document.getElementById("closeEditPanel")?.addEventListener("click", () =>
-    editPanel.classList.remove("show")
-  );
-  document.getElementById("cancelEdit")?.addEventListener("click", () =>
-    editPanel.classList.remove("show")
-  );
+// 🧭 Close Edit Panel (via close or cancel)
+const closeEditPanelBtn = document.getElementById("closeEditPanel");
+const cancelEditBtn = document.getElementById("cancelEdit");
 
-  editForm?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const id = document.getElementById("editContactId").value;
-    const body = {
-      name: document.getElementById("editContactName").value,
-      email: document.getElementById("editContactEmail").value,
-      phone: document.getElementById("editContactPhone").value,
-      company: document.getElementById("editContactCompany").value,
-    };
-    try {
-      const res = await fetch(`/functions/contacts/${id}/update`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast("✅ Contact updated");
-        editPanel.classList.remove("show");
-        location.reload();
-      }
-    } catch {
+[closeEditPanelBtn, cancelEditBtn].forEach((btn) =>
+  btn?.addEventListener("click", () => {
+    editPanel.classList.remove("panel-open");
+    overlay?.classList.remove("active");
+    setTimeout(() => editPanel.classList.add("hidden"), 350);
+  })
+);
+
+// 💾 Save / Submit Edit Form
+editForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const id = document.getElementById("editContactId").value;
+  const body = {
+    name: document.getElementById("editContactName").value.trim(),
+    email: document.getElementById("editContactEmail").value.trim(),
+    phone: document.getElementById("editContactPhone").value.trim(),
+    company: document.getElementById("editContactCompany").value.trim(),
+  };
+
+  try {
+    const res = await fetch(`/functions/contacts/${id}/update`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      showToast("✅ Contact updated");
+      editPanel.classList.remove("panel-open");
+      overlay?.classList.remove("active");
+      setTimeout(() => editPanel.classList.add("hidden"), 350);
+      setTimeout(() => location.reload(), 400);
+    } else {
       showToast("⚠️ Update failed");
     }
-  });
+  } catch (err) {
+    console.error("⚠️ Update Error:", err);
+    showToast("⚠️ Update failed");
+  }
+});
+
 
   /* =========================================================
      ❌ Remove / Delete / Primary Contact
@@ -206,11 +226,33 @@ document.addEventListener("DOMContentLoaded", () => {
   const newForm = document.getElementById("newContactForm");
   const existingSection = document.getElementById("existingContactSection");
   const searchInput = document.getElementById("searchContact");
-  const selectDropdown = document.getElementById("existingSelect");
-  const linkExistingBtn = document.getElementById("linkExisting");
+ const selectDropdown = document.getElementById("existingSelect");
+const linkExistingBtn = document.getElementById("linkExisting");
+const overlay = document.getElementById("contactOverlay"); // 👈 new line
 
-  openAddBtn?.addEventListener("click", () => addPanel.classList.add("show"));
-  closeAddPanel?.addEventListener("click", () => addPanel.classList.remove("show"));
+// 🟢 OPEN Add Contact Panel
+openAddBtn?.addEventListener("click", () => {
+  addPanel.classList.remove("hidden");
+  addPanel.classList.add("panel-open");
+  overlay.classList.add("active"); // show overlay
+});
+
+// 🔴 CLOSE Add Contact Panel
+closeAddPanel?.addEventListener("click", () => {
+  addPanel.classList.remove("panel-open");
+  overlay.classList.remove("active"); // hide overlay
+  setTimeout(() => addPanel.classList.add("hidden"), 350); // wait for slide-out
+});
+
+// Optional: click on overlay closes panel too
+overlay?.addEventListener("click", () => {
+  if (addPanel.classList.contains("panel-open")) {
+    addPanel.classList.remove("panel-open");
+    setTimeout(() => addPanel.classList.add("hidden"), 350);
+  }
+  overlay.classList.remove("active");
+});
+
 
   tabNew?.addEventListener("click", () => {
     tabNew.classList.add("active");
@@ -258,7 +300,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const data = await res.json();
     if (data.success) {
       showToast("✅ Contact added");
-      addPanel.classList.remove("show");
+      addPanel.classList.remove("panel-open");
       location.reload();
     }
   });

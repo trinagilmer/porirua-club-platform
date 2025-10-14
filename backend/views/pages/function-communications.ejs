@@ -17,12 +17,8 @@
     </div>
 
     <!-- Tabs -->
-    <div class="tabs-bar">
-      <a href="/functions/<%= fn.id %>?tab=info">Info</a>
-      <a href="/functions/<%= fn.id %>?tab=tasks">Tasks</a>
-      <a href="/functions/<%= fn.id %>?tab=notes">Notes</a>
-      <a href="/functions/<%= fn.id %>/communications" class="active">Communications</a>
-    </div>
+  <%- include('../partials/function-tabs', { fn: { id: functionId }, activeTab: 'tasks' }) %>
+
 
     <!-- Communications Timeline -->
     <div class="card">

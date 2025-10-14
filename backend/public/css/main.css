@@ -1,19 +1,13 @@
-:root {
-  --primary: #00529b;
-  --secondary: #f4f7fb;
-  --accent: #ffb703;
-  --text: #222;
-  --text-light: #666;
-  --bg: #f9fafc;
-  --radius: 6px;
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --transition: all 0.25s ease;
-}
-
 /* =========================================================
-   🌈 1. CORE VARIABLES & COLOR SYSTEM
+   🌈 Porirua Club Platform — MAIN CSS (2025 Clean Build)
+   Part 1 — Core Variables, Layout, and Utilities
 ========================================================= */
+
+/* ---------------------------------------------------------
+   FONTS & BASE VARIABLES
+--------------------------------------------------------- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Nunito+Sans:wght@400;600&display=swap');
+
 :root {
   /* Base Palette */
   --primary: #6bb4de;
@@ -45,9 +39,17 @@
   --space-md: 16px;
   --space-lg: 24px;
   --space-xl: 40px;
+
+  /* Typography */
+  --font-main: 'Inter', 'Nunito Sans', 'Segoe UI', sans-serif;
+  --font-size-base: 16px;
+  --font-size-sm: 0.9rem;
+  --font-size-lg: 1.1rem;
 }
 
-/* 🌙 DARK THEME VARIANTS */
+/* ---------------------------------------------------------
+   DARK THEME VARIABLES
+--------------------------------------------------------- */
 body.dark-theme {
   --bg: #121212;
   --text: #eaeaea;
@@ -55,57 +57,73 @@ body.dark-theme {
   --primary: #58a6ff;
   --accent: #7dd3a4;
   --deep: #2d6a4f;
-  --muted: #aaa;
+  --muted: #bbb;
   --shadow-sm: 0 2px 4px rgba(255,255,255,0.05);
   --shadow-md: 0 4px 12px rgba(255,255,255,0.08);
   --shadow-lg: 0 6px 18px rgba(255,255,255,0.12);
 }
 
-/* =========================================================
-   🧱 2. BASE ELEMENTS
-========================================================= */
+/* ---------------------------------------------------------
+   BASE ELEMENTS
+--------------------------------------------------------- */
+html {
+  scroll-behavior: smooth;
+  font-size: var(--font-size-base);
+}
+
 body {
   margin: 0;
-  font-family: "Inter", "Segoe UI", sans-serif;
   background: var(--bg);
   color: var(--text);
+  font-family: var(--font-main);
   transition: background var(--anim-slow) ease, color var(--anim-slow) ease;
 }
+
 a {
   text-decoration: none;
-  color: inherit;
-  transition: color var(--anim-fast) ease;
+  color: var(--primary);
+  transition: color var(--anim-fast);
 }
-a:hover { color: var(--primary); }
+a:hover {
+  color: var(--deep);
+}
 
-/* =========================================================
-   🧭 3. LAYOUT: HEADER, MAIN, GRID
-========================================================= */
+button {
+  font-family: inherit;
+}
+
+/* ---------------------------------------------------------
+   HEADER & NAVIGATION
+--------------------------------------------------------- */
 .main-header {
   position: fixed;
-  top: 0; left: 0; right: 0;
+  top: 0;
+  left: 0;
+  right: 0;
   height: 72px;
-  padding: 0 var(--space-md);
   background: var(--dark);
   color: #fff;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 0 var(--space-md);
   box-shadow: var(--shadow-md);
   z-index: 1000;
-  transition: background var(--anim-slow);
 }
+
 .header-left { display: flex; align-items: center; gap: 32px; }
 .logo-link { display: flex; align-items: center; margin-right: 32px; }
 .logo-img { height: 40px; width: auto; }
+
 .nav-links a {
   margin-right: 18px;
-  padding: 8px 0;
   color: #ccc;
   font-weight: 500;
+  padding: 8px 0;
 }
 .nav-links a:hover { color: var(--accent); }
 .nav-links a.active { color: var(--accent); }
+
 .header-right { display: flex; align-items: center; gap: 12px; }
 .user-circle {
   background: var(--accent);
@@ -116,6 +134,9 @@ a:hover { color: var(--primary); }
   font-size: 1rem;
 }
 
+/* ---------------------------------------------------------
+   LAYOUT STRUCTURE
+--------------------------------------------------------- */
 .main-content {
   padding: 96px var(--space-lg) 40px;
   max-width: 1400px;
@@ -123,11 +144,80 @@ a:hover { color: var(--primary); }
   transition: background var(--anim-slow);
 }
 
+.function-layout {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.detail-panel {
+  width: 100%;
+}
+
+/* ---------------------------------------------------------
+   UTILITY CLASSES
+--------------------------------------------------------- */
+.m-0 { margin: 0; }
+.mb-1 { margin-bottom: 4px; }
+.mb-2 { margin-bottom: 8px; }
+.mb-3 { margin-bottom: 16px; }
+
+.gap-1 { gap: 4px; }
+.gap-2 { gap: 8px; }
+
+.text-muted { color: var(--muted); }
+.text-primary { color: var(--primary); }
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.divider {
+  border-top: 1px solid #e0e0e0;
+  margin: 20px 0;
+}
+
+.sticky-actions {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  gap: 10px;
+  z-index: 1000;
+}
 /* =========================================================
-   💳 4. COMPONENTS
+   💳 2. COMPONENTS — Cards, Buttons, Tables, Toasts, Notes
 ========================================================= */
 
-/* --- Cards --- */
+/* ------------------------------
+   Buttons
+------------------------------ */
+.btn {
+  background: var(--primary);
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all var(--anim-fast) ease;
+}
+.btn:hover { background: var(--deep); transform: translateY(-1px); }
+
+.btn.ghost {
+  background: transparent;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+}
+.btn.ghost:hover { background: var(--primary); color: #fff; }
+
+.btn.small { padding: 4px 8px; font-size: 0.85rem; }
+
+/* ------------------------------
+   Cards
+------------------------------ */
 .card {
   background: var(--white);
   border-radius: var(--radius);
@@ -140,28 +230,15 @@ a:hover { color: var(--primary); }
   transform: translateY(-3px);
   box-shadow: var(--shadow-md);
 }
-
-/* --- Buttons --- */
-.btn {
-  background: var(--primary);
-  color: #fff;
-  padding: 8px 14px;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all var(--anim-fast) ease;
+.card h3 {
+  border-bottom: 1px solid #eee;
+  padding-bottom: 6px;
+  margin-bottom: 12px;
 }
-.btn:hover { background: var(--deep); transform: translateY(-1px); }
-.btn.ghost {
-  background: transparent;
-  border: 1px solid var(--primary);
-  color: var(--primary);
-}
-.btn.ghost:hover { background: var(--primary); color: #fff; }
-.btn.small { padding: 4px 8px; font-size: 0.85rem; }
 
-/* --- Tables --- */
+/* ------------------------------
+   Tables
+------------------------------ */
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -179,9 +256,374 @@ a:hover { color: var(--primary); }
   color: #fff;
   font-weight: 600;
 }
-.table tr:hover { background: #f4f8fb; transition: background var(--anim-fast); }
+.table tr:hover {
+  background: #f4f8fb;
+  transition: background var(--anim-fast);
+}
+body.dark-theme .table tr:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+/* ------------------------------
+   Toast Notifications
+------------------------------ */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--deep);
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.95rem;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.3s ease;
+  z-index: 99999;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+}
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+.toast.success { background: var(--success); }
+.toast.warning { background: var(--warning); color: #333; }
+.toast.error { background: var(--danger); }
+
+/* ------------------------------
+   Notes Panel
+------------------------------ */
+.notes-panel { margin-top: 16px; }
+
+.note-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.note-list li {
+  border-bottom: 1px solid #eee;
+  padding: 6px 0;
+  transition: all 0.25s ease;
+}
+.note-snippet {
+  white-space: pre-wrap;
+  color: #333;
+}
+.note-actions {
+  margin-top: 4px;
+}
+.note-actions .btn {
+  margin-right: 4px;
+  font-size: 0.8rem;
+}
+.note-type-select {
+  display: inline-block;
+  width: auto;
+  min-width: 160px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background-color: #fff;
+  font-size: 0.9rem;
+  margin-right: 8px;
+  transition: all 0.2s;
+}
+.note-type-select:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
+#toggleNotesBtn {
+  width: 100%;
+  background: #f8f8f8;
+  color: #333;
+  border: 1px solid #ddd;
+}
+#toggleNotesBtn:hover {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.saved-flash { animation: flashSaved 0.8s ease; }
+@keyframes flashSaved {
+  from { background-color: #d4edda; }
+  to { background-color: white; }
+}
+
+/* =========================================================
+   👥 CONTACT CARD VISUALS
+========================================================= */
+.contact-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100vh - 280px);
+  overflow-y: auto;
+  padding-right: 6px;
+}
+.contact-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--white);
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 14px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.contact-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.07);
+}
+.contact-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+.contact-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.contact-name {
+  color: var(--deep);
+  font-size: 1rem;
+  font-weight: 600;
+}
+.contact-email, .contact-phone {
+  font-size: 0.9rem;
+  color: #555;
+}
+.contact-actions {
+  position: relative;
+  margin-left: 10px;
+}
+.menu-btn {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: #666;
+  border-radius: 6px;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+.menu-btn:hover {
+  background: rgba(107,180,222,0.1);
+  color: var(--primary);
+}
+.menu-dropdown {
+  position: absolute;
+  top: 36px;
+  right: 0;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  z-index: 1000;
+  padding: 4px 0;
+  animation: fadeIn 0.15s ease;
+}
+.menu-item {
+  padding: 10px 14px;
+  font-size: 0.92rem;
+  text-align: left;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--deep);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.menu-item:hover {
+  background: #f4f8fb;
+  color: var(--primary);
+}
+.menu-dropdown.hidden { display: none !important; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+
+/* --- Header --- */
+.contact-edit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.contact-edit-header h3 {
+  font-weight: 600;
+  color: var(--deep);
+}
 
 /* --- Tabs --- */
+.contact-panel-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.tab-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #f1f1f1;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.tab-btn.active {
+  background: var(--primary, #0d6efd);
+  color: #fff;
+}
+.tab-btn:hover:not(.active) {
+  background: #e6e6e6;
+}
+
+/* --- Panel Forms --- */
+.panel-form label {
+  font-weight: 600;
+  margin-top: 10px;
+  color: #333;
+  display: block;
+}
+.panel-form input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+.panel-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* --- Search / Dropdown --- */
+.contact-search {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+.contact-dropdown {
+  width: 100%;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  min-height: 180px;
+  padding: 4px;
+}
+
+/* =========================================================
+   🌓 DARK MODE REFINEMENTS
+========================================================= */
+body.dark-theme .card,
+body.dark-theme .contact-card,
+body.dark-theme .contact-modal-content,
+body.dark-theme .contact-edit-panel,
+body.dark-theme .contact-add-panel {
+  background: #1e1e1e;
+  color: var(--text);
+  border-color: #333;
+}
+body.dark-theme .contact-card:hover {
+  box-shadow: 0 4px 10px rgba(255,255,255,0.08);
+}
+body.dark-theme input,
+body.dark-theme select,
+body.dark-theme textarea {
+  background: #2a2a2a;
+  border: 1px solid #444;
+  color: #eaeaea;
+}
+body.dark-theme input::placeholder {
+  color: #aaa;
+}
+body.dark-theme .btn.ghost {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+body.dark-theme .tab-btn {
+  background: #2c2c2c;
+  color: #ccc;
+}
+body.dark-theme .tab-btn.active {
+  background: var(--primary);
+  color: #fff;
+}
+body.dark-theme .menu-dropdown {
+  background: #1f1f1f;
+  border-color: #333;
+}
+body.dark-theme .menu-item:hover {
+  background: rgba(255,255,255,0.05);
+}
+body.dark-theme .toast {
+  background: var(--deep);
+}
+
+/* =========================================================
+   📱 RESPONSIVE ADJUSTMENTS
+========================================================= */
+@media (max-width: 1200px) {
+  .main-content {
+    padding: 96px 16px 40px;
+  }
+  .nav-links a {
+    margin-right: 12px;
+  }
+}
+
+@media (max-width: 900px) {
+  .function-layout {
+    grid-template-columns: 1fr;
+  }
+  .contact-edit-panel,
+  .contact-add-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .contact-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .contact-card .contact-actions {
+    align-self: flex-end;
+  }
+}
+
+@media (max-width: 600px) {
+  .logo-img { height: 32px; }
+  .nav-links { flex-wrap: wrap; gap: 8px; }
+  .nav-links a { font-size: 0.9rem; }
+  .contact-modal-content {
+    width: 95%;
+    padding: 20px;
+  }
+}
+/* =========================================================
+   🔧 PATCH FIX — Tabs (2025-10-13)
+========================================================= */
+
+/* --- Function Page Tabs (Restored) --- */
 .tabs-bar {
   position: sticky;
   top: 72px;
@@ -210,871 +652,221 @@ a:hover { color: var(--primary); }
 }
 .tabs-bar a:hover { background: #eaf6fc; color: var(--primary); }
 
-/* --- Toast Notifications --- */
-.toast {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  background: var(--deep);
-  color: #fff;
-  padding: 12px 16px;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-md);
-  opacity: 0;
-  transform: translateY(20px);
-  transition: all var(--anim-slow);
-  z-index: 2000;
+body.dark-theme .tabs-bar {
+  border-color: #333;
+  background: #1a1a1a;
 }
-.toast.show {
-  opacity: 1;
-  transform: translateY(0);
+body.dark-theme .tabs-bar a {
+  background: #2a2a2a;
+  color: #ccc;
 }
-.toast.success { background: var(--success); }
-.toast.warning { background: var(--warning); color: #1c1c1c; }
-.toast.error { background: var(--danger); }
+body.dark-theme .tabs-bar a.active {
+  background: #1e1e1e;
+  color: var(--primary);
+  border-color: #444;
+}
 
-/* --- Loading Overlay --- */
-.loading-overlay {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background: rgba(255,255,255,0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 3000;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity var(--anim-slow);
-}
-.loading-overlay.show {
-  opacity: 1;
-  visibility: visible;
-}
-.loading-overlay::after {
-  content: "";
-  width: 48px; height: 48px;
-  border: 4px solid var(--primary);
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
 
 /* =========================================================
-   💬 5. COMMUNICATIONS PANEL
+   🚀 FINAL FIX — Root-level slide panels (ignore layout transforms)
 ========================================================= */
-.communications-panel {
-  background: var(--white);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  padding: 20px;
-}
-.comm-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 1rem;
-}
-.comm-controls input,
-.comm-controls select {
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 0.95rem;
-}
-.comm-controls input { flex: 1; }
-.comm-group {
-  margin-bottom: 1.5rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  overflow: hidden;
-  transition: all var(--anim-fast);
-}
-.comm-group-header {
-  background: #f6f6f6;
-  padding: 10px 14px;
-  display: flex;
-  justify-content: space-between;
-  cursor: pointer;
-  font-weight: 600;
-  border-bottom: 1px solid #e0e0e0;
-  transition: background var(--anim-fast);
-}
-.comm-group-header:hover { background: #eaf6fc; color: var(--primary); }
-.comm-group-body.collapsed { display: none; }
 
-/* =========================================================
-   🧩 6. UTILITIES
-========================================================= */
-.m-0 { margin: 0; }
-.mb-1 { margin-bottom: 4px; }
-.mb-2 { margin-bottom: 8px; }
-.mb-3 { margin-bottom: 16px; }
-.gap-1 { gap: 4px; }
-.gap-2 { gap: 8px; }
-.text-muted { color: var(--muted); }
-.text-primary { color: var(--primary); }
-.hover-lift:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-.divider {
-  border-top: 1px solid #e0e0e0;
-  margin: 20px 0;
-}
-.sticky-actions {
+/* baseline closed state */
+.contact-edit-panel,
+.contact-add-panel {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
-  display: flex;
-  gap: 10px;
-  z-index: 1000;
-}
-
-/* =========================================================
-   📱 7. RESPONSIVE
-========================================================= */
-@media (max-width: 1200px) {
-  .main-content { padding: 96px 16px 40px; }
-  .nav-links a { margin-right: 12px; }
-}
-@media (max-width: 900px) {
-  .nav-links { flex-wrap: wrap; gap: 8px; }
-  .nav-links a { font-size: 0.9rem; }
-  .logo-img { height: 32px; }
-}
-/* ===============================
-   Communications Timeline
-=============================== */
-.timeline-day {
-  margin-bottom: 24px;
-}
-.timeline-date {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--deep);
-  border-left: 4px solid var(--primary);
-  padding-left: 8px;
-  margin-bottom: 8px;
-}
-.timeline-items {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.timeline-entry {
-  background: var(--white);
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 12px 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-.timeline-entry:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-}
-.entry-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  justify-content: space-between;
-}
-.entry-icon {
-  font-size: 1.2rem;
-}
-.entry-subject {
-  flex: 1;
-  font-weight: 600;
-  color: var(--deep);
-}
-.entry-time {
-  font-size: 0.85rem;
-  color: #777;
-}
-.entry-body {
-  margin-top: 8px;
-  font-size: 0.95rem;
-  color: var(--text);
-}
-.entry-meta {
-  margin-top: 6px;
-  font-size: 0.8rem;
-  color: #666;
-  display: flex;
-  flex-direction: column;
-}
-.timeline-entry.message { border-left: 4px solid var(--primary); }
-.timeline-entry.note { border-left: 4px solid var(--accent); }
-.timeline-entry.task { border-left: 4px solid var(--deep); }
-.contact-panel {
-  align-self: start;
-  position: relative;
-}
-
-
-.contact-edit-panel {
-  position: fixed;
-  right: 0;
-  width: 380px;
-  max-width: 90%;
-  background: #fff;
-  height: 100%;
   top: 0;
-  transform: translateX(100%);
-  transition: transform 0.3s ease;
-  box-shadow: -4px 0 12px rgba(0,0,0,0.15);
-  z-index: 5000;
-  padding: 24px;
-}
-.contact-edit-panel.show {
-  transform: translateX(0);
-}
-.contact-edit-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-.function-layout {
-  display: grid;
-  grid-template-columns: 380px 1fr;
-  gap: 24px;
-  align-items: start;
-}
-
-.contact-panel {
-  align-self: start;
-  position: relative;
-}
-
-.detail-panel {
-  width: 100%;
-}
-/* ----------------------------
-   CONTACT MENU BUTTON + DROPDOWN
------------------------------*/
-.menu-btn {
-  background: none;
-  border: none;
-  font-size: 1.4rem;
-  cursor: pointer;
-  color: #666;
-  padding: 4px 8px;
-  line-height: 1;
-  border-radius: 6px;
-  transition: background 0.2s ease, color 0.2s ease;
-}
-
-.menu-btn:hover {
-  background: rgba(107, 180, 222, 0.1);
-  color: var(--primary);
-}
-
-.menu-dropdown {
-  position: absolute;
-  top: 36px;
+  left: auto;
   right: 0;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  box-shadow: 0 6px 14px rgba(0,0,0,0.08);
-  display: flex;
-  flex-direction: column;
-  min-width: 180px;
-  z-index: 1000;
-  padding: 4px 0;
-  animation: fadeIn 0.15s ease;
+  height: 100vh;
+  width: 420px;
+  max-width: 95vw;
+  background: var(--white);
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.25);
+  border-left: 1px solid #eee;
+  padding: 24px;
+  overflow-y: auto;
+
+  /* isolate from any parent transforms */
+  transform: translate3d(100%, 0, 0);
+  transition: transform 0.35s ease-in-out;
+  z-index: 2147483647; /* top of everything */
 }
 
-.menu-item {
-  padding: 10px 14px;
-  font-size: 0.92rem;
-  text-align: left;
-  border: none;
-  background: none;
-  cursor: pointer;
-  color: var(--deep);
-  transition: background 0.2s ease, color 0.2s ease;
+/* open state */
+.contact-edit-panel.panel-open,
+.contact-add-panel.panel-open {
+  transform: translate3d(0, 0, 0);
 }
 
-.menu-item:hover {
-  background: #f4f8fb;
-  color: var(--primary);
-}
-
-.menu-dropdown.hidden {
+/* hidden override */
+.contact-edit-panel.hidden,
+.contact-add-panel.hidden {
   display: none !important;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-/* ===========================
-   CONTACT CARD VISUALS
-=========================== */
-.contact-card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+/* dark theme variant */
+body.dark-theme .contact-edit-panel,
+body.dark-theme .contact-add-panel {
+  background: #1e1e1e;
+  color: var(--text);
+  border-left: 1px solid #333;
 }
 
-.contact-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--white);
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 10px 14px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.contact-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(0,0,0,0.07);
-}
-
-/* Avatar (first letter circle) */
-.contact-avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: var(--primary);
-  color: #fff;
-  font-weight: 600;
-  font-size: 1.1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 12px;
-  flex-shrink: 0;
-}
-
-.contact-details {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.contact-name {
-  color: var(--deep);
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.contact-email, .contact-phone {
-  font-size: 0.9rem;
-  color: #555;
-}
-
-/* Three-dot menu alignment */
-.contact-actions {
-  position: relative;
-  margin-left: 10px;
-}
-
-.menu-btn {
-  background: none;
-  border: none;
-  font-size: 1.4rem;
-  cursor: pointer;
-  color: #666;
-  border-radius: 6px;
-  transition: color 0.2s ease, background 0.2s ease;
-}
-.menu-btn:hover {
-  background: rgba(107,180,222,0.1);
-  color: var(--primary);
-}
-
-/* Dropdown styling */
-.menu-dropdown {
-  position: absolute;
-  top: 36px;
-  right: 0;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  box-shadow: 0 6px 14px rgba(0,0,0,0.08);
-  display: flex;
-  flex-direction: column;
-  min-width: 180px;
-  z-index: 1000;
-  padding: 4px 0;
-}
-
-.menu-item {
-  padding: 10px 14px;
-  font-size: 0.92rem;
-  text-align: left;
-  border: none;
-  background: none;
-  cursor: pointer;
-  color: var(--deep);
-  transition: background 0.2s ease, color 0.2s ease;
-}
-.menu-item:hover {
-  background: #f4f8fb;
-  color: var(--primary);
-}
-/* ===========================
-   CONTACT VIEW MODAL
-=========================== */
-/*.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0,0,0,0.35);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  transition: opacity 0.25s ease;
-}
-
-.modal.hidden {
-  display: none;
-}
-
-.modal-content {
-  background: #fff;
-  padding: 24px 28px;
-  border-radius: 12px;
-  width: 420px;
-  max-width: 90%;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.25);
-  animation: modalIn 0.25s ease;
-}
-
-.close {
-  float: right;
-  font-size: 1.6rem;
-  color: #555;
-  cursor: pointer;
-  font-weight: bold;
-  transition: color 0.2s ease;
-}
-.close:hover {
-  color: var(--primary);
-}
-
-.modal-content h2 {
-  margin-top: 0;
-  color: var(--deep);
-}
-
-.modal-content h4 {
-  margin-bottom: 8px;
-  color: var(--primary);
-}
-
-.modal-content ul {
-  list-style: none;
-  padding-left: 0;
-}
-
-.modal-content li {
-  padding: 6px 0;
-  border-bottom: 1px solid #eee;
-  font-size: 0.9rem;
-}
-
-@keyframes modalIn {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
-}---
-/* ===========================
-   SLIDE-IN EDIT PANEL
-=========================== */
-.slide-panel {
-  position: fixed;
-  top: 0;
-  right: 0;
-  height: 100%;
-  width: 360px;
-  background: var(--white);
-  box-shadow: -2px 0 12px rgba(0,0,0,0.2);
-  padding: 24px;
-  z-index: 5000;
-  transform: translateX(100%);
-  transition: transform 0.3s ease;
-}
-.slide-panel.show {
-  transform: translateX(0);
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.panel-header h3 {
-  margin: 0;
-  color: var(--deep);
-}
-
-.panel-form label {
-  margin-top: 10px;
-  font-weight: 600;
-  color: var(--deep);
-  font-size: 0.9rem;
-}
-
-.panel-form input {
-  width: 100%;
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  margin-top: 4px;
-}
-
-.panel-actions {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-*/
-/* ===========================
-   CONTACT PANEL + ADD BUTTON
-=========================== */
-
-.contact-panel {
-  position: relative;               /* anchor for internal absolute elements */
-  padding-bottom: 72px;             /* room for the floating + button */
-  background: var(--white);
-  border-radius: var(--radius);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-  overflow: hidden;
-}
-
-/* The floating + button inside the contact panel */
-.contact-panel .add-contact-fab {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  border-radius: 50%;
-  width: 52px;
-  height: 52px;
-  font-size: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  transition: all 0.25s ease;
-  z-index: 10;
-  animation: fab-pop 0.25s ease-out;
-}
-
-.contact-panel .add-contact-fab:hover {
-  background: var(--deep);
-  transform: scale(1.08);
-  box-shadow: 0 6px 14px rgba(0,0,0,0.25);
-}
-
-/* Simple pop-in animation when it loads */
-@keyframes fab-pop {
-  0% {
-    transform: scale(0.8);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-/* When viewed on smaller screens, keep it centered and visible */
-@media (max-width: 900px) {
-  .contact-panel .add-contact-fab {
-    right: 50%;
-    transform: translateX(50%);
-    bottom: 12px;
-  }
-}
-
-
-/* Contact Search & Dropdown */
-.contact-search {
-  width: 100%;
-  padding: 8px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  margin-bottom: 8px;
-}
-
-.contact-dropdown {
-  width: 100%;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  height: 180px;
-  overflow-y: auto;
-  font-family: inherit;
-  font-size: 0.9rem;
-}
-
-.contact-dropdown option {
-  padding: 6px 8px;
-  border-bottom: 1px solid #eee;
-}
-
-.contact-dropdown option:hover {
-  background: #eaf6fc;
-}
-
-/* ===========================
-   TOAST NOTIFICATIONS
-=========================== */
-.toast {
+/* =========================================================
+   ➕ Add Contact Floating Button (FAB)
+========================================================= */
+.add-contact-fab {
   position: fixed;
   bottom: 24px;
   right: 24px;
-  background: var(--deep);
+  background: var(--primary, #0d6efd);
   color: #fff;
-  padding: 12px 18px;
-  border-radius: 8px;
-  font-weight: 500;
-  font-size: 0.95rem;
-  opacity: 0;
-  transform: translateY(20px);
-  transition: all 0.3s ease;
-  z-index: 99999;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-}
-.toast.show {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.slide-panel {
-  position: fixed;
-  top: 0;
-  right: 0;
-  height: 100%;
-  width: 380px;
-  background: var(--white);
-  box-shadow: -2px 0 12px rgba(0,0,0,0.2);
-  transform: translateX(100%);
-  transition: transform 0.3s ease;
-  z-index: 3000;
-  padding: 24px;
-  overflow-y: auto;
-}
-
-.slide-panel.show {
-  transform: translateX(0);
-}
-.card h3 {
-  border-bottom: 1px solid #eee;
-  padding-bottom: 6px;
-  margin-bottom: 12px;
-}
-
-.contact-card-list {
-  max-height: calc(100vh - 280px);
-  overflow-y: auto;
-  padding-right: 6px;
-}
-
-.add-contact-fab {
-  background: var(--primary);
-  color: white;
-  font-size: 1.8rem;
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
   border: none;
   border-radius: 50%;
-  width: 52px;
-  height: 52px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
-  cursor: pointer;
-  transition: all 0.25s ease;
-}
-.add-contact-fab:hover { transform: scale(1.08); background: var(--deep); }
-
-/* --------------------------------------------------
-   🧭 Club Layout Utilities
--------------------------------------------------- */
-
-.club-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 1rem 2rem;
-}
-
-.club-card {
-  background: #fff;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  padding: 1rem 1.5rem;
-  margin-bottom: 1rem;
-}
-
-.club-btn {
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius);
-  padding: 0.5rem 1rem;
-  transition: var(--transition);
-}
-.club-btn:hover { background: #003d73; color: #fff; }
-.entry-link {
-  display: inline-block;
-  color: var(--deep);
-  text-decoration: none;
-}
-.entry-link:hover {
-  color: var(--primary);
-  text-decoration: underline;
-}
-.contact-card .menu-dropdown {
-  right: 6px;
-}
-.tabs-bar {
-  padding-left: var(--space-lg);
-}
-
-/* ===========================  
-   ✅ View Contact Modal Fix
-=========================== */
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0,0,0,0.4);
+  width: 56px;
+  height: 56px;
+  font-size: 2rem;
+  font-weight: bold;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
-  opacity: 1;
-  transition: opacity 0.3s ease;
-}
-.modal.hidden {
-  display: none;
-}
-.modal-content {
-  background: #fff;
-  padding: 24px;
-  border-radius: 10px;
-  width: 420px;
-  max-width: 90%;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.25);
-  animation: modalFadeIn 0.3s ease;
-}
-@keyframes modalFadeIn {
-  from {
-    transform: translateY(-10px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-.note-list {
-  list-style: none;
-  padding-left: 0;
-}
-.note-list li {
-  border-bottom: 1px solid #eee;
-  padding: 6px 0;
-}
-.note-snippet {
-  white-space: pre-wrap;
-  color: #333;
-}
-.note-actions {
-  margin-top: 4px;
-}
-.note-actions .btn {
-  margin-right: 4px;
-  font-size: 0.8rem;
-}
-.notes-panel {
-  margin-top: 16px;
-}
-
-.note-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.note-list li {
-  border-bottom: 1px solid #eee;
-  padding: 6px 0;
-}
-
-.note-snippet {
-  white-space: pre-wrap;
-  color: #333;
-}
-
-.note-actions {
-  margin-top: 4px;
-}
-
-.note-actions .btn {
-  margin-right: 4px;
-  font-size: 0.8rem;
-}
-.hidden {
-  display: none !important;
-}
-#toggleNotesBtn {
-  width: 100%;
-  background: #f8f8f8;
-  color: #333;
-  border: 1px solid #ddd;
-}
-#toggleNotesBtn:hover {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
-}
-.note-list li {
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  z-index: 10000;
   transition: all 0.25s ease;
 }
-.note-type-select {
-  display: inline-block;
-  width: auto;
-  min-width: 160px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  background-color: #fff;
-  font-size: 0.9rem;
-  margin-right: 8px;
-  transition: all 0.2s;
+
+.add-contact-fab:hover {
+  background: var(--deep, #084298);
+  transform: scale(1.08);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
 }
-.note-type-select:focus {
-  border-color: #007bff;
-  box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+
+/* --- Mobile Adjustments --- */
+@media (max-width: 768px) {
+  .add-contact-fab {
+    bottom: 16px;
+    right: 16px;
+    width: 52px;
+    height: 52px;
+    font-size: 1.8rem;
+  }
 }
-.saved-flash { animation: flashSaved 0.8s ease; }
-@keyframes flashSaved {
-  from { background-color: #d4edda; }
-  to { background-color: white; }
+
+/* --- Dark Theme Support --- */
+body.dark-theme .add-contact-fab {
+  background: var(--primary, #58a6ff);
+  color: #fff;
+}
+body.dark-theme .add-contact-fab:hover {
+  background: var(--accent, #7dd3a4);
 }
 
 
+/* =========================================================
+   🌙 Contact Panel Overlay (shared by Add/Edit)
+========================================================= */
+.contact-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease;
+  z-index: 99998; /* just under the panel */
+}
+
+.contact-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Optional dark theme refinement */
+body.dark-theme .contact-overlay {
+  background: rgba(255, 255, 255, 0.1);
+}
+/* =============================================
+   🛡️ Ensure Floating Add Button Ignores Parents
+============================================= */
+.add-contact-fab {
+  position: fixed !important;
+  bottom: 24px !important;
+  right: 24px !important;
+  transform: none !important;
+  will-change: transform;
+  isolation: isolate; /* keeps it above transformed parents */
+}
+.tabs-bar a {
+  text-decoration: none;
+  padding: 0.5rem 0.75rem;
+  color: #333;
+  border-bottom: 2px solid transparent;
+}
+.tabs-bar a.active {
+  border-bottom: 2px solid #16a34a;
+  color: #16a34a;
+}
+.tabs-bar a:hover {
+  color: #0f766e;
+}
+header {
+  margin-bottom: 1rem;
+}
+
+.tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.tabs-bar a {
+  text-decoration: none;
+  color: #333;
+  border-bottom: 2px solid transparent;
+  font-weight: 500;
+}
+
+.tabs-bar a.active {
+  border-bottom: 2px solid #16a34a;
+  color: #16a34a;
+}
+
+.tabs-bar a:hover {
+  color: #0f766e;
+}
+/* ===== Tabs Bar ===== */
+.tabs-bar {
+  display: flex;
+  gap: 1rem;
+  border-bottom: 2px solid #e9ecef;
+  margin-top: 1.5rem;   /* gives breathing space below header */
+  margin-bottom: 1rem;
+  padding-left: 0.5rem; /* shifts tabs away from the left edge */
+}
+
+.tabs-bar a {
+  padding: 10px 16px;
+  text-decoration: none;
+  color: #555;
+  border-bottom: 2px solid transparent;
+  font-weight: 500;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.tabs-bar a.active {
+  color: #0d6efd;
+  border-color: #0d6efd;
+}
+
+.tabs-bar a:hover {
+  color: #0d6efd;
+  text-decoration: none;
+}
+h1 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}

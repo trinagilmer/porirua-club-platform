@@ -503,6 +503,183 @@ router.post("/contacts/:id/update", async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to update contact" });
   }
 });
+// ======================================================
+// 🧩 TASK MANAGEMENT ROUTES
+// ======================================================
+const { sendTaskAssignmentEmail } = require("../services/taskMailer");
+
+
+// ✅ Get tasks for a function (with function name)
+router.get("/:id/tasks", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 1️⃣ Fetch the function’s name
+    const { rows: fnRows } = await pool.query(
+      `SELECT id, event_name, event_date FROM functions WHERE id = $1`,
+      [id]
+    );
+    const fn = fnRows[0] || { id, event_name: "Function" };
+
+    // 2️⃣ Fetch the tasks
+    const { rows: tasks } = await pool.query(
+      `SELECT 
+         t.*, 
+         u.name AS assigned_user_name, 
+         u.email AS assigned_user_email
+       FROM tasks t
+       LEFT JOIN users u ON t.assigned_to = u.id
+       WHERE t.function_id = $1
+       ORDER BY t.created_at DESC;`,
+      [id]
+    );
+
+    // 3️⃣ Render page with function info
+    res.render("pages/function-tasks", {
+      user: req.session.user,
+      fn,
+      tasks,
+      activeTab: "tasks",
+    });
+  } catch (err) {
+    console.error("❌ [Tasks GET] Error:", err);
+    res.status(500).send("Failed to load tasks");
+  }
+});
+
+
+// ✅ Create a new task (fixed for your schema)
+router.post("/:id/tasks/new", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, assigned_to, due_at } = req.body;
+
+    const { rows } = await pool.query(
+      `INSERT INTO tasks (title, function_id, assigned_to, due_at, status, created_at)
+       VALUES ($1, $2, $3, $4, 'open', NOW())
+       RETURNING *;`,
+      [title, id, assigned_to || null, due_at || null]
+    );
+
+    const newTask = rows[0];
+
+    // ✉️ Send email if user assigned
+    if (assigned_to && req.session.graphToken) {
+      const { rows: users } = await pool.query(
+        `SELECT id, name, email FROM users WHERE id = $1`,
+        [assigned_to]
+      );
+
+      const assignedUser = users[0];
+      if (assignedUser && assignedUser.email) {
+        try {
+          const { sendTaskAssignmentEmail } = require("../services/taskMailer");
+          await sendTaskAssignmentEmail(
+            req.session.graphToken,
+            newTask,
+            assignedUser,
+            req.session.user || { name: "System" }
+          );
+          console.log(`📧 Task assignment email sent to ${assignedUser.email}`);
+        } catch (err) {
+          console.error("⚠️ Failed to send assignment email:", err.message);
+        }
+      }
+    }
+
+    res.json({ success: true, task: newTask });
+  } catch (err) {
+    console.error("❌ [Tasks NEW] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+// ✅ Update or complete a task
+router.post("/tasks/:taskId/update", async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { title, description, assigned_to, due_at, status } = req.body;
+
+    const { rows } = await pool.query(
+      `UPDATE tasks
+       SET title = COALESCE($1, title),
+           description = COALESCE($2, description),
+           assigned_to = COALESCE($3, assigned_to),
+           due_at = COALESCE($4, due_at),
+           status = COALESCE($5, status),
+           updated_at = NOW()
+       WHERE id = $6
+       RETURNING *;`,
+      [title, description, assigned_to, due_at, status, taskId]
+    );
+
+    res.json({ success: true, task: rows[0] });
+  } catch (err) {
+    console.error("❌ [Tasks UPDATE] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ✅ Delete a task
+router.delete("/tasks/:taskId", async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    await pool.query(`DELETE FROM tasks WHERE id = $1;`, [taskId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ [Tasks DELETE] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+// ✅ Update or complete a task
+router.post("/tasks/:taskId/update", async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { title, assigned_to, due_at, status } = req.body;
+
+    // Build a dynamic SQL update query based on which fields are sent
+    const fields = [];
+    const values = [];
+    let idx = 1;
+
+    if (title !== undefined) {
+      fields.push(`title = $${idx++}`);
+      values.push(title);
+    }
+    if (assigned_to !== undefined) {
+      fields.push(`assigned_to = $${idx++}`);
+      values.push(assigned_to);
+    }
+    if (due_at !== undefined) {
+      fields.push(`due_at = $${idx++}`);
+      values.push(due_at);
+    }
+    if (status !== undefined) {
+      fields.push(`status = $${idx++}`);
+      values.push(status);
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ success: false, error: "No fields to update" });
+    }
+
+    values.push(taskId);
+
+    const query = `
+      UPDATE tasks
+      SET ${fields.join(", ")}
+      WHERE id = $${idx}
+      RETURNING *;
+    `;
+
+    const { rows } = await pool.query(query, values);
+    res.json({ success: true, task: rows[0] });
+  } catch (err) {
+    console.error("❌ [Tasks UPDATE] Error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 module.exports = router;
 
