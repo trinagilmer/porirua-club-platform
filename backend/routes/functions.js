@@ -1,9 +1,10 @@
 const express = require("express");
 const { pool } = require("../db");
 const router = express.Router();
+const { sendTaskAssignmentEmail } = require("../services/taskMailer");
 
-// ✅ Ensure JSON body parsing
 router.use(express.json());
+
 
 /* =========================================================
    🧭 1. FUNCTIONS DASHBOARD
@@ -79,69 +80,97 @@ router.get("/", async (req, res, next) => {
     console.error("❌ Error loading dashboard:", err);
     next(err);
   }
-});/* =========================================================
-   💬 2A. FUNCTION COMMUNICATIONS VIEW
+});
+/* =========================================================
+   💬 FUNCTION COMMUNICATIONS VIEW (CLEANED)
 ========================================================= */
 router.get("/:id/communications", async (req, res, next) => {
   try {
     const { id } = req.params;
     const activeTab = "communications";
 
+    // 1️⃣ Fetch function info
     const { rows: fnRows } = await pool.query(`
       SELECT f.id, f.event_name, u.name AS owner_name
       FROM functions f
       LEFT JOIN users u ON f.owner_id = u.id
       WHERE f.id = $1;
     `, [id]);
+
     const fn = fnRows[0];
     if (!fn) return res.status(404).send("Function not found");
 
+    // 2️⃣ Fetch all related communications
     const [messages, notes, tasks] = await Promise.all([
+ pool.query(`
+  SELECT 
+    id AS entry_id,
+    'message' AS entry_type,
+    subject,
+    body,
+    from_email,
+    to_email,
+    created_by,
+    created_at AS entry_date
+  FROM messages
+  WHERE related_function = $1;
+`, [id]),
+
       pool.query(`
-        SELECT id AS entry_id, 'message' AS entry_type, message_type, subject, body, from_email, to_email, created_by, created_at AS entry_date
-        FROM messages
-        WHERE related_function = $1
-      `, [id]),
-      pool.query(`
-        SELECT id AS entry_id, 'note' AS entry_type, note_type AS message_type, content AS body, created_at AS entry_date
+        SELECT 
+          id AS entry_id,
+          'note' AS entry_type,
+          note_type AS message_type,
+          content AS body,
+          created_at AS entry_date
         FROM function_notes
-        WHERE function_id = $1
+        WHERE function_id = $1;
       `, [id]),
+
       pool.query(`
-        SELECT id AS entry_id, 'task' AS entry_type, status AS message_type, title AS subject, created_at AS entry_date
+        SELECT 
+          id AS entry_id,
+          'task' AS entry_type,
+          status AS message_type,
+          title AS subject,
+          created_at AS entry_date
         FROM tasks
-        WHERE function_id = $1 OR related_function_id = $1
+        WHERE function_id = $1;
       `, [id])
     ]);
 
-    const comms = [
-      ...messages.rows,
-      ...notes.rows,
-      ...tasks.rows
-    ].sort((a, b) => new Date(b.entry_date) - new Date(a.entry_date));
+    // 3️⃣ Combine & sort
+    const comms = [...messages.rows, ...notes.rows, ...tasks.rows].sort(
+      (a, b) => new Date(b.entry_date) - new Date(a.entry_date)
+    );
 
+    // 4️⃣ Group by date
     const grouped = {};
     for (const c of comms) {
       const date = new Date(c.entry_date).toLocaleDateString("en-NZ", {
-        year: "numeric", month: "short", day: "numeric"
+        year: "numeric",
+        month: "short",
+        day: "numeric",
       });
       if (!grouped[date]) grouped[date] = [];
       grouped[date].push(c);
     }
 
+    // 5️⃣ Render the view
     res.render("pages/function-communications", {
       title: `Communications — ${fn.event_name}`,
+      user: req.session.user || null,
       active: "functions",
       activeTab,
-      user: req.session.user || null,
       fn,
       grouped,
     });
   } catch (err) {
-    console.error("❌ Error loading communications:", err);
+    console.error("❌ [Function Communications] Error:", err);
     next(err);
   }
 });
+
 /* =========================================================
    🗒️ NOTES ROUTES
 ========================================================= */
@@ -258,6 +287,7 @@ router.get("/:id", async (req, res, next) => {
     const { id } = req.params;
     const activeTab = req.query.tab || "info";
 
+    // 1️⃣ Fetch base function info
     const { rows: fnRows } = await pool.query(`
       SELECT f.*, r.name AS room_name, u.name AS owner_name
       FROM functions f
@@ -269,7 +299,7 @@ router.get("/:id", async (req, res, next) => {
     const fn = fnRows[0];
     if (!fn) return res.status(404).send("Function not found");
 
-    // ✅ Load related data concurrently
+    // 2️⃣ Load related data concurrently
     const [linkedContacts, notes, tasks, messages] = await Promise.all([
       pool.query(`
         SELECT c.id, c.name, c.email, c.phone, c.company, fc.is_primary
@@ -279,13 +309,11 @@ router.get("/:id", async (req, res, next) => {
         ORDER BY fc.is_primary DESC, c.name ASC;
       `, [id]),
 
-      // 🗒️ Notes (function-level only)
       pool.query(`
         SELECT 
           n.id AS entry_id,
           'note' AS entry_type,
           n.function_id,
-          n.contact_id,
           n.note_type,
           n.content AS body,
           n.created_at AS entry_date,
@@ -294,36 +322,60 @@ router.get("/:id", async (req, res, next) => {
         FROM function_notes n
         LEFT JOIN users u ON u.id = n.created_by
         WHERE n.function_id = $1
-          AND n.contact_id IS NULL
         ORDER BY n.created_at DESC;
       `, [id]),
 
-      // ✅ Tasks
-  pool.query(`
-  SELECT t.*, u.name AS assigned_to_name
-  FROM tasks t
-  LEFT JOIN users u ON u.id = t.assigned_to
-  WHERE t.function_id = $1
-  ORDER BY t.created_at DESC;
-`, [id]),
-
-
-      // ✅ Messages
       pool.query(`
-        SELECT id AS entry_id, 'message' AS entry_type, message_type, subject, body,
-               from_email, to_email, created_at AS entry_date
-        FROM messages
-        WHERE related_function = $1;
+        SELECT 
+          t.id, 
+          t.title, 
+          t.status, 
+          t.due_at, 
+          t.created_at AS entry_date, 
+          'task' AS entry_type,
+          u.name AS assigned_to_name
+        FROM tasks t
+        LEFT JOIN users u ON u.id = t.assigned_to
+        WHERE t.function_id = $1
+        ORDER BY t.created_at DESC;
+      `, [id]),
+
+      pool.query(`
+        SELECT 
+          m.id AS entry_id, 
+          'message' AS entry_type, 
+          m.subject, 
+          m.body,
+          m.from_email, 
+          m.to_email, 
+          m.created_at AS entry_date
+        FROM messages m
+        WHERE m.related_function = $1
+        ORDER BY m.created_at DESC
+        LIMIT 10;
       `, [id])
     ]);
 
-    const communications = [
+    // 3️⃣ Merge all communications
+    const combined = [
       ...messages.rows,
       ...notes.rows,
       ...tasks.rows
     ].sort((a, b) => new Date(b.entry_date) - new Date(a.entry_date));
 
-    // ✅ Render page
+    // 4️⃣ Group communications by date
+    const grouped = {};
+    combined.forEach((msg) => {
+      const dateKey = new Date(msg.entry_date).toLocaleDateString("en-NZ", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+      if (!grouped[dateKey]) grouped[dateKey] = [];
+      grouped[dateKey].push(msg);
+    });
+
+    // 5️⃣ Render the function detail page
     res.render("pages/function-detail", {
       title: fn.event_name,
       active: "functions",
@@ -332,7 +384,7 @@ router.get("/:id", async (req, res, next) => {
       linkedContacts: linkedContacts.rows,
       notes: notes.rows,
       tasks: tasks.rows,
-      communications,
+      grouped,
       activeTab,
     });
 
@@ -506,8 +558,6 @@ router.post("/contacts/:id/update", async (req, res) => {
 // ======================================================
 // 🧩 TASK MANAGEMENT ROUTES
 // ======================================================
-const { sendTaskAssignmentEmail } = require("../services/taskMailer");
-
 
 // ✅ Get tasks for a function (with function name)
 router.get("/:id/tasks", async (req, res) => {
@@ -547,18 +597,17 @@ router.get("/:id/tasks", async (req, res) => {
   }
 });
 
-
-// ✅ Create a new task (fixed for your schema)
+// ✅ Create a new task (now includes `description`)
 router.post("/:id/tasks/new", async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, assigned_to, due_at } = req.body;
+    const { title, description, assigned_to, due_at } = req.body;
 
     const { rows } = await pool.query(
-      `INSERT INTO tasks (title, function_id, assigned_to, due_at, status, created_at)
-       VALUES ($1, $2, $3, $4, 'open', NOW())
+      `INSERT INTO tasks (title, description, function_id, assigned_to, due_at, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, 'open', NOW())
        RETURNING *;`,
-      [title, id, assigned_to || null, due_at || null]
+      [title, description || null, id, assigned_to || null, due_at || null]
     );
 
     const newTask = rows[0];
@@ -573,7 +622,6 @@ router.post("/:id/tasks/new", async (req, res) => {
       const assignedUser = users[0];
       if (assignedUser && assignedUser.email) {
         try {
-          const { sendTaskAssignmentEmail } = require("../services/taskMailer");
           await sendTaskAssignmentEmail(
             req.session.graphToken,
             newTask,
@@ -594,26 +642,57 @@ router.post("/:id/tasks/new", async (req, res) => {
   }
 });
 
-
 // ✅ Update or complete a task
 router.post("/tasks/:taskId/update", async (req, res) => {
   try {
     const { taskId } = req.params;
     const { title, description, assigned_to, due_at, status } = req.body;
 
-    const { rows } = await pool.query(
-      `UPDATE tasks
-       SET title = COALESCE($1, title),
-           description = COALESCE($2, description),
-           assigned_to = COALESCE($3, assigned_to),
-           due_at = COALESCE($4, due_at),
-           status = COALESCE($5, status),
-           updated_at = NOW()
-       WHERE id = $6
-       RETURNING *;`,
-      [title, description, assigned_to, due_at, status, taskId]
-    );
+    // Build a dynamic SQL update query based on which fields are sent
+    const fields = [];
+    const values = [];
+    let idx = 1;
 
+    if (title !== undefined) {
+      fields.push(`title = $${idx++}`);
+      values.push(title);
+    }
+    if (description !== undefined) {
+      fields.push(`description = $${idx++}`);
+      values.push(description);
+    }
+    if (assigned_to !== undefined) {
+      fields.push(`assigned_to = $${idx++}`);
+      values.push(assigned_to);
+    }
+    if (due_at !== undefined) {
+      fields.push(`due_at = $${idx++}`);
+      values.push(due_at);
+    }
+    if (status !== undefined) {
+      fields.push(`status = $${idx++}`);
+      values.push(status);
+    }
+
+    if (fields.length === 0) {
+      return res
+        .status(400)
+        .json({ success: false, error: "No fields to update" });
+    }
+
+    // Always update updated_at
+    fields.push(`updated_at = NOW()`);
+
+    values.push(taskId);
+
+    const query = `
+      UPDATE tasks
+      SET ${fields.join(", ")}
+      WHERE id = $${idx}
+      RETURNING *;
+    `;
+
+    const { rows } = await pool.query(query, values);
     res.json({ success: true, task: rows[0] });
   } catch (err) {
     console.error("❌ [Tasks UPDATE] Error:", err);
@@ -632,54 +711,7 @@ router.delete("/tasks/:taskId", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-// ✅ Update or complete a task
-router.post("/tasks/:taskId/update", async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const { title, assigned_to, due_at, status } = req.body;
 
-    // Build a dynamic SQL update query based on which fields are sent
-    const fields = [];
-    const values = [];
-    let idx = 1;
-
-    if (title !== undefined) {
-      fields.push(`title = $${idx++}`);
-      values.push(title);
-    }
-    if (assigned_to !== undefined) {
-      fields.push(`assigned_to = $${idx++}`);
-      values.push(assigned_to);
-    }
-    if (due_at !== undefined) {
-      fields.push(`due_at = $${idx++}`);
-      values.push(due_at);
-    }
-    if (status !== undefined) {
-      fields.push(`status = $${idx++}`);
-      values.push(status);
-    }
-
-    if (fields.length === 0) {
-      return res.status(400).json({ success: false, error: "No fields to update" });
-    }
-
-    values.push(taskId);
-
-    const query = `
-      UPDATE tasks
-      SET ${fields.join(", ")}
-      WHERE id = $${idx}
-      RETURNING *;
-    `;
-
-    const { rows } = await pool.query(query, values);
-    res.json({ success: true, task: rows[0] });
-  } catch (err) {
-    console.error("❌ [Tasks UPDATE] Error:", err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
 
 module.exports = router;
 

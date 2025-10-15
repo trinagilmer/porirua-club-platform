@@ -17,7 +17,9 @@
     </div>
 
     <!-- Tabs -->
-  <%- include('../partials/function-tabs', { fn: { id: functionId }, activeTab: 'tasks' }) %>
+  <main class="main-content container mt-4">
+  <%- include('../partials/function-tabs', { fn, activeTab: 'communications' }) %>
+  <h1>Communications for <%= fn.event_name %></h1>
 
 
     <!-- Communications Timeline -->
@@ -59,7 +61,13 @@
                   <% if (entry.entry_type === 'message') { %>
                     <div class="entry-meta">
                       <small>From: <%= entry.from_email || 'System' %></small>
-                      <small>To: <%= (entry.to_email && entry.to_email.join(', ')) || 'N/A' %></small>
+                      <small>
+  To:
+  <%= Array.isArray(entry.to_email)
+        ? entry.to_email.join(', ')
+        : (entry.to_email || 'N/A') %>
+</small>
+
                     </div>
                   <% } %>
                 </div>

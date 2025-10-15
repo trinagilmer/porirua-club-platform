@@ -33,10 +33,17 @@ function checkEnv() {
 
   if (!allGood) {
     console.warn(
-      "\n⚠️  One or more environment variables are missing. Check your .env file before continuing.\n"
+      "\n⚠️  One or more environment variables are missing. Check your Render Environment settings before continuing.\n"
     );
   } else {
     console.log("🎯 All required environment variables are set.\n");
+  }
+
+  // 🔗 Log MSAL Authority for transparency
+  if (process.env.AZURE_TENANT_ID) {
+    console.log(
+      `🔗  MSAL Authority: https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}`
+    );
   }
 }
 
@@ -63,6 +70,9 @@ function runStartupValidation() {
 
   checkEnv();
   checkModules();
+
+  console.log("✅  Startup validation completed.\n");
 }
 
 module.exports = { runStartupValidation };
+

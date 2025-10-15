@@ -92,20 +92,20 @@
 </head>
 
 <body>
-  <%- include('../partials/header', { active: 'functions', user }) %>
+
 
   <main class="main-content container mt-4">
 
     <!-- ===== Function Tabs ===== -->
-    <div class="tabs-bar mb-3">
-      <a href="/functions/<%= fn.id %>" class="<%= activeTab === 'info' ? 'active' : '' %>">Info</a>
-      <a href="/functions/<%= fn.id %>?tab=tasks" class="<%= activeTab === 'tasks' ? 'active' : '' %>">Tasks</a>
-      <a href="/functions/<%= fn.id %>?tab=notes" class="<%= activeTab === 'notes' ? 'active' : '' %>">Notes</a>
-      <a href="/functions/<%= fn.id %>?tab=communications" class="<%= activeTab === 'communications' ? 'active' : '' %>">Communications</a>
-    </div>
+<%- include('../partials/header', { active: 'functions', user }) %>
 
-    <h1 class="mb-3">Notes for <%= fn.event_name %></h1>
+<main class="main-content container mt-4">
+  <%- include('../partials/function-tabs', { fn, activeTab: 'notes' }) %>
 
+  <h1 class="mb-3">Notes for <%= fn.event_name %></h1>
+
+
+   
     <!-- ===== Add Note Form ===== -->
     <form id="quickNoteForm" class="mb-4">
       <div class="d-flex flex-column flex-md-row align-items-start gap-2">

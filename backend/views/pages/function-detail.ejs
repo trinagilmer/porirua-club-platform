@@ -21,12 +21,10 @@
     <!-- =========================
          TABS BAR
     ========================== -->
-   <div class="tabs-bar">
-  <a href="/functions/<%= fn.id %>" class="<%= activeTab === 'info' ? 'active' : '' %>">Info</a>
-  <a href="/functions/<%= fn.id %>/tasks" class="<%= activeTab === 'tasks' ? 'active' : '' %>">Tasks</a>
-  <a href="/functions/<%= fn.id %>/notes" class="<%= activeTab === 'notes' ? 'active' : '' %>">Notes</a>
-  <a href="/functions/<%= fn.id %>/communications" class="<%= activeTab === 'communications' ? 'active' : '' %>">Communications</a>
-</div>
+<main class="main-content container mt-4">
+  <%- include('../partials/function-tabs', { fn, activeTab: 'info' }) %>
+  <h1><%= fn.event_name %></h1>
+
 
 
     <!-- =========================
@@ -155,7 +153,13 @@
     <a href="/messages/<%= msg.entry_id %>" class="entry-link">
       📧 <strong><%= msg.subject || '(No subject)' %></strong>
     </a><br>
-    <small class="subtext"><%= msg.from_email %> → <%= (msg.to_email || []).join(', ') %></small>
+    <small class="subtext">
+  <%= msg.from_email %> →
+  <%= Array.isArray(msg.to_email)
+        ? msg.to_email.join(', ')
+        : (msg.to_email || '—') %>
+</small>
+
   <% } else if (msg.entry_type === 'note') { %>
     <a href="/notes/<%= msg.entry_id %>" class="entry-link">
       📝 <strong>Note:</strong> <%= msg.body %>
