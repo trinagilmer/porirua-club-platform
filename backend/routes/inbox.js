@@ -15,7 +15,15 @@ const { getValidGraphToken } = require("../utils/graphAuth");
 const graphService = require("../services/graphService");
 const { createClient } = require("@supabase/supabase-js");
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+let supabase = null;
+
+if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
+  supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+  console.log("✅ Supabase client initialized");
+} else {
+  console.warn("⚠️ Supabase credentials missing — Supabase features disabled");
+}
+
 const SHARED_MAILBOX = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
 const SENDER_EMAIL = "events@poriruaclub.co.nz";
 
