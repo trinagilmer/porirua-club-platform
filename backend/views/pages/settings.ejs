@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('../partials/head', { title: 'Settings' }) %>
+</head>
+
+<body>
+  <%- include('../partials/header', { active: 'settings', user }) %>
+
+  <main class="container py-5">
+    <h2>⚙️ Settings</h2>
+    <p class="text-muted">Manage event types and rooms used across the platform.</p>
+
+    <!-- EVENT TYPES -->
+    <section class="mt-4">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h4>Event Types</h4>
+        <button id="addEventTypeBtn" class="btn btn-sm btn-primary">+ Add</button>
+      </div>
+
+      <% if (eventTypes.length > 0) { %>
+        <ul class="list-group">
+          <% eventTypes.forEach(et => { %>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span><%= et.name %></span>
+              <div>
+                <button class="btn btn-sm btn-outline-secondary me-2 edit-event-type" data-id="<%= et.id %>">Edit</button>
+                <button class="btn btn-sm btn-outline-danger delete-event-type" data-id="<%= et.id %>">Delete</button>
+              </div>
+            </li>
+          <% }) %>
+        </ul>
+      <% } else { %>
+        <p class="text-muted">No event types yet.</p>
+      <% } %>
+    </section>
+
+    <!-- ROOMS -->
+    <section class="mt-5">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h4>Rooms / Spaces</h4>
+        <button id="addRoomBtn" class="btn btn-sm btn-primary">+ Add</button>
+      </div>
+
+      <% if (rooms.length > 0) { %>
+        <ul class="list-group">
+          <% rooms.forEach(r => { %>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span><%= r.name %> <% if (r.capacity) { %> (<%= r.capacity %> ppl)<% } %></span>
+              <div>
+                <button class="btn btn-sm btn-outline-secondary me-2 edit-room" data-id="<%= r.id %>">Edit</button>
+                <button class="btn btn-sm btn-outline-danger delete-room" data-id="<%= r.id %>">Delete</button>
+              </div>
+            </li>
+          <% }) %>
+        </ul>
+      <% } else { %>
+        <p class="text-muted">No rooms yet.</p>
+      <% } %>
+    </section>
+  </main>
+
+  <script src="/js/settings.js"></script>
+</body>
+</html>

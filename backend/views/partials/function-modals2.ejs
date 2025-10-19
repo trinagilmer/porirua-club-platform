@@ -1,3 +1,11 @@
+<!-- 🔹 View Contact Modal -->
+<div id="viewContactModal" class="contact-modal hidden">
+  <div class="contact-modal-content">
+    <span id="closeViewModal" class="close">&times;</span>
+    <div id="contactModalBody">Loading contact...</div>
+  </div>
+</div>
+
 <!-- 🔹 Edit Contact Slide Panel -->
 <div id="editContactPanel" class="contact-edit-panel hidden">
   <div class="contact-edit-header">
@@ -34,6 +42,7 @@
     <button id="closeAddPanel" class="close" title="Close">&times;</button>
   </div>
 
+  <!-- Tabs -->
   <div class="contact-panel-tabs">
     <button id="tabNew" class="tab-btn active">New Contact</button>
     <button id="tabExisting" class="tab-btn">Link Existing</button>
@@ -67,26 +76,6 @@
     </div>
   </div>
 </div>
-<!-- 🔹 Time Input Modal -->
-<!-- 🕒 Unique Time Modal -->
-<div id="timeModalContainer" class="time-modal-container hidden">
-  <div class="time-modal-box">
-    <div class="time-modal-header">
-      <h5 id="timeModalTitle">Set Time</h5>
-      <button type="button" id="closeTimeModal" class="time-modal-close">×</button>
-    </div>
-
-    <div class="time-modal-body">
-      <input type="time" id="timeInputField" class="time-modal-input" required />
-    </div>
-
-    <div class="time-modal-footer">
-      <button id="saveTimeBtn" class="btn btn-primary">Save</button>
-      <button id="cancelTimeBtn" class="btn ghost">Cancel</button>
-    </div>
-  </div>
-</div>
-
-
-<!-- 🔹 Overlay for Slide Panels -->
+<!-- 🔹 Universal Overlay for Slide Panels -->
 <div id="contactOverlay" class="contact-overlay hidden"></div>
+

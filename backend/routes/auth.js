@@ -71,7 +71,6 @@ router.post("/register", async (req, res, next) => {
 router.get("/logout", (req, res) => {
   req.session.destroy(() => res.redirect("/login"));
 });
-
 /* =========================================================
    MICROSOFT 365 LOGIN (MS GRAPH)
 ========================================================= */
@@ -79,6 +78,10 @@ router.get("/logout", (req, res) => {
 // --- Step 1: Redirect user to Microsoft login page ---
 router.get("/graph/login", async (req, res) => {
   try {
+    // ✅ Preserve intended destination for post-login redirect
+    const next = req.query.next;
+    if (next) req.session.next = next;
+
     const authCodeUrlParameters = {
       scopes: [
         "User.Read",
@@ -94,7 +97,7 @@ router.get("/graph/login", async (req, res) => {
     const url = await cca.getAuthCodeUrl(authCodeUrlParameters);
     res.redirect(url);
   } catch (err) {
-    console.error("Error starting Microsoft login:", err);
+    console.error("❌ Error starting Microsoft login:", err);
     res.status(500).send("Error starting Microsoft login.");
   }
 });
@@ -120,22 +123,33 @@ router.get("/graph/callback", async (req, res) => {
 
     // 🔐 Store Microsoft Graph tokens in session
     req.session.graphToken = response.accessToken;
-    req.session.graphTokenExpires = Math.floor(response.expiresOn.getTime() / 1000);
+    req.session.graphAccessToken = response.accessToken; // ✅ make it available for both inbox/functions
+    req.session.graphTokenType = "delegated";
+    req.session.graphTokenExpires = Math.floor(
+      response.expiresOn.getTime() / 1000
+    );
     req.session.account = response.account;
 
     console.log("✅ Microsoft login success:", msUser.username);
     console.log("🕒 Token expires at:", response.expiresOn.toISOString());
 
     // --- Sync Microsoft user with local database ---
-    const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [msUser.username]);
-    let user;
+    const { rows } = await pool.query(
+      "SELECT * FROM users WHERE email = $1",
+      [msUser.username]
+    );
 
+    let user;
     if (rows.length) {
       user = rows[0];
     } else {
       const insert = await pool.query(
         "INSERT INTO users (name, email, role) VALUES ($1, $2, $3) RETURNING id, name, email, role",
-        [msUser.name || msUser.username.split("@")[0], msUser.username, "user"]
+        [
+          msUser.name || msUser.username.split("@")[0],
+          msUser.username,
+          "user",
+        ]
       );
       user = insert.rows[0];
     }
@@ -148,16 +162,20 @@ router.get("/graph/callback", async (req, res) => {
       role: user.role,
     };
 
-    req.session.sharedMailbox = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
+    req.session.sharedMailbox =
+      process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
     console.log(`📨 Shared mailbox configured: ${req.session.sharedMailbox}`);
 
-    // ✅ Redirect to inbox
-    res.redirect("/inbox");
+    // ✅ Redirect back to original page (or inbox as fallback)
+    const nextUrl = req.session.next || "/inbox";
+    delete req.session.next;
+    res.redirect(nextUrl);
   } catch (error) {
     console.error("❌ Microsoft login error:", error);
     res.status(500).send("Microsoft authentication failed.");
   }
 });
+
 
 /* =========================================================
    EXPORT

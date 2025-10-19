@@ -31,8 +31,10 @@
       <% } %>
     </div>
 
-    <div class="msg-preview"><%= (msg.body || '').slice(0, 120) %>...</div>
-  </div>
+    <div class="msg-preview">
+  <%= (msg.body_html ? msg.body_html.replace(/<[^>]+>/g, '').slice(0, 120) : (msg.body || '')).trim() %>...
+</div>
+
 
   <div class="msg-right">
     <span class="msg-date" data-time="<%= msg.received_at || msg.created_at %>">

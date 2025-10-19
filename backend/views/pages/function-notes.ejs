@@ -1,166 +1,77 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <%- include('../partials/head') %>
-  <title>Notes — <%= fn.event_name %></title>
-  <style>
-    /* ===== Tabs Bar ===== */
-    .tabs-bar {
-      display: flex;
-      border-bottom: 2px solid #e9ecef;
-      margin-bottom: 1rem;
-      gap: 1rem;
-    }
-    .tabs-bar a {
-      padding: 10px 16px;
-      text-decoration: none;
-      color: #555;
-      border-bottom: 2px solid transparent;
-      font-weight: 500;
-      transition: color 0.2s, border-color 0.2s;
-    }
-    .tabs-bar a.active {
-      color: #0d6efd;
-      border-color: #0d6efd;
-    }
+<!-- 🧩 Function Notes Page -->
+<div class="function-page function-layout-two-col">
 
-    /* ===== Add Note Form ===== */
-    .note-type-select {
-      width: auto;
-      min-width: 180px;
-      border-radius: 6px;
-      padding: 6px 10px;
-      background-color: #fff;
-      border: 1px solid #ccc;
-      font-size: 0.9rem;
-      transition: all 0.2s ease-in-out;
-    }
-    .note-type-select:focus {
-      border-color: #0d6efd;
-      box-shadow: 0 0 0 0.2rem rgba(13,110,253,.25);
-    }
+  <!-- 🧭 SIDEBAR -->
+  <%- include('../partials/sidebar', { fn, linkedContacts, rooms, eventTypes }) %>
 
-    textarea#quickNoteInput {
-      resize: none;
-      min-height: 70px;
-    }
-
-    /* ===== Notes ===== */
-    .note-card {
-      background: #fff;
-      padding: 12px 16px;
-      margin-bottom: 10px;
-      border-radius: 8px;
-      border: 1px solid #e0e0e0;
-      transition: box-shadow 0.2s;
-    }
-    .note-card:hover {
-      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-    }
-    .note-meta {
-      font-size: 0.85em;
-      color: #777;
-      margin-bottom: 6px;
-    }
-    .note-body {
-      white-space: pre-line;
-      line-height: 1.4;
-      font-size: 0.95rem;
-    }
-    .note-actions {
-      margin-top: 8px;
-    }
-
-    /* ===== Badges ===== */
-    .note-type-badge {
-      font-size: 0.75rem;
-      padding: 4px 8px;
-      border-radius: 4px;
-      text-transform: capitalize;
-    }
-    .note-type-general { background: #e9ecef; color: #333; }
-    .note-type-followup { background: #fff3cd; color: #856404; }
-    .note-type-internal { background: #d1ecf1; color: #0c5460; }
-    .note-type-client { background: #d4edda; color: #155724; }
-
-    .btn.small {
-      font-size: 0.8rem;
-      padding: 2px 8px;
-      border-radius: 4px;
-    }
-  </style>
-</head>
-
-<body>
-
-
-  <main class="main-content container mt-4">
-
+  <!-- 🧠 MAIN CONTENT -->
+  <section class="function-workspace">
     <!-- ===== Function Tabs ===== -->
-<%- include('../partials/header', { active: 'functions', user }) %>
+    <%- include('../partials/function-tabs', { fn, activeTab: 'notes' }) %>
 
-<main class="main-content container mt-4">
-  <%- include('../partials/function-tabs', { fn, activeTab: 'notes' }) %>
+    <div class="workspace-content container mt-4">
+      <h1 class="mb-3">Notes for <%= fn.event_name %></h1>
 
-  <h1 class="mb-3">Notes for <%= fn.event_name %></h1>
+      <!-- ===== Add Note Form ===== -->
+      <form id="quickNoteForm" class="mb-4">
+        <div class="d-flex flex-column flex-md-row align-items-start gap-2">
+          <select id="noteType" name="note_type" class="note-type-select">
+            <option value="general">📝 General</option>
+            <option value="followup">📅 Follow-up</option>
+            <option value="internal">🔒 Internal</option>
+            <option value="client">💬 Client</option>
+          </select>
+          <textarea id="quickNoteInput" name="content" class="form-control flex-grow-1"
+            placeholder="Add a quick note..."></textarea>
+          <button type="submit" class="btn btn-primary small">Add Note</button>
+        </div>
+      </form>
 
+      <!-- ===== Notes List ===== -->
+      <div id="notesList">
+        <% if (notes && notes.length > 0) { %>
+          <% notes.forEach(n => { %>
+            <div class="note-card" data-id="<%= n.entry_id %>">
+              <div class="note-meta">
+                <span class="badge me-2 note-type-badge note-type-<%= n.note_type || 'general' %>">
+                  <%= (n.note_type ? n.note_type.charAt(0).toUpperCase() + n.note_type.slice(1) : 'General') %>
+                </span>
+                <strong><%= n.author || 'Unknown' %></strong> •
+                <%= new Date(n.entry_date).toLocaleString('en-NZ', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) %>
+                <% if (n.updated_at) { %> • <em>edited</em><% } %>
+              </div>
 
-   
-    <!-- ===== Add Note Form ===== -->
-    <form id="quickNoteForm" class="mb-4">
-      <div class="d-flex flex-column flex-md-row align-items-start gap-2">
-        <select id="noteType" name="note_type" class="note-type-select">
-          <option value="general">📝 General</option>
-          <option value="followup">📅 Follow-up</option>
-          <option value="internal">🔒 Internal</option>
-          <option value="client">💬 Client</option>
-        </select>
-        <textarea id="quickNoteInput" name="content" class="form-control flex-grow-1"
-          placeholder="Add a quick note..."></textarea>
-        <button type="submit" class="btn btn-primary small">Add Note</button>
+              <div class="note-body" contenteditable="false">
+                <%= n.body || '<em>No content</em>' %>
+              </div>
+
+              <div class="note-actions">
+                <button class="btn small edit-note btn-outline-secondary">Edit</button>
+                <button class="btn small save-note btn-success d-none">Save</button>
+                <button class="btn small delete-note btn-outline-danger">Delete</button>
+                <button class="btn small print-note btn-outline-secondary">🖨️ Print</button>
+              </div>
+            </div>
+          <% }) %>
+        <% } else { %>
+          <p class="text-muted">No notes yet.</p>
+        <% } %>
       </div>
-    </form>
-
-    <!-- ===== Notes List ===== -->
-    <div id="notesList">
-      <% if (notes && notes.length > 0) { %>
-        <% notes.forEach(n => { %>
-          <div class="note-card" data-id="<%= n.entry_id %>">
-            <div class="note-meta">
-              <span class="badge me-2 note-type-badge note-type-<%= (n.note_type || 'general') %>">
-                <%= (n.note_type && typeof n.note_type === "string" && n.note_type.length
-                      ? n.note_type.charAt(0).toUpperCase() + n.note_type.slice(1)
-                      : "General") %>
-              </span>
-              <strong><%= n.author || 'Unknown' %></strong>
-              •
-              <%= (n.entry_date 
-                    ? new Date(n.entry_date).toLocaleString('en-NZ', { 
-                        year: 'numeric', month: 'short', day: 'numeric', 
-                        hour: '2-digit', minute: '2-digit' 
-                      })
-                    : 'Unknown date') %>
-              <% if (n.updated_at) { %> • <em>edited</em><% } %>
-            </div>
-            <div class="note-body" contenteditable="false">
-              <%= (n.body ? n.body : '<em>No content</em>') %>
-            </div>
-            <div class="note-actions">
-              <button class="btn small edit-note btn-outline-secondary">Edit</button>
-              <button class="btn small save-note btn-success d-none">Save</button>
-              <button class="btn small delete-note btn-outline-danger">Delete</button>
-              <button class="btn small print-note btn-outline-secondary">🖨️ Print</button>
-            </div>
-          </div>
-        <% }) %>
-      <% } else { %>
-        <p class="text-muted">No notes yet.</p>
-      <% } %>
     </div>
-  </main>
+  </section>
+</div>
 
-  <script src="/js/function-notes.js"></script>
-</body>
-</html>
+<!-- 🔹 Include Modals & Overlay -->
+<%- include('../partials/function-modals') %>
+
+<!-- 🔹 JS Context -->
+<script>
+  window.fnContext = { id: "<%= fn.id %>" };
+</script>
+
+<!-- 🔹 Scripts -->
+<script src="/js/sidebar.js"></script>
+<script src="/js/function-notes.js"></script>
+
 
 

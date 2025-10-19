@@ -98,12 +98,21 @@
       <!-- Header -->
       <div class="message-header">
         <h1><%= message.subject || '(No Subject)' %></h1>
-        <div class="d-flex gap-2">
-          <a href="/inbox" class="btn btn-outline">← Back</a>
-          <button class="btn btn-outline" data-bs-toggle="modal" data-bs-target="#linkContactModal">📇 Link Contact</button>
-          <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#linkFunctionModal">🧩 Link Function</button>
-          <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#replyMessageModal">💬 Reply</button>
-        </div>
+<div class="d-flex flex-wrap gap-2 align-items-center">
+
+  <a href="/inbox" class="btn btn-outline">← Back</a>
+  <button class="btn btn-outline" data-bs-toggle="modal" data-bs-target="#linkContactModal">📇 Link Contact</button>
+  <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#linkFunctionModal">🧩 Link Function</button>
+
+  <!-- Grouped Reply buttons -->
+  <div class="btn-group" role="group" aria-label="Reply options">
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#replyMessageModal" id="replyBtn">💬 Reply</button>
+    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#replyMessageModal" id="replyAllBtn">💬 Reply All</button>
+  </div>
+
+</div>
+
+
       </div>
 
       <!-- Linked Information Banner -->
@@ -129,69 +138,135 @@
         <p><strong>Date:</strong> <%= message.created_at ? new Date(message.created_at).toLocaleString() : '' %></p>
       </div>
 
-      <!-- Message Body -->
-      <div class="message-body">
-        <% if (message.body_html) { %>
-          <div><%- message.body_html %></div>
-        <% } else { %>
-          <pre><%= message.body || '(No message body)' %></pre>
-        <% } %>
+<!-- Message Body -->
+<div class="message-body">
+  <% if (message.body_html) { %>
+    <div class="formatted-body"><%- message.body_html %></div>
+  <% } else { %>
+    <pre><%= message.body || '(No message body)' %></pre>
+  <% } %>
+</div>
+
+<!-- Attachments -->
+<% if (message.attachments && message.attachments.length > 0) { %>
+  <div class="attachments mt-4">
+    <h5 class="fw-bold mb-3">📎 Attachments</h5>
+    <ul class="list-group list-group-flush">
+      <% message.attachments.forEach(a => { %>
+        <li class="list-group-item">
+          <a href="<%= a.file_url || a.filePath || '#' %>" target="_blank">
+            <%= a.file_name || a.name || "Unnamed attachment" %>
+          </a>
+        </li>
+      <% }) %>
+    </ul>
+  </div>
+<% } %>
+
+</div><!-- 🧩 Conversation Thread -->
+<% if (thread && thread.length > 1) { %>
+  <div class="conversation-thread mt-5">
+    <h5 class="fw-bold mb-3">🧵 Conversation History</h5>
+
+    <% thread.forEach((t, idx) => { %>
+      <div class="message-bubble mb-3 <%= t.message_type === 'outbound' ? 'outbound' : 'inbound' %>">
+        <div class="bubble-header d-flex justify-content-between align-items-center">
+          <div>
+            <% if (t.message_type === 'outbound') { %>
+              <strong>You →</strong> <%= t.to_email || '(Unknown)' %>
+            <% } else { %>
+              <strong><%= t.from_email || '(Unknown)' %></strong> → You
+            <% } %>
+          </div>
+          <small class="text-muted">
+            <%= new Date(t.created_at).toLocaleString('en-NZ', { dateStyle: 'medium', timeStyle: 'short' }) %>
+          </small>
+        </div>
+
+        <div class="bubble-body mt-2">
+          <% if (t.body_html) { %>
+            <div class="formatted-body collapse <%= idx === thread.length - 1 ? 'show' : '' %>" id="msgBody-<%= t.id %>">
+              <%- t.body_html %>
+            </div>
+          <% } else { %>
+            <pre class="collapse <%= idx === thread.length - 1 ? 'show' : '' %>" id="msgBody-<%= t.id %>">
+              <%= t.body || '(No content)' %>
+            </pre>
+          <% } %>
+        </div>
+
+        <div class="bubble-footer text-end mt-2">
+          <button class="btn btn-sm btn-outline-secondary" 
+                  type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#msgBody-<%= t.id %>"
+                  aria-expanded="<%= idx === thread.length - 1 ? 'true' : 'false' %>"
+                  aria-controls="msgBody-<%= t.id %>">
+            <%= idx === thread.length - 1 ? 'Collapse' : 'Expand' %>
+          </button>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+<% } %>
+</main>
+
+
+<!-- 💬 Reply Message Modal (Enhanced with Quill) -->
+<div class="modal fade" id="replyMessageModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#0f766e; color:#fff;">
+        <h5 class="modal-title">Reply to Message</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
 
-      <!-- Attachments -->
-      <% if (message.attachments && message.attachments.length > 0) { %>
-        <div class="attachments mt-4">
-          <h5 class="fw-bold mb-3">📎 Attachments</h5>
-          <ul class="list-group list-group-flush">
-            <% message.attachments.forEach(a => { %>
-              <li class="list-group-item">
-                <a href="<%= a.file_url || a.filePath || '#' %>" target="_blank">
-                  <%= a.file_name || a.name || "Unnamed attachment" %>
-                </a>
-              </li>
-            <% }) %>
-          </ul>
-        </div>
-      <% } %>
+      <form action="/inbox/reply/<%= message.id %>" method="POST" enctype="multipart/form-data" onsubmit="return handleReplySubmit()">
+        <div class="modal-body">
+          <input type="hidden" name="body_html" id="bodyHtmlInput">
+          <input type="hidden" name="redirect" value="/inbox/<%= message.id %>?sent=true">
 
-    </div>
-  </main>
+         <div class="mb-3">
+  <label class="form-label fw-semibold">To</label>
+  <input type="email" name="to_email" class="form-control" value="<%= message.from_email || '' %>" required>
+</div>
 
-  <!-- 💬 Reply Message Modal -->
-  <div class="modal fade" id="replyMessageModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-      <div class="modal-content">
-        <div class="modal-header" style="background:#0f766e; color:#fff;">
-          <h5 class="modal-title">Reply to Message</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
+<div class="mb-3">
+  <label class="form-label fw-semibold">CC</label>
+  <input type="email" name="cc_email" class="form-control" placeholder="Add CC (optional)">
+</div>
 
-        <form action="/inbox/reply/<%= message.id %>" method="POST" enctype="multipart/form-data">
-          <div class="modal-body">
-            <div class="mb-3">
-              <label class="form-label">Subject</label>
-              <input type="text" name="subject" class="form-control" value="Re: <%= message.subject || '' %>" required>
-            </div>
+<div class="mb-3">
+  <label class="form-label fw-semibold">BCC</label>
+  <input type="email" name="bcc_email" class="form-control" placeholder="Add BCC (optional)">
+</div>
 
-            <div class="mb-3">
-              <label class="form-label">Message</label>
-              <textarea name="body" rows="6" class="form-control" placeholder="Type your reply..." required></textarea>
-            </div>
+<div class="mb-3">
+  <label class="form-label fw-semibold">Subject</label>
+  <input type="text" name="subject" class="form-control" value="Re: <%= message.subject || '' %>" required>
+</div>
 
-            <div class="mb-3">
-              <label class="form-label">Attachment (optional)</label>
-              <input type="file" name="attachment" class="form-control">
-            </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Message</label>
+            <div id="editor" class="quill-editor" style="height:200px;"></div>
           </div>
 
-          <div class="modal-footer" style="background:#f8f9fa;">
-            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-success">Send Reply</button>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Attachment (optional)</label>
+            <input type="file" name="attachment" class="form-control">
           </div>
-        </form>
-      </div>
+        </div>
+
+        <div class="modal-footer" style="background:#f8f9fa;">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success">📤 Send Reply</button>
+        </div>
+      </form>
     </div>
   </div>
+</div>
+
 
   <!-- ✅ New Modals -->
   <%- include('../partials/linkContactModal', { message, contacts, user }) %>
@@ -210,7 +285,9 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-  // If a success message is passed via query param, show toast
+  console.log("🧠 Message Detail Scripts Initializing...");
+
+  // ✅ Toast for Linked Contact/Function Success
   const urlParams = new URLSearchParams(window.location.search);
   const successType = urlParams.get("linked");
 
@@ -219,21 +296,119 @@ document.addEventListener("DOMContentLoaded", () => {
     const toastBody = document.getElementById("linkToastBody");
     const toast = new bootstrap.Toast(toastEl);
 
-    // Customise message depending on what was linked
     if (successType === "contact") toastBody.textContent = "✅ Contact linked successfully!";
     if (successType === "function") toastBody.textContent = "✅ Function linked successfully!";
     if (successType === "both") toastBody.textContent = "✅ Contact & Function linked successfully!";
 
     toast.show();
-
-    // Clean up URL so toast only shows once
     const cleanUrl = window.location.pathname;
     window.history.replaceState({}, document.title, cleanUrl);
   }
+
+  // ✅ Initialize Quill Editor (Reply Modal)
+  const editorEl = document.getElementById("editor");
+  if (editorEl) {
+    console.log("🖋️ Initializing Quill editor for Reply...");
+    window.quill = new Quill("#editor", {
+      theme: "snow",
+      placeholder: "Write your reply...",
+      modules: {
+        toolbar: [
+          ["bold", "italic", "underline"],
+          [{ list: "ordered" }, { list: "bullet" }],
+          ["link"]
+        ]
+      }
+    });
+  } else {
+    console.log("⚠️ No reply editor found on this page.");
+  }
+
+  // ✅ Toast for successful email reply
+  if (urlParams.get("sent") === "true") {
+    const toast = document.createElement("div");
+    toast.className = "toast align-items-center text-bg-success border-0 position-fixed bottom-0 end-0 m-3 p-3 fade show";
+    toast.innerHTML = `<div>✅ Reply sent successfully</div>`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.classList.remove("show"), 3000);
+  }
 });
+
+// ✉️ Handle Quill Reply Form Submission
+function handleReplySubmit() {
+  const html = window.quill?.root?.innerHTML.trim();
+  if (!html || html === "<p><br></p>") {
+    alert("Please write a message before sending.");
+    return false;
+  }
+  document.getElementById("bodyHtmlInput").value = html;
+  return true;
+}
+</script>
+<script>
+  // 🧠 Toggle button text dynamically when expanding/collapsing
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-bs-toggle="collapse"]');
+    if (!btn) return;
+
+    const targetId = btn.getAttribute('data-bs-target');
+    const target = document.querySelector(targetId);
+    if (!target) return;
+
+    // Small delay to let Bootstrap toggle complete
+    setTimeout(() => {
+      const isExpanded = target.classList.contains('show');
+      btn.textContent = isExpanded ? 'Collapse' : 'Expand';
+    }, 200);
+  });
+</script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const replyBtn = document.getElementById("replyBtn");
+    const replyAllBtn = document.getElementById("replyAllBtn");
+
+    const toField = document.querySelector('input[name="to_email"]');
+    const ccField = document.querySelector('input[name="cc_email"]');
+    const subjectField = document.querySelector('input[name="subject"]');
+
+    // 💬 Standard Reply
+    if (replyBtn) {
+      replyBtn.addEventListener("click", () => {
+        if (toField) toField.value = "<%= message.from_email || '' %>";
+        if (ccField) ccField.value = "";
+        if (subjectField && !subjectField.value.startsWith("Re: ")) {
+          subjectField.value = "Re: <%= message.subject || '' %>";
+        }
+      });
+    }
+
+    // 💬 Reply All (includes original sender + other recipients)
+    if (replyAllBtn) {
+      replyAllBtn.addEventListener("click", () => {
+        const senderEmail = "<%= SENDER_EMAIL || 'events@poriruaclub.co.nz' %>";
+        const originalFrom = "<%= message.from_email || '' %>";
+        const originalTo = "<%= message.to_email || '' %>";
+
+        let toList = [];
+
+        if (originalFrom && originalFrom.toLowerCase() !== senderEmail.toLowerCase()) {
+          toList.push(originalFrom);
+        }
+        if (originalTo && originalTo.toLowerCase() !== senderEmail.toLowerCase()) {
+          toList.push(originalTo);
+        }
+
+        if (toField) toField.value = [...new Set(toList)].join(", ");
+        if (ccField) ccField.value = "<%= message.cc_recipients || '' %>"; // optional if available
+        if (subjectField && !subjectField.value.startsWith("Re: ")) {
+          subjectField.value = "Re: <%= message.subject || '' %>";
+        }
+      });
+    }
+  });
 </script>
 
 
-  <%- include('../partials/footer') %>
+<%- include('../partials/footer') %>
 </body>
 </html>

@@ -1,0 +1,122 @@
+<!-- INNER CONTENT ONLY (layout provides sidebar, tabs, modals, quill libs) -->
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <a class="btn btn-outline-secondary btn-sm"
+     href="/functions/<%= fn.id %>/communications">&larr; Back to Communications</a>
+  <h2 class="mb-0">Reply</h2>
+  <div></div>
+</div>
+
+<!-- Original message -->
+<div class="inbox">
+  <div class="message-card">
+    <div class="msg-left">
+      <div class="msg-from"><%= message.from_email || "Unknown Sender" %></div>
+      <div class="msg-subject"><%= message.subject || "(No Subject)" %></div>
+      <div class="msg-preview">
+        <% if (message.body_html) { %>
+          <div style="max-height:12rem;overflow:auto;border:1px solid #eee;padding:.75rem;border-radius:.5rem;">
+            <%- message.body_html %>
+          </div>
+        <% } else { %>
+          <pre style="white-space:pre-wrap;"><%= message.body || "" %></pre>
+        <% } %>
+      </div>
+    </div>
+    <div class="msg-date">
+      <%= message.created_at ? new Date(message.created_at).toLocaleString('en-NZ') : "" %>
+    </div>
+  </div>
+</div>
+
+<!-- Reply form (plain POST; small inline JS copies Quill HTML to hidden field) -->
+<div class="card mt-4">
+  <div class="card-body">
+<form id="replyForm" method="POST" action="/functions/<%= fn.id %>/communications/<%= message.id %>/reply">
+  <!-- where to go after sending -->
+  <input type="hidden" name="next" value="/functions/<%= fn.id %>/communications">
+
+  <div class="row g-3">
+    <div class="col-12">
+      <label class="form-label">To</label>
+      <input name="to" id="replyTo" class="form-control"
+             value="<%= message.from_email || '' %>" placeholder="name@domain">
+    </div>
+
+    <!-- (optional) enable these if you want cc/bcc support -->
+    <!--
+    <div class="col-12">
+      <label class="form-label">CC</label>
+      <input name="cc" id="replyCc" class="form-control" placeholder="comma,separated,emails">
+    </div>
+    <div class="col-12">
+      <label class="form-label">BCC</label>
+      <input name="bcc" id="replyBcc" class="form-control" placeholder="comma,separated,emails">
+    </div>
+    -->
+
+    <div class="col-12">
+      <label class="form-label">Subject</label>
+      <input name="subject" id="replySubject" class="form-control"
+             value="Re: <%= message.subject || '(No subject)' %>">
+    </div>
+
+    <div class="col-12">
+      <label class="form-label">Message</label>
+      <div id="replyEditor" style="height: 260px;"></div>
+      <!-- hidden field that will receive Quill HTML on submit -->
+      <input type="hidden" name="body" id="replyBody">
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-end gap-2 mt-3">
+    <a class="btn btn-outline-secondary"
+       href="/functions/<%= fn.id %>/communications">Cancel</a>
+    <button class="btn btn-primary" type="submit">Send</button>
+  </div>
+</form>
+  </div>
+</div>
+
+<!-- Minimal inline JS (no external file): init Quill and wire submit -->
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    // ensure any overlay from sidebar is hidden so editor is clickable
+    var ov = document.getElementById('panelOverlay');
+    if (ov) ov.classList.add('hidden');
+    document.body.classList.remove('no-scroll');
+
+    // init Quill
+    if (!window.Quill) {
+      console.error('Quill library not loaded'); 
+      return;
+    }
+    var quill = new Quill('#replyEditor', {
+      theme: 'snow',
+      placeholder: 'Type your reply…',
+      modules: {
+        toolbar: [
+          [{ header: [1, 2, false] }],
+          ['bold', 'italic', 'underline'],
+          [{ list: 'ordered' }, { list: 'bullet' }],
+          ['link'],
+        ],
+      },
+    });
+    // make sure there’s enough height to click/type
+    var editorHost = document.getElementById('replyEditor');
+    if (editorHost) editorHost.style.minHeight = '240px';
+
+    // copy HTML into hidden field on submit so the server receives it
+    var form = document.getElementById('replyForm');
+    form.addEventListener('submit', function () {
+      document.getElementById('replyBody').value = quill.root.innerHTML;
+    });
+  });
+</script>
+
+
+<script>
+  window.fnReplyContext = { functionId: "<%= fn.id %>", messageId: "<%= message.id %>" };
+</script>
+<script src="/js/function-comm-detail.js" defer></script>

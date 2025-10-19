@@ -1,138 +1,144 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <%- include('../partials/head', { title: 'Tasks' }) %>
-  <link rel="stylesheet" href="/css/main.css">
-  <style>
-    .tasks-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-    .tasks-header h1 {
-      color: #0f766e;
-      font-weight: 700;
-    }
-    .status-badge {
-      border-radius: 8px;
-      padding: 4px 10px;
-      font-size: 0.8rem;
-    }
-    .status-open { background: #dcfce7; color: #166534; }
-    .status-completed { background: #dbeafe; color: #1e3a8a; }
-    table.table td, table.table th { vertical-align: middle; }
-    td.description-cell {
-      max-width: 300px;
-      white-space: pre-line;
-      overflow-wrap: break-word;
-      font-size: 0.9rem;
-    }
-  </style>
-</head>
-<body>
-  <%- include('../partials/header', { active: 'functions', user: user }) %>
+<!-- 🧩 Function Tasks Page -->
+<div class="function-page function-layout-two-col">
 
-  <main class="main-content container mt-4">
+  <!-- 🧭 Sidebar -->
+  <%- include('../partials/sidebar', { fn, linkedContacts, rooms, eventTypes }) %>
+
+  <!-- 🧠 MAIN CONTENT AREA -->
+  <section class="function-workspace">
+    
+    <!-- 🧭 Function Tabs -->
     <%- include('../partials/function-tabs', { fn, activeTab: 'tasks' }) %>
 
-    <h1 class="mb-3">Tasks for <%= fn.event_name %></h1>
-
-    <div class="tasks-header mt-3 mb-3">
-      <h1 class="h3 fw-bold text-success">📋 Tasks</h1>
-      <button id="addTaskBtn" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#taskModal">
-        ➕ Add Task
-      </button>
-    </div>
+    <!-- 🗒️ Tasks Section -->
+    <div class="workspace-content container mt-4" style="max-width: 900px;">
+      <div class="tasks-header d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h3 fw-bold text-success">📋 Tasks for <%= fn.event_name %></h1>
+        <button id="addTaskBtn" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#taskModal">
+          ➕ Add Task
+        </button>
+      </div>
 
     <% if (!tasks || !tasks.length) { %>
-      <div class="alert alert-info">No tasks yet — create one!</div>
-    <% } else { %>
-      <table class="table table-hover align-middle">
-        <thead>
-          <tr>
-            <th>Task</th>
-            <th>Description</th>
-            <th>Assigned To</th>
-            <th>Status</th>
-            <th>Due</th>
-            <th>Actions</th>
-            <th>Last Updated</th>
-          </tr>
-        </thead>
-        <tbody id="taskTableBody">
-          <% tasks.forEach(t => { %>
-            <tr data-id="<%= t.id %>">
-              <td><%= t.title %></td>
-              <td class="description-cell"><%= t.description || '—' %></td>
-              <td><%= t.assigned_user_name || '—' %></td>
-              <td>
-                <span class="status-badge status-<%= t.status %>">
-                  <%= t.status.charAt(0).toUpperCase() + t.status.slice(1) %>
-                </span>
-              </td>
-              <td><%= t.due_at ? new Date(t.due_at).toLocaleDateString() : '—' %></td>
-              <td>
-                <button class="btn btn-outline-primary btn-sm editTaskBtn" data-id="<%= t.id %>">Edit</button>
-                <% if (t.status !== 'completed') { %>
-                  <button class="btn btn-outline-success btn-sm completeTaskBtn" data-id="<%= t.id %>">Complete</button>
-                <% } %>
-                <button class="btn btn-outline-danger btn-sm deleteTaskBtn" data-id="<%= t.id %>">Delete</button>
-              </td>
-              <td><%= t.updated_at ? new Date(t.updated_at).toLocaleString() : '—' %></td>
-            </tr>
-          <% }) %>
-        </tbody>
-      </table>
-    <% } %>
-  </main>
+  <div class="alert alert-info">No tasks yet — create one!</div>
+<% } else { %>
+  <div class="task-cards-grid row g-3">
+    <% tasks.forEach(t => { %>
+     <div class="col-12 col-md-6">
+        <div class="task-card shadow-sm h-100">
+          <div class="task-card-body d-flex flex-column justify-content-between">
 
-  <!-- 🧩 Add/Edit Task Modal -->
-  <div class="modal fade" id="taskModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-      <div class="modal-content p-3">
-        <form id="taskForm">
-          <input type="hidden" id="taskId">
-          <div class="modal-header">
-            <h5 class="modal-title">Add Task</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <!-- 🧾 Header -->
+            <div class="task-card-header">
+              <h5 class="task-card-title text-success mb-1">
+                <%= t.title %>
+              </h5>
+              <p class="task-card-desc text-muted small mb-2">
+  <%- t.description ? t.description : "<span class='text-muted fst-italic'>No details</span>" %>
+</p>
+            </div>
+
+            <!-- 👤 Assigned / Due -->
+            <div class="task-card-meta d-flex justify-content-between align-items-center mt-2">
+              <div>
+                <span class="small"><strong>Assigned:</strong> <%= t.assigned_user_name || '—' %></span><br>
+                <span class="small"><strong>Due:</strong> 
+                  <%= t.due_at 
+                    ? new Date(t.due_at).toLocaleDateString('en-NZ', { day: '2-digit', month: 'short' }) 
+                    : '—' %>
+                </span>
+              </div>
+
+             <span class="task-card-status badge 
+  <%= t.status === 'completed' 
+        ? 'status-completed' 
+        : t.status === 'in_progress' 
+          ? 'status-progress' 
+          : 'status-open' %>">
+  <%= t.status ? t.status.charAt(0).toUpperCase() + t.status.slice(1).replace('_', ' ') : 'Open' %>
+</span>
+
+            </div>
+
+            <!-- 🕓 Footer -->
+            <div class="task-card-footer d-flex justify-content-between align-items-center mt-3 border-top pt-2">
+              <small class="text-muted">
+                Updated: <%= t.updated_at 
+                  ? new Date(t.updated_at).toLocaleDateString('en-NZ', { day: '2-digit', month: 'short' }) 
+                  : '—' %>
+              </small>
+
+              <div class="task-card-actions btn-group btn-group-sm">
+                <button class="btn btn-outline-primary editTaskBtn" data-id="<%= t.id %>">Edit</button>
+                <% if (t.status !== 'completed') { %>
+                  <button class="btn btn-outline-success completeTaskBtn" data-id="<%= t.id %>">Complete</button>
+                <% } %>
+                <button class="btn btn-outline-danger deleteTaskBtn" data-id="<%= t.id %>">Delete</button>
+              </div>
+            </div>
+
           </div>
-          <div class="modal-body">
-            <div class="mb-3">
-              <label class="form-label">Title</label>
-              <input type="text" id="taskTitle" class="form-control" required>
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Description</label>
-              <textarea id="taskDescription" class="form-control" rows="3" placeholder="Optional details..."></textarea>
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Assign To (User ID)</label>
-              <input type="number" id="taskAssignedTo" class="form-control" placeholder="User ID">
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Due Date</label>
-              <input type="date" id="taskDueAt" class="form-control">
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-success">Save</button>
-          </div>
-        </form>
+        </div>
       </div>
+    <% }) %>
+  </div>
+<% } %>
+    </div>
+  </section>
+</div>
+
+<!-- 🧩 Task Modal -->
+<div class="modal fade" id="taskModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content p-3">
+      <form id="taskForm">
+        <input type="hidden" id="taskId">
+        <div class="modal-header">
+          <h5 class="modal-title">Add Task</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Title</label>
+            <input type="text" id="taskTitle" class="form-control" required>
+          </div>
+         <div class="mb-3">
+  <label class="form-label">Assign To</label>
+  <select id="taskAssignedTo" class="form-select">
+    <option value="">Unassigned</option>
+    <% if (users && users.length) { %>
+      <% users.forEach(u => { %>
+        <option value="<%= u.id %>"><%= u.name %></option>
+      <% }) %>
+    <% } else { %>
+      <option disabled>(No users found)</option>
+    <% } %>
+  </select>
+</div>
+            <div class="mb-3">
+            <label class="form-label">Due Date</label>
+            <input type="date" id="taskDueAt" class="form-control">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success">Save</button>
+        </div>
+      </form>
     </div>
   </div>
+</div>
 
-  <%- include('../partials/footer') %>
+<!-- 🔹 Include Contact Panels / Time Modals -->
+<%- include('../partials/function-modals') %>
 
-  <!-- Pass the function ID to JavaScript -->
-  <script>
-    window.functionId = <%= fn.id %>;
-  </script>
+<!-- 🔹 JS Context -->
+<script>
+  window.fnContext = { id: "<%= fn.id %>" };
+</script>
 
-  <!-- Load the task logic -->
-  <script src="/js/function-tasks.js" defer></script>
-</body>
-</html>
+<!-- 🔹 Scripts -->
+<script src="/js/sidebar.js"></script>
+<script src="/js/function-tasks.js"></script>
+
 

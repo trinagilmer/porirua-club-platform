@@ -1,6 +1,6 @@
 /**
- * 📬 Porirua Club Platform – Unified Inbox Frontend
- * Supports: Inbox message navigation, Auto-Linker, Reply & Link Modals
+ * 📬 Porirua Club Platform – Unified Inbox Frontend (Enhanced)
+ * Handles: Inbox navigation, Modals, Quill editor, and Toasts
  */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -39,7 +39,6 @@ document.addEventListener("DOMContentLoaded", () => {
     card.addEventListener("click", (e) => {
       // Prevent clicks on internal buttons (if any)
       if (e.target.closest("button, a")) return;
-
       const id = card.dataset.id;
       if (id) {
         console.log(`📨 Opening message ${id}`);
@@ -51,40 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   /* ---------------------------------------------------------
-     🧠 Auto-Linker integration (optional backend route)
-  --------------------------------------------------------- */
-  const runLinkerBtn = document.getElementById("runLinker");
-  const linkerLog = document.getElementById("linkerLog");
-
-  if (runLinkerBtn && linkerLog) {
-    runLinkerBtn.addEventListener("click", async () => {
-      runLinkerBtn.disabled = true;
-      linkerLog.innerHTML = '<span class="loading">⏳ Running Auto-Linker...</span>';
-
-      try {
-        const res = await fetch("/inbox/match", { method: "POST" });
-        const data = await res.json();
-
-        if (res.ok) {
-          linkerLog.innerHTML = `
-            <span class="success">✅ Auto-Linker Completed</span>
-            <pre>${JSON.stringify(data, null, 2)}</pre>`;
-        } else {
-          linkerLog.innerHTML = `
-            <span class="error">❌ Error: ${data.message || "Unknown error"}</span>`;
-        }
-      } catch (err) {
-        console.error("💥 Auto-Linker failed:", err);
-        linkerLog.innerHTML = `<span class="error">💥 Request failed: ${err.message}</span>`;
-      } finally {
-        runLinkerBtn.disabled = false;
-      }
-    });
-  }
-
-  /* ---------------------------------------------------------
-     💬 Modal Triggers (Message Detail Page)
-     — Bootstrap 5 Modals for Link / Reply
+     💬 Modal Triggers (Reply / Link)
   --------------------------------------------------------- */
   window.addEventListener("load", () => {
     console.log("🧩 Page fully loaded — checking for modal buttons...");
@@ -95,11 +61,6 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log("ℹ️ No modal buttons found on this page.");
       return;
     }
-
-    console.log("✅ Modal buttons detected:", {
-      reply: !!replyBtn,
-      link: !!linkBtn,
-    });
 
     const showModal = (id) => {
       const el = document.getElementById(id);
@@ -128,8 +89,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+
   /* ---------------------------------------------------------
-     ✅ Optional form feedback (Reply + Link)
+     ✅ Optional form feedback
   --------------------------------------------------------- */
   document.querySelectorAll("form").forEach((form) => {
     form.addEventListener("submit", (e) => {
@@ -147,7 +109,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   /* ---------------------------------------------------------
-     🔔 Optional Toast Notifications
+     🔔 Toast Notifications
   --------------------------------------------------------- */
   const showToast = (msg, type = "success") => {
     const toast = document.createElement("div");
@@ -162,5 +124,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const flash = document.getElementById("flash-msg");
   if (flash) showToast(flash.textContent, flash.dataset.type || "info");
 });
+
 
 

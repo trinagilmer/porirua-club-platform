@@ -78,12 +78,16 @@
     <div class="d-flex gap-2">
       <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#linkContactModal">📇 Link Contact</button>
       <button class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#linkFunctionModal">🧩 Link Function</button>
-      <a href="/inbox/reply/<%= msg.id %>" class="btn btn-outline-info btn-sm">💬 Reply</a>
+      <button class="btn btn-outline-info btn-sm btn-reply-message" data-bs-toggle="modal" data-bs-target="#replyMessageModal">
+  💬 Reply
+</button>
+
     </div>
     <a href="/inbox" class="btn btn-secondary btn-sm">← Back to Inbox</a>
   </div>
 
 </div>
+<%- include('../partials/replyModal', { message: msg }) %>
 
 
 

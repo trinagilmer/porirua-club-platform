@@ -870,3 +870,444 @@ h1 {
   font-weight: 600;
   margin-bottom: 1rem;
 }
+/* =========================================================
+   🧩 FUNCTION DETAIL LAYOUT (Two-Column Redesign)
+========================================================= */
+
+.function-layout-two-col {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 2rem;
+  align-items: flex-start;
+  padding: 2rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 🧭 Left Column – Sidebar */
+.function-sidebar {
+  background: #fff;
+  border: 1px solid #e4e4e4;
+  border-radius: 12px;
+  padding: 1.5rem;
+  position: sticky;
+  top: 80px;
+  height: fit-content;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.function-sidebar h2[contenteditable="true"] {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+  outline: none;
+  border-bottom: 2px dashed transparent;
+  transition: border-color 0.2s ease;
+}
+
+.function-sidebar h2[contenteditable="true"]:focus {
+  border-color: var(--bs-primary, #0d6efd);
+}
+
+.status-select {
+  width: 100%;
+  margin-bottom: 1.5rem;
+}
+
+/* Contact block */
+.function-contact-block ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.function-contact-block li {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid #f2f2f2;
+  font-size: 0.9rem;
+}
+
+/* Function details */
+.function-details {
+  margin-top: 2rem;
+}
+.function-details .detail-item {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1rem;
+}
+.function-details label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #444;
+  margin-bottom: 0.3rem;
+}
+.function-details input[type="text"],
+.function-details input[type="number"],
+.function-details input[type="date"] {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 0.9rem;
+  width: 100%;
+}
+.function-details input:focus {
+  border-color: var(--bs-primary, #0d6efd);
+  outline: none;
+}
+
+/* 🧾 Right Column – Workspace */
+.function-workspace {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  padding: 1.5rem 1.8rem;
+  min-height: 75vh;
+}
+
+/* Tab navigation bar */
+.function-tabs {
+  border-bottom: 1px solid #ddd;
+  margin-bottom: 1.5rem;
+}
+.function-tabs ul {
+  display: flex;
+  gap: 1.5rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.function-tabs a {
+  text-decoration: none;
+  color: #555;
+  padding: 0.5rem 0;
+  display: inline-block;
+  border-bottom: 2px solid transparent;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.function-tabs a:hover {
+  color: var(--bs-primary, #0d6efd);
+}
+.function-tabs a.active {
+  color: var(--bs-primary, #0d6efd);
+  border-color: var(--bs-primary, #0d6efd);
+}
+
+/* Communication timeline styling */
+.timeline-day {
+  margin-bottom: 2rem;
+}
+.timeline-day h5 {
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.3rem;
+  color: #333;
+  margin-bottom: 0.8rem;
+}
+.timeline-entry {
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  margin-bottom: 0.5rem;
+  background: #fafafa;
+}
+.timeline-entry.message {
+  border-left: 4px solid #007bff;
+}
+.timeline-entry.note {
+  border-left: 4px solid #6c757d;
+}
+.timeline-entry.task {
+  border-left: 4px solid #198754;
+}
+.timeline-entry .entry-header {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+.timeline-entry .entry-body {
+  font-size: 0.9rem;
+  color: #555;
+}
+
+/* Responsive collapse */
+@media (max-width: 992px) {
+  .function-layout-two-col {
+    grid-template-columns: 1fr;
+  }
+  .function-sidebar {
+    position: relative;
+    top: 0;
+    order: -1;
+  }
+}
+.detail-row {
+  display: flex;
+  gap: 1rem;
+}
+.detail-row .half {
+  flex: 1;
+}
+
+/* Editable contact list */
+.contact-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem 0;
+}
+.contact-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.5rem;
+  background: #fafafa;
+  transition: background 0.2s ease;
+}
+.contact-card:hover {
+  background: #f9f9ff;
+}
+.contact-actions button {
+  margin-left: 0.25rem;
+  font-size: 0.8rem;
+  padding: 0.25rem 0.4rem;
+}
+.menu-container {
+  position: relative;
+}
+.menu-btn {
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  cursor: pointer;
+  color: #666;
+}
+.menu-btn:hover {
+  color: #000;
+}
+.menu-dropdown {
+  position: absolute;
+  right: 0;
+  top: 1.8rem;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 0.3rem 0;
+  z-index: 100;
+}
+.menu-dropdown button {
+  display: block;
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 1rem;
+  font-size: 0.9rem;
+  color: #333;
+  cursor: pointer;
+}
+.menu-dropdown button:hover {
+  background: #f2f2f2;
+}
+/* =========================================================
+   🔧 PATCH — Restore overlay & panel visibility (2025-10-15)
+========================================================= */
+
+.function-layout-two-col,
+.function-sidebar,
+.function-workspace {
+  isolation: isolate; /* prevent inherited stacking context */
+}
+
+.function-layout-two-col {
+  z-index: 0 !important; /* ensure grid does not overlap overlay */
+}
+
+.contact-overlay,
+.contact-edit-panel,
+.contact-add-panel {
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  transform: none !important;
+  will-change: opacity, transform;
+}
+/* =========================================================
+   🔧 PATCH — Correct overlay & panel stacking order
+========================================================= */
+
+/* Overlay sits below panel but above layout */
+#contactOverlay {
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(0,0,0,0.45);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease;
+  z-index: 99998 !important;
+}
+
+/* Panels always above overlay */
+.contact-edit-panel,
+.contact-add-panel {
+  position: fixed !important;
+  top: 0;
+  right: 0;
+  z-index: 99999 !important;
+  box-shadow: -6px 0 20px rgba(0, 0, 0, 0.25);
+}
+/* =========================================================
+   🌙 Final Overlay Visibility Fix
+========================================================= */
+#contactOverlay {
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  z-index: 99998 !important;
+  pointer-events: none; /* don’t block clicks when hidden */
+}
+
+#contactOverlay.active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto; /* clickable when visible */
+}
+/* =========================================================
+   🕒 TIME MODAL — Unique Scoped Styling
+========================================================= */
+
+.time-modal-container {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 99999;
+  backdrop-filter: blur(2px);
+  transition: opacity 0.25s ease;
+}
+
+.time-modal-container:not(.hidden) {
+  display: flex;
+}
+
+.time-modal-box {
+  background: #fff;
+  border-radius: 12px;
+  width: 320px;
+  max-width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  animation: fadeInUp 0.25s ease forwards;
+}
+
+.time-modal-header,
+.time-modal-footer {
+  padding: 1rem;
+  background: #f8f9fa;
+}
+
+.time-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.time-modal-body {
+  padding: 1rem;
+}
+
+.time-modal-input {
+  width: 100%;
+  font-size: 1.1rem;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+
+.time-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.settings-layout {
+  padding-top: 6rem; /* matches your function pages */
+  min-height: 100vh;
+  display: flex;
+}
+/* Quill – make sure there’s room to click/type */
+#replyEditor .ql-editor { min-height: 220px; }
+#replyEditor .ql-container { min-height: 240px; }
+/* =========================================================
+   🎨 TASK CARD STYLING (Unique Classes)
+   ========================================================= */
+.task-cards-grid {
+  margin-top: 1rem;
+}
+
+.task-card {
+  border-radius: 0.75rem;
+  background: #ffffff;
+  border: 1px solid #e4e7eb;
+  transition: all 0.2s ease-in-out;
+}
+
+.task-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.task-card-body {
+  padding: 1rem 1.25rem;
+}
+
+.task-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.task-card-desc {
+  font-size: 0.9rem;
+  min-height: 2rem;
+}
+
+.task-card-meta {
+  font-size: 0.85rem;
+}
+
+.task-card-status {
+  text-transform: capitalize;
+  font-size: 0.8rem;
+}
+
+.task-card-footer {
+  font-size: 0.8rem;
+}
+
+.task-card-actions .btn {
+  font-size: 0.75rem;
+  border-radius: 0.4rem;
+}
+
+.task-card-actions .btn:hover {
+  opacity: 0.85;
+}

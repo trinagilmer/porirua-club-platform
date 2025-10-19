@@ -1,85 +1,83 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <%- include('../partials/head') %>
-  <title><%= title %></title>
-</head>
-<body>
-  <%- include('../partials/header', { active: 'functions', user: user }) %>
+<!-- 🧩 Function Communications Page -->
+<link rel="stylesheet" href="/css/inbox.css"><!-- reuse inbox card styles -->
 
-  <main class="main-content">
-    <!-- Header -->
-    <div class="function-header">
-      <h1 class="function-title"><%= fn.event_name %></h1>
-      <div class="function-actions">
-        <a href="/functions/<%= fn.id %>" class="btn ghost">Back to Details</a>
-      </div>
-    </div>
+<div class="workspace-content container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">📬 Communications</h1>
+    <button id="newMessageBtn" class="btn btn-primary">+ New Message</button>
+  </div>
 
-    <!-- Tabs -->
-  <main class="main-content container mt-4">
-  <%- include('../partials/function-tabs', { fn, activeTab: 'communications' }) %>
-  <h1>Communications for <%= fn.event_name %></h1>
-
-
-    <!-- Communications Timeline -->
-    <div class="card">
-      <% if (Object.keys(grouped).length === 0) { %>
-        <p class="text-muted">No communication history yet for this function.</p>
-      <% } else { %>
-        <% Object.keys(grouped).forEach(date => { %>
-          <div class="timeline-day">
-            <h4 class="timeline-date"><%= date %></h4>
-            <div class="timeline-items">
-              <% grouped[date].forEach(entry => { %>
-                <div class="timeline-entry <%= entry.entry_type %> hover-lift">
-                  <div class="entry-header">
-                    <% if (entry.entry_type === 'message') { %>
-                      <span class="entry-icon">📧</span>
-                      <span class="entry-label">Email</span>
-                    <% } else if (entry.entry_type === 'note') { %>
-                      <span class="entry-icon">📝</span>
-                      <span class="entry-label">Note</span>
-                    <% } else if (entry.entry_type === 'task') { %>
-                      <span class="entry-icon">✅</span>
-                      <span class="entry-label">Task</span>
-                    <% } %>
-                    <% if (entry.subject) { %>
-                      <strong class="entry-subject"><%= entry.subject %></strong>
-                    <% } %>
-                    <span class="entry-time"><%= new Date(entry.entry_date).toLocaleTimeString('en-NZ',{hour:'2-digit',minute:'2-digit'}) %></span>
-                  </div>
-                  
-                  <div class="entry-body">
-                    <% if (entry.body) { %>
-                      <div class="entry-text"><%= entry.body.length > 300 ? entry.body.substring(0, 300) + '...' : entry.body %></div>
-                    <% } else { %>
-                      <div class="entry-text text-muted">(no message body)</div>
-                    <% } %>
-                  </div>
-
-                  <% if (entry.entry_type === 'message') { %>
-                    <div class="entry-meta">
-                      <small>From: <%= entry.from_email || 'System' %></small>
-                      <small>
-  To:
-  <%= Array.isArray(entry.to_email)
-        ? entry.to_email.join(', ')
-        : (entry.to_email || 'N/A') %>
-</small>
-
-                    </div>
-                  <% } %>
-                </div>
-              <% }) %>
+  <!-- Communications list -->
+  <div class="inbox">
+    <div id="communicationsList" class="inbox-list">
+      <% if (Array.isArray(messages) && messages.length > 0) { %>
+        <% messages.forEach(function(m){ 
+             const sender  = m.from_email || "Unknown Sender";
+             const subject = m.subject || "(No Subject)";
+             const preview = (m.body_html || m.body || "").replace(/<[^>]+>/g, "").slice(0, 120);
+             const dt      = m.created_at || m.sent_at || m.received_at;
+        %>
+          <!-- Make the whole card a link to the detail page -->
+          <a class="message-card d-flex justify-content-between align-items-start text-reset text-decoration-none"
+             href="/functions/<%= fn.id %>/communications/<%= m.id %>"
+             aria-label="Open message: <%= subject %>">
+            <div class="msg-left">
+              <div class="msg-from"><%= sender %></div>
+              <div class="msg-subject"><%= subject %></div>
+              <div class="msg-preview"><%= preview %></div>
             </div>
-          </div>
+            <div class="msg-date">
+              <%= dt ? new Date(dt).toLocaleString('en-NZ') : "" %>
+            </div>
+          </a>
         <% }) %>
+      <% } else { %>
+        <p class="text-muted">No communications yet.</p>
       <% } %>
     </div>
-  </main>
+  </div>
+</div>
 
-  <script src="/js/ui.js"></script>
-</body>
-</html>
+<!-- ✉️ New Message Modal -->
+<div class="modal fade" id="newMessageModal" tabindex="-1" aria-labelledby="newMessageLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <form id="newMessageForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="newMessageLabel">New Message</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" title="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Recipients (comma-separated)</label>
+            <input id="recipientsInput" type="text" class="form-control" placeholder="name@domain, other@domain" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Subject</label>
+            <input id="newSubject" type="text" class="form-control" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Message</label>
+            <!-- Keep id="editor" to match your existing JS -->
+            <div id="editor" style="height: 240px;"></div>
+            <!-- If you ever switch to form POST instead of fetch,
+                 add: <input type="hidden" name="body" id="newBody"> and copy Quill HTML into it on submit -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
+          <button id="sendBtn" class="btn btn-primary" type="submit">Send</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
+<!-- 🔹 JS Context for page script -->
+<script>
+  window.fnContext = {
+    id: <%- JSON.stringify(fn.id) %>,
+    userEmail: <%- JSON.stringify(user ? user.email : "") %>
+  };
+</script>
+<script src="/js/function-communications.js" defer></script>

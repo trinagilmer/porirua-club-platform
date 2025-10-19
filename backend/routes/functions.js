@@ -1,9 +1,78 @@
 const express = require("express");
 const { pool } = require("../db");
 const router = express.Router();
-const { sendTaskAssignmentEmail } = require("../services/taskMailer");
+const { sendMail: graphSendMail } = require("../services/graphservice");
+
+// === MSAL for app-token fallback (if no delegated token in session) ===
+const { ConfidentialClientApplication } = require("@azure/msal-node");
+
+// 🔧 Initialize MSAL Client
+const cca = new ConfidentialClientApplication({
+  auth: {
+    clientId: process.env.AZURE_CLIENT_ID,
+    authority: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}`,
+    clientSecret: process.env.AZURE_CLIENT_SECRET,
+  },
+});
+
+// 🧩 Utility: normalizeRecipients
+function normalizeRecipients(v) {
+  if (!v) return [];
+  if (Array.isArray(v)) return v.map((s) => String(s).trim()).filter(Boolean);
+  return String(v)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * 🔐 getAppAccessToken()
+ * Acquires an application-only Graph token (client credential flow)
+ */
+async function getAppAccessToken() {
+  try {
+    const tokenResponse = await cca.acquireTokenByClientCredential({
+      scopes: ["https://graph.microsoft.com/.default"],
+    });
+
+    console.log(
+      "🔑 App Access Token (partial):",
+      tokenResponse.accessToken.substring(0, 80) + "..."
+    );
+    console.log("🕒 Token expires:", tokenResponse.expiresOn?.toISOString());
+
+    return tokenResponse.accessToken;
+  } catch (err) {
+    console.error("❌ Failed to acquire app access token:", err.message);
+    throw err;
+  }
+}
+
+/**
+ * 🧠 getGraphAccessToken(req)
+ * Requires a valid delegated Microsoft Graph token (user login)
+ * — If missing, redirect user to /auth/graph/login
+ */
+async function getGraphAccessToken(req, res) {
+  const s = req.session || {};
+  const delegated =
+    s.graphToken ||
+    s.graphAccessToken ||
+    s.accessToken ||
+    (s.graph && s.graph.accessToken);
+
+  if (delegated) {
+    console.log("🧩 Using delegated (session) Graph token ✅");
+    return delegated;
+  }
+
+  console.warn("⚠️ No delegated Graph token in session — user must sign in again.");
+  throw new Error("no_delegated_token");
+}
+
 
 router.use(express.json());
+
 
 
 /* =========================================================
@@ -81,112 +150,308 @@ router.get("/", async (req, res, next) => {
     next(err);
   }
 });
-/* =========================================================
-   💬 FUNCTION COMMUNICATIONS VIEW (CLEANED)
-========================================================= */
+
+// ======================================================
+// 💬 FUNCTION COMMUNICATIONS (V2+)
+// - List messages for a function
+// - Send new message (returns inserted id)
+// - View a function-scoped message detail
+// - Reply to that message (returns inserted id)
+// ======================================================
+
+// Helpers to store/retrieve recipients consistently
+const toArrayList = (v) => {
+  if (!v) return [];
+  if (Array.isArray(v)) return v;
+  if (typeof v === "string") {
+    return v.split(",").map(s => s.trim()).filter(Boolean);
+  }
+  return [];
+};
+const toStringList = (v) => toArrayList(v).join(", ");
+
+// ======================================================
+// 📜 LIST: Function → Communications
+// GET /functions/:id/communications
+// ======================================================
 router.get("/:id/communications", async (req, res, next) => {
+  const { id } = req.params;
+
   try {
-    const { id } = req.params;
-    const activeTab = "communications";
-
-    // 1️⃣ Fetch function info
-    const { rows: fnRows } = await pool.query(`
-      SELECT f.id, f.event_name, u.name AS owner_name
-      FROM functions f
-      LEFT JOIN users u ON f.owner_id = u.id
-      WHERE f.id = $1;
-    `, [id]);
-
+    // 1️⃣ Function header info
+    const { rows: fnRows } = await pool.query(
+      `SELECT id, event_name, event_date, status, attendees, budget, totals_cost, totals_price, room_id, event_type 
+       FROM functions 
+       WHERE id = $1;`,
+      [id]
+    );
     const fn = fnRows[0];
     if (!fn) return res.status(404).send("Function not found");
 
-    // 2️⃣ Fetch all related communications
-    const [messages, notes, tasks] = await Promise.all([
- pool.query(`
-  SELECT 
-    id AS entry_id,
-    'message' AS entry_type,
-    subject,
-    body,
-    from_email,
-    to_email,
-    created_by,
-    created_at AS entry_date
-  FROM messages
-  WHERE related_function = $1;
-`, [id]),
-
-      pool.query(`
-        SELECT 
-          id AS entry_id,
-          'note' AS entry_type,
-          note_type AS message_type,
-          content AS body,
-          created_at AS entry_date
-        FROM function_notes
-        WHERE function_id = $1;
-      `, [id]),
-
-      pool.query(`
-        SELECT 
-          id AS entry_id,
-          'task' AS entry_type,
-          status AS message_type,
-          title AS subject,
-          created_at AS entry_date
-        FROM tasks
-        WHERE function_id = $1;
-      `, [id])
-    ]);
-
-    // 3️⃣ Combine & sort
-    const comms = [...messages.rows, ...notes.rows, ...tasks.rows].sort(
-      (a, b) => new Date(b.entry_date) - new Date(a.entry_date)
+    // 2️⃣ Messages for this function (newest first)
+    const { rows: messages } = await pool.query(
+      `SELECT 
+         id,
+         subject,
+         body,
+         body_html,
+         from_email,
+         to_email,
+         created_at,
+         related_function,
+         message_type
+       FROM messages
+       WHERE related_function = $1
+       ORDER BY created_at DESC;`,
+      [id]
     );
 
-    // 4️⃣ Group by date
-    const grouped = {};
-    for (const c of comms) {
-      const date = new Date(c.entry_date).toLocaleDateString("en-NZ", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
-      if (!grouped[date]) grouped[date] = [];
-      grouped[date].push(c);
-    }
+    // 3️⃣ Sidebar data
+    const linkedContactsRes = await pool.query(
+      `SELECT c.id, c.name, c.email, c.phone, c.company, fc.is_primary
+         FROM contacts c
+         JOIN function_contacts fc ON fc.contact_id = c.id
+        WHERE fc.function_id = $1
+        ORDER BY fc.is_primary DESC, c.name ASC;`,
+      [id]
+    );
+    const roomsRes = await pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`);
+    const eventTypesRes = await pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`);
 
-    // 5️⃣ Render the view
-    res.render("pages/function-communications", {
-      title: `Communications — ${fn.event_name}`,
-      user: req.session.user || null,
-      active: "functions",
-      activeTab,
-      fn,
-      grouped,
-    });
+    // 4️⃣ Render page
+  res.render("pages/function-communications", {
+  layout: "layouts/function-detail",
+  title: `Communications – ${fn.event_name}`,
+  user: req.session.user || null,
+  fn,
+  messages,
+  linkedContacts: linkedContactsRes.rows,
+  rooms: roomsRes.rows,
+  eventTypes: eventTypesRes.rows,
+  activeTab: "communications",
+});
+
   } catch (err) {
     console.error("❌ [Function Communications] Error:", err);
     next(err);
   }
 });
+// ======================================================
+// 📄 DETAIL: Single Communication Message
+// GET /functions/:id/communications/:messageId
+// ======================================================
+router.get("/:id/communications/:messageId", async (req, res, next) => {
+  const { id, messageId } = req.params;
+
+  try {
+    // 1️⃣ Fetch the parent function
+    const { rows: fnRows } = await pool.query(
+      `SELECT id, event_name, event_date, status
+         FROM functions WHERE id = $1;`,
+      [id]
+    );
+    const fn = fnRows[0];
+    if (!fn) return res.status(404).send("Function not found");
+
+    // 2️⃣ Fetch the specific message
+    const { rows: msgRows } = await pool.query(
+      `SELECT id, subject, body, body_html, from_email, to_email, created_at
+         FROM messages
+        WHERE id = $1 AND related_function = $2;`,
+      [messageId, id]
+    );
+    const message = msgRows[0];
+    if (!message) return res.status(404).send("Message not found");
+
+    // 3️⃣ Sidebar context (contacts, rooms, event types)
+    const linkedContactsRes = await pool.query(
+      `SELECT c.id, c.name, c.email, c.phone, c.company, fc.is_primary
+         FROM contacts c
+         JOIN function_contacts fc ON fc.contact_id = c.id
+        WHERE fc.function_id = $1
+        ORDER BY fc.is_primary DESC, c.name ASC;`,
+      [id]
+    );
+    const roomsRes = await pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`);
+    const eventTypesRes = await pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`);
+
+    // 4️⃣ Render the detail page
+    res.render("pages/function-communication-detail", {
+      layout: "layouts/function-detail",
+      title: `Message — ${fn.event_name}`,
+      user: req.session.user || null,
+      fn,
+      message,
+      linkedContacts: linkedContactsRes.rows,
+      rooms: roomsRes.rows,
+      eventTypes: eventTypesRes.rows,
+      activeTab: "communications"
+    });
+  } catch (err) {
+    console.error("❌ [Function Communication DETAIL] Error:", err);
+    next(err);
+  }
+});
+
+// ======================================================
+// ✉️ SEND: New message from Function → Communications
+// POST /functions/:id/communications/send
+// Returns: { success, data: { id } }
+// ======================================================
+router.post("/:id/communications/send", async (req, res) => {
+  const { id } = req.params;
+  const sender = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
+
+  const to      = normalizeRecipients(req.body.to);
+  const cc      = normalizeRecipients(req.body.cc);
+  const bcc     = normalizeRecipients(req.body.bcc);
+  const subject = (req.body.subject || "(No subject)").trim();
+  const body    = req.body.body || "";
+
+  try {
+    const accessToken = await getGraphAccessToken(req);
+    // 1) send via Microsoft Graph
+    await graphSendMail(accessToken, { to, cc, bcc, subject, body });
+
+    // 2) store DB record as 'outbound'
+    const insert = await pool.query(
+      `INSERT INTO messages
+         (related_function, from_email, to_email, subject, body, created_at, message_type)
+       VALUES ($1, $2, $3, $4, $5, NOW(), 'outbound')
+       RETURNING id;`,
+      [id, sender, to.join(", "), subject, body]
+    );
+
+    return res.json({ success: true, data: { id: insert.rows[0].id } });
+  } catch (err) {
+    console.error("❌ [Function SEND via Graph]", err?.message || err);
+    // If token is invalid/expired and this was an XHR, hint login
+    if (String(err).includes("invalid_grant") || String(err).includes("401")) {
+      return res
+        .status(401)
+        .json({ success: false, error: "auth", redirect: `/auth/login?next=${encodeURIComponent(req.originalUrl)}` });
+    }
+    return res.status(500).json({ success: false, error: "Failed to send via Graph" });
+  }
+});
+
+
+// ✉️ POST: Reply to a specific function message
+// Sends via Microsoft Graph (using your graphservice.js),
+// stores the outbound in DB, then redirects back
+// ======================================================
+router.post("/:id/communications/:messageId/reply", async (req, res) => {
+  const { id: functionId, messageId } = req.params;
+  const sender = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
+
+  console.log(
+    "SESSION GRAPH TOKEN:",
+    req.session?.graphAccessToken ? "✅ Present" : "❌ Missing"
+  );
+
+  // Accept JSON or form-encoded posts
+  const to = normalizeRecipients(req.body.to);
+  const cc = normalizeRecipients(req.body.cc);
+  const bcc = normalizeRecipients(req.body.bcc);
+  const subject = (req.body.subject || "Re:").trim();
+  const body = req.body.body || "";
+
+  // Where to go after sending (allow override via hidden input "next")
+  const nextUrl =
+    req.body.next && typeof req.body.next === "string"
+      ? req.body.next
+      : `/functions/${encodeURIComponent(functionId)}/communications`;
+
+  try {
+    // (Optional) ensure the original belongs to this function
+    const { rows: orig } = await pool.query(
+      `SELECT id FROM messages WHERE id = $1 AND related_function = $2`,
+      [messageId, functionId]
+    );
+
+    if (!orig.length) {
+      const wantsJSON = (req.headers.accept || "").includes("application/json");
+      return wantsJSON
+        ? res
+            .status(404)
+            .json({ success: false, error: "Original message not found" })
+        : res.status(404).send("Original message not found");
+    }
+
+// 1️⃣ Acquire a token (delegated from session; redirect if missing)
+let accessToken;
+try {
+  accessToken = await getGraphAccessToken(req);
+} catch (err) {
+  if (err && err.message === "no_delegated_token") {
+    console.warn("🧭 Redirecting user to Microsoft login to restore Graph token");
+
+    // Preserve the user's intended page for redirect after login
+    const returnTo = encodeURIComponent(req.originalUrl);
+    return res.redirect(`/auth/graph/login?next=${returnTo}`);
+  }
+  throw err;
+}
+
+// 2️⃣ Send via Microsoft Graph
+await graphSendMail(accessToken, { to, cc, bcc, subject, body });
+
+    // 3️⃣ Store the sent message
+    const insert = await pool.query(
+      `INSERT INTO messages
+         (related_function, from_email, to_email, subject, body, created_at, message_type)
+       VALUES ($1, $2, $3, $4, $5, NOW(), 'outbound')
+       RETURNING id;`,
+      [functionId, sender, to.join(", "), subject, body]
+    );
+
+    // 4️⃣ Return response
+    const wantsJSON =
+      req.xhr ||
+      req.headers["x-requested-with"] === "XMLHttpRequest" ||
+      (req.headers.accept || "").includes("application/json") ||
+      (req.headers["content-type"] || "").includes("application/json");
+
+    if (wantsJSON)
+      return res.json({ success: true, data: { id: insert.rows[0].id } });
+
+    return res.redirect(nextUrl);
+  } catch (err) {
+    console.error("❌ [Function REPLY via Graph]", err?.message || err);
+    const wantsJSON =
+      req.xhr ||
+      req.headers["x-requested-with"] === "XMLHttpRequest" ||
+      (req.headers.accept || "").includes("application/json") ||
+      (req.headers["content-type"] || "").includes("application/json");
+
+    return wantsJSON
+      ? res
+          .status(500)
+          .json({ success: false, error: "Failed to send reply via Graph" })
+      : res.status(500).send("Failed to send reply via Graph");
+  }
+});
+
+
 
 /* =========================================================
-   🗒️ NOTES ROUTES
+   🗒️ NOTES ROUTE (with layout + sidebar integration)
 ========================================================= */
+
 router.get("/:id/notes", async (req, res) => {
   const { id } = req.params;
 
   try {
-    // ✅ Fetch the parent function name
+    // ✅ Fetch function
     const fnRes = await pool.query(
-      `SELECT id, event_name FROM functions WHERE id = $1;`,
+      `SELECT id, event_name, event_date, status, attendees, budget, totals_cost, totals_price, room_id, event_type 
+       FROM functions WHERE id = $1;`,
       [id]
     );
     const fn = fnRes.rows[0];
     if (!fn) return res.status(404).send("Function not found");
 
-    // ✅ Fetch notes with author name and updated timestamp
+    // ✅ Fetch notes with author and timestamps
     const { rows: notes } = await pool.query(
       `
       SELECT 
@@ -205,11 +470,40 @@ router.get("/:id/notes", async (req, res) => {
       [id]
     );
 
+    // ✅ Fetch sidebar data (contacts, rooms, event types)
+   const linkedContactsRes = await pool.query(
+  `
+  SELECT c.id, c.name, c.email, c.phone, fc.is_primary
+  FROM contacts c
+  JOIN function_contacts fc ON fc.contact_id = c.id
+  WHERE fc.function_id = $1
+  ORDER BY fc.is_primary DESC, c.name ASC;
+  `,
+  [id]
+);
+
+
+    const roomsRes = await pool.query(
+      `SELECT id, name, capacity FROM rooms ORDER BY name ASC;`
+    );
+
+    const eventTypesRes = await pool.query(
+      `SELECT name FROM club_event_types ORDER BY name ASC;`
+    );
+
+    // ✅ Render with full layout + sidebar context
     res.render("pages/function-notes", {
+      layout: "layouts/main",          // 👈 use main layout
+      title: `${fn.event_name} — Notes`,
+      pageType: "function-notes",      // 👈 helps JS autoload correct modules
+      active: "functions",             // 👈 highlights nav item
+      user: req.session.user || null,  // 👈 for header
       fn,
       notes,
+      linkedContacts: linkedContactsRes.rows,
+      rooms: roomsRes.rows,
+      eventTypes: eventTypesRes.rows,
       activeTab: "notes",
-      user: req.session.user
     });
   } catch (err) {
     console.error("❌ Error loading notes:", err);
@@ -280,12 +574,12 @@ router.delete("/notes/:noteId", async (req, res) => {
 });
 
 /* =========================================================
-   🧭 2. FUNCTION DETAIL VIEW
+   🧭 FUNCTION DETAIL VIEW — Full (Sidebar + Timeline)
 ========================================================= */
 router.get("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
-    const activeTab = req.query.tab || "info";
+    const activeTab = req.query.tab || "communications";
 
     // 1️⃣ Fetch base function info
     const { rows: fnRows } = await pool.query(`
@@ -299,8 +593,15 @@ router.get("/:id", async (req, res, next) => {
     const fn = fnRows[0];
     if (!fn) return res.status(404).send("Function not found");
 
-    // 2️⃣ Load related data concurrently
-    const [linkedContacts, notes, tasks, messages] = await Promise.all([
+    // 2️⃣ Load all related data concurrently
+    const [
+      linkedContacts,
+      notes,
+      tasks,
+      messages,
+      rooms,
+      eventTypes
+    ] = await Promise.all([
       pool.query(`
         SELECT c.id, c.name, c.email, c.phone, c.company, fc.is_primary
         FROM function_contacts fc
@@ -312,7 +613,6 @@ router.get("/:id", async (req, res, next) => {
       pool.query(`
         SELECT 
           n.id AS entry_id,
-          'note' AS entry_type,
           n.function_id,
           n.note_type,
           n.content AS body,
@@ -331,8 +631,7 @@ router.get("/:id", async (req, res, next) => {
           t.title, 
           t.status, 
           t.due_at, 
-          t.created_at AS entry_date, 
-          'task' AS entry_type,
+          t.created_at AS entry_date,
           u.name AS assigned_to_name
         FROM tasks t
         LEFT JOIN users u ON u.id = t.assigned_to
@@ -343,7 +642,6 @@ router.get("/:id", async (req, res, next) => {
       pool.query(`
         SELECT 
           m.id AS entry_id, 
-          'message' AS entry_type, 
           m.subject, 
           m.body,
           m.from_email, 
@@ -352,30 +650,28 @@ router.get("/:id", async (req, res, next) => {
         FROM messages m
         WHERE m.related_function = $1
         ORDER BY m.created_at DESC
-        LIMIT 10;
-      `, [id])
+        LIMIT 20;
+      `, [id]),
+
+      pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`),
+      pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`)
     ]);
 
-    // 3️⃣ Merge all communications
-    const combined = [
-      ...messages.rows,
-      ...notes.rows,
-      ...tasks.rows
-    ].sort((a, b) => new Date(b.entry_date) - new Date(a.entry_date));
+    // 3️⃣ Combine & group entries
+    const allEntries = [
+      ...notes.rows.map(n => ({ ...n, entry_type: "note" })),
+      ...tasks.rows.map(t => ({ ...t, entry_type: "task" })),
+      ...messages.rows.map(m => ({ ...m, entry_type: "message" }))
+    ];
 
-    // 4️⃣ Group communications by date
-    const grouped = {};
-    combined.forEach((msg) => {
-      const dateKey = new Date(msg.entry_date).toLocaleDateString("en-NZ", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
-      if (!grouped[dateKey]) grouped[dateKey] = [];
-      grouped[dateKey].push(msg);
-    });
+    const grouped = allEntries.reduce((acc, entry) => {
+      const dateKey = new Date(entry.entry_date).toISOString().split("T")[0];
+      if (!acc[dateKey]) acc[dateKey] = [];
+      acc[dateKey].push(entry);
+      return acc;
+    }, {});
 
-    // 5️⃣ Render the function detail page
+    // 4️⃣ Render Function Detail Page
     res.render("pages/function-detail", {
       title: fn.event_name,
       active: "functions",
@@ -386,11 +682,13 @@ router.get("/:id", async (req, res, next) => {
       tasks: tasks.rows,
       grouped,
       activeTab,
+      rooms: rooms.rows,
+      eventTypes: eventTypes.rows
     });
 
   } catch (err) {
     console.error("❌ Error loading function detail:", err);
-    next(err);
+    res.status(500).send("Error loading function detail");
   }
 });
 
@@ -558,20 +856,20 @@ router.post("/contacts/:id/update", async (req, res) => {
 // ======================================================
 // 🧩 TASK MANAGEMENT ROUTES
 // ======================================================
-
-// ✅ Get tasks for a function (with function name)
 router.get("/:id/tasks", async (req, res) => {
-  try {
-    const { id } = req.params;
+  const { id } = req.params;
 
-    // 1️⃣ Fetch the function’s name
+  try {
+    // 1️⃣ Fetch function
     const { rows: fnRows } = await pool.query(
-      `SELECT id, event_name, event_date FROM functions WHERE id = $1`,
+      `SELECT id, event_name, event_date, status, attendees, budget, totals_cost, totals_price, room_id, event_type 
+       FROM functions WHERE id = $1;`,
       [id]
     );
-    const fn = fnRows[0] || { id, event_name: "Function" };
+    const fn = fnRows[0];
+    if (!fn) return res.status(404).send("Function not found");
 
-    // 2️⃣ Fetch the tasks
+    // 2️⃣ Fetch tasks
     const { rows: tasks } = await pool.query(
       `SELECT 
          t.*, 
@@ -584,18 +882,42 @@ router.get("/:id/tasks", async (req, res) => {
       [id]
     );
 
-    // 3️⃣ Render page with function info
+    // 3️⃣ Sidebar data
+    const linkedContactsRes = await pool.query(
+      `SELECT c.id, c.name, c.email, c.phone, c.company, fc.is_primary
+       FROM contacts c
+       JOIN function_contacts fc ON fc.contact_id = c.id
+       WHERE fc.function_id = $1
+       ORDER BY fc.is_primary DESC, c.name ASC;`,
+      [id]
+    );
+
+    const roomsRes = await pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`);
+    const eventTypesRes = await pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`);
+
+    // 4️⃣ Fetch all users for Assign dropdown
+    const usersRes = await pool.query(`SELECT id, name FROM users ORDER BY name ASC;`);
+
+    // 5️⃣ Render with full context
     res.render("pages/function-tasks", {
-      user: req.session.user,
+      layout: "layouts/main",
+      user: req.session.user || null,
       fn,
       tasks,
+      linkedContacts: linkedContactsRes.rows,
+      rooms: roomsRes.rows,
+      eventTypes: eventTypesRes.rows,
+      users: usersRes.rows, // ✅ this now works properly
       activeTab: "tasks",
     });
+
   } catch (err) {
     console.error("❌ [Tasks GET] Error:", err);
     res.status(500).send("Failed to load tasks");
   }
 });
+
+
 
 // ✅ Create a new task (now includes `description`)
 router.post("/:id/tasks/new", async (req, res) => {
@@ -709,6 +1031,59 @@ router.delete("/tasks/:taskId", async (req, res) => {
   } catch (err) {
     console.error("❌ [Tasks DELETE] Error:", err);
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+/* =========================================================
+   🕒 FUNCTION FIELD UPDATE (start_time / end_time etc.)
+========================================================= */
+router.post("/:id/update-field", async (req, res) => {
+  const { id } = req.params;
+  let { field, value } = req.body; // 👈 use let instead of const so we can modify value
+
+  // ✅ Whitelist of safe, editable fields
+  const allowed = [
+    "start_time",
+    "end_time",
+    "event_date",
+    "event_time",
+    "status",
+    "event_name",
+    "event_type",
+    "budget",
+    "totals_price",
+    "totals_cost",
+    "notes",
+    "room_id"
+  ];
+
+  if (!allowed.includes(field)) {
+    return res.status(400).json({ success: false, error: "Invalid field name" });
+  }
+
+  // ✅ Normalize time format (e.g. "10:30" → "10:30:00")
+  if (["start_time", "end_time"].includes(field) && value) {
+    if (/^\d{2}:\d{2}$/.test(value)) {
+      value = `${value}:00`;
+    }
+  }
+
+  try {
+    const query = `
+      UPDATE functions 
+      SET ${field} = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING *;
+    `;
+    const { rows } = await pool.query(query, [value, id]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Function not found" });
+    }
+
+    res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    console.error("❌ [Function Field Update] Error:", err);
+    res.status(500).json({ success: false, error: "Database update failed" });
   }
 });
 

@@ -1,82 +1,86 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <%- include('../partials/head') %>
-  <title>Porirua Club Dashboard</title>
-</head>
-<body>
-  <%- include('../partials/header', { active: 'dashboard', user: user }) %>
+<main class="main-content">
+  <h1 style="color:var(--deep);margin-top:0;">Club Overview</h1>
 
-  <main class="main-content">
-    <h1 style="color:var(--deep);margin-top:0;">Club Overview</h1>
-
-    <!-- KPI Row -->
-    <section class="kpi-row">
-      <div class="kpi-card">
-        <div class="kpi-label">Confirmed+ Revenue</div>
-        <div class="kpi-value">$<%= (kpis.confirmed_price || 0).toLocaleString() %></div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Confirmed+ Cost</div>
-        <div class="kpi-value">$<%= (kpis.confirmed_cost || 0).toLocaleString() %></div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Pipeline Value</div>
-        <div class="kpi-value">$<%= (kpis.pipeline_price || 0).toLocaleString() %></div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Pipeline Leads</div>
-        <div class="kpi-value"><%= kpis.pipeline_count || 0 %></div>
-      </div>
-    </section>
-
-    <!-- Chart -->
-    <section class="card">
-      <h2 style="color:var(--deep);">Revenue Trend (Last 12 Months)</h2>
-      <canvas id="revenueChart" height="120"></canvas>
-    </section>
-
-    <script>
-      const labels = <%- JSON.stringify(graph.labels || []) %>;
-      const data = <%- JSON.stringify(graph.data || []) %>;
-      const ctx = document.getElementById('revenueChart').getContext('2d');
-      new Chart(ctx, {
-        type:'line',
-        data:{labels,datasets:[{
-          label:'Revenue',
-          data,
-          borderColor:'#6bb4de',
-          backgroundColor:'rgba(107,180,222,0.2)',
-          tension:0.3,
-          fill:true
-        }]},
-        options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}
-      });
-    </script>
-
-    <!-- Upcoming + Leads -->
-    <div class="card">
-      <h2 style="color:var(--deep);">Upcoming Functions</h2>
-      <table class="table">
-        <thead><tr><th>Date</th><th>Event</th><th>Room</th><th>Guests</th><th>Status</th></tr></thead>
-        <tbody>
-          <% if(!upcoming.length){ %>
-            <tr><td colspan="5">No upcoming functions</td></tr>
-          <% }else{ upcoming.forEach(fn=>{ %>
-            <tr>
-              <td><%= fn.event_date?.toISOString().slice(0,10) %></td>
-              <td><strong><%= fn.event_name %></strong></td>
-              <td><%= fn.room_name || '—' %></td>
-              <td><%= fn.attendees || '—' %></td>
-              <td><%= fn.status %></td>
-            </tr>
-          <% }) } %>
-        </tbody>
-      </table>
+  <!-- KPI Row -->
+  <section class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-label">Confirmed+ Revenue</div>
+      <div class="kpi-value">$<%= (kpis.confirmed_price || 0).toLocaleString() %></div>
     </div>
-  </main>
-</body>
-</html>
+    <div class="kpi-card">
+      <div class="kpi-label">Confirmed+ Cost</div>
+      <div class="kpi-value">$<%= (kpis.confirmed_cost || 0).toLocaleString() %></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Pipeline Value</div>
+      <div class="kpi-value">$<%= (kpis.pipeline_price || 0).toLocaleString() %></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Pipeline Leads</div>
+      <div class="kpi-value"><%= kpis.pipeline_count || 0 %></div>
+    </div>
+  </section>
+
+  <!-- Chart -->
+  <section class="card">
+    <h2 style="color:var(--deep);">Revenue Trend (Last 12 Months)</h2>
+    <canvas id="revenueChart" height="120"></canvas>
+  </section>
+
+  <script>
+    const labels = <%- JSON.stringify(graph.labels || []) %>;
+    const data = <%- JSON.stringify(graph.data || []) %>;
+    const ctx = document.getElementById('revenueChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Revenue',
+          data,
+          borderColor: '#6bb4de',
+          backgroundColor: 'rgba(107,180,222,0.2)',
+          tension: 0.3,
+          fill: true
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true } }
+      }
+    });
+  </script>
+
+  <!-- Upcoming + Leads -->
+  <div class="card">
+    <h2 style="color:var(--deep);">Upcoming Functions</h2>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Event</th>
+          <th>Room</th>
+          <th>Guests</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!upcoming.length) { %>
+          <tr><td colspan="5">No upcoming functions</td></tr>
+        <% } else { upcoming.forEach(fn => { %>
+          <tr>
+            <td><%= fn.event_date?.toISOString().slice(0,10) %></td>
+            <td><strong><%= fn.event_name %></strong></td>
+            <td><%= fn.room_name || '—' %></td>
+            <td><%= fn.attendees || '—' %></td>
+            <td><%= fn.status %></td>
+          </tr>
+        <% }) } %>
+      </tbody>
+    </table>
+  </div>
+</main>
+
 
 
 

@@ -3,15 +3,24 @@
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content p-4">
       <h4>📨 Reply to Message</h4>
-      <form action="/inbox/reply/<%= message.id %>" method="POST" enctype="multipart/form-data">
+      <form
+        id="replyForm"
+        action="/inbox/reply/<%= message.id %>"
+        method="POST"
+        enctype="multipart/form-data"
+        onsubmit="return handleReplySubmit()"
+      >
+        <input type="hidden" name="body_html" id="bodyHtmlInput">
+        <input type="hidden" name="redirect" value="/inbox/<%= message.id %>?sent=true">
+
         <div class="form-group mb-3">
           <label for="subject">Subject</label>
           <input type="text" name="subject" id="subject" class="form-control" value="Re: <%= message.subject || '' %>">
         </div>
 
         <div class="form-group mb-3">
-          <label for="body">Message</label>
-          <textarea name="body" id="body" rows="6" class="form-control" placeholder="Write your reply..."></textarea>
+          <label for="editor">Message</label>
+          <div id="editor" class="quill-editor" style="height: 200px;"></div>
         </div>
 
         <div class="form-group mb-3">
@@ -27,4 +36,48 @@
     </div>
   </div>
 </div>
+
+<script>
+  let quill;
+
+  const replyModal = document.getElementById('replyMessageModal');
+  replyModal.addEventListener('shown.bs.modal', () => {
+    if (!quill) {
+      quill = new Quill('#editor', {
+        theme: 'snow',
+        placeholder: 'Write your reply...',
+        modules: {
+          toolbar: [
+            ['bold', 'italic', 'underline'],
+            [{ list: 'ordered' }, { list: 'bullet' }],
+            ['link']
+          ]
+        }
+      });
+    }
+  });
+
+  function handleReplySubmit() {
+    if (!quill) {
+      alert('Please wait — editor is still loading.');
+      return false;
+    }
+
+    const html = quill.root.innerHTML.trim();
+
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    const text = temp.textContent.trim();
+
+    if (!text) {
+      alert('Please write a message before sending.');
+      return false;
+    }
+
+    document.getElementById('bodyHtmlInput').value = html;
+    return true;
+  }
+</script>
+
+
 
