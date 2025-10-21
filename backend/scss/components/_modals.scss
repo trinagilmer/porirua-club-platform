@@ -1,0 +1,333 @@
+@use '../core/variables' as *;
+
+/* =========================================================
+   ⚙️ FUNCTION MODALS & UI OVERLAYS
+   (Shared across function pages)
+========================================================= */
+
+/* 🕒 TIME MODAL */
+.time-modal-container {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1100;
+  transition: opacity 0.3s ease;
+
+  &.hidden {
+    display: none;
+  }
+
+  .time-modal-box {
+    background: #fff;
+    border-radius: $radius-md;
+    box-shadow: $shadow-lg;
+    width: 320px;
+    padding: $spacing-unit * 2;
+    transform: translateY(10px);
+    transition: all 0.25s ease;
+
+    .time-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: $spacing-unit * 1.5;
+
+      h5 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: $color-text-dark;
+      }
+    }
+
+    .time-modal-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      color: $color-text-muted;
+      cursor: pointer;
+      transition: color 0.2s ease;
+
+      &:hover {
+        color: $color-primary;
+      }
+    }
+
+    .time-modal-body {
+      margin-bottom: $spacing-unit * 1.5;
+
+      .time-modal-input {
+        width: 100%;
+        padding: $spacing-unit * 1.5;
+        font-size: 1rem;
+        border: 1px solid $color-border;
+        border-radius: $radius-md;
+
+        &:focus {
+          border-color: $color-primary;
+          outline: none;
+          box-shadow: 0 0 0 2px rgba($color-primary, 0.15);
+        }
+      }
+    }
+
+    .time-modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: $spacing-unit;
+      margin-top: $spacing-unit * 1.5;
+    }
+  }
+}
+
+/* =========================================================
+   🩶 CONTACT OVERLAY — (Final refined version)
+========================================================= */
+.contact-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, backdrop-filter 0.3s ease;
+  backdrop-filter: blur(0px);
+  will-change: opacity, backdrop-filter;
+
+  /* When visible */
+  &:not(.hidden) {
+    opacity: 1;
+    pointer-events: all;
+    backdrop-filter: blur(2px); // subtle glass blur for polish
+  }
+
+  /* Optional override for Bootstrap .hidden rule */
+  &.hidden {
+    display: block !important; // prevent display:none from blocking transition
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+/* =========================================================
+   🧩 CONTACT PANEL (Final – Smooth Slide & Bootstrap-Safe)
+========================================================= */
+.contact-panel {
+  position: fixed;
+  display: block;
+  top: 0;
+  right: 0;
+  width: 400px;
+  max-width: 90vw;
+  background: #fff;
+  height: 100vh;
+  box-shadow: -3px 0 12px rgba(0, 0, 0, 0.15);
+  border-radius: $radius-md 0 0 $radius-md;
+  z-index: 1200;
+
+  /* Start off-screen (slightly beyond viewport edge) */
+  transform: translateX(calc(100% + 10px));
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+
+  /* Hidden state */
+  &.hidden {
+    display: block !important; /* override Bootstrap .hidden */
+    transform: translateX(calc(100% + 10px)) !important;
+  }
+
+  /* Visible / active state (either not hidden or panel-open) */
+  &:not(.hidden),
+  &.panel-open {
+    display: block !important;
+    transform: translateX(0) !important;
+  }
+
+  /* Header section */
+  .contact-edit-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: $spacing-unit * 2;
+    border-bottom: 1px solid $color-border;
+
+    h3 {
+      margin: 0;
+      font-weight: 600;
+      color: $color-text-dark;
+    }
+
+    .close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      color: $color-text-muted;
+      cursor: pointer;
+      transition: color $transition-fast;
+
+      &:hover {
+        color: $color-primary;
+      }
+    }
+  }
+
+  /* Form content */
+  .panel-form {
+    padding: $spacing-unit * 2;
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-unit;
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid $color-border;
+      border-radius: $radius-md;
+      padding: $spacing-unit;
+      font-size: 0.95rem;
+
+      &:focus {
+        border-color: $color-primary;
+        box-shadow: 0 0 0 2px rgba($color-primary, 0.2);
+        outline: none;
+      }
+    }
+
+    .panel-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: $spacing-unit;
+      margin-top: $spacing-unit * 2;
+    }
+  }
+
+  /* Tab controls (for Add/Link Contact) */
+  .contact-panel-tabs {
+    display: flex;
+    justify-content: space-between;
+    background: $color-bg-light;
+    border-bottom: 1px solid $color-border;
+
+    .tab-btn {
+      flex: 1;
+      padding: $spacing-unit * 1.25;
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-weight: 500;
+      color: $color-text-muted;
+      transition: background $transition-fast, color $transition-fast;
+
+      &.active {
+        background: $color-primary;
+        color: #fff;
+      }
+
+      &:hover:not(.active) {
+        background: rgba($color-primary, 0.08);
+        color: $color-primary;
+      }
+    }
+  }
+}
+
+
+  .panel-form {
+    padding: $spacing-unit * 2;
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-unit;
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid $color-border;
+      border-radius: $radius-md;
+      padding: $spacing-unit;
+      font-size: 0.95rem;
+
+      &:focus {
+        border-color: $color-primary;
+        box-shadow: 0 0 0 2px rgba($color-primary, 0.2);
+        outline: none;
+      }
+    }
+
+    .panel-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: $spacing-unit;
+      margin-top: $spacing-unit * 2;
+    }
+  }
+
+  .contact-panel-tabs {
+    display: flex;
+    justify-content: space-between;
+    background: $color-bg-light;
+    border-bottom: 1px solid $color-border;
+
+    .tab-btn {
+      flex: 1;
+      padding: $spacing-unit * 1.25;
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-weight: 500;
+      color: $color-text-muted;
+      transition: background $transition-fast, color $transition-fast;
+
+      &.active {
+        background: $color-primary;
+        color: #fff;
+      }
+
+      &:hover:not(.active) {
+        background: rgba($color-primary, 0.08);
+        color: $color-primary;
+      }
+    }
+  }
+
+
+/* =========================================================
+   🔔 TOASTS (Quick notifications)
+========================================================= */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #333;
+  color: #fff;
+  padding: 0.75rem 1.25rem;
+  border-radius: 6px;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.3s ease;
+  z-index: 2000;
+
+  &.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+// =========================================================
+// 🧩 FINAL FIX — override global .hidden rules for our panels
+// =========================================================
+
+.contact-panel.hidden,
+.contact-add-panel.hidden,
+.contact-edit-panel.hidden {
+  display: block !important;      // ensure visible for transform
+  transform: translateX(100%) !important; // off-screen default
+}
+
+.contact-overlay.hidden {
+  display: block !important;
+  opacity: 0;
+  pointer-events: none;
+}
+

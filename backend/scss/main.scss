@@ -1,0 +1,22 @@
+@charset "UTF-8";
+
+// 🌈 Core
+@use 'core/variables' as *;
+@use 'core/base';
+@use 'core/layout';
+
+// 🧩 Components
+@use 'components/buttons';
+@use 'components/sidebar';
+@use 'components/function-pages';
+@use 'components/modals';
+@use "./components/dashboard";
+
+
+// 🕹️ Legacy Support (single point)
+@use 'legacy/legacy-imports';
+
+
+
+
+

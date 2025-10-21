@@ -1,0 +1,121 @@
+<!-- 📋 pages/functions/tasks.ejs -->
+<% locals.layout = 'layouts/main'; %>
+
+<main class="function-layout-two-col">
+  <!-- 🧭 Sidebar -->
+ <!-- 🧭 LEFT COLUMN — Sidebar Partial -->
+<%- include('../../partials/functions/sidebar') %>
+
+  <!-- 🧩 Workspace -->
+  <section class="function-workspace">
+    <!-- 🔹 Tabs -->
+    <%- include('../../partials/functions/tabs', {
+      fn,
+      activeTab: 'tasks'
+    }) %>
+
+    <!-- 🔹 Body -->
+    <div class="function-body py-4 px-4">
+      <div class="workspace-header d-flex justify-content-between align-items-center mb-3">
+        <h1 class="mb-0">📋 Tasks</h1>
+        <button id="addTaskBtn" class="btn btn-primary">+ Add Task</button>
+      </div>
+
+      <!-- ✅ Task Cards Grid -->
+      <div class="task-cards-grid row g-3">
+        <% if (Array.isArray(tasks) && tasks.length > 0) { %>
+          <% tasks.forEach(task => { %>
+            <div class="col-md-6 col-lg-4">
+              <div class="task-card card p-3" data-id="<%= task.id %>">
+                <div class="d-flex justify-content-between align-items-start">
+                  <h5 class="task-card-title mb-2"><%= task.title %></h5>
+                  <span class="badge task-card-status <%= task.status === 'completed' ? 'bg-primary' : 'bg-secondary' %>">
+                    <%= task.status || 'pending' %>
+                  </span>
+                </div>
+                <p class="task-card-desc text-muted mb-2">
+                  <%= task.description || 'No details' %>
+                </p>
+                <div class="task-card-meta small text-muted">
+                  <span><strong>Assigned:</strong> <%= task.assigned_to || '—' %></span><br>
+                  <span><strong>Due:</strong> <%= task.due_at ? new Date(task.due_at).toLocaleDateString('en-NZ') : '—' %></span>
+                </div>
+                <div class="mt-3 d-flex justify-content-end gap-2">
+                  <button class="btn btn-sm btn-outline-secondary editTaskBtn" data-id="<%= task.id %>">Edit</button>
+                  <% if (task.status !== 'completed') { %>
+                    <button class="btn btn-sm btn-success completeTaskBtn" data-id="<%= task.id %>">Complete</button>
+                  <% } %>
+                  <button class="btn btn-sm btn-outline-danger deleteTaskBtn" data-id="<%= task.id %>">Delete</button>
+                </div>
+              </div>
+            </div>
+          <% }) %>
+        <% } else { %>
+          <p class="text-muted">No tasks yet.</p>
+        <% } %>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- 🧩 Add/Edit Task Modal -->
+<div class="modal fade" id="taskModal" tabindex="-1" aria-labelledby="taskModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="taskForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="taskModalLabel">Add Task</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <input type="hidden" id="taskId" />
+          <div class="mb-3">
+            <label for="taskTitle" class="form-label">Title</label>
+            <input type="text" id="taskTitle" class="form-control" required />
+          </div>
+          <div class="mb-3">
+            <label for="taskDescription" class="form-label">Description</label>
+            <textarea id="taskDescription" class="form-control" rows="3"></textarea>
+          </div>
+          <div class="mb-3">
+            <label for="taskAssignedTo" class="form-label">Assign To</label>
+            <select id="taskAssignedTo" class="form-select">
+              <option value="">Select...</option>
+              <% (linkedContacts || []).forEach(c => { %>
+                <option value="<%= c.id %>"><%= c.name %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="taskDueAt" class="form-label">Due Date</label>
+            <input type="date" id="taskDueAt" class="form-control" />
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 🧱 Modals (shared across all function pages) -->
+<%- include('../../partials/functions/modals', {
+  fn,
+  linkedContacts: linkedContacts || [],
+  rooms: rooms || [],
+  eventTypes: eventTypes || []
+}) %>
+
+<!-- ⚙️ Scripts -->
+<script>
+  window.fnContext = <%- JSON.stringify({ id: (typeof fn !== 'undefined' && typeof fn.id !== 'undefined') ? fn.id : null }) %>;
+</script>
+<script src="/js/functions/tasks.js" defer></script>
+<script src="/js/functions/detail.js" defer></script>
+
+
+

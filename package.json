@@ -6,6 +6,9 @@
   "scripts": {
     "start": "node backend/app.js",
     "dev": "nodemon backend/app.js",
+    "build-scss": "npx sass backend/scss/main.scss backend/public/css/main.css --no-source-map --style=compressed",
+    "dev-scss": "npx sass backend/scss/main.scss backend/public/css/main.css --no-source-map --style=expanded --watch",
+    "dev-all": "npx concurrently \"npm run dev-scss\" \"npm run dev\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -41,6 +44,8 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.10",
-    "sass": "^1.93.2"
+    "sass": "^1.93.2",
+    "concurrently": "^9.1.0"
   }
 }
+

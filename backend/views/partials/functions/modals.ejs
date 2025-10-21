@@ -1,34 +1,39 @@
+<!-- ========================================================= -->
+<!-- 🧱 FUNCTION MODALS & SLIDE PANELS -->
+<!-- Included once via layouts/function-detail.ejs             -->
+<!-- ========================================================= -->
+
 <!-- 🔹 Edit Contact Slide Panel -->
-<div id="editContactPanel" class="contact-edit-panel hidden">
+<div id="editContactPanel" class="contact-panel contact-edit-panel hidden">
   <div class="contact-edit-header">
     <h3>Edit Contact</h3>
     <button id="closeEditPanel" class="close" title="Close">&times;</button>
   </div>
 
   <form id="editContactForm" class="panel-form">
-    <input type="hidden" id="editContactId">
+    <input type="hidden" id="editContactId" />
 
     <label for="editContactName">Name</label>
-    <input type="text" id="editContactName" required>
+    <input type="text" id="editContactName" required />
 
     <label for="editContactEmail">Email</label>
-    <input type="email" id="editContactEmail" required>
+    <input type="email" id="editContactEmail" required />
 
     <label for="editContactPhone">Phone</label>
-    <input type="text" id="editContactPhone">
+    <input type="text" id="editContactPhone" />
 
     <label for="editContactCompany">Company</label>
-    <input type="text" id="editContactCompany">
+    <input type="text" id="editContactCompany" />
 
     <div class="panel-actions">
-      <button type="submit" class="btn">Save Changes</button>
+      <button type="submit" class="btn btn-primary">Save Changes</button>
       <button type="button" id="cancelEdit" class="btn ghost">Cancel</button>
     </div>
   </form>
 </div>
 
 <!-- 🔹 Add / Link Contact Slide Panel -->
-<div id="addContactPanel" class="contact-add-panel hidden">
+<div id="addContactPanel" class="contact-panel contact-add-panel hidden">
   <div class="contact-edit-header">
     <h3>Add Contact</h3>
     <button id="closeAddPanel" class="close" title="Close">&times;</button>
@@ -42,34 +47,34 @@
   <!-- 🆕 New Contact Form -->
   <form id="newContactForm" class="panel-form">
     <label for="newName">Name</label>
-    <input type="text" id="newName" required>
+    <input type="text" id="newName" required />
 
     <label for="newEmail">Email</label>
-    <input type="email" id="newEmail" required>
+    <input type="email" id="newEmail" required />
 
     <label for="newPhone">Phone</label>
-    <input type="text" id="newPhone">
+    <input type="text" id="newPhone" />
 
     <label for="newCompany">Company</label>
-    <input type="text" id="newCompany">
+    <input type="text" id="newCompany" />
 
     <div class="panel-actions">
-      <button type="submit" class="btn">Save Contact</button>
+      <button type="submit" class="btn btn-primary">Save Contact</button>
     </div>
   </form>
 
   <!-- 🧩 Existing Contact Section -->
   <div id="existingContactSection" class="hidden">
-    <input type="text" id="searchContact" placeholder="Search contacts..." class="contact-search">
+    <input type="text" id="searchContact" placeholder="Search contacts..." class="contact-search" />
     <select id="existingSelect" size="8" class="contact-dropdown"></select>
     <div class="panel-actions">
-      <button id="linkExisting" class="btn">Link Selected</button>
+      <button id="linkExisting" class="btn btn-primary">Link Selected</button>
     </div>
   </div>
 </div>
+
 <!-- 🔹 Time Input Modal -->
-<!-- 🕒 Unique Time Modal -->
-<div id="timeModalContainer" class="time-modal-container hidden">
+<div id="timeModalContainer" class="time-modal-container hidden" role="dialog" aria-modal="true">
   <div class="time-modal-box">
     <div class="time-modal-header">
       <h5 id="timeModalTitle">Set Time</h5>
@@ -87,6 +92,8 @@
   </div>
 </div>
 
-
 <!-- 🔹 Overlay for Slide Panels -->
-<div id="contactOverlay" class="contact-overlay hidden"></div>
+<div id="contactOverlay" class="contact-overlay hidden" aria-hidden="true"></div>
+
+
+

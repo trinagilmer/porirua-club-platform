@@ -1,0 +1,85 @@
+<!-- 📝 pages/functions/notes.ejs -->
+<% locals.layout = 'layouts/main'; %>
+
+<main class="function-layout-two-col">
+ <!-- 🧭 Sidebar -->
+ <!-- 🧭 LEFT COLUMN — Sidebar Partial -->
+<%- include('../../partials/functions/sidebar') %>
+
+  <!-- 🧩 Workspace -->
+  <section class="function-workspace">
+    <!-- 🔹 Tabs -->
+    <%- include('../../partials/functions/tabs', {
+      fn,
+      activeTab: 'notes'
+    }) %>
+
+    <!-- 🔹 Body -->
+    <div class="function-body container py-4">
+      <div class="workspace-header d-flex justify-content-between align-items-center mb-3">
+        <h1 class="mb-0">📝 Notes</h1>
+      </div>
+
+      <!-- 🆕 Quick Note Form -->
+      <form id="quickNoteForm" class="mb-4">
+        <div class="input-group">
+          <input id="quickNoteInput" type="text" class="form-control" placeholder="Write a quick note..." />
+          <select id="noteType" class="form-select" style="max-width: 160px;">
+            <option value="general" selected>General</option>
+            <option value="followup">Follow-Up</option>
+            <option value="internal">Internal</option>
+            <option value="client">Client</option>
+          </select>
+          <button class="btn btn-primary" type="submit">Add</button>
+        </div>
+      </form>
+
+      <!-- 🗒️ Notes List -->
+      <div id="notesList">
+        <% if (Array.isArray(notes) && notes.length > 0) { %>
+          <% notes.forEach(note => { %>
+            <div class="note-card mb-3 p-3 border rounded" data-id="<%= note.entry_id %>">
+              <div class="note-meta mb-1">
+                <span class="badge me-2 note-type-badge note-type-<%= note.note_type || 'general' %>">
+                  <%= (note.note_type || 'General').charAt(0).toUpperCase() + (note.note_type || 'General').slice(1) %>
+                </span>
+                <strong><%= note.author || 'Unknown' %></strong> •
+                <%= new Date(note.entry_date).toLocaleString('en-NZ') %>
+              </div>
+              <div class="note-body"><%= note.body || '' %></div>
+              <div class="note-actions mt-2 d-flex gap-2">
+                <button class="btn btn-sm btn-outline-secondary edit-note">Edit</button>
+                <button class="btn btn-sm btn-success save-note d-none">Save</button>
+                <button class="btn btn-sm btn-outline-danger delete-note">Delete</button>
+                <button class="btn btn-sm btn-outline-secondary print-note">🖨️ Print</button>
+              </div>
+            </div>
+          <% }) %>
+        <% } else { %>
+          <p class="text-muted">No notes yet.</p>
+        <% } %>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- 🧱 Modals (shared across all function pages) -->
+<%- include('../../partials/functions/modals', {
+  fn,
+  linkedContacts: linkedContacts || [],
+  rooms: rooms || [],
+  eventTypes: eventTypes || []
+}) %>
+
+<!-- ⚙️ Scripts -->
+<script>
+  window.fnContext = { id: <%- JSON.stringify(fn.id) %> };
+</script>
+<script src="/js/functions/notes.js" defer></script>
+<script src="/js/functions/detail.js" defer></script>
+
+
+
+
+
+

@@ -79,7 +79,11 @@ app.use((req, res, next) => {
 /* =========================================================
    🧩 STATIC FILES — BEFORE AUTH GUARD
 ========================================================= */
-app.use(express.static(path.join(__dirname, "public")));
+const publicPath = path.resolve(__dirname, "public"); // ✅ now points to backend/public
+console.log("📂 Serving static files from:", publicPath);
+app.use(express.static(publicPath));
+
+
 
 /* =========================================================
    🧭 Global Default Template Variables
@@ -101,12 +105,18 @@ app.set("layout", "layouts/main");
 app.set("view cache", false);
 
 /* =========================================================
-   🧠 DEV: Static Asset Health Check
+   🧠 DEV: Static Asset Health Check (updated)
 ========================================================= */
 if (process.env.NODE_ENV !== "production") {
   const assetsToCheck = [
-    "public/js/function-detail.js",
+    // ✅ core scripts
     "public/js/core/init.js",
+    // ✅ function scripts (new structure)
+    "public/js/functions/detail.js",
+    "public/js/functions/communications.js",
+    "public/js/functions/notes.js",
+    "public/js/functions/tasks.js",
+    // ✅ compiled CSS & images
     "public/css/main.css",
     "public/img/pc-logo.png",
   ];
@@ -118,6 +128,7 @@ if (process.env.NODE_ENV !== "production") {
     }
   });
 }
+
 
 /* =========================================================
    🔐 GLOBAL AUTH GUARD (whitelist + JSON-friendly 401s)

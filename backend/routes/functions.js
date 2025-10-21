@@ -136,7 +136,8 @@ router.get("/", async (req, res, next) => {
       FROM public.functions;
     `);
 
-    res.render("pages/functions", {
+    // ✅ updated render path
+    res.render("pages/functions/index", {
       title: "Functions Dashboard",
       active: "functions",
       user: req.session.user || null,
@@ -151,8 +152,9 @@ router.get("/", async (req, res, next) => {
   }
 });
 
+
 // ======================================================
-// 💬 FUNCTION COMMUNICATIONS (V2+)
+// 💬 FUNCTION OVERVIEW
 // - List messages for a function
 // - Send new message (returns inserted id)
 // - View a function-scoped message detail
@@ -218,9 +220,8 @@ router.get("/:id/communications", async (req, res, next) => {
     const roomsRes = await pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`);
     const eventTypesRes = await pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`);
 
-    // 4️⃣ Render page
-  res.render("pages/function-communications", {
-  layout: "layouts/function-detail",
+      res.render("pages/functions/communications", {
+      layout: "layouts/main",
   title: `Communications – ${fn.event_name}`,
   user: req.session.user || null,
   fn,
@@ -228,11 +229,11 @@ router.get("/:id/communications", async (req, res, next) => {
   linkedContacts: linkedContactsRes.rows,
   rooms: roomsRes.rows,
   eventTypes: eventTypesRes.rows,
-  activeTab: "communications",
+  activeTab: "Communications",
 });
 
   } catch (err) {
-    console.error("❌ [Function Communications] Error:", err);
+    console.error("❌ [Communications] Error:", err);
     next(err);
   }
 });
@@ -276,8 +277,8 @@ router.get("/:id/communications/:messageId", async (req, res, next) => {
     const eventTypesRes = await pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`);
 
     // 4️⃣ Render the detail page
-    res.render("pages/function-communication-detail", {
-      layout: "layouts/function-detail",
+    res.render("pages/functions/communication-detail", {
+      layout: "layouts/main",
       title: `Message — ${fn.event_name}`,
       user: req.session.user || null,
       fn,
@@ -288,7 +289,7 @@ router.get("/:id/communications/:messageId", async (req, res, next) => {
       activeTab: "communications"
     });
   } catch (err) {
-    console.error("❌ [Function Communication DETAIL] Error:", err);
+    console.error("❌ [Communication DETAIL] Error:", err);
     next(err);
   }
 });
@@ -492,10 +493,10 @@ router.get("/:id/notes", async (req, res) => {
     );
 
     // ✅ Render with full layout + sidebar context
-    res.render("pages/function-notes", {
-      layout: "layouts/main",          // 👈 use main layout
+    res.render("pages/functions/notes", {
+      layout: "layouts/main",
       title: `${fn.event_name} — Notes`,
-      pageType: "function-notes",      // 👈 helps JS autoload correct modules
+      pageType: "function/notes",      // 👈 helps JS autoload correct modules
       active: "functions",             // 👈 highlights nav item
       user: req.session.user || null,  // 👈 for header
       fn,
@@ -558,8 +559,6 @@ router.post("/notes/:noteId/update", async (req, res) => {
   }
 });
 
-
-
 // 🗑️ Delete a note
 router.delete("/notes/:noteId", async (req, res) => {
   const { noteId } = req.params;
@@ -579,7 +578,7 @@ router.delete("/notes/:noteId", async (req, res) => {
 router.get("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
-    const activeTab = req.query.tab || "communications";
+    const activeTab = req.query.tab || "overview";
 
     // 1️⃣ Fetch base function info
     const { rows: fnRows } = await pool.query(`
@@ -639,19 +638,17 @@ router.get("/:id", async (req, res, next) => {
         ORDER BY t.created_at DESC;
       `, [id]),
 
-      pool.query(`
-        SELECT 
-          m.id AS entry_id, 
-          m.subject, 
-          m.body,
-          m.from_email, 
-          m.to_email, 
-          m.created_at AS entry_date
-        FROM messages m
-        WHERE m.related_function = $1
-        ORDER BY m.created_at DESC
-        LIMIT 20;
-      `, [id]),
+pool.query(`
+  SELECT 
+    m.id AS entry_id,
+    m.subject,
+    m.created_at AS entry_date
+  FROM messages m
+  WHERE m.related_function = $1
+  ORDER BY m.created_at DESC
+  LIMIT 5;
+`, [id]),
+
 
       pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`),
       pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`)
@@ -671,20 +668,23 @@ router.get("/:id", async (req, res, next) => {
       return acc;
     }, {});
 
-    // 4️⃣ Render Function Detail Page
-    res.render("pages/function-detail", {
-      title: fn.event_name,
-      active: "functions",
-      user: req.session.user || null,
-      fn,
-      linkedContacts: linkedContacts.rows,
-      notes: notes.rows,
-      tasks: tasks.rows,
-      grouped,
-      activeTab,
-      rooms: rooms.rows,
-      eventTypes: eventTypes.rows
-    });
+// 4️⃣ Render Function Detail Page (using unified layout)
+res.render("pages/functions/overview", {
+  layout: "layouts/main",
+ // 🧩 this line is the key addition
+  title: fn.event_name,
+  active: "functions",
+  user: req.session.user || null,
+  fn,
+  linkedContacts: linkedContacts.rows,
+  notes: notes.rows,
+  tasks: tasks.rows,
+  grouped,
+  activeTab,
+  rooms: rooms.rows,
+  eventTypes: eventTypes.rows
+});
+
 
   } catch (err) {
     console.error("❌ Error loading function detail:", err);
@@ -899,7 +899,7 @@ router.get("/:id/tasks", async (req, res) => {
     const usersRes = await pool.query(`SELECT id, name FROM users ORDER BY name ASC;`);
 
     // 5️⃣ Render with full context
-    res.render("pages/function-tasks", {
+    res.render("pages/functions/tasks", {
       layout: "layouts/main",
       user: req.session.user || null,
       fn,
@@ -1089,7 +1089,3 @@ router.post("/:id/update-field", async (req, res) => {
 
 
 module.exports = router;
-
-
-
-

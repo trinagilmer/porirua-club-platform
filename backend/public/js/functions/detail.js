@@ -242,20 +242,20 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  linkExistingBtn?.addEventListener("click", async () => {
-    const contactId = selectDropdown.value;
-    if (!contactId) return alert("Please select a contact.");
-    const res = await fetch(`/functions/${fnId}/link-contact`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contact_id: contactId }),
+    linkExistingBtn?.addEventListener("click", async () => {
+      const contactId = selectDropdown.value;
+      if (!contactId) return alert("Please select a contact.");
+      const res = await fetch(`/functions/${fnId}/link-contact`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact_id: contactId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("🔗 Contact linked");
+        addPanel.classList.remove("show");
+        location.reload();
+      }
     });
-    const data = await res.json();
-    if (data.success) {
-      showToast("🔗 Contact linked");
-      addPanel.classList.remove("show");
-      location.reload();
-    }
+  
   });
-
- 

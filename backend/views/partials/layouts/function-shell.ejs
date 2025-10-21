@@ -1,0 +1,46 @@
+<!-- layouts/function-shell.ejs -->
+<main class="function-layout-two-col container-fluid py-4">
+
+  <!-- 🧭 SIDEBAR -->
+  <aside class="function-sidebar">
+    <%- include('../sidebar', {
+      fn,
+      linkedContacts: linkedContacts || [],
+      rooms: rooms || [],
+      eventTypes: eventTypes || []
+    }) %>
+  </aside>
+
+  <!-- 🧩 WORKSPACE -->
+  <section class="function-workspace">
+    <!-- 🔹 Tabs -->
+    <%- include('../function-tabs', {
+      fn,
+      activeTab: activeTab || 'overview'
+    }) %>
+
+    <!-- 🔹 Dynamic Body -->
+    <div class="function-body px-4 py-3">
+      <%- typeof body !== 'undefined' ? body : '' %>
+    </div>
+  </section>
+</main>
+
+<!-- 🧱 GLOBAL FUNCTION MODALS & PANELS -->
+<%- include('../partials/function/modals') %>
+<script>
+  // Ensure consistent page type across all function views
+  document.body.dataset.page = "function-detail";
+</script>
+
+<script>
+  window.fnContext = {
+    id: "<%= fn.id %>",
+    name: "<%= fn.event_name %>",
+    userId: "<%= user ? user.id : '' %>"
+  };
+</script>
+<!-- ⚙️ Load Bootstrap JS + Sidebar Controller -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script src="/js/sidebar.js" defer></script>
+

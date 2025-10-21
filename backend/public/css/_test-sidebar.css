@@ -1,0 +1,231 @@
+/* ====== TEST SIDEBAR + MODALS CSS ====== */
+.function-sidebar {
+  width: 320px;
+  background: $color-bg-panel;
+  border-right: 1px solid $color-border;
+  padding: $spacing-unit * 2;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+  position: relative; /* ensures correct stacking context for menus
+
+  /* Editable fields
+  .editable {
+    border: 1px solid $color-border;
+    border-radius: $radius-md;
+    padding: $spacing-unit;
+    width: 100%;
+    font-size: 0.95rem;
+
+    &:focus {
+      outline: none;
+      border-color: $color-primary;
+      box-shadow: 0 0 0 2px rgba($color-primary, 0.2);
+    }
+  }
+
+  /* Contact block
+  .function-contact-block {
+    h4 {
+      font-weight: 600;
+      color: $color-text-dark;
+    }
+
+    .contact-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+
+      .contact-card {
+        background: $color-bg-light;
+        border-radius: $radius-md;
+        box-shadow: $shadow-sm;
+        padding: $spacing-unit * 1.5;
+        margin-bottom: $spacing-unit;
+        position: relative;
+
+        /* Ensure contact card always sits above other panels
+        z-index: 1;
+
+        .menu-container {
+          position: relative;
+          z-index: 2;
+        }
+
+        .menu-btn {
+          background: none;
+          border: none;
+          font-size: 1.2rem;
+          color: $color-text-muted;
+          cursor: pointer;
+          transition: color $transition-fast;
+
+          &:hover {
+            color: $color-primary;
+          }
+        }
+
+        /* Burger menu dropdown
+        .menu-dropdown {
+          position: absolute;
+          right: 0;
+          top: 100%;
+          min-width: 160px;
+          background: $color-bg-panel;
+          border-radius: $radius-md;
+          border: 1px solid $color-border;
+          box-shadow: $shadow-md;
+          padding: $spacing-unit;
+          z-index: 999; /* <-- critical for visibility
+          display: none;
+
+          /* visible class for modern JS toggle
+          &.visible {
+            display: block;
+          }
+
+          /* legacy hidden class for backward compatibility
+          &.hidden {
+            display: none;
+          }
+
+          button {
+            background: none;
+            border: none;
+            padding: $spacing-unit;
+            text-align: left;
+            width: 100%;
+            font-size: 0.9rem;
+            color: $color-text-dark;
+            border-radius: $radius-md;
+            transition: background $transition-fast;
+
+            &:hover {
+              background: rgba($color-primary, 0.08);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+.function-sidebar .function-details h4 {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.function-sidebar .function-details .detail-item {
+  margin-bottom: 12px;
+}
+.function-sidebar .function-details label {
+  display: block;
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: #6c757d;
+  margin-bottom: 4px;
+}
+.function-sidebar .function-details input,
+.function-sidebar .function-details select,
+.function-sidebar .function-details button {
+  margin-top: 4px;
+  width: 100%;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 0.9rem;
+}
+
+.function-sidebar .time-modal-btn {
+  background: rgba(107, 180, 222, 0.1);
+  color: #6BB4DE;
+  font-weight: 500;
+}
+.function-sidebar .time-modal-btn:hover {
+  background: #6BB4DE;
+  color: #fff;
+}
+
+/* ===== MODALS ===== */
+.function-sidebar .time-modal-container {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1000;
+}
+.function-sidebar .time-modal-container.hidden {
+  display: none;
+}
+.function-sidebar .time-modal-container .time-modal-box {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  width: 320px;
+  padding: 16px;
+}
+.function-sidebar .time-modal-container .time-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.function-sidebar .time-modal-container .time-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #6c757d;
+}
+.function-sidebar .time-modal-container .time-modal-close:hover {
+  color: #6BB4DE;
+}
+.function-sidebar .time-modal-container .time-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+.function-sidebar .contact-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 900;
+}
+.function-sidebar .contact-overlay.hidden {
+  display: none;
+}
+/* Standardized Function Layout */
+.function-layout-two-col {
+  display: flex;
+  align-items: flex-start;
+  background: $color-bg-light; /* matches Communications page
+  min-height: calc(100vh - 80px); /* account for header height
+  border-radius: $radius-md;
+  overflow: hidden;
+  box-shadow: $shadow-sm;
+
+  /* Sidebar section
+  .function-sidebar {
+    flex: 0 0 320px;
+    background: $color-bg-panel;
+    border-right: 1px solid $color-border;
+    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+  }
+
+  /* Main content area
+  .function-workspace {
+    flex: 1;
+    padding: $spacing-unit * 3;
+    background: $color-bg-panel;
+    min-height: 100%;
+  }
+
+  .workspace-content {
+    background: #fff;
+    border: 1px solid $color-border;
+    border-radius: $radius-md;
+    box-shadow: $shadow-sm;
+    padding: $spacing-unit * 2;
+  }
+}

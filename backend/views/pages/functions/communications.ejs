@@ -1,0 +1,111 @@
+<!-- 📬 pages/functions/communications.ejs -->
+<% locals.layout = 'layouts/main'; %>
+
+<main class="function-layout-two-col">
+  <!-- 🧭 Sidebar -->
+ <!-- 🧭 Sidebar -->
+ <!-- 🧭 LEFT COLUMN — Sidebar Partial -->
+<%- include('../../partials/functions/sidebar') %>
+
+  <!-- 🧩 Workspace -->
+  <section class="function-workspace">
+    <!-- 🔹 Tabs -->
+    <%- include('../../partials/functions/tabs', {
+      fn,
+      activeTab: 'communications'
+    }) %>
+
+    <!-- 🔹 Body -->
+    <div class="function-body container py-4">
+      <div class="workspace-header d-flex justify-content-between align-items-center mb-3">
+        <h1 class="mb-0">📬 Communications</h1>
+        <button id="newMessageBtn" class="btn btn-primary">+ New Message</button>
+      </div>
+
+      <!-- 📜 Communications List -->
+      <div class="inbox">
+        <div id="communicationsList" class="inbox-list">
+          <% if (Array.isArray(messages) && messages.length > 0) { %>
+            <% messages.forEach(function(m) { 
+                const sender  = m.from_email || "Unknown Sender";
+                const subject = m.subject || "(No Subject)";
+                const preview = (m.body_html || m.body || "").replace(/<[^>]+>/g, "").slice(0, 120);
+                const dt      = m.created_at || m.sent_at || m.received_at;
+            %>
+              <!-- 📨 Each message card links to detail -->
+              <a class="message-card d-flex justify-content-between align-items-start text-reset text-decoration-none border rounded p-3 mb-2"
+                 href="/functions/<%= fn.id %>/communications/<%= m.id %>"
+                 aria-label="Open message: <%= subject %>">
+                <div class="msg-left">
+                  <div class="msg-from fw-bold"><%= sender %></div>
+                  <div class="msg-subject"><%= subject %></div>
+                  <div class="msg-preview text-muted"><%= preview %></div>
+                </div>
+                <div class="msg-date small text-muted">
+                  <%= dt ? new Date(dt).toLocaleString('en-NZ') : "" %>
+                </div>
+              </a>
+            <% }) %>
+          <% } else { %>
+            <p class="text-muted">No communications yet.</p>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ✉️ New Message Modal -->
+<div class="modal fade" id="newMessageModal" tabindex="-1" aria-labelledby="newMessageLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <form id="newMessageForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="newMessageLabel">New Message</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" title="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Recipients (comma-separated)</label>
+            <input id="recipientsInput" type="text" class="form-control" placeholder="name@domain, other@domain" />
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Subject</label>
+            <input id="newSubject" type="text" class="form-control" />
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Message</label>
+            <div id="editor" style="height: 240px;"></div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
+          <button id="sendBtn" class="btn btn-primary" type="submit">Send</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 🧱 Modals (shared across all function pages) -->
+<%- include('../../partials/functions/modals', {
+  fn,
+  linkedContacts: linkedContacts || [],
+  rooms: rooms || [],
+  eventTypes: eventTypes || []
+}) %>
+
+<!-- ⚙️ Scripts -->
+<script>
+  window.fnContext = {
+    id: <%- JSON.stringify(fn.id) %>,
+    userEmail: <%- JSON.stringify(user ? user.email : "") %>
+  };
+</script>
+<script src="/js/functions/communications.js" defer></script>
+<script src="/js/functions/detail.js" defer></script>
+

@@ -1,4 +1,8 @@
 @charset "UTF-8";
+@import '../../public/css/bootstrap-fix.css';
+@import '../../public/css/legacy/main.css';
+@import '../../public/css/legacy/styles.css';
+@import '../../public/css/legacy/inbox.css';
 body {
   background-color: #f9fafb;
   font-family: "Inter", "Segoe UI", sans-serif;
@@ -210,10 +214,7 @@ hr {
   color: #6bb4de;
 }
 
-/* =========================================================
-   🧭 FUNCTION SIDEBAR
-========================================================= */
-aside.function-sidebar {
+.function-sidebar {
   width: 320px;
   background: #ffffff;
   border-right: 1px solid #e4e7eb;
@@ -221,37 +222,30 @@ aside.function-sidebar {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  position: sticky;
-  top: 90px;
-  align-self: flex-start;
-  min-height: calc(100vh - 100px);
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-  z-index: 2;
+  position: relative;
 }
-aside.function-sidebar .editable {
+.function-sidebar .editable {
   border: 1px solid #e4e7eb;
   border-radius: 8px;
   padding: 8px;
   width: 100%;
   font-size: 0.95rem;
 }
-aside.function-sidebar .editable:focus {
+.function-sidebar .editable:focus {
   outline: none;
   border-color: #6bb4de;
   box-shadow: 0 0 0 2px rgba(107, 180, 222, 0.2);
 }
-aside.function-sidebar .function-contact-block h4 {
+.function-sidebar .function-contact-block h4 {
   font-weight: 600;
   color: #212529;
-  margin-bottom: 8px;
 }
-aside.function-sidebar .function-contact-block .contact-list {
+.function-sidebar .function-contact-block .contact-list {
   list-style: none;
   padding: 0;
   margin: 0;
 }
-aside.function-sidebar .function-contact-block .contact-list .contact-card {
+.function-sidebar .function-contact-block .contact-list .contact-card {
   background: #f9fafb;
   border-radius: 8px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
@@ -260,11 +254,11 @@ aside.function-sidebar .function-contact-block .contact-list .contact-card {
   position: relative;
   z-index: 1;
 }
-aside.function-sidebar .function-contact-block .contact-list .contact-card .menu-container {
+.function-sidebar .function-contact-block .contact-list .contact-card .menu-container {
   position: relative;
-  z-index: 3;
+  z-index: 2;
 }
-aside.function-sidebar .function-contact-block .contact-list .contact-card .menu-btn {
+.function-sidebar .function-contact-block .contact-list .contact-card .menu-btn {
   background: none;
   border: none;
   font-size: 1.2rem;
@@ -272,13 +266,10 @@ aside.function-sidebar .function-contact-block .contact-list .contact-card .menu
   cursor: pointer;
   transition: color 0.2s ease-in-out;
 }
-aside.function-sidebar .function-contact-block .contact-list .contact-card .menu-btn:hover {
+.function-sidebar .function-contact-block .contact-list .contact-card .menu-btn:hover {
   color: #6bb4de;
 }
-aside.function-sidebar .function-contact-block .contact-list .contact-card {
-  /* 🧭 Burger Menu Dropdown (fixed for JS toggle logic) */
-}
-aside.function-sidebar .function-contact-block .contact-list .contact-card .menu-dropdown {
+.function-sidebar .function-contact-block .contact-list .contact-card .menu-dropdown {
   position: absolute;
   right: 0;
   top: 100%;
@@ -291,13 +282,13 @@ aside.function-sidebar .function-contact-block .contact-list .contact-card .menu
   z-index: 999;
   display: none;
 }
-aside.function-sidebar .function-contact-block .contact-list .contact-card .menu-dropdown.visible {
+.function-sidebar .function-contact-block .contact-list .contact-card .menu-dropdown.visible {
   display: block;
 }
-aside.function-sidebar .function-contact-block .contact-list .contact-card .menu-dropdown.hidden {
+.function-sidebar .function-contact-block .contact-list .contact-card .menu-dropdown.hidden {
   display: none;
 }
-aside.function-sidebar .function-contact-block .contact-list .contact-card .menu-dropdown button {
+.function-sidebar .function-contact-block .contact-list .contact-card .menu-dropdown button {
   background: none;
   border: none;
   padding: 8px;
@@ -308,25 +299,24 @@ aside.function-sidebar .function-contact-block .contact-list .contact-card .menu
   border-radius: 8px;
   transition: background 0.2s ease-in-out;
 }
-aside.function-sidebar .function-contact-block .contact-list .contact-card .menu-dropdown button:hover {
+.function-sidebar .function-contact-block .contact-list .contact-card .menu-dropdown button:hover {
   background: rgba(107, 180, 222, 0.08);
 }
-aside.function-sidebar .function-details h4 {
+
+.function-details h4 {
   font-weight: 600;
   margin-bottom: 8px;
 }
-aside.function-sidebar .function-details .detail-item {
+.function-details .detail-item {
   margin-bottom: 12px;
 }
-aside.function-sidebar .function-details .detail-item label {
+.function-details .detail-item label {
   display: block;
   font-weight: 500;
   font-size: 0.85rem;
   color: #6c757d;
 }
-aside.function-sidebar .function-details .detail-item input,
-aside.function-sidebar .function-details .detail-item select,
-aside.function-sidebar .function-details .detail-item button {
+.function-details .detail-item input, .function-details .detail-item select, .function-details .detail-item button {
   margin-top: 0.25rem;
   width: 100%;
   border: 1px solid #e4e7eb;
@@ -334,133 +324,44 @@ aside.function-sidebar .function-details .detail-item button {
   padding: 8px;
   font-size: 0.9rem;
 }
-aside.function-sidebar .function-details .time-modal-btn {
+.function-details .time-modal-btn {
   background: rgba(107, 180, 222, 0.1);
   color: #6bb4de;
   font-weight: 500;
 }
-aside.function-sidebar .function-details .time-modal-btn:hover {
+.function-details .time-modal-btn:hover {
   background: #6bb4de;
   color: #fff;
 }
 
-/* =========================================================
-   🧩 FUNCTION PAGE LAYOUT — Unified Sidebar + Workspace
-    ======================================================= */
+/* Standardized Function Layout */
 .function-layout-two-col {
   display: flex;
   align-items: flex-start;
-  justify-content: flex-start;
-  gap: 1.5rem;
-  width: 100%;
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 2rem;
+  background: #f9fafb;
+  min-height: calc(100vh - 80px);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
-
-/* SIDEBAR */
-aside.function-sidebar {
+.function-layout-two-col .function-sidebar {
   flex: 0 0 320px;
   background: #ffffff;
   border-right: 1px solid #e4e7eb;
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  position: sticky;
-  top: 90px;
-  align-self: flex-start;
-  min-height: calc(100vh - 100px);
-  z-index: 2;
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
 }
-
-/* WORKSPACE (right-hand panel) */
-.function-workspace {
+.function-layout-two-col .function-workspace {
   flex: 1;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-  padding: 1.5rem 2rem;
-  min-height: 80vh;
+  padding: 24px;
+  background: #ffffff;
+  min-height: 100%;
 }
-.function-workspace .workspace-content {
+.function-layout-two-col .workspace-content {
   background: #fff;
   border: 1px solid #e4e7eb;
   border-radius: 8px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
   padding: 16px;
-}
-
-/* =========================================================
-   🧩 FINAL — BURGER MENU DROPDOWN (Portal-safe, Stacking Safe)
-========================================================= */
-.contact-card {
-  position: relative;
-  z-index: auto !important;
-}
-
-.menu-container {
-  position: static !important;
-}
-
-.menu-dropdown {
-  position: fixed;
-  right: 0;
-  top: 100%;
-  min-width: 180px;
-  max-width: 220px;
-  background: #fff;
-  border: 1px solid #e4e7eb;
-  border-radius: 8px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
-  padding: 8px;
-  z-index: 99999 !important;
-  display: none;
-  opacity: 0;
-  transform: translateY(-4px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  /* ✅ Critical fix: let all buttons show */
-  overflow: visible !important;
-  height: auto !important;
-  white-space: normal !important;
-}
-
-/* Visible state */
-.menu-dropdown:not(.hidden) {
-  display: block !important;
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* Inner buttons */
-.menu-dropdown button {
-  display: block;
-  width: 100%;
-  background: none;
-  border: none;
-  text-align: left;
-  padding: 9.6px;
-  border-radius: 8px;
-  color: #212529;
-  font-size: 0.9rem;
-  line-height: 1.3;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-.menu-dropdown button:hover {
-  background: rgba(107, 180, 222, 0.08);
-}
-
-/* Optional: label for “Primary Contact” */
-.menu-dropdown .menu-label {
-  display: block;
-  padding: 8px;
-  font-size: 0.85rem;
-  color: #6c757d;
-  text-align: left;
-  cursor: default;
 }
 
 /* ===========================================================
@@ -589,442 +490,54 @@ aside.function-sidebar {
   min-height: 100vh;
 }
 
-/* =========================================================
-   🧩 FUNCTION WORKSPACE STYLING
-========================================================= */
-.function-workspace {
-  flex: 1;
-  background: #fff;
-  border-radius: 10px;
-  padding: 1.5rem;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
-  min-height: 80vh;
-}
-
-.function-body {
-  padding: 1rem 0;
-}
-
-/* =========================================================
-   ⚙️ FUNCTION MODALS & UI OVERLAYS
-   (Shared across function pages)
-========================================================= */
-/* 🕒 TIME MODAL */
-.time-modal-container {
+.function-sidebar .time-modal-container {
   position: fixed;
   inset: 0;
   display: flex;
   justify-content: center;
   align-items: center;
   background: rgba(0, 0, 0, 0.45);
-  z-index: 1100;
-  transition: opacity 0.3s ease;
+  z-index: 1000;
 }
-.time-modal-container.hidden {
+.function-sidebar .time-modal-container.hidden {
   display: none;
 }
-.time-modal-container .time-modal-box {
-  background: #fff;
+.function-sidebar .time-modal-container .time-modal-box {
+  background: white;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   width: 320px;
   padding: 16px;
-  transform: translateY(10px);
-  transition: all 0.25s ease;
 }
-.time-modal-container .time-modal-box .time-modal-header {
+.function-sidebar .time-modal-container .time-modal-box .time-modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
 }
-.time-modal-container .time-modal-box .time-modal-header h5 {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #212529;
-}
-.time-modal-container .time-modal-box .time-modal-close {
+.function-sidebar .time-modal-container .time-modal-box .time-modal-close {
   background: none;
   border: none;
   font-size: 1.5rem;
   color: #6c757d;
-  cursor: pointer;
-  transition: color 0.2s ease;
 }
-.time-modal-container .time-modal-box .time-modal-close:hover {
+.function-sidebar .time-modal-container .time-modal-box .time-modal-close:hover {
   color: #6bb4de;
 }
-.time-modal-container .time-modal-box .time-modal-body {
-  margin-bottom: 12px;
-}
-.time-modal-container .time-modal-box .time-modal-body .time-modal-input {
-  width: 100%;
-  padding: 12px;
-  font-size: 1rem;
-  border: 1px solid #e4e7eb;
-  border-radius: 8px;
-}
-.time-modal-container .time-modal-box .time-modal-body .time-modal-input:focus {
-  border-color: #6bb4de;
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(107, 180, 222, 0.15);
-}
-.time-modal-container .time-modal-box .time-modal-footer {
+.function-sidebar .time-modal-container .time-modal-box .time-modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 16px;
 }
-
-/* =========================================================
-   🩶 CONTACT OVERLAY — (Final refined version)
-========================================================= */
-.contact-overlay {
+.function-sidebar .contact-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  z-index: 1100;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease, backdrop-filter 0.3s ease;
-  backdrop-filter: blur(0px);
-  will-change: opacity, backdrop-filter;
-  /* When visible */
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 900;
 }
-.contact-overlay:not(.hidden) {
-  opacity: 1;
-  pointer-events: all;
-  backdrop-filter: blur(2px);
-}
-.contact-overlay {
-  /* Optional override for Bootstrap .hidden rule */
-}
-.contact-overlay.hidden {
-  display: block !important;
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* =========================================================
-   🧩 CONTACT PANEL (Final – Smooth Slide & Bootstrap-Safe)
-========================================================= */
-.contact-panel {
-  position: fixed;
-  display: block;
-  top: 0;
-  right: 0;
-  width: 400px;
-  max-width: 90vw;
-  background: #fff;
-  height: 100vh;
-  box-shadow: -3px 0 12px rgba(0, 0, 0, 0.15);
-  border-radius: 8px 0 0 8px;
-  z-index: 1200;
-  /* Start off-screen (slightly beyond viewport edge) */
-  transform: translateX(calc(100% + 10px));
-  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: transform;
-  /* Hidden state */
-}
-.contact-panel.hidden {
-  display: block !important; /* override Bootstrap .hidden */
-  transform: translateX(calc(100% + 10px)) !important;
-}
-.contact-panel {
-  /* Visible / active state (either not hidden or panel-open) */
-}
-.contact-panel:not(.hidden), .contact-panel.panel-open {
-  display: block !important;
-  transform: translateX(0) !important;
-}
-.contact-panel {
-  /* Header section */
-}
-.contact-panel .contact-edit-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid #e4e7eb;
-}
-.contact-panel .contact-edit-header h3 {
-  margin: 0;
-  font-weight: 600;
-  color: #212529;
-}
-.contact-panel .contact-edit-header .close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  color: #6c757d;
-  cursor: pointer;
-  transition: color 0.2s ease-in-out;
-}
-.contact-panel .contact-edit-header .close:hover {
-  color: #6bb4de;
-}
-.contact-panel {
-  /* Form content */
-}
-.contact-panel .panel-form {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.contact-panel .panel-form input,
-.contact-panel .panel-form select,
-.contact-panel .panel-form textarea {
-  width: 100%;
-  border: 1px solid #e4e7eb;
-  border-radius: 8px;
-  padding: 8px;
-  font-size: 0.95rem;
-}
-.contact-panel .panel-form input:focus,
-.contact-panel .panel-form select:focus,
-.contact-panel .panel-form textarea:focus {
-  border-color: #6bb4de;
-  box-shadow: 0 0 0 2px rgba(107, 180, 222, 0.2);
-  outline: none;
-}
-.contact-panel .panel-form .panel-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 16px;
-}
-.contact-panel {
-  /* Tab controls (for Add/Link Contact) */
-}
-.contact-panel .contact-panel-tabs {
-  display: flex;
-  justify-content: space-between;
-  background: #f9fafb;
-  border-bottom: 1px solid #e4e7eb;
-}
-.contact-panel .contact-panel-tabs .tab-btn {
-  flex: 1;
-  padding: 10px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-weight: 500;
-  color: #6c757d;
-  transition: background 0.2s ease-in-out, color 0.2s ease-in-out;
-}
-.contact-panel .contact-panel-tabs .tab-btn.active {
-  background: #6bb4de;
-  color: #fff;
-}
-.contact-panel .contact-panel-tabs .tab-btn:hover:not(.active) {
-  background: rgba(107, 180, 222, 0.08);
-  color: #6bb4de;
-}
-
-.panel-form {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.panel-form input,
-.panel-form select,
-.panel-form textarea {
-  width: 100%;
-  border: 1px solid #e4e7eb;
-  border-radius: 8px;
-  padding: 8px;
-  font-size: 0.95rem;
-}
-.panel-form input:focus,
-.panel-form select:focus,
-.panel-form textarea:focus {
-  border-color: #6bb4de;
-  box-shadow: 0 0 0 2px rgba(107, 180, 222, 0.2);
-  outline: none;
-}
-.panel-form .panel-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-.contact-panel-tabs {
-  display: flex;
-  justify-content: space-between;
-  background: #f9fafb;
-  border-bottom: 1px solid #e4e7eb;
-}
-.contact-panel-tabs .tab-btn {
-  flex: 1;
-  padding: 10px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-weight: 500;
-  color: #6c757d;
-  transition: background 0.2s ease-in-out, color 0.2s ease-in-out;
-}
-.contact-panel-tabs .tab-btn.active {
-  background: #6bb4de;
-  color: #fff;
-}
-.contact-panel-tabs .tab-btn:hover:not(.active) {
-  background: rgba(107, 180, 222, 0.08);
-  color: #6bb4de;
-}
-
-/* =========================================================
-   🔔 TOASTS (Quick notifications)
-========================================================= */
-.toast {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  background: #333;
-  color: #fff;
-  padding: 0.75rem 1.25rem;
-  border-radius: 6px;
-  opacity: 0;
-  transform: translateY(20px);
-  transition: all 0.3s ease;
-  z-index: 2000;
-}
-.toast.show {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.contact-panel.hidden,
-.contact-add-panel.hidden,
-.contact-edit-panel.hidden {
-  display: block !important;
-  transform: translateX(100%) !important;
-}
-
-.contact-overlay.hidden {
-  display: block !important;
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* =========================================================
-   📊 Functions Dashboard Styles
-   (modular @use-compatible version)
-========================================================= */
-.page-functions .kpi-bar {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-.page-functions .kpi {
-  background: var(--white);
-  border-left: 5px solid var(--primary);
-  border-radius: var(--radius);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  padding: 0.75rem 1rem;
-}
-.page-functions .kpi .label {
-  color: #666;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-}
-.page-functions .kpi .value {
-  font-size: 1.4rem;
-  font-weight: 600;
-  color: var(--deep);
-}
-.page-functions .status-filters {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-}
-.page-functions .status-filters a {
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--primary);
-  color: var(--primary);
-  background: #fff;
-  text-transform: capitalize;
-  font-size: 0.9rem;
-  transition: all 0.2s ease;
-}
-.page-functions .status-filters a.active {
-  background: var(--primary);
-  color: #fff;
-  font-weight: 600;
-}
-.page-functions .status-filters a:hover {
-  background: var(--deep);
-  color: #fff;
-}
-
-.card {
-  position: relative;
-  width: 100%;
-  background: #fff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  border-radius: var(--radius);
-  padding: 1rem 1.25rem;
-  /* 🔧 Ensure it grows with its content */
-  display: block;
-  height: auto;
-  overflow: hidden;
-}
-
-/* 💡 Make sure the table inside the card respects padding */
-.card > .table {
-  width: 100%;
-  margin-bottom: 0;
-  background: transparent;
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
-/* 🧱 Ensure the white background extends beneath all rows */
-.card::after {
-  content: "";
-  display: block;
-  clear: both;
-}
-
-/* =========================================================
-   📐 Fit the table neatly inside the white card background
-========================================================= */
-.page-functions .card {
-  /* maintain spacing without overflow */
-  padding: 1rem;
-  overflow-x: auto;
-}
-.page-functions .card table {
-  width: 100%;
-  table-layout: fixed;
-  border-collapse: collapse;
-}
-.page-functions {
-  /* make columns compact & aligned */
-}
-.page-functions .card th,
-.page-functions .card td {
-  padding: 0.55rem 0.75rem;
-  word-wrap: break-word;
-  text-align: left;
-}
-.page-functions {
-  /* prevent stretching or whitespace at right edge */
-}
-.page-functions .card table {
-  margin: 0 auto;
-}
-.page-functions {
-  /* Optional — gives card a visual frame when table is wide */
-}
-.page-functions .card {
-  max-width: 100%;
+.function-sidebar .contact-overlay.hidden {
+  display: none;
 }
 
 body {
@@ -1389,3 +902,5 @@ h1, h2, h3, h4, h5 {
   font-size: 0.9rem;
   padding: 0.45rem 0.6rem;
 }
+
+/*# sourceMappingURL=main.css.map */

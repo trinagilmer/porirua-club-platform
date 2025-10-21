@@ -1,0 +1,22 @@
+// ===========================================================
+// 🧠 Porirua Club — Unified SCSS Import Bridge
+// -----------------------------------------------------------
+// This replaces all @import statements with @use / @forward
+// for compatibility with Sass 3.0+. 
+// Keeps all variables, mixins, and styles globally available.
+// ===========================================================
+
+// 🌈 Core
+@use "../core/variables" as *;
+@use "../core/base" as *;
+@use "../core/utilities" as *;
+
+// 🧩 Components
+@use "../components/buttons" as *;
+@use "../components/cards" as *;
+@use "../components/sidebar" as *;
+@use "../components/modals" as *;
+@use "../components/function-pages" as *;
+
+// 🧰 (Optional legacy structure support)
+@use 'legacy-styles' as *;

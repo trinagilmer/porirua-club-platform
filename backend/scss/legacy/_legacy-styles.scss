@@ -1,0 +1,399 @@
+
+// ===========================================================
+// 🎨 Porirua Club Platform Styles (SCSS Starter)
+// ===========================================================
+
+// -------------------------------
+// 🌈 VARIABLES
+// -------------------------------
+$brand-green: #19875490;
+$brand-light: #f9fafb;
+$border-color: #e4e7eb;
+$text-muted: #6c757d;
+$radius: 0.75rem;
+$shadow-sm: 0 4px 8px rgba(0, 0, 0, 0.05);
+
+// -------------------------------
+// ⚙️ GLOBAL BASE STYLES
+// -------------------------------
+body {
+  background-color: $brand-light;
+  font-family: "Inter", "Segoe UI", sans-serif;
+  color: #212529;
+}
+
+h1, h2, h3, h4, h5 {
+  font-weight: 600;
+  color: #222;
+}
+
+.container {
+  max-width: 1100px;
+}
+
+// -------------------------------
+// 📘 TASK CARDS (Blue-Themed, Wider Layout)
+// -------------------------------
+$brand-blue: #6bb4de;
+$brand-blue-light: #e7f1ff;
+$brand-blue-dark: #6bb4de;
+
+.task-cards-grid {
+  margin-top: 1rem;
+
+  .task-card {
+    border-radius: 0.75rem;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    transition: all 0.25s ease;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+
+    &:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      border-color: $brand-blue-light;
+    }
+
+    .task-card-body {
+      padding: 1.2rem 1.4rem;
+    }
+
+    .task-card-title {
+      color: $brand-blue-dark;
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+    }
+
+    .task-card-desc {
+      color: #495057;
+      font-size: 0.92rem;
+      line-height: 1.3;
+      min-height: 2.2rem;
+    }
+
+    .task-card-meta {
+      font-size: 0.85rem;
+
+      strong {
+        color: #333;
+      }
+    }
+
+    .task-card-status {
+      text-transform: capitalize;
+      font-size: 0.8rem;
+      background: $brand-blue-light;
+      color: $brand-blue-dark;
+      border: 1px solid $brand-blue-dark;
+    }
+
+    .task-card-footer {
+      font-size: 0.8rem;
+      border-top: 1px solid #dee2e6;
+      padding-top: 0.6rem;
+    }
+
+    .task-card-actions .btn {
+      font-size: 0.75rem;
+      border-radius: 0.4rem;
+    }
+
+.task-card .btn {
+  background-color: #6bb4de; /* Bootstrap blue */
+  color: #fff !important;
+  border: none;
+}
+
+.task-card .btn:hover {
+  background-color: #6bb4de;
+}
+
+.task-card-status.badge.bg-primary {
+  background-color: #6bb4de !important;
+}
+
+.task-card .btn-outline-primary {
+  background-color: #6bb4de;
+  color: #fff !important;
+  border-color: #6bb4de;
+}
+
+.task-card .btn-outline-primary:hover {
+  background-color: #6bb4de;
+  border-color: #6bb4de;
+
+  }
+}
+}
+
+// -------------------------------
+// 🔔 TOAST STYLES (matches your JS notifications)
+// -------------------------------
+.toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  background: #333;
+  color: white;
+  padding: 0.6rem 1rem;
+  border-radius: 0.4rem;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.3s ease-in-out;
+  z-index: 2000;
+  pointer-events: none;
+
+  &.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  &.toast-success { background: #198754; }
+  &.toast-warning { background: #ffc107; color: #000; }
+  &.toast-error { background: #dc3545; }
+}
+/* 🎨 Task Card Status Colors */
+.task-card-status {
+  font-weight: 600;
+  border-radius: 20px;
+  padding: 0.4em 0.75em;
+  font-size: 0.75rem;
+  letter-spacing: 0.3px;
+  text-transform: capitalize;
+}
+
+/* ✅ Completed — blue, clean, readable */
+.status-completed {
+  background-color: #6bb4de !important; /* Blue */
+  color: #fff !important;
+}
+
+/* 🕓 In Progress — light blue accent */
+.status-progress {
+  background-color: #cce5ff !important; /* Pale blue */
+  color: #004085 !important; /* Navy text */
+  border: 1px solid #99ccff;
+}
+
+/* 🆕 Open — neutral gray-blue */
+.status-open {
+  background-color: #e2e6ea !important; /* light gray-blue */
+  color: #495057 !important;
+  border: 1px solid #cfd4da;
+}
+#userDropdownList {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+#userDropdownList .dropdown-item:hover {
+  background-color: #6bb4de !important;
+  color: #fff !important;
+}
+
+#userSearchInput:focus {
+  border-color: #6bb4de;
+  box-shadow: 0 0 0 0.15rem rgba(0, 123, 255, 0.25);
+}
+/* =========================================================
+   📐 FUNCTION LAYOUT ALIGNMENT FIX
+   Ensures sidebar and workspace line up perfectly.
+   Matches Communications page header spacing exactly.
+========================================================= */
+
+.function-layout-two-col {
+  display: flex;
+  align-items: flex-start;
+  margin: 0;
+  padding: 0;
+}
+
+.function-sidebar {
+  flex: 0 0 260px; /* consistent sidebar width */
+  margin-top: -8px; /* lift up slightly */
+  margin-left: -12px; /* move left slightly */
+  padding-top: 0;
+  position: relative;
+  z-index: 10;
+}
+
+.function-workspace {
+  flex: 1;
+  padding-left: 10px; /* tighten gap */
+  margin-top: -8px; /* aligns top header with sidebar title */
+}
+/* =========================================================
+   🧭 FUNCTION SIDEBAR — Match Communications Layout
+   Adds proper padding, width, and vertical alignment
+========================================================= */
+
+.function-layout-two-col {
+  display: flex;
+  align-items: flex-start;
+  gap: 0; /* remove extra gutter */
+  margin: 0;
+  padding: 0;
+}
+
+/* 🧩 Sidebar */
+.function-sidebar {
+  flex: 0 0 280px; /* a little wider for balance */
+  background: #fff;
+  border-right: 1px solid #eaeaea;
+  padding: 1.5rem 1.25rem 2rem 1.25rem; /* identical to Communications layout */
+  margin-top: 0;
+  margin-left: 0;
+  box-shadow: 2px 0 6px rgba(0,0,0,0.05);
+  min-height: 100vh;
+}
+
+/* 🧩 Sidebar titles and spacing */
+.function-sidebar h2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 1rem;
+}
+
+.function-sidebar section {
+  margin-bottom: 2rem;
+}
+
+/* 🧩 Inputs and labels inside sidebar */
+.function-sidebar label {
+  display: block;
+  font-weight: 500;
+  color: #555;
+  margin-bottom: 0.25rem;
+}
+
+.function-sidebar input,
+.function-sidebar select,
+.function-sidebar button {
+  font-size: 0.9rem;
+  border-radius: 6px;
+}
+
+.function-sidebar input,
+.function-sidebar select {
+  padding: 0.4rem 0.5rem;
+}
+
+/* 🧩 Buttons and interactive elements */
+.function-sidebar button.btn {
+  border-radius: 6px;
+}
+
+.function-sidebar .btn-outline-primary {
+  border-color: #6BB4DE;
+  color: #6BB4DE;
+}
+
+.function-sidebar .btn-outline-primary:hover {
+  background-color: #6BB4DE;
+  color: #fff;
+}
+
+/* 🧩 Main workspace area */
+.function-workspace {
+  flex: 1;
+  padding: 2rem 2rem 2rem 2.5rem; /* matches Communications spacing */
+  background-color: #fff;
+  min-height: 100vh;
+  margin-top: 0;
+}
+
+/* Aligns the top of the function tabs with the sidebar */
+.function-tabs {
+  margin-top: 0 !important;
+}
+
+.workspace-content.container {
+  padding-left: 0 !important; /* removes Bootstrap container padding */
+  margin-left: -5px; /* optical alignment correction */
+  max-width: 920px; /* visually balanced width like Communications */
+}
+
+.function-sidebar h2,
+.function-sidebar h4,
+.function-sidebar label {
+  margin-left: 2px; /* keeps text flush after sidebar shift */
+}
+/* =========================================================
+   🧭 FUNCTION PAGE LAYOUT — Sidebar + Content Alignment
+   Matches Communications page spacing and proportions
+========================================================= */
+
+.function-layout-two-col {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 1.25rem; /* ✅ small gap between sidebar and content */
+  margin: 0;
+  padding: 0 1rem; /* subtle page padding for breathing space */
+}
+
+/* 🧩 Sidebar */
+.function-sidebar {
+  flex: 0 0 280px;
+  background: #fff;
+  border: 1px solid #eaeaea;
+  border-radius: 8px;
+  padding: 1.5rem 1.25rem 2rem 1.25rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  margin-top: 0; /* ✅ keeps it level with main content */
+  position: relative;
+  top: 0;
+}
+
+/* 🧩 Main content area */
+.function-workspace {
+  flex: 1;
+  background: #fff;
+  border-radius: 8px;
+  padding: 1.75rem 2rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  margin-top: 0; /* ✅ aligns with sidebar top */
+}
+
+/* 🧩 Keep consistent spacing with tabs */
+.function-tabs {
+  margin-top: 0 !important;
+  padding-bottom: 1rem;
+}
+
+/* 🧩 Titles */
+.function-workspace h1 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 1.25rem;
+}
+
+/* 🧩 Buttons */
+.function-workspace .btn-primary,
+.function-workspace .btn-success {
+  background-color: #6BB4DE;
+  border-color: #6BB4DE;
+}
+
+.function-workspace .btn-primary:hover,
+.function-workspace .btn-success:hover {
+  background-color: #5AA2CC;
+  border-color: #5AA2CC;
+}
+
+/* 🧩 Sidebar form elements */
+.function-sidebar label {
+  font-weight: 500;
+  color: #555;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.function-sidebar input,
+.function-sidebar select {
+  font-size: 0.9rem;
+  padding: 0.45rem 0.6rem;
+}

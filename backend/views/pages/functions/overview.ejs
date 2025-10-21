@@ -1,0 +1,65 @@
+<!-- 📄 pages/functions/overview.ejs -->
+<% locals.layout = 'layouts/main'; %>
+
+<main class="function-layout-two-col">
+  <!-- 🧭 Sidebar -->
+ <!-- 🧭 LEFT COLUMN — Sidebar Partial -->
+<%- include('../../partials/functions/sidebar') %>
+
+  <!-- 🧩 Workspace -->
+  <section class="function-workspace">
+    <!-- 🔹 Tabs Bar -->
+    <%- include('../../partials/functions/tabs', {
+      fn,
+      activeTab: activeTab || 'overview'
+    }) %>
+
+    <!-- 🔹 Timeline Body -->
+    <div class="function-body container py-4">
+      <div class="workspace-header mb-4">
+        <h1 class="mb-0">🗓️ Overview</h1>
+      </div>
+
+      <% if (grouped && Object.keys(grouped).length > 0) { %>
+        <% Object.keys(grouped).forEach(date => { %>
+          <div class="timeline-day mb-4">
+            <h5 class="text-muted"><%= date %></h5>
+            <div class="timeline-items">
+              <% grouped[date].forEach(entry => { %>
+                <div class="timeline-entry mb-3 p-3 border rounded <%= entry.entry_type %>">
+                  <div class="entry-header d-flex justify-content-between">
+                    <strong><%= entry.subject || entry.note_type || entry.title || '(No subject)' %></strong>
+                    <small class="text-muted">
+                      <%= new Date(entry.entry_date || entry.created_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' }) %>
+                    </small>
+                  </div>
+                  <div class="entry-body text-muted mt-1">
+                    <%= entry.body || '(no content)' %>
+                  </div>
+                </div>
+              <% }) %>
+            </div>
+          </div>
+        <% }) %>
+      <% } else { %>
+        <p class="text-muted">No recent communications, notes, or tasks yet.</p>
+      <% } %>
+    </div>
+  </section>
+</main>
+
+<!-- 🧱 Modals (shared across all function pages) -->
+<%- include('../../partials/functions/modals', {
+  fn,
+  linkedContacts: linkedContacts || [],
+  rooms: rooms || [],
+  eventTypes: eventTypes || []
+}) %>
+
+<!-- ⚙️ Scripts -->
+<script>
+  window.fnContext = { id: <%- JSON.stringify(fn.id) %> };
+</script>
+<script src="/js/functions/detail.js" defer></script>
+
+

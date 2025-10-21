@@ -1,0 +1,154 @@
+@use '../core/variables' as *;
+/* ===========================================================
+/* 🧭 FUNCTION PAGE VISUAL SYSTEM
+/* Consistent design across Communications, Tasks, Notes, and Detail
+/* ===========================================================
+
+.function-layout-two-col {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 1.5rem;
+  padding: 1rem 2rem;
+  background-color: $color-bg-light;
+  min-height: calc(100vh - 80px); /* adjust if header differs
+}
+
+/* Sidebar */
+.function-sidebar {
+  flex: 0 0 280px;
+  background: $color-bg-panel;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  padding: 1.5rem 1.25rem 2rem;
+  box-shadow: $shadow-sm;
+  position: sticky;
+  top: 90px;
+  height: fit-content;
+  align-self: flex-start;
+
+  h2, h3 {
+    font-weight: 600;
+    color: $color-text-dark;
+    margin-bottom: $spacing-unit * 1.5;
+  }
+
+  label {
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: $color-text-muted;
+    margin-bottom: 0.25rem;
+  }
+
+  input, select, textarea {
+    width: 100%;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid $color-border;
+    border-radius: 6px;
+    margin-bottom: $spacing-unit * 1.5;
+
+    &:focus {
+      outline: none;
+      border-color: $color-primary;
+      box-shadow: 0 0 0 2px rgba($color-primary, 0.2);
+    }
+  }
+
+  button.btn {
+    border-radius: 6px;
+  }
+
+  .btn-outline-primary {
+    border-color: $color-primary;
+    color: $color-primary;
+
+    &:hover {
+      background-color: $color-primary;
+      color: #fff;
+    }
+  }
+}
+
+/* Main workspace */
+.function-workspace {
+  flex: 1;
+  background: $color-bg-panel;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  padding: 2rem;
+  box-shadow: $shadow-sm;
+
+  h1, h2 {
+    font-weight: 600;
+    color: $color-text-dark;
+    margin-bottom: 1rem;
+  }
+
+  .workspace-content {
+    background: #fff;
+    border-radius: $radius-md;
+    border: 1px solid $color-border;
+    box-shadow: $shadow-sm;
+    padding: 1.5rem 2rem;
+  }
+
+  .btn-primary,
+  .btn-success {
+    background-color: $color-primary;
+    border-color: $color-primary;
+
+    &:hover {
+      background-color: $color-primary-dark;
+      border-color: $color-primary-dark;
+    }
+  }
+}
+
+/* Tabs, headings, spacing harmony */
+.function-tabs {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid $color-border;
+}
+
+.function-tabs a {
+  color: $color-text-muted;
+  margin-right: 1rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 2px solid transparent;
+  font-weight: 500;
+
+  &:hover,
+  &.active {
+    color: $color-primary;
+    border-bottom-color: $color-primary;
+  }
+}
+
+/* General spacing tweaks for cleaner alignment */
+.workspace-content.container {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.function-page {
+  background: $color-bg-light;
+  min-height: 100vh;
+}
+/* =========================================================
+   🧩 FUNCTION WORKSPACE STYLING
+========================================================= */
+.function-workspace {
+  flex: 1;
+  background: #fff;
+  border-radius: 10px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+  min-height: 80vh;
+}
+
+.function-body {
+  padding: 1rem 0;
+}
+

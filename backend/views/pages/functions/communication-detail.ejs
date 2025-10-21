@@ -1,0 +1,135 @@
+<!-- 📬 pages/functions/communications-detail.ejs -->
+<% locals.layout = 'layouts/main'; %>
+
+<main class="function-layout-two-col">
+ <!-- 🧭 Sidebar -->
+ <!-- 🧭 LEFT COLUMN — Sidebar Partial -->
+<%- include('../../partials/functions/sidebar') %>
+
+  <!-- 🧩 Workspace -->
+  <section class="function-workspace">
+    <!-- 🔹 Tabs -->
+    <%- include('../../partials/functions/tabs', {
+      fn,
+      activeTab: 'communications'
+    }) %>
+
+    <!-- 🔹 Body -->
+    <div class="function-body container py-4">
+
+      <!-- 📨 Back + Title -->
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <a class="btn btn-outline-secondary btn-sm"
+           href="/functions/<%= fn.id %>/communications">&larr; Back to Communications</a>
+        <h3 class="mb-0">Reply</h3>
+        <div></div>
+      </div>
+
+      <!-- 🧾 Original message -->
+      <div class="inbox">
+        <div class="message-card p-3 border rounded mb-4">
+          <div class="msg-header mb-2">
+            <div class="fw-bold"><%= message.from_email || "Unknown Sender" %></div>
+            <div class="text-muted"><%= message.created_at ? new Date(message.created_at).toLocaleString('en-NZ') : "" %></div>
+          </div>
+          <div class="msg-subject h5 mb-3"><%= message.subject || "(No Subject)" %></div>
+
+          <div class="msg-body">
+            <% if (message.body_html) { %>
+              <div class="border rounded p-3" style="max-height:15rem;overflow:auto;">
+                <%- message.body_html %>
+              </div>
+            <% } else { %>
+              <pre style="white-space:pre-wrap;"><%= message.body || "" %></pre>
+            <% } %>
+          </div>
+        </div>
+      </div>
+
+      <!-- ✉️ Reply form -->
+      <div class="card mt-4">
+        <div class="card-body">
+          <form id="replyForm" method="POST" action="/functions/<%= fn.id %>/communications/<%= message.id %>/reply">
+            <!-- where to go after sending -->
+            <input type="hidden" name="next" value="/functions/<%= fn.id %>/communications">
+
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label">To</label>
+                <input name="to" id="replyTo" class="form-control"
+                       value="<%= message.from_email || '' %>" placeholder="name@domain">
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Subject</label>
+                <input name="subject" id="replySubject" class="form-control"
+                       value="Re: <%= message.subject || '(No subject)' %>">
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Message</label>
+                <div id="replyEditor" style="height: 260px;"></div>
+                <!-- hidden field that will receive Quill HTML on submit -->
+                <input type="hidden" name="body" id="replyBody">
+              </div>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-3">
+              <a class="btn btn-outline-secondary"
+                 href="/functions/<%= fn.id %>/communications">Cancel</a>
+              <button class="btn btn-primary" type="submit">Send</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </div> <!-- end body -->
+  </section>
+</main>
+
+<!-- 🧱 Modals (shared across all function pages) -->
+<%- include('../../partials/functions/modals', {
+  fn,
+  linkedContacts: linkedContacts || [],
+  rooms: rooms || [],
+  eventTypes: eventTypes || []
+}) %>
+
+<!-- ⚙️ Inline JS -->
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const ov = document.getElementById('panelOverlay');
+    if (ov) ov.classList.add('hidden');
+    document.body.classList.remove('no-scroll');
+
+    if (!window.Quill) {
+      console.error('Quill library not loaded');
+      return;
+    }
+
+    const quill = new Quill('#replyEditor', {
+      theme: 'snow',
+      placeholder: 'Type your reply…',
+      modules: {
+        toolbar: [
+          [{ header: [1, 2, false] }],
+          ['bold', 'italic', 'underline'],
+          [{ list: 'ordered' }, { list: 'bullet' }],
+          ['link'],
+        ],
+      },
+    });
+
+    const editorHost = document.getElementById('replyEditor');
+    if (editorHost) editorHost.style.minHeight = '240px';
+
+    const form = document.getElementById('replyForm');
+    form.addEventListener('submit', function () {
+      document.getElementById('replyBody').value = quill.root.innerHTML;
+    });
+  });
+
+  window.fnContext = { id: <%- JSON.stringify(fn.id) %>, messageId: <%- JSON.stringify(message.id) %> };
+</script>
+
+<script src="/js/functions/communications.js" defer></script>

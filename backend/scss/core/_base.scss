@@ -1,0 +1,38 @@
+@use '../core/variables' as *;
+// ===========================================================
+// ⚙️ GLOBAL BASE STYLES
+// ===========================================================
+
+body {
+  background-color: $color-bg-light;
+  font-family: $font-family-base;
+  color: $color-text-dark;
+}
+
+h1, h2, h3, h4, h5 {
+  font-weight: 600;
+  color: #222;
+  margin-bottom: $spacing-unit * 1.5;
+}
+
+.container {
+  max-width: 1100px;
+}
+
+a {
+  color: $color-primary;
+  text-decoration: none;
+
+  &:hover {
+    color: $color-primary-dark;
+  }
+}
+
+// Text helpers
+.text-muted {
+  color: $color-text-muted !important;
+}
+
+hr {
+  border-top: 1px solid $color-border;
+}

@@ -1,0 +1,130 @@
+/* =========================================================
+   📊 Functions Dashboard Styles
+   (modular @use-compatible version)
+========================================================= */
+
+.page-functions {
+  // KPI Overview
+  .kpi-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .kpi {
+    background: var(--white);
+    border-left: 5px solid var(--primary);
+    border-radius: var(--radius);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    padding: 0.75rem 1rem;
+
+    .label {
+      color: #666;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+    }
+
+    .value {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--deep);
+    }
+  }
+
+  // Status Filters
+  .status-filters {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+
+    a {
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--primary);
+      color: var(--primary);
+      background: #fff;
+      text-transform: capitalize;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+
+      &.active {
+        background: var(--primary);
+        color: #fff;
+        font-weight: 600;
+      }
+
+      &:hover {
+        background: var(--deep);
+        color: #fff;
+      }
+    }
+  }
+
+}
+ // 🧩 Table Panel (the true fix)
+.card {
+  position: relative;
+  width: 100%;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+
+  /* 🔧 Ensure it grows with its content */
+  display: block;
+  height: auto;
+  overflow: hidden;
+}
+
+/* 💡 Make sure the table inside the card respects padding */
+.card > .table {
+  width: 100%;
+  margin-bottom: 0;
+  background: transparent;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* 🧱 Ensure the white background extends beneath all rows */
+.card::after {
+  content: "";
+  display: block;
+  clear: both;
+}
+/* =========================================================
+   📐 Fit the table neatly inside the white card background
+========================================================= */
+
+.page-functions {
+  .card {
+    /* maintain spacing without overflow */
+    padding: 1rem;
+    overflow-x: auto; // allows graceful scroll if it ever exceeds viewport
+  }
+
+  .card table {
+    width: 100%;
+    table-layout: fixed; // ensures columns fit within available width
+    border-collapse: collapse;
+  }
+
+  /* make columns compact & aligned */
+  .card th,
+  .card td {
+    padding: 0.55rem 0.75rem;
+    word-wrap: break-word;
+    text-align: left;
+  }
+
+  /* prevent stretching or whitespace at right edge */
+  .card table {
+    margin: 0 auto;
+  }
+
+  /* Optional — gives card a visual frame when table is wide */
+  .card {
+    max-width: 100%;
+  }
+}

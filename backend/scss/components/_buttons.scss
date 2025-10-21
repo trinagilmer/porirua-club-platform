@@ -1,0 +1,21 @@
+@use 'sass:color';
+@use '../core/variables' as *;
+.btn-accent {
+  background-color: $color-primary;
+  border-color: $color-primary;
+  color: #fff !important;
+  &:hover {
+    background-color: color.adjust($color-primary, $lightness: -6%);
+    border-color: color.adjust($color-primary, $lightness: -8%);
+  }
+}
+
+.btn-ghost {
+  background-color: transparent;
+  border: 1px solid $color-border;
+  color: $color-text-dark;
+  &:hover {
+    border-color: $color-primary;
+    color: $color-primary;
+  }
+}

@@ -1,6 +1,6 @@
 // =========================================================
-// 📋 FUNCTION TASKS CONTROLLER (Card View)
-// Handles: add, edit, complete, delete tasks
+// 📋 FUNCTION TASKS CONTROLLER (Card Layout)
+// Compatible with current function-tasks.ejs
 // =========================================================
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -11,7 +11,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const addTaskBtn = document.getElementById("addTaskBtn");
   const functionId = window.fnContext?.id || window.functionId;
 
-  // 🧩 Toast utility
+  grid?.addEventListener("click", (e) => {
+  if (e.target.closest(".editTaskBtn")) {
+    console.log("🟦 Edit button clicked");
+  }
+});
+
+  // ---------------------------------------------------------
+  // 🧩 Toast Utility
+  // ---------------------------------------------------------
   function showToast(message, type = "info") {
     const toast = document.createElement("div");
     toast.className = `toast toast-${type}`;
@@ -25,15 +33,18 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ---------------------------------------------------------
-  // 🧰 Reset modal form
+  // 🧰 Reset Modal Form
   // ---------------------------------------------------------
   function resetForm() {
     form.reset();
     form.querySelector(".modal-title").textContent = "Add Task";
     document.getElementById("taskId").value = "";
   }
+  addTaskBtn?.addEventListener("click", () => {
+  resetForm();
+  modal?.show();
+});
 
-  addTaskBtn?.addEventListener("click", resetForm);
 
   // ---------------------------------------------------------
   // 💾 Save Task (Create or Update)
@@ -42,10 +53,10 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
 
     const id = document.getElementById("taskId").value;
-    const title = document.getElementById("taskTitle").value.trim();
-    const description = document.getElementById("taskDescription").value.trim() || null;
-    const assigned_to = document.getElementById("taskAssignedTo").value || null;
-    const due_at = document.getElementById("taskDueAt").value || null;
+const title = document.getElementById("taskTitle").value.trim();
+const description = document.getElementById("taskDescription")?.value.trim() || null;
+const assigned_to = document.getElementById("taskAssignedTo").value || null;
+const due_at = document.getElementById("taskDueAt").value || null;
 
     if (!title) return showToast("⚠️ Please enter a task title", "warning");
 
@@ -69,7 +80,6 @@ document.addEventListener("DOMContentLoaded", () => {
         modal?.hide();
         setTimeout(() => location.reload(), 600);
       } else {
-        console.error("[Task Save] Failed:", data.error);
         showToast("❌ Failed to save task", "error");
       }
     } catch (err) {
@@ -80,38 +90,48 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // ---------------------------------------------------------
-// ✏️ Edit Task (Card Layout Compatible)
-// ---------------------------------------------------------
-table?.addEventListener("click", (e) => {
+  // ✏️ Edit Task (Card Layout)
+grid?.addEventListener("click", (e) => {
   const btn = e.target.closest(".editTaskBtn");
   if (!btn) return;
 
   const card = btn.closest(".task-card");
+  if (!card) return;
+
   const id = btn.dataset.id;
   const title = card.querySelector(".task-card-title")?.textContent.trim() || "";
-  const description = card.querySelector(".task-card-desc")?.textContent.trim() || "";
-  const assignedTo = card.querySelector(".task-card-meta span strong + text") || "";
-  const dueAt = card.querySelector(".task-card-meta .small:nth-child(2)")?.textContent.trim() || "";
+  
+  // Grab description safely (skip the “No details” placeholder)
+  let description = card.querySelector(".task-card-desc")?.textContent.trim() || "";
+  if (description === "No details") description = "";
 
-  // Fill modal
+  const assigned = card.querySelector(".task-card-meta span strong")?.nextSibling?.textContent?.trim() || "";
+  const dueAt = card.querySelector(".task-card-meta span:nth-of-type(2)")?.textContent?.replace("Due:", "").trim() || "";
+
+  // Fill modal fields
   document.getElementById("taskId").value = id;
   document.getElementById("taskTitle").value = title;
-  document.getElementById("taskDescription").value =
-    description.includes("No details") ? "" : description;
 
-  // Pre-fill due date
-  let formattedDate = "";
-  if (dueAt && !["—", "null", "undefined"].includes(dueAt.toLowerCase())) {
-    const parsed = new Date(dueAt);
-    if (!isNaN(parsed)) formattedDate = parsed.toISOString().split("T")[0];
+  const descField = document.getElementById("taskDescription");
+  if (descField) descField.value = description;
+
+  // Assign dropdown
+  const assignedSelect = document.getElementById("taskAssignedTo");
+  if (assignedSelect && assigned) {
+    const match = [...assignedSelect.options].find(opt => opt.textContent.trim() === assigned);
+    assignedSelect.value = match ? match.value : "";
   }
-  document.getElementById("taskDueAt").value = formattedDate;
 
+  // Due date
+  if (dueAt && dueAt !== "—") {
+    const parsed = new Date(dueAt);
+    if (!isNaN(parsed)) document.getElementById("taskDueAt").value = parsed.toISOString().split("T")[0];
+  }
+
+  // Update modal title and show it
   form.querySelector(".modal-title").textContent = "Edit Task";
-  modal.show();
+  modal?.show();
 });
-
 
   // ---------------------------------------------------------
   // ✅ Complete / 🗑️ Delete Task
@@ -137,7 +157,8 @@ table?.addEventListener("click", (e) => {
           const badge = card.querySelector(".task-card-status");
           if (badge) {
             badge.textContent = "Completed";
-            badge.className = "badge bg-primary task-card-status";
+            badge.className =
+              "badge bg-primary text-white task-card-status";
           }
           completeBtn.remove();
         } else {
@@ -168,37 +189,9 @@ table?.addEventListener("click", (e) => {
       }
     }
   });
-  // ---------------------------------------------------------
-// 🔍 Searchable "Assign To" Dropdown
-// ---------------------------------------------------------
-const searchInput = document.getElementById("userSearchInput");
-const dropdownList = document.getElementById("userDropdownList");
-const assignedField = document.getElementById("taskAssignedTo");
-
-if (searchInput && dropdownList) {
-  searchInput.addEventListener("input", () => {
-    const query = searchInput.value.toLowerCase();
-    const items = dropdownList.querySelectorAll(".dropdown-item");
-
-    items.forEach((item) => {
-      const text = item.textContent.toLowerCase();
-      item.style.display = text.includes(query) ? "block" : "none";
-    });
-  });
-
-  dropdownList.addEventListener("click", (e) => {
-    const link = e.target.closest(".dropdown-item");
-    if (!link) return;
-    e.preventDefault();
-
-    const id = link.dataset.id || "";
-    const name = link.textContent.trim();
-
-    searchInput.value = name;
-    assignedField.value = id;
-  });
-}
 });
+
+
 
 
 
