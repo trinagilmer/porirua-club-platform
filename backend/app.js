@@ -95,6 +95,17 @@ app.use((req, res, next) => {
   next();
 });
 
+// 💬 Flash messages (must come after session)
+const flash = require("connect-flash");
+app.use(flash());
+
+// 🔄 Make flash messages available to all templates
+app.use((req, res, next) => {
+  res.locals.flashMessage = req.flash("flashMessage")[0];
+  res.locals.flashType = req.flash("flashType")[0];
+  next();
+});
+
 /* =========================================================
    🧪 TEMPLATE ENGINE
 ========================================================= */

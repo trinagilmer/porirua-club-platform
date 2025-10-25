@@ -1,0 +1,70 @@
+@use "sass:color";
+@use "../core/variables" as *;
+
+// ===========================================================
+// 🧾 FUNCTION PAGE FORMS — Inputs, Selects, Validation
+// ===========================================================
+
+.form-label {
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: $color-text-muted;
+  margin-bottom: 0.25rem;
+}
+
+.form-control,
+.form-select,
+textarea,
+input {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid $color-border;
+  border-radius: $radius;
+  margin-bottom: $spacer * 1.5;
+  background-color: $color-bg-panel;
+  color: $deep;
+
+  &:focus {
+    outline: none;
+    border-color: $primary;
+    box-shadow: 0 0 0 2px rgba($primary, 0.2);
+  }
+
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+}
+
+.is-invalid {
+  border-color: #dc3545;
+  box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.1);
+}
+
+form.card {
+  background: $color-bg-panel;
+  border-radius: $radius;
+  box-shadow: $shadow-sm;
+}
+
+.workspace-header h1 {
+  color: $deep;
+  font-weight: 600;
+}
+
+// Utility spacing for form groups
+.form-group {
+  margin-bottom: $spacer * 1.5;
+} 
+/* 🔧 Compact form fields for modals and panels */
+.contact-panel input,
+.contact-panel select,
+.contact-panel textarea,
+.contact-add-panel input,
+.contact-edit-panel input {
+  margin-bottom: $spacer; // tighten from 2.25rem → 1rem
+}
+
+.contact-panel label {
+  margin-bottom: 0.25rem;
+}

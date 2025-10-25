@@ -1,4 +1,6 @@
-@use '../core/variables' as *;
+@use "../core/variables" as *;
+@use "sass:color";
+
 /* ===========================================================
 /* 🧭 FUNCTION PAGE VISUAL SYSTEM
 /* Consistent design across Communications, Tasks, Notes, and Detail
@@ -19,7 +21,7 @@
   flex: 0 0 280px;
   background: $color-bg-panel;
   border: 1px solid $color-border;
-  border-radius: $radius-md;
+  border-radius: $radius;
   padding: 1.5rem 1.25rem 2rem;
   box-shadow: $shadow-sm;
   position: sticky;
@@ -30,7 +32,7 @@
   h2, h3 {
     font-weight: 600;
     color: $color-text-dark;
-    margin-bottom: $spacing-unit * 1.5;
+    margin-bottom: $spacer * 1.5;
   }
 
   label {
@@ -45,12 +47,12 @@
     padding: 0.45rem 0.6rem;
     border: 1px solid $color-border;
     border-radius: 6px;
-    margin-bottom: $spacing-unit * 1.5;
+    margin-bottom: $spacer * 1.5;
 
     &:focus {
       outline: none;
-      border-color: $color-primary;
-      box-shadow: 0 0 0 2px rgba($color-primary, 0.2);
+      border-color: $primary;
+      box-shadow: 0 0 0 2px rgba($primary, 0.2);
     }
   }
 
@@ -59,11 +61,11 @@
   }
 
   .btn-outline-primary {
-    border-color: $color-primary;
-    color: $color-primary;
+    border-color: $primary;
+    color: $primary;
 
     &:hover {
-      background-color: $color-primary;
+      background-color: $primary;
       color: #fff;
     }
   }
@@ -74,7 +76,7 @@
   flex: 1;
   background: $color-bg-panel;
   border: 1px solid $color-border;
-  border-radius: $radius-md;
+  border-radius: $radius;
   padding: 2rem;
   box-shadow: $shadow-sm;
 
@@ -86,7 +88,7 @@
 
   .workspace-content {
     background: #fff;
-    border-radius: $radius-md;
+    border-radius: $radius;
     border: 1px solid $color-border;
     box-shadow: $shadow-sm;
     padding: 1.5rem 2rem;
@@ -94,12 +96,12 @@
 
   .btn-primary,
   .btn-success {
-    background-color: $color-primary;
-    border-color: $color-primary;
+    background-color: $primary;
+    border-color: $primary;
 
     &:hover {
-      background-color: $color-primary-dark;
-      border-color: $color-primary-dark;
+      background-colour: color.adjust($primary, $lightness: -10%);
+      border-colour: color.adjust($primary, $lightness: -10%);
     }
   }
 }
@@ -121,8 +123,8 @@
 
   &:hover,
   &.active {
-    color: $color-primary;
-    border-bottom-color: $color-primary;
+    color: $primary;
+    border-bottom-color: $primary;
   }
 }
 
@@ -151,4 +153,111 @@
 .function-body {
   padding: 1rem 0;
 }
+/* =========================================================
+   📱 Responsive Adjustments for Two-Column Layout
+========================================================= */
 
+@media (max-width: 991px) {
+  .function-layout-two-col {
+    flex-direction: column;
+    padding: 1rem;
+
+    // spacing between sections
+    gap: 1rem;
+  }
+
+  .function-sidebar {
+    position: static; // disable sticky on mobile
+    width: 100%;
+    flex: 1 1 auto;
+    order: 2; // move below main
+    margin-top: 1rem;
+  }
+
+  .function-workspace {
+    order: 1;
+    width: 100%;
+    padding: 1rem;
+  }
+
+  .workspace-content {
+    padding: 1rem;
+  }
+}
+
+/* 🖥 Large screens (optional tuning for wide layouts) */
+@media (min-width: 1400px) {
+  .function-layout-two-col {
+    gap: 2rem;
+
+    .function-sidebar {
+      flex: 0 0 320px;
+    }
+
+    .function-workspace {
+      padding: 2rem;
+    }
+  }
+}
+/* =========================================================
+   🧾 Function Edit Form Enhancements
+========================================================= */
+
+.page-functions,
+.function-workspace {
+  form.card {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+
+    input:disabled,
+    select:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    .is-invalid {
+      border-color: #dc3545;
+      box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.1);
+    }
+  }
+
+  .workspace-header h1 {
+    color: var(--deep);
+    font-weight: 600;
+  }
+}
+
+
+
+.page-functions, .function-layout-two-col {
+  h1 {
+    font-size: $h1-size;
+    font-weight: 600;
+    color: $deep;
+  }
+
+  .btn-primary {
+    background-color: $primary;
+    border-color: $primary;
+    color: #fff;
+
+    &:hover {
+      background-color: color.adjust($primary, $lightness: -8%);
+      border-color: color.adjust($primary, $lightness: -8%);
+    }
+  }
+
+  .task-card {
+    border-left: 4px solid $primary;
+    box-shadow: $shadow-sm;
+
+    .task-card-status.bg-primary {
+      background-color: $secondary !important;
+    }
+  }
+
+  .table.compact-table > :not(caption) > * > * {
+    padding: 0.4rem 0.5rem;
+  }
+}

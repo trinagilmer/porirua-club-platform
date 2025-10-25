@@ -432,6 +432,113 @@ await graphSendMail(accessToken, { to, cc, bcc, subject, body });
       : res.status(500).send("Failed to send reply via Graph");
   }
 });
+/* =========================================================
+   ✏️ FUNCTION EDIT — GET + POST
+========================================================= */
+
+// 🧭 GET: Edit Form
+router.get("/:id/edit", async (req, res, next) => {
+  const { id } = req.params;
+
+  try {
+    // 1️⃣ Fetch the function
+    const { rows: fnRows } = await pool.query(`
+      SELECT * FROM functions WHERE id = $1;
+    `, [id]);
+    const fn = fnRows[0];
+    if (!fn) return res.status(404).send("Function not found");
+
+    // 2️⃣ Sidebar Data
+    const [linkedContactsRes, roomsRes, eventTypesRes] = await Promise.all([
+      pool.query(`
+        SELECT c.id, c.name, c.email, c.phone, fc.is_primary
+        FROM contacts c
+        JOIN function_contacts fc ON fc.contact_id = c.id
+        WHERE fc.function_id = $1
+        ORDER BY fc.is_primary DESC, c.name ASC;
+      `, [id]),
+      pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`),
+      pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`)
+    ]);
+
+    // 3️⃣ Render the edit page
+    res.render("pages/functions/edit", {
+      layout: "layouts/main",
+      title: `Edit — ${fn.event_name}`,
+      user: req.session.user || null,
+      fn,
+      linkedContacts: linkedContactsRes.rows,
+      rooms: roomsRes.rows,
+      eventTypes: eventTypesRes.rows,
+      activeTab: "edit"
+    });
+
+  } catch (err) {
+    console.error("❌ Error loading function edit page:", err);
+    next(err);
+  }
+});
+
+// 💾 POST: Save changes
+router.post("/:id/edit", async (req, res) => {
+  const { id } = req.params;
+  const {
+    event_name,
+    event_date,
+    event_time,
+    start_time,
+    end_time,
+    attendees,
+    budget,
+    totals_price,
+    totals_cost,
+    room_id,
+    event_type,
+    status
+  } = req.body;
+
+  try {
+    await pool.query(`
+      UPDATE functions
+      SET
+        event_name = $1,
+        event_date = $2,
+        event_time = $3,
+        start_time = $4,
+        end_time = $5,
+        attendees = $6,
+        budget = $7,
+        totals_price = $8,
+        totals_cost = $9,
+        room_id = $10,
+        event_type = $11,
+        status = $12,
+        updated_at = NOW()
+      WHERE id = $13;
+    `, [
+      event_name,
+      event_date || null,
+      event_time || null,
+      start_time || null,
+      end_time || null,
+      attendees || null,
+      budget || null,
+      totals_price || 0,
+      totals_cost || 0,
+      room_id || null,
+      event_type || null,
+      status,
+      id
+    ]);
+
+    console.log(`✅ Function ${id} updated successfully`);
+    res.redirect(`/functions/${id}`);
+
+  } catch (err) {
+    console.error("❌ Error updating function:", err);
+    res.status(500).send("Failed to update function");
+  }
+});
 
 
 

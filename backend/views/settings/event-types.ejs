@@ -1,0 +1,155 @@
+<!-- ========================================================= -->
+<!-- ⚙️ SETTINGS — EVENT TYPES PAGE                             -->
+<!-- ========================================================= -->
+<main class="settings-content" data-page="event-types">
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h4 mb-0">Event Types</h1>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#settingsEventTypeAddModal">
+      + Add Event Type
+    </button>
+  </div>
+
+  <!-- 🧃 Flash Message -->
+  <% if (typeof flashMessage !== 'undefined' && flashMessage) { %>
+    <div
+      class="alert alert-<%= flashType === 'error' ? 'danger' : flashType === 'warning' ? 'warning' : 'success' %> alert-dismissible fade show"
+      role="alert"
+    >
+      <%= flashMessage %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  <% } %>
+
+  <!-- List of Event Types -->
+  <% if (eventTypes && eventTypes.length > 0) { %>
+    <ul class="list-group shadow-sm">
+      <% eventTypes.forEach(type => { %>
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <span class="event-type-name"><%= type.name %></span>
+
+          <div class="btn-group">
+            <!-- Edit Button -->
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary"
+              data-bs-toggle="modal"
+              data-bs-target="#settingsEventTypeEditModal"
+              data-id="<%= type.id %>"
+              data-name="<%= type.name %>"
+            >
+              Edit
+            </button>
+
+            <!-- Delete Button -->
+            <form
+              action="/settings/event-types/delete"
+              method="POST"
+              class="d-inline"
+              onsubmit="return confirm('Delete <%= type.name %>? This cannot be undone.')"
+            >
+              <input type="hidden" name="id" value="<%= type.id %>">
+              <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+            </form>
+          </div>
+        </li>
+      <% }) %>
+    </ul>
+  <% } else { %>
+    <div class="alert alert-info text-center">
+      No event types added yet. Click “Add Event Type” to create one.
+    </div>
+  <% } %>
+</main>
+
+<!-- ========================================================= -->
+<!-- ➕ Add Event Type Modal -->
+<!-- ========================================================= -->
+<div class="modal fade" id="settingsEventTypeAddModal" tabindex="-1" aria-labelledby="addEventTypeLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form action="/settings/event-types/add" method="POST">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addEventTypeLabel">Add Event Type</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="settingsNewEventTypeName" class="form-label">Event Type Name</label>
+            <input
+              type="text"
+              id="settingsNewEventTypeName"
+              name="name"
+              class="form-control"
+              placeholder="Enter event type name"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ========================================================= -->
+<!-- ✏️ Edit Event Type Modal -->
+<!-- ========================================================= -->
+<div class="modal fade" id="settingsEventTypeEditModal" tabindex="-1" aria-labelledby="editEventTypeLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form action="/settings/event-types/edit" method="POST">
+        <div class="modal-header">
+          <h5 class="modal-title" id="editEventTypeLabel">Edit Event Type</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <input type="hidden" id="editEventTypeId" name="id" />
+          <div class="mb-3">
+            <label for="editEventTypeName" class="form-label">Event Type Name</label>
+            <input
+              type="text"
+              id="editEventTypeName"
+              name="name"
+              class="form-control"
+              placeholder="Enter new name"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ========================================================= -->
+<!-- 🧠 Inline Script — Pre-fill Edit Modal -->
+<!-- ========================================================= -->
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const editModal = document.getElementById("settingsEventTypeEditModal");
+    editModal.addEventListener("show.bs.modal", (event) => {
+      const button = event.relatedTarget;
+      const id = button.getAttribute("data-id");
+      const name = button.getAttribute("data-name");
+
+      editModal.querySelector("#editEventTypeId").value = id;
+      editModal.querySelector("#editEventTypeName").value = name;
+    });
+  });
+</script>
+
+
+
+

@@ -1,0 +1,56 @@
+<main class="settings-overview">
+  <h1 class="mb-4" style="color: var(--deep);">Settings Overview</h1>
+
+  <div class="overview-grid">
+    <div class="overview-card">
+      <h4>Event Types</h4>
+      <p><%= counts.eventTypes %> types configured</p>
+      <a href="/settings/event-types" class="btn btn-outline-primary btn-sm">Manage</a>
+    </div>
+
+    <div class="overview-card">
+      <h4>Rooms / Spaces</h4>
+      <p><%= counts.rooms %> rooms available</p>
+      <a href="/settings/spaces" class="btn btn-outline-primary btn-sm">Manage</a>
+    </div>
+
+    <div class="overview-card disabled">
+      <h4>Services</h4>
+      <p>Coming soon</p>
+    </div>
+
+    <div class="overview-card disabled">
+      <h4>Facilities</h4>
+      <p>Coming soon</p>
+    </div>
+  </div>
+</main>
+
+<script type="module" src="/js/settings/index.js"></script>
+
+<style>
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.25rem;
+}
+
+.overview-card {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  transition: transform 0.15s ease;
+}
+
+.overview-card:hover {
+  transform: translateY(-2px);
+}
+
+.overview-card.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+</style>
+

@@ -2,19 +2,25 @@
 
 // 🌈 Core
 @use 'core/variables' as *;
-@use 'core/base';
+@use 'core/base';    // if `.hidden` lives here, keep it BEFORE modals
 @use 'core/layout';
 
-// 🧩 Components
-@use 'components/buttons';
-@use 'components/sidebar';
-@use 'components/function-pages';
+// 🕹️ Legacy Support
+@use 'legacy/legacy-imports';   // <-- move legacy here (BEFORE components)
+
+// 🧩 Components (your modern styles)
+@use 'components/header';
+@use 'components/forms';
+@use 'components/cards';
+
+// Panels & overlay should be AFTER the place where `.hidden` is defined
 @use 'components/modals';
-@use "./components/dashboard";
 
+// Buttons LAST so variant overrides beat Bootstrap/legacy
+@use 'components/buttons';
 
-// 🕹️ Legacy Support (single point)
-@use 'legacy/legacy-imports';
+// Responsive can be last if it doesn’t redefine core utilities
+@use 'components/responsive';
 
 
 

@@ -1,18 +1,19 @@
-@use '../core/variables' as *;
+@use "sass:color";
+@use 'variables' as *;
 // ===========================================================
 // ⚙️ GLOBAL BASE STYLES
 // ===========================================================
 
 body {
-  background-color: $color-bg-light;
+ background-color: $gray-100;
+  color: $deep;
   font-family: $font-family-base;
-  color: $color-text-dark;
-}
+ }
 
 h1, h2, h3, h4, h5 {
   font-weight: 600;
   color: #222;
-  margin-bottom: $spacing-unit * 1.5;
+  margin-bottom: $spacer * 1.5;
 }
 
 .container {
@@ -20,11 +21,11 @@ h1, h2, h3, h4, h5 {
 }
 
 a {
-  color: $color-primary;
+  color: $primary;
   text-decoration: none;
 
   &:hover {
-    color: $color-primary-dark;
+    colour: color.adjust($primary, $lightness: -10%);
   }
 }
 
@@ -34,5 +35,47 @@ a {
 }
 
 hr {
-  border-top: 1px solid $color-border;
+  border-top: 1px solid $gray-300;
+
+}
+
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: $font-family-base;
+  font-size: $font-size-base;
+  color: $deep;
+  background-color: $gray-100;
+  line-height: 1.5;
+}
+
+a {
+  color: $primary;
+  text-decoration: none;
+  transition: color 0.2s ease;
+
+  &:hover {
+    colour: color.adjust($primary, $lightness: -10%);
+    text-decoration: underline;
+  }
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th {
+  font-weight: 600;
+}
+
+button {
+  cursor: pointer;
 }

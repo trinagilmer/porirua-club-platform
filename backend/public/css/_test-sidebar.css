@@ -3,24 +3,24 @@
   width: 320px;
   background: $color-bg-panel;
   border-right: 1px solid $color-border;
-  padding: $spacing-unit * 2;
+  padding: $spacer * 2;
   display: flex;
   flex-direction: column;
-  gap: $spacing-unit * 2;
+  gap: $spacer * 2;
   position: relative; /* ensures correct stacking context for menus
 
   /* Editable fields
   .editable {
     border: 1px solid $color-border;
-    border-radius: $radius-md;
-    padding: $spacing-unit;
+    border-radius: $radius;
+    padding: $spacer;
     width: 100%;
     font-size: 0.95rem;
 
     &:focus {
       outline: none;
-      border-color: $color-primary;
-      box-shadow: 0 0 0 2px rgba($color-primary, 0.2);
+      border-color: $primary;
+      box-shadow: 0 0 0 2px rgba($primary, 0.2);
     }
   }
 
@@ -38,10 +38,10 @@
 
       .contact-card {
         background: $color-bg-light;
-        border-radius: $radius-md;
+        border-radius: $radius;
         box-shadow: $shadow-sm;
-        padding: $spacing-unit * 1.5;
-        margin-bottom: $spacing-unit;
+        padding: $spacer * 1.5;
+        margin-bottom: $spacer;
         position: relative;
 
         /* Ensure contact card always sits above other panels
@@ -61,7 +61,7 @@
           transition: color $transition-fast;
 
           &:hover {
-            color: $color-primary;
+            color: $primary;
           }
         }
 
@@ -72,10 +72,10 @@
           top: 100%;
           min-width: 160px;
           background: $color-bg-panel;
-          border-radius: $radius-md;
+          border-radius: $radius;
           border: 1px solid $color-border;
           box-shadow: $shadow-md;
-          padding: $spacing-unit;
+          padding: $spacer;
           z-index: 999; /* <-- critical for visibility
           display: none;
 
@@ -92,16 +92,16 @@
           button {
             background: none;
             border: none;
-            padding: $spacing-unit;
+            padding: $spacer;
             text-align: left;
             width: 100%;
             font-size: 0.9rem;
             color: $color-text-dark;
-            border-radius: $radius-md;
+            border-radius: $radius;
             transition: background $transition-fast;
 
             &:hover {
-              background: rgba($color-primary, 0.08);
+              background: rgba($primary, 0.08);
             }
           }
         }
@@ -201,7 +201,7 @@
   align-items: flex-start;
   background: $color-bg-light; /* matches Communications page
   min-height: calc(100vh - 80px); /* account for header height
-  border-radius: $radius-md;
+  border-radius: $radius;
   overflow: hidden;
   box-shadow: $shadow-sm;
 
@@ -216,7 +216,7 @@
   /* Main content area
   .function-workspace {
     flex: 1;
-    padding: $spacing-unit * 3;
+    padding: $spacer * 3;
     background: $color-bg-panel;
     min-height: 100%;
   }
@@ -224,8 +224,8 @@
   .workspace-content {
     background: #fff;
     border: 1px solid $color-border;
-    border-radius: $radius-md;
+    border-radius: $radius;
     box-shadow: $shadow-sm;
-    padding: $spacing-unit * 2;
+    padding: $spacer * 2;
   }
 }

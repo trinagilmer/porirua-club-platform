@@ -1,21 +1,158 @@
-@use 'sass:color';
-@use '../core/variables' as *;
-.btn-accent {
-  background-color: $color-primary;
-  border-color: $color-primary;
-  color: #fff !important;
-  &:hover {
-    background-color: color.adjust($color-primary, $lightness: -6%);
-    border-color: color.adjust($color-primary, $lightness: -8%);
+@use "sass:color";
+@use "../core/variables" as *;
+
+// ===========================================================
+// 🧩 FUNCTION PAGE BUTTONS — Primary, Accent, Ghost, Outline
+// Modular partial: _buttons.scss
+// ===========================================================
+
+// -----------------------------
+// Base button styling
+// -----------------------------
+button.btn,
+.btn {
+  border-radius: $radius;
+  font-weight: 500;
+  font-family: $font-family-base;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem; // icon + label spacing
+
+  &:focus-visible {
+    outline: 2px solid color.adjust($primary, $lightness: -15%);
+    outline-offset: 2px;
+  }
+
+  &:disabled,
+  &.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
   }
 }
 
+// Size utilities
+.btn-sm { font-size: 0.875rem; padding: 0.25rem 0.5rem; border-radius: $radius; }
+.btn-lg { font-size: 1rem; padding: 0.6rem 1rem; border-radius: $radius; }
+.btn-block { display: flex; width: 100%; }
+
+// Icon alignment helpers
+.btn i, .btn svg { font-size: 1rem; line-height: 1; }
+.btn .icon-left { margin-right: 0.35rem; }
+.btn .icon-right { margin-left: 0.35rem; }
+
+// -----------------------------
+// Mixins to keep variants consistent
+// -----------------------------
+@mixin btn-variant($bg, $color: #fff, $border: $bg) {
+  background-color: $bg;
+  border-color: $border;
+  color: $color;
+
+  &:hover {
+    background-color: color.adjust($bg, $lightness: -8%);
+    border-color: color.adjust($border, $lightness: -12%);
+    color: $color;
+  }
+
+  &:focus,
+  &:active,
+  &:focus-visible {
+    background-color: color.adjust($bg, $lightness: -12%);
+    border-color: color.adjust($border, $lightness: -15%);
+    color: $color;
+    box-shadow: 0 0 0 3px rgba($bg, 0.25); // subtle focus ring
+  }
+}
+
+@mixin btn-outline-variant($base) {
+  background-color: transparent;
+  border: 1px solid $base;
+  color: $base;
+
+  &:hover,
+  &:focus {
+    background-color: rgba($base, 0.08);
+    color: $base;
+    border-color: $base;
+  }
+
+  &:active {
+    background-color: rgba($base, 0.12);
+    color: $base;
+    border-color: color.adjust($base, $lightness: -8%);
+  }
+}
+
+// -----------------------------
+// Brand variants
+// -----------------------------
+
+// Accent (alias of primary but kept for semantic clarity)
+.btn-accent { @include btn-variant($primary); }
+
+// Ghost (neutral outline)
 .btn-ghost {
   background-color: transparent;
   border: 1px solid $color-border;
-  color: $color-text-dark;
-  &:hover {
-    border-color: $color-primary;
-    color: $color-primary;
+  color: $deep;
+
+  &:hover { border-color: $primary; color: $primary; }
+  &:focus-visible { box-shadow: 0 0 0 3px rgba($primary, 0.2); }
+}
+
+// Primary & Success (brand-aligned)
+.btn-primary, .btn-success { @include btn-variant($brand); }
+
+/* ✅ Improved outline primary contrast */
+.btn-outline-primary {
+  background-color: transparent;
+  border: 1px solid color.adjust($primary, $lightness: -10%);
+  color: color.adjust($primary, $lightness: -25%);
+
+  &:hover,
+  &:focus {
+    background-color: color.adjust($primary, $lightness: -10%);
+    color: #fff;
+    border-color: color.adjust($primary, $lightness: -10%);
   }
+
+  &:active {
+    background-color: color.adjust($primary, $lightness: -15%);
+    color: #fff;
+  }
+}
+// Outline secondary (muted)
+.btn-outline-secondary {
+  background-color: transparent;
+  border: 1px solid $color-border;
+  color: $color-text-muted;
+
+  &:hover { border-color: $primary; color: $primary; }
+}
+
+// Link-style button (avoid default browser blue)
+.btn-link {
+  background: transparent;
+  border: none;
+  color: $color-text-dark; // neutral by default
+  padding: 0; // mimic link
+  text-decoration: underline;
+
+  &:hover { color: $primary; }
+  &:focus-visible { outline: 2px solid $primary; outline-offset: 2px; }
+}
+
+// Utility button spacing
+.btn + .btn { margin-left: 0.5rem; }
+
+// Respect reduced motion
+@media (prefers-reduced-motion: reduce) {
+  .btn { transition: none !important; }
+}
+// Alias: support markup that uses `class="btn ghost"`
+.btn.ghost {
+  @extend .btn-ghost;
 }

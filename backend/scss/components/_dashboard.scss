@@ -1,130 +1,188 @@
-/* =========================================================
-   📊 Functions Dashboard Styles
-   (modular @use-compatible version)
-========================================================= */
+// 🌈 Core Variables
+@use "sass:color";
+@use "../core/variables" as *;
 
-.page-functions {
-  // KPI Overview
-  .kpi-bar {
+// ==========================================
+// Base Styles Cleanup
+// ==========================================
+body {
+  background-color: $gray-100;
+  color: $deep;
+  font-family: $font-family-base;
+  font-size: $font-size-base;
+  line-height: 1.5;
+  margin: 0;
+  padding: 0;
+}
+
+h1, h2, h3, h4, h5 {
+  font-weight: 600;
+  color: #222;
+  margin-bottom: $spacer * 1.5;
+}
+
+.container {
+  max-width: 1100px;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+a {
+  color: $primary;
+  text-decoration: none;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: color.adjust($primary, $lightness: -10%);
+    text-decoration: underline;
+  }
+}
+
+hr {
+  border-top: 1px solid $gray-300;
+}
+
+.text-muted {
+  color: $color-text-muted !important;
+}
+
+button {
+  cursor: pointer;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th {
+  font-weight: 600;
+}
+
+// ==========================================
+// Dashboard Page Styles
+// ==========================================
+.page-dashboard {
+  .kpi-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 1rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 2rem;
   }
 
-  .kpi {
-    background: var(--white);
-    border-left: 5px solid var(--primary);
-    border-radius: var(--radius);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  .kpi-card {
+    background: $white;
+    border-left: 5px solid $primary;
+    border-radius: $radius;
+    box-shadow: $shadow-sm;
     padding: 0.75rem 1rem;
 
-    .label {
-      color: #666;
+    .kpi-label {
+      color: $gray-600;
       font-size: 0.85rem;
       text-transform: uppercase;
     }
 
-    .value {
+    .kpi-value {
       font-size: 1.4rem;
       font-weight: 600;
-      color: var(--deep);
+      color: $deep;
     }
   }
 
-  // Status Filters
-  .status-filters {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-
-    a {
-      padding: 6px 12px;
-      border-radius: 6px;
-      border: 1px solid var(--primary);
-      color: var(--primary);
-      background: #fff;
-      text-transform: capitalize;
-      font-size: 0.9rem;
-      transition: all 0.2s ease;
-
-      &.active {
-        background: var(--primary);
-        color: #fff;
-        font-weight: 600;
-      }
-
-      &:hover {
-        background: var(--deep);
-        color: #fff;
-      }
-    }
-  }
-
-}
- // 🧩 Table Panel (the true fix)
-.card {
-  position: relative;
-  width: 100%;
-  background: #fff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  border-radius: var(--radius);
-  padding: 1rem 1.25rem;
-
-  /* 🔧 Ensure it grows with its content */
-  display: block;
-  height: auto;
-  overflow: hidden;
-}
-
-/* 💡 Make sure the table inside the card respects padding */
-.card > .table {
-  width: 100%;
-  margin-bottom: 0;
-  background: transparent;
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
-/* 🧱 Ensure the white background extends beneath all rows */
-.card::after {
-  content: "";
-  display: block;
-  clear: both;
-}
-/* =========================================================
-   📐 Fit the table neatly inside the white card background
-========================================================= */
-
-.page-functions {
-  .card {
-    /* maintain spacing without overflow */
+  .dashboard-card {
+    margin-bottom: 1.5rem;
+    box-shadow: $shadow-sm;
+    border-radius: $radius;
+    background: $white;
     padding: 1rem;
-    overflow-x: auto; // allows graceful scroll if it ever exceeds viewport
+
+    .card-title {
+      font-size: $h2-size;
+      font-weight: 600;
+      color: $deep;
+      margin-bottom: 1rem;
+    }
   }
 
-  .card table {
-    width: 100%;
-    table-layout: fixed; // ensures columns fit within available width
-    border-collapse: collapse;
+  h1.page-title {
+    font-size: $h1-size;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
   }
 
-  /* make columns compact & aligned */
-  .card th,
-  .card td {
-    padding: 0.55rem 0.75rem;
-    word-wrap: break-word;
-    text-align: left;
+  table.compact-table {
+    font-size: 0.95rem;
+
+    th {
+      color: $gray-700;
+      font-weight: 600;
+    }
+
+    td {
+      vertical-align: middle;
+      padding: 0.4rem 0.5rem;
+    }
   }
 
-  /* prevent stretching or whitespace at right edge */
-  .card table {
-    margin: 0 auto;
-  }
+  .status-badge {
+    padding: 0.25rem 0.6rem;
+    border-radius: $radius;
+    font-size: 0.8rem;
+    text-transform: capitalize;
 
-  /* Optional — gives card a visual frame when table is wide */
-  .card {
-    max-width: 100%;
+    &.status-active {
+      background-color: color.adjust($primary, $lightness: 40%);
+      color: $deep;
+    }
+
+    &.status-confirmed {
+      background-color: color.adjust($secondary, $lightness: 35%);
+      color: $deep;
+    }
+
+    &.status-completed {
+      background-color: $secondary;
+      color: #fff;
+    }
   }
 }
+
+// ==========================================
+// Button Styles
+// ==========================================
+.btn-primary {
+  background-color: $primary;
+  border-color: $primary;
+  color: #fff;
+
+  &:hover {
+    background-color: color.adjust($primary, $lightness: -8%);
+    border-color: color.adjust($primary, $lightness: -8%);
+  }
+}
+
+.btn-outline-primary {
+  color: $primary;
+  border-color: $primary;
+
+  &:hover {
+    background-color: $primary;
+    color: #fff;
+  }
+}
+
+// ==========================================
+// Utility Classes
+// ==========================================
+.card-title, .page-title, h1.page-title {
+  font-size: $h2-size;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  color: $deep;
+}
+

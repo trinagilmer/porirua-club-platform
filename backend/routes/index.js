@@ -1,7 +1,8 @@
+// backend/routes/index.js
 const express = require("express");
 const router = express.Router();
 
-// Redirect root to main dashboard
+// 🏠 Root route — redirect to dashboard or homepage
 router.get("/", (req, res) => {
   res.redirect("/dashboard");
 });

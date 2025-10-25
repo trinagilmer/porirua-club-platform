@@ -1,0 +1,174 @@
+<main class="settings-spaces">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0" style="color: var(--deep, #212529);">Rooms / Spaces</h1>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#settingsRoomAddModal">
+      + Add Room
+    </button>
+  </div>
+
+  <!-- 🧃 Flash Message -->
+  <% if (typeof flashMessage !== 'undefined' && flashMessage) { %>
+    <div
+      class="alert alert-<%= flashType === 'error' ? 'danger' : flashType === 'warning' ? 'warning' : 'success' %> alert-dismissible fade show"
+      role="alert"
+    >
+      <%= flashMessage %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  <% } %>
+
+  <% if (rooms && rooms.length === 0) { %>
+    <div class="alert alert-light border text-muted">
+      No rooms configured yet. Add your first room or space.
+    </div>
+  <% } else { %>
+    <div class="list-group shadow-sm">
+      <% rooms.forEach(room => { %>
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <div>
+            <strong><%= room.name %></strong>
+            <small class="text-muted ms-2">Capacity: <%= room.capacity || 'N/A' %></small>
+          </div>
+          <div>
+            <button class="btn btn-sm btn-outline-secondary"
+                    data-id="<%= room.id %>"
+                    data-name="<%= room.name %>"
+                    data-capacity="<%= room.capacity %>"
+                    data-bs-toggle="modal"
+                    data-bs-target="#settingsRoomEditModal">
+              Edit
+            </button>
+
+            <form
+              action="/settings/spaces/delete"
+              method="POST"
+              class="d-inline"
+              onsubmit="return confirm('Delete <%= room.name %>? This cannot be undone.')"
+            >
+              <input type="hidden" name="id" value="<%= room.id %>">
+              <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+            </form>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</main>
+
+<!-- ========================================================= -->
+<!-- ➕ Add Room Modal -->
+<!-- ========================================================= -->
+<div class="modal fade" id="settingsRoomAddModal" tabindex="-1" aria-labelledby="addRoomLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form action="/settings/spaces/add" method="POST">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addRoomLabel">Add Room / Space</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="settingsNewRoomName" class="form-label">Room Name</label>
+            <input
+              type="text"
+              id="settingsNewRoomName"
+              name="name"
+              class="form-control"
+              placeholder="Enter room name"
+              required
+            />
+          </div>
+          <div class="mb-3">
+            <label for="settingsNewRoomCapacity" class="form-label">Capacity (optional)</label>
+            <input
+              type="number"
+              id="settingsNewRoomCapacity"
+              name="capacity"
+              class="form-control"
+              placeholder="Capacity"
+            />
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ========================================================= -->
+<!-- ✏️ Edit Room Modal -->
+<!-- ========================================================= -->
+<div class="modal fade" id="settingsRoomEditModal" tabindex="-1" aria-labelledby="editRoomLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form action="/settings/spaces/edit" method="POST">
+        <div class="modal-header">
+          <h5 class="modal-title" id="editRoomLabel">Edit Room / Space</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <input type="hidden" id="editRoomId" name="id" />
+          <div class="mb-3">
+            <label for="editRoomName" class="form-label">Room Name</label>
+            <input
+              type="text"
+              id="editRoomName"
+              name="name"
+              class="form-control"
+              placeholder="Enter new name"
+              required
+            />
+          </div>
+          <div class="mb-3">
+            <label for="editRoomCapacity" class="form-label">Capacity (optional)</label>
+            <input
+              type="number"
+              id="editRoomCapacity"
+              name="capacity"
+              class="form-control"
+              placeholder="Capacity"
+            />
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ========================================================= -->
+<!-- 🧠 Inline Script — Pre-fill Edit Modal -->
+<!-- ========================================================= -->
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const editModal = document.getElementById("settingsRoomEditModal");
+    if (!editModal) return;
+
+    editModal.addEventListener("show.bs.modal", (event) => {
+      const button = event.relatedTarget;
+      const id = button.getAttribute("data-id");
+      const name = button.getAttribute("data-name");
+      const capacity = button.getAttribute("data-capacity");
+
+      editModal.querySelector("#editRoomId").value = id;
+      editModal.querySelector("#editRoomName").value = name;
+      editModal.querySelector("#editRoomCapacity").value = capacity;
+    });
+  });
+</script>
+
+<!-- ⚙️ Page JS -->
+<script type="module" src="/js/settings/spaces.js"></script>
+
+
+

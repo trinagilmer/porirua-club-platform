@@ -1,5 +1,5 @@
 /* =========================================================
-   🧩 FUNCTION DETAIL CONTROLLER (CLEANED)
+   🧩 FUNCTION DETAIL CONTROLLER (CLEANED & UPDATED)
    Handles modals, edit panels, contacts, and notes.
    Sidebar menus & time modals are now in sidebar.js
 ========================================================= */
@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /* =========================================================
-     👁️ View Contact Modal
+     👁️ VIEW CONTACT MODAL
   ========================================================== */
   const viewModal = document.getElementById("viewContactModal");
   const modalBody = document.getElementById("contactModalBody");
@@ -84,14 +84,14 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   /* =========================================================
-     ✏️ Edit Contact Panel
+     ✏️ EDIT CONTACT PANEL
   ========================================================== */
   const editPanel = document.getElementById("editContactPanel");
   const editForm = document.getElementById("editContactForm");
   const closeEditPanelBtn = document.getElementById("closeEditPanel");
   const cancelEditBtn = document.getElementById("cancelEdit");
 
-  // Open edit panel
+  // 🟢 Open edit panel
   document.addEventListener("click", async (e) => {
     if (!e.target.classList.contains("edit-btn")) return;
     const id = e.target.dataset.id;
@@ -110,23 +110,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
       editPanel.classList.remove("hidden");
       editPanel.classList.add("panel-open");
-      overlay?.classList.add("active");
+      overlay?.classList.add("panel-open"); // ✅ fixed (was .active)
     } catch (err) {
       console.error("⚠️ Edit Panel Error:", err);
       showToast("⚠️ Could not load contact");
     }
   });
 
-  // Close edit panel
+  // 🟡 Close edit panel
+  const closeEdit = () => {
+    editPanel.classList.remove("panel-open");
+    overlay?.classList.remove("panel-open");
+    setTimeout(() => editPanel.classList.add("hidden"), 350);
+  };
   [closeEditPanelBtn, cancelEditBtn].forEach((btn) =>
-    btn?.addEventListener("click", () => {
-      editPanel.classList.remove("panel-open");
-      overlay?.classList.remove("active");
-      setTimeout(() => editPanel.classList.add("hidden"), 350);
-    })
+    btn?.addEventListener("click", closeEdit)
   );
 
-  // Save edits
+  // 💾 Save edits
   editForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = document.getElementById("editContactId").value;
@@ -147,9 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (data.success) {
         showToast("✅ Contact updated");
-        editPanel.classList.remove("panel-open");
-        overlay?.classList.remove("active");
-        setTimeout(() => editPanel.classList.add("hidden"), 350);
+        closeEdit();
         setTimeout(() => location.reload(), 400);
       } else showToast("⚠️ Update failed");
     } catch (err) {
@@ -159,7 +158,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   /* =========================================================
-     ➕ Add / Link Contact Panel
+     ➕ ADD / LINK CONTACT PANEL
   ========================================================== */
   const addPanel = document.getElementById("addContactPanel");
   const openAddBtn = document.getElementById("openAddPanelBtn");
@@ -172,26 +171,30 @@ document.addEventListener("DOMContentLoaded", () => {
   const selectDropdown = document.getElementById("existingSelect");
   const linkExistingBtn = document.getElementById("linkExisting");
 
-  // Open / Close Add panel
+  // 🟢 Open Add Panel
   openAddBtn?.addEventListener("click", () => {
     addPanel.classList.remove("hidden");
     addPanel.classList.add("panel-open");
-    overlay.classList.add("active");
-  });
-  closeAddPanel?.addEventListener("click", () => {
-    addPanel.classList.remove("panel-open");
-    overlay.classList.remove("active");
-    setTimeout(() => addPanel.classList.add("hidden"), 350);
-  });
-  overlay?.addEventListener("click", () => {
-    if (addPanel.classList.contains("panel-open")) {
-      addPanel.classList.remove("panel-open");
-      setTimeout(() => addPanel.classList.add("hidden"), 350);
-    }
-    overlay.classList.remove("active");
+    overlay.classList.add("panel-open"); // ✅ fixed
   });
 
-  // Tabs
+  // 🔴 Close Add Panel
+  closeAddPanel?.addEventListener("click", () => {
+    addPanel.classList.remove("panel-open");
+    overlay.classList.remove("panel-open");
+    setTimeout(() => addPanel.classList.add("hidden"), 350);
+  });
+
+  // ⚫ Close by clicking overlay
+  overlay?.addEventListener("click", () => {
+    document.querySelectorAll(".contact-panel.panel-open").forEach(panel => {
+      panel.classList.remove("panel-open");
+      setTimeout(() => panel.classList.add("hidden"), 350);
+    });
+    overlay.classList.remove("panel-open");
+  });
+
+  // 🔹 Tabs
   tabNew?.addEventListener("click", () => {
     tabNew.classList.add("active");
     tabExisting.classList.remove("active");
@@ -214,6 +217,7 @@ document.addEventListener("DOMContentLoaded", () => {
       .join("");
   }
 
+  // 🔍 Filter dropdown
   searchInput?.addEventListener("input", () => {
     const term = searchInput.value.toLowerCase();
     Array.from(selectDropdown.options).forEach((opt) => {
@@ -221,6 +225,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  // 🆕 Add new contact
   newForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const body = {
@@ -238,24 +243,41 @@ document.addEventListener("DOMContentLoaded", () => {
     if (data.success) {
       showToast("✅ Contact added");
       addPanel.classList.remove("panel-open");
+      overlay.classList.remove("panel-open");
+      setTimeout(() => addPanel.classList.add("hidden"), 350);
       location.reload();
     }
   });
 
-    linkExistingBtn?.addEventListener("click", async () => {
-      const contactId = selectDropdown.value;
-      if (!contactId) return alert("Please select a contact.");
-      const res = await fetch(`/functions/${fnId}/link-contact`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contact_id: contactId }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast("🔗 Contact linked");
-        addPanel.classList.remove("show");
-        location.reload();
-      }
+  // 🔗 Link existing contact
+  linkExistingBtn?.addEventListener("click", async () => {
+    const contactId = selectDropdown.value;
+    if (!contactId) return alert("Please select a contact.");
+    const res = await fetch(`/functions/${fnId}/link-contact`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contact_id: contactId }),
     });
-  
+    const data = await res.json();
+    if (data.success) {
+      showToast("🔗 Contact linked");
+      addPanel.classList.remove("panel-open");
+      overlay.classList.remove("panel-open");
+      setTimeout(() => addPanel.classList.add("hidden"), 350);
+      location.reload();
+    }
   });
+
+  /* =========================================================
+     ⌨️ ESCAPE KEY CLOSE (All Panels)
+  ========================================================== */
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      document.querySelectorAll(".contact-panel.panel-open").forEach((panel) => {
+        panel.classList.remove("panel-open");
+        setTimeout(() => panel.classList.add("hidden"), 350);
+      });
+      overlay?.classList.remove("panel-open");
+    }
+  });
+});

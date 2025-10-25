@@ -1,0 +1,117 @@
+@use "sass:color";
+@use "../core/variables" as *;
+
+// ===========================================================
+// 🧩 FUNCTION PAGE CARDS — Tasks, Notes, Messages
+// ===========================================================
+
+.task-card,
+.note-card,
+.message-card {
+  background: $color-bg-panel;
+  border: 1px solid $color-border;
+  border-radius: $radius;
+  box-shadow: $shadow-sm;
+  padding: $spacer * 1.5;
+}
+
+.task-card {
+  border-left: 4px solid $primary;
+
+  .task-card-status.bg-primary {
+    background-color: $secondary !important;
+  }
+}
+
+.note-type-badge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: $radius;
+  background-color: $gray-200;
+  color: $deep;
+}
+
+.saved-flash {
+  animation: flashHighlight 0.8s ease;
+}
+
+@keyframes flashHighlight {
+  0% {
+    background-color: $accent;
+  }
+  100% {
+    background-color: $color-bg-panel;
+  }
+}
+
+.table.compact-table > :not(caption) > * > * {
+  padding: 0.4rem 0.5rem;
+}
+
+// Utility spacing for card actions
+.card-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: $spacer;
+} 
+
+// Header styling inside cards
+.card-header {
+  font-weight: 600;
+  font-size: 1.1rem;
+  margin-bottom: $spacer;
+  color: $deep;
+}
+
+// Card meta info
+.task-card-meta,
+.note-meta {
+  font-size: 0.875rem;
+  color: $color-text-muted;
+  margin-bottom: 0.5rem;
+}
+
+// Card body text
+.task-card-desc,
+.note-body,
+.message-body {
+  font-size: 1rem;
+  color: $deep;
+  line-height: 1.5;
+} 
+
+// ✅ Task cards — remove unwanted blue tint / link colours
+.task-card,
+.card.task-card {
+  background: $color-bg-panel;
+  border: 1px solid $color-border;
+  box-shadow: $shadow-sm;
+}
+
+// Titles and links inside task cards: neutral by default
+.task-card .card-title,
+.task-card .card-title a,
+.task-card a {
+  color: $color-text-dark !important; // neutralise default link blue
+  text-decoration: none;
+
+  &:hover {
+    color: $primary; // optional hover accent
+  }
+}
+
+// Keep brand primary only where intended
+.task-card .badge-primary,
+.task-card .text-primary,
+.task-card .link-primary {
+  color: $primary !important;
+}
+
+// If the framework injects link-style buttons, normalize them
+.task-card .btn-link {
+  color: $color-text-dark;
+
+  &:hover {
+    color: $primary;
+  }
+}

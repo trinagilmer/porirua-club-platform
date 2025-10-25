@@ -1,0 +1,84 @@
+@use "sass:color";
+@use "../core/variables" as *;
+
+// ===========================================================
+// 📱 FUNCTION PAGE RESPONSIVE RULES — Layout & Component Adjustments
+// ===========================================================
+
+@media (max-width: 1200px) {
+  .function-layout-two-col {
+    flex-direction: column;
+    padding: 1.5rem;
+  }
+
+  .function-sidebar {
+    width: 100%;
+    position: relative;
+    top: auto;
+    min-height: auto;
+    margin-bottom: 1.5rem;
+  }
+
+  .function-workspace {
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 991px) {
+  .function-layout-two-col {
+    flex-direction: column;
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .function-sidebar {
+    position: static;
+    width: 100%;
+    flex: 1 1 auto;
+    order: 2;
+    margin-top: 1rem;
+  }
+
+  .function-workspace {
+    order: 1;
+    width: 100%;
+    padding: 1rem;
+  }
+
+  .workspace-content {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .task-cards-grid .col-md-6,
+  .task-cards-grid .col-lg-4 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+
+  .workspace-header h1 {
+    font-size: 1.5rem;
+  }
+
+  
+.contact-panel.panel-open {
+    width: 100%;
+    border-radius: 0;
+  }
+}
+
+@media (min-width: 1400px) {
+  .function-layout-two-col {
+    gap: 2rem;
+
+    .function-sidebar {
+      flex: 0 0 320px;
+    }
+
+    .function-workspace {
+      padding: 2rem;
+    }
+  }
+} 
+

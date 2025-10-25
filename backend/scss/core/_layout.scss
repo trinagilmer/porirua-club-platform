@@ -1,24 +1,49 @@
-@use '../core/variables' as *;
-// ===========================================================
-// 🧭 FUNCTION PAGE LAYOUT — Sidebar + Content Alignment
-// Matches Communications page spacing and proportions
-// ===========================================================
 
+// ===============================================
+// 📐 Layout — Sidebar + Workspace + Utilities
+// Split per decision: layout-only selectors
+// ===============================================
+@use 'sass:color';
+
+// -----------------------------
+// Fallback tokens (won't override existing)
+// -----------------------------
+$primary: #6BB4DE !default;
+$deep: #000 !default;
+$white: #fff !default;
+$gray-100: #f8f9fa !default;
+$color-bg-panel: #fff !default;
+$color-border: #e5e7eb !default;
+$radius: 10px !default;
+$shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.1) !default;
+
+$breakpoint-lg: 992px !default;
+
+// ===============================================
+// 🧭 FUNCTION PAGE LAYOUT — Sidebar + Content Alignment
+// ===============================================
 .function-layout-two-col {
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
-  gap: 1.25rem; /* consistent spacing between sidebar and workspace */
+  gap: 1.25rem; // spacing between sidebar and workspace
   margin: 0;
   padding: 0 1rem;
+
+  // Responsive: stack on smaller screens
+  @media (max-width: $breakpoint-lg) {
+    flex-direction: column;
+    padding: 0 0.75rem;
+    gap: 1rem;
+  }
 }
 
-/* 🧩 Sidebar */
+// 🧩 Sidebar
 .function-sidebar {
   flex: 0 0 280px;
   background: $color-bg-panel;
   border: 1px solid $color-border;
-  border-radius: $radius-md;
+  border-radius: $radius;
   padding: 1.5rem 1.25rem 2rem;
   box-shadow: $shadow-sm;
   margin-top: 0;
@@ -48,21 +73,26 @@
   }
 
   .btn-outline-primary {
-    border-color: $color-primary;
-    color: $color-primary;
+    border-color: $primary;
+    color: $primary;
 
     &:hover {
-      background-color: $color-primary;
+      background-color: $primary;
       color: #fff;
     }
   }
+
+  @media (max-width: $breakpoint-lg) {
+    flex: 0 0 auto;
+    width: 100%;
+  }
 }
 
-/* 🧩 Workspace Area */
+// 🧩 Workspace Area
 .function-workspace {
   flex: 1;
   background: $color-bg-panel;
-  border-radius: $radius-md;
+  border-radius: $radius;
   padding: 1.75rem 2rem;
   box-shadow: $shadow-sm;
   margin-top: 0;
@@ -76,97 +106,46 @@
 
   .btn-primary,
   .btn-success {
-    background-color: $color-primary;
-    border-color: $color-primary;
+    background-color: $primary;
+    border-color: $primary;
 
     &:hover {
-      background-color: $color-primary-dark;
-      border-color: $color-primary-dark;
+      background-color: color.adjust($primary, $lightness: -10%);
+      border-color: color.adjust($primary, $lightness: -10%);
     }
+
+    &:focus-visible {
+      outline: 2px solid color.adjust($primary, $lightness: -15%);
+      outline-offset: 2px;
+    }
+  }
+
+  @media (max-width: $breakpoint-lg) {
+    padding: 1.25rem 1rem;
   }
 }
 
+// 🧭 Tabs container (can move to components if it grows)
 .function-tabs {
   margin-top: 0 !important;
   padding-bottom: 1rem;
 }
-/* =========================================================
-   🧭 HEADER / NAVBAR — Porirua Club Brand Styling
-   ========================================================= */
 
-.main-header.navbar {
-  background-color: #000; /* dark base */
-  border-bottom: 3px solid #6BB4DE; /* brand accent border */
-  padding: 0.75rem 1.25rem;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
-  z-index: 1030;
-
-  .navbar-brand {
-    display: flex;
-    align-items: center;
-    img.logo-img {
-      height: 42px;
-      transition: transform 0.3s ease;
-      &:hover {
-        transform: scale(1.05);
-      }
-    }
-  }
-
-  /* 🍔 Burger icon */
-  .navbar-toggler {
-    border: none;
-    background: none;
-    &:focus {
-      outline: none;
-      box-shadow: none;
-    }
-    .navbar-toggler-icon {
-      filter: invert(1); /* white burger */
-    }
-  }
-
-  /* 🔹 Nav links */
-  .nav-link {
-    color: #f8f9fa;
-    font-weight: 500;
-    margin-right: 0.75rem;
-    transition: color 0.2s ease, border-color 0.2s ease;
-
-    &:hover,
-    &.active {
-      color: #6BB4DE !important;
-      border-bottom: 2px solid #6BB4DE;
-    }
-  }
-
-  /* 👤 User circle */
-  .user-circle {
-    background: #6BB4DE;
-    color: #fff;
-    font-weight: 600;
-    border-radius: 50%;
-    width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1rem;
-    cursor: default;
-  }
-
-  .btn-outline-light.btn-sm {
-    border-color: #6BB4DE;
-    color: #6BB4DE;
-    &:hover {
-      background: #6BB4DE;
-      color: #fff;
-    }
-  }
+// 🧰 Content wrapper (utility)
+.main-content {
+  padding: 2rem;
+  background: $gray-100;
 }
 
-/* Ensure sticky behavior if needed */
-.main-header.navbar {
-  position: sticky;
-  top: 0;
+// 🌙 Optional dark-mode adjustments for panels
+@media (prefers-color-scheme: dark) {
+  .function-sidebar,
+  .function-workspace {
+    background: color.adjust($deep, $lightness: 12%);
+    border-color: color.adjust($deep, $lightness: 25%);
+  }
+
+  .main-content {
+    background: color.adjust($deep, $lightness: 15%);
+  }
 }

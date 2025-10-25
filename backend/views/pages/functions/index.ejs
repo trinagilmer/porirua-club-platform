@@ -1,4 +1,7 @@
-<div class="container py-4">
+<!-- 📊 pages/functions/index.ejs -->
+<% locals.layout = 'layouts/main'; %>
+
+<div class="container-fluid py-4 page-functions">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="mb-0" style="color:var(--deep);">Functions Dashboard</h1>
   </div>
@@ -39,7 +42,8 @@
   </div>
 
   <!-- Functions Table -->
-  <div class="card p-3 shadow-sm">
+  <div class="card shadow-sm">
+  <div class="card-content">
     <table class="table compact-table align-middle">
       <thead>
         <tr>
@@ -199,3 +203,5 @@
     color: #fff;
   }
 </style>
+
+

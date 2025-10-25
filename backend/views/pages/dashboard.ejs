@@ -1,5 +1,5 @@
-<main class="main-content">
-  <h1 style="color:var(--deep);margin-top:0;">Club Overview</h1>
+<section class="page-dashboard container-fluid py-4">
+  <h1 class="page-title">Club Overview</h1>
 
   <!-- KPI Row -->
   <section class="kpi-row">
@@ -22,14 +22,45 @@
   </section>
 
   <!-- Chart -->
-  <section class="card">
-    <h2 style="color:var(--deep);">Revenue Trend (Last 12 Months)</h2>
+  <section class="card dashboard-card">
+    <h2 class="card-title">Revenue Trend (Last 12 Months)</h2>
     <canvas id="revenueChart" height="120"></canvas>
   </section>
 
+  <!-- Upcoming Functions -->
+  <section class="card dashboard-card">
+    <h2 class="card-title">Upcoming Functions</h2>
+    <div class="table-responsive">
+      <table class="table compact-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Event</th>
+            <th>Room</th>
+            <th>Guests</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!upcoming.length) { %>
+            <tr><td colspan="5" class="text-center text-muted py-3">No upcoming functions</td></tr>
+          <% } else { upcoming.forEach(fn => { %>
+            <tr>
+              <td><%= fn.event_date?.toISOString().slice(0,10) %></td>
+              <td><strong><%= fn.event_name %></strong></td>
+              <td><%= fn.room_name || '—' %></td>
+              <td><%= fn.attendees || '—' %></td>
+              <td><%= fn.status %></td>
+            </tr>
+          <% }) } %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <script>
-    const labels = <%- JSON.stringify(graph.labels || []) %>;
-    const data = <%- JSON.stringify(graph.data || []) %>;
+    const labels = JSON.parse('<%- JSON.stringify(graph.labels || []) %>');
+    const data = JSON.parse('<%- JSON.stringify(graph.data || []) %>');
     const ctx = document.getElementById('revenueChart').getContext('2d');
     new Chart(ctx, {
       type: 'line',
@@ -50,36 +81,8 @@
       }
     });
   </script>
+</section>
 
-  <!-- Upcoming + Leads -->
-  <div class="card">
-    <h2 style="color:var(--deep);">Upcoming Functions</h2>
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Event</th>
-          <th>Room</th>
-          <th>Guests</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% if (!upcoming.length) { %>
-          <tr><td colspan="5">No upcoming functions</td></tr>
-        <% } else { upcoming.forEach(fn => { %>
-          <tr>
-            <td><%= fn.event_date?.toISOString().slice(0,10) %></td>
-            <td><strong><%= fn.event_name %></strong></td>
-            <td><%= fn.room_name || '—' %></td>
-            <td><%= fn.attendees || '—' %></td>
-            <td><%= fn.status %></td>
-          </tr>
-        <% }) } %>
-      </tbody>
-    </table>
-  </div>
-</main>
 
 
 

@@ -1,0 +1,101 @@
+Need to install the following packages:
+tree-cli@0.6.7
+Ok to proceed? (y) 
+
+C:\Users\user\porirua-club-platform\backend
+Γö£ΓöÇΓöÇ app.js
+Γö£ΓöÇΓöÇ auth
+|  ΓööΓöÇΓöÇ msal.js
+Γö£ΓöÇΓöÇ db.js
+Γö£ΓöÇΓöÇ middleware
+|  Γö£ΓöÇΓöÇ authMiddleware.js
+|  ΓööΓöÇΓöÇ graphTokenMiddleware.js
+Γö£ΓöÇΓöÇ project-tree.txt
+Γö£ΓöÇΓöÇ public
+|  Γö£ΓöÇΓöÇ css
+|  |  Γö£ΓöÇΓöÇ bootstrap-fix.css
+|  |  Γö£ΓöÇΓöÇ legacy
+|  |  Γö£ΓöÇΓöÇ main.css
+|  |  Γö£ΓöÇΓöÇ main.css.map
+|  |  Γö£ΓöÇΓöÇ styles.css.map
+|  |  ΓööΓöÇΓöÇ _test-sidebar.css
+|  Γö£ΓöÇΓöÇ img
+|  |  Γö£ΓöÇΓöÇ pc-logo.jpg
+|  |  ΓööΓöÇΓöÇ pc-logo.png
+|  ΓööΓöÇΓöÇ js
+|     Γö£ΓöÇΓöÇ core
+|     Γö£ΓöÇΓöÇ functions
+|     Γö£ΓöÇΓöÇ inbox.js
+|     Γö£ΓöÇΓöÇ settings
+|     Γö£ΓöÇΓöÇ sidebar.js
+|     ΓööΓöÇΓöÇ ui.js
+Γö£ΓöÇΓöÇ routes
+|  Γö£ΓöÇΓöÇ auth.js
+|  Γö£ΓöÇΓöÇ dashboard.js
+|  Γö£ΓöÇΓöÇ functions.js
+|  Γö£ΓöÇΓöÇ health.js
+|  Γö£ΓöÇΓöÇ inbox.js
+|  Γö£ΓöÇΓöÇ index.js
+|  Γö£ΓöÇΓöÇ settings.js
+|  ΓööΓöÇΓöÇ test.js
+Γö£ΓöÇΓöÇ scss
+|  Γö£ΓöÇΓöÇ components
+|  |  Γö£ΓöÇΓöÇ _buttons.scss
+|  |  Γö£ΓöÇΓöÇ _cards.scss
+|  |  Γö£ΓöÇΓöÇ _dashboard-page.scss
+|  |  Γö£ΓöÇΓöÇ _dashboard.scss
+|  |  Γö£ΓöÇΓöÇ _function-pages.scss
+|  |  Γö£ΓöÇΓöÇ _modals.scss
+|  |  Γö£ΓöÇΓöÇ _settings.scss
+|  |  ΓööΓöÇΓöÇ _sidebar.scss
+|  Γö£ΓöÇΓöÇ core
+|  |  Γö£ΓöÇΓöÇ _base.scss
+|  |  Γö£ΓöÇΓöÇ _layout.scss
+|  |  Γö£ΓöÇΓöÇ _utilities.scss
+|  |  ΓööΓöÇΓöÇ _variables.scss
+|  Γö£ΓöÇΓöÇ legacy
+|  |  Γö£ΓöÇΓöÇ _legacy-imports.scss
+|  |  ΓööΓöÇΓöÇ _legacy-styles.scss
+|  ΓööΓöÇΓöÇ main.scss
+Γö£ΓöÇΓöÇ services
+|  Γö£ΓöÇΓöÇ graphService.js
+|  Γö£ΓöÇΓöÇ messageMatcher.js
+|  ΓööΓöÇΓöÇ taskMailer.js
+Γö£ΓöÇΓöÇ testEnv.js
+Γö£ΓöÇΓöÇ utils
+|  Γö£ΓöÇΓöÇ graphAuth.js
+|  Γö£ΓöÇΓöÇ startupValidator.js
+|  ΓööΓöÇΓöÇ supabaseClient.js
+ΓööΓöÇΓöÇ views
+   Γö£ΓöÇΓöÇ error.ejs
+   Γö£ΓöÇΓöÇ layouts
+   |  Γö£ΓöÇΓöÇ main.ejs
+   |  ΓööΓöÇΓöÇ settings.ejs
+   Γö£ΓöÇΓöÇ pages
+   |  Γö£ΓöÇΓöÇ 404.ejs
+   |  Γö£ΓöÇΓöÇ dashboard.ejs
+   |  Γö£ΓöÇΓöÇ functions
+   |  Γö£ΓöÇΓöÇ inbox.ejs
+   |  Γö£ΓöÇΓöÇ login.ejs
+   |  Γö£ΓöÇΓöÇ messageDetail.ejs
+   |  Γö£ΓöÇΓöÇ register.ejs
+   |  ΓööΓöÇΓöÇ settings
+   ΓööΓöÇΓöÇ partials
+      Γö£ΓöÇΓöÇ footer.ejs
+      Γö£ΓöÇΓöÇ functions
+      Γö£ΓöÇΓöÇ head.ejs
+      Γö£ΓöÇΓöÇ header.ejs
+      Γö£ΓöÇΓöÇ layouts
+      Γö£ΓöÇΓöÇ linkContactModal.ejs
+      Γö£ΓöÇΓöÇ linkFunctionModal.ejs
+      Γö£ΓöÇΓöÇ linkMessageModalold.ejs
+      Γö£ΓöÇΓöÇ messageDetail.ejs
+      Γö£ΓöÇΓöÇ messageItem.ejs
+      Γö£ΓöÇΓöÇ replyModal.ejs
+      ΓööΓöÇΓöÇ settings
+
+directory: 26 file: 64
+
+
+
+[2K[1G

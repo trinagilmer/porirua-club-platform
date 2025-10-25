@@ -1,0 +1,32 @@
+@use "sass:color";
+@use "../core/theme-overrides" as *;
+
+.page-dashboard {
+  h1.page-title {
+    font-size: $h1-size;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+  }
+
+  table.compact-table {
+    font-size: 0.95rem;
+    th {
+      color: $gray-700;
+      font-weight: 600;
+    }
+    td {
+      vertical-align: middle;
+    }
+  }
+
+  .status-badge {
+    padding: 0.25rem 0.6rem;
+    border-radius: $radius;
+    font-size: 0.8rem;
+    text-transform: capitalize;
+
+    &.status-active { background-color: lighten($primary, 40%); color: $deep; }
+    &.status-confirmed { background-color: lighten($secondary, 35%); color: $deep; }
+    &.status-completed { background-color: $secondary; color: #fff; }
+  }
+}

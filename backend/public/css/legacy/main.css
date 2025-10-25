@@ -971,10 +971,7 @@ a:hover { color: var(--primary); }
   transform: translateX(0) !important;
 }
 
-.contact-edit-panel.hidden,
-.contact-add-panel.hidden {
-  display: none !important;
-}
+
 
 /* --- Header --- */
 .contact-edit-header {

@@ -1,0 +1,327 @@
+@use "sass:color";
+@use "../core/variables";
+
+/* =========================================================
+   ⚙️ SETTINGS LAYOUT - PORIRUA CLUB PLATFORM
+   Unified Bootstrap-aligned design
+========================================================= */
+
+$porirua-blue: #6bb4de;
+
+:root {
+  --porirua-blue: #6bb4de;
+}
+
+/* ------------------------------------------
+   SETTINGS BASE LAYOUT
+------------------------------------------ */
+.settings-layout {
+  display: flex;
+  min-height: calc(100vh - 4rem);
+  background: #f8f9fa;
+  font-family: 'Inter', sans-serif;
+  padding-top: 4rem;
+
+  @media (max-width: 992px) {
+    flex-direction: column;
+  }
+}
+
+.settings-sidebar {
+  width: 250px;
+  background: #ffffff;
+  border-right: 1px solid #dee2e6;
+  padding: 1.5rem;
+  flex-shrink: 0;
+
+  h5 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 1.25rem;
+    color: #333;
+  }
+
+  .nav-link {
+    color: #555;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    transition: background 0.2s ease, color 0.2s ease;
+
+    &:hover {
+      background-color: rgba(107, 180, 222, 0.15);
+      color: var(--porirua-blue);
+    }
+
+    &.active {
+      background-color: var(--porirua-blue);
+      color: #fff !important;
+      font-weight: 600;
+      box-shadow: 0 0 6px rgba(107, 180, 222, 0.3);
+    }
+
+    &.disabled {
+      color: #aaa;
+      cursor: not-allowed;
+    }
+  }
+
+  @media (max-width: 992px) {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    overflow-x: auto;
+    gap: 1rem;
+
+    .nav-link {
+      white-space: nowrap;
+      flex: 1;
+      text-align: center;
+    }
+  }
+}
+
+.settings-content {
+  flex-grow: 1;
+  padding: 2rem;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 0 15px rgba(0,0,0,0.05);
+  margin: 1rem;
+  h1, h2, h3, h4 {
+    color: #212529;
+  }
+
+  @media (max-width: 768px) {
+    padding: 1.25rem;
+  }
+}
+
+/* ------------------------------------------
+   SETTINGS MODALS (Bootstrap-based)
+------------------------------------------ */
+.modal-content {
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  border: none;
+  overflow: hidden;
+
+  .modal-header {
+    background-color: var(--porirua-blue);
+    color: #fff;
+    border-bottom: none;
+    h5 {
+      font-weight: 600;
+      margin: 0;
+    }
+  }
+
+  .modal-body {
+    padding: 1.5rem;
+  }
+
+  .modal-footer {
+    border-top: none;
+    padding: 1rem 1.5rem;
+  }
+}
+
+.btn {
+  border-radius: 8px;
+  font-weight: 500;
+  &.btn-primary {
+    background-color: var(--porirua-blue);
+    border-color: var(--porirua-blue);
+    &:hover {
+      background-color: color.scale($porirua-blue, $lightness: -10%);
+    }
+  }
+  &.btn-outline-secondary:hover {
+    color: var(--porirua-blue);
+    border-color: var(--porirua-blue);
+  }
+}
+
+/* ------------------------------------------
+   SETTINGS OVERVIEW CARDS
+------------------------------------------ */
+.settings-overview {
+  padding: 1rem 2rem;
+
+  h1 {
+    color: #212529;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+  }
+
+  .overview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .overview-card {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+    padding: 1.75rem;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+
+    h4 {
+      color: #212529;
+      margin-bottom: 0.5rem;
+    }
+
+    p {
+      color: #6c757d;
+      margin-bottom: 1rem;
+    }
+
+    a.btn {
+      font-size: 0.875rem;
+      border-radius: 6px;
+    }
+
+    &:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
+    }
+
+    &.disabled {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+  }
+
+  @media (max-width: 768px) {
+    padding: 1rem;
+    .overview-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+/* =========================================================
+   🎨 SETTINGS — THEME POLISH (Post-refactor)
+   For consistent look with main dashboard layout
+========================================================= */
+
+/* ------------------------------------------
+   GENERAL LAYOUT
+------------------------------------------ */
+.settings-content {
+  background: #ffffff;
+  padding: 2rem;
+  border-radius: 10px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+
+  h1, h4 {
+    font-weight: 600;
+    color: #1e2d3d;
+  }
+
+  .btn-primary {
+    background-color: #6bb4de;   // lighter Porirua blue
+    border-color: #6bb4de;
+    &:hover {
+      background-color: darken(#6bb4de, 5%);
+      border-color: darken(#6bb4de, 5%);
+    }
+  }
+}
+
+/* ------------------------------------------
+   LISTS (Event Types / Rooms)
+------------------------------------------ */
+.list-group-item {
+  border: 1px solid #e5e8ec;
+  transition: background 0.15s ease;
+  &:hover {
+    background: #f8fbfd;
+  }
+}
+
+.list-group-item .btn-group .btn {
+  font-size: 0.875rem;
+  padding: 0.25rem 0.5rem;
+}
+
+/* ------------------------------------------
+   MODALS
+------------------------------------------ */
+.modal-content {
+  border-radius: 10px;
+  border: none;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+  background: #f9fafb;
+  border-bottom: 1px solid #eaeaea;
+  h5 {
+    color: #1e2d3d;
+    font-weight: 600;
+  }
+}
+
+.modal-body {
+  padding: 1.5rem;
+  .form-label {
+    font-weight: 500;
+    color: #344054;
+  }
+}
+
+.modal-footer {
+  background: #f9fafb;
+  border-top: 1px solid #eaeaea;
+  padding: 1rem 1.5rem;
+}
+
+/* ------------------------------------------
+   TOAST MESSAGES (Flash-based)
+------------------------------------------ */
+.toast-message {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  min-width: 260px;
+  background: #6bb4de;
+  color: #fff;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  opacity: 0.95;
+  z-index: 2000;
+  font-size: 0.9rem;
+  animation: fadeSlideIn 0.4s ease, fadeOut 3.6s ease forwards;
+}
+
+.toast-message.success { background: #198754; }
+.toast-message.warning { background: #ffc107; color: #000; }
+.toast-message.error   { background: #dc3545; }
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(-15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeOut {
+  0%, 85% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+
+/* ------------------------------------------
+   RESPONSIVE
+------------------------------------------ */
+@media (max-width: 768px) {
+  .settings-content {
+    padding: 1.25rem;
+  }
+  .list-group-item {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 0.5rem;
+  }
+}
+

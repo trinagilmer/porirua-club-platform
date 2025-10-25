@@ -29,8 +29,7 @@
               <div class="task-card card p-3" data-id="<%= task.id %>">
                 <div class="d-flex justify-content-between align-items-start">
                   <h5 class="task-card-title mb-2"><%= task.title %></h5>
-                  <span class="badge task-card-status <%= task.status === 'completed' ? 'bg-primary' : 'bg-secondary' %>">
-                    <%= task.status || 'pending' %>
+                  <span class="badge task-card-status <%= task.status === 'completed' ? 'bg-brand' : 'bg-secondary' %>">
                   </span>
                 </div>
                 <p class="task-card-desc text-muted mb-2">

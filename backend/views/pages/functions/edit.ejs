@@ -2,15 +2,11 @@
 <% locals.layout = 'layouts/main'; %>
 
 <main class="function-layout-two-col">
+
   <!-- 🧭 Sidebar -->
-  <aside class="function-sidebar">
-    <%- include('../../partials/functions/sidebar', {
-      fn,
-      linkedContacts: linkedContacts || [],
-      rooms: rooms || [],
-      eventTypes: eventTypes || []
-    }) %>
-  </aside>
+ <!-- 🧭 LEFT COLUMN — Sidebar Partial -->
+<%- include('../../partials/functions/sidebar') %>
+
 
   <!-- 🧩 Workspace -->
   <section class="function-workspace">
@@ -40,14 +36,24 @@
                    value="<%= fn.event_date ? fn.event_date.toISOString().slice(0,10) : '' %>" />
           </div>
 
-          <div class="col-md-3">
-            <label class="form-label">Time</label>
-            <input type="time" name="event_time" class="form-control" value="<%= fn.event_time || '' %>" />
+          <div class="col-md-6">
+              <label class="form-label">Start Time</label>
+              <input type="time" name="start_time" class="form-control" value="<%= fn.start_time || '' %>" />
+          </div>
+
+          <div class="col-md-6">
+              <label class="form-label">End Time</label>
+              <input type="time" name="end_time" class="form-control" value="<%= fn.end_time || '' %>" />
           </div>
 
           <div class="col-md-4">
             <label class="form-label">Attendees</label>
             <input type="number" name="attendees" class="form-control" value="<%= fn.attendees || '' %>" />
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Budget ($)</label>
+            <input type="number" step="0.01" name="budget" class="form-control" value="<%= fn.budget || '' %>" />
           </div>
 
           <div class="col-md-4">
@@ -59,7 +65,29 @@
             <label class="form-label">Total Cost</label>
             <input type="number" step="0.01" name="totals_cost" class="form-control" value="<%= fn.totals_cost || 0 %>" />
           </div>
-
+          <div class="col-md-6">
+            <label class="form-label">Room / Space</label>
+            <select name="room_id" class="form-select">
+              <option value="">Select a room</option>
+              <% rooms.forEach(r => { %>
+                <option value="<%= r.id %>" <%= fn.room_id === r.id ? 'selected' : '' %>>
+                  <%= r.name %> (<%= r.capacity %> ppl)
+                </option>
+              <% }) %>
+            </select>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Event Type</label>
+          <select name="event_type" class="form-select">
+            <option value="">Select an event type</option>
+            <% eventTypes.forEach(t => { %>
+            <option value="<%= t.name %>" <%= fn.event_type === t.name ? 'selected' : '' %>>
+        <%= t.name %>
+      </option>
+    <% }) %>
+  </select>
+</div>
           <div class="col-md-6">
             <label class="form-label">Status</label>
             <select name="status" class="form-select">
@@ -91,6 +119,6 @@
 
 <!-- ⚙️ Scripts -->
 <script>
-  window.fnContext = { id: <%- JSON.stringify(fn.id) %> };
+  window.fnContext = <%- JSON.stringify({ id: fn.id }) %>;
 </script>
 <script src="/js/functions/edit.js" defer></script>
