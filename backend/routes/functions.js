@@ -1,7 +1,7 @@
 const express = require("express");
 const { pool } = require("../db");
 const router = express.Router();
-const { sendMail: graphSendMail } = require("../services/graphservice");
+const { sendMail: graphSendMail } = require("../services/graphService");
 
 // === MSAL for app-token fallback (if no delegated token in session) ===
 const { ConfidentialClientApplication } = require("@azure/msal-node");
