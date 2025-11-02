@@ -1,85 +1,264 @@
-<!-- 📝 pages/functions/notes.ejs -->
 <% locals.layout = 'layouts/main'; %>
 
-<main class="function-layout-two-col">
- <!-- 🧭 Sidebar -->
- <!-- 🧭 LEFT COLUMN — Sidebar Partial -->
-<%- include('../../partials/functions/sidebar') %>
-
-  <!-- 🧩 Workspace -->
-  <section class="function-workspace">
-    <!-- 🔹 Tabs -->
-    <%- include('../../partials/functions/tabs', {
-      fn,
-      activeTab: 'notes'
-    }) %>
 
     <!-- 🔹 Body -->
-    <div class="function-body container py-4">
-      <div class="workspace-header d-flex justify-content-between align-items-center mb-3">
-        <h1 class="mb-0">📝 Notes</h1>
-      </div>
+    <div class="function-body py-4 px-4">
 
-      <!-- 🆕 Quick Note Form -->
-      <form id="quickNoteForm" class="mb-4">
-        <div class="input-group">
-          <input id="quickNoteInput" type="text" class="form-control" placeholder="Write a quick note..." />
-          <select id="noteType" class="form-select" style="max-width: 160px;">
-            <option value="general" selected>General</option>
-            <option value="followup">Follow-Up</option>
-            <option value="internal">Internal</option>
-            <option value="client">Client</option>
+      <!-- ===== NOTES EDITOR TOOLBAR + EDITOR ===== -->
+      <style>
+        .notes-bar { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin-bottom:.5rem; }
+        .notes-bar .group { display:flex; gap:.25rem; align-items:center; background:var(--surface, #f6f7f9); padding:.4rem .5rem; border-radius:.5rem; }
+        .notes-bar .group label { font-size:.85rem; margin-right:.25rem; color:#555; }
+        .notes-bar button, .notes-bar select { font-size:.9rem; padding:.35rem .5rem; border:1px solid #d0d7de; background:#fff; border-radius:.4rem; cursor:pointer; }
+        .notes-bar button:hover { background:#f1f4f7; }
+        .notes-editor-surface { min-height:220px; border:1px solid #d0d7de; border-radius:.5rem; padding:.75rem; background:#fff; }
+        .notes-actions { display:flex; gap:.5rem; justify-content:flex-end; margin-top:.5rem; }
+        .token-panel { display:flex; gap:.25rem; flex-wrap:wrap; max-height:120px; overflow:auto; }
+        .token-panel .token-btn { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+        .status-group { display:flex; gap:.5rem; align-items:center; }
+        .status-group input { margin-right:.25rem; }
+        .preview-wrap { margin-top:1rem; border:1px dashed #d0d7de; border-radius:.5rem; padding:.75rem; background:#fff; }
+        .notes-columns { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:1rem; margin-top:1rem; }
+        .notes-card { background:#fff; border:1px solid #e5e7eb; border-radius:.5rem; }
+        .notes-card header { display:flex; justify-content:space-between; align-items:center; padding:.6rem .8rem; border-bottom:1px solid #eef1f4; font-weight:600; }
+        .notes-list { padding:.5rem .8rem; display:flex; flex-direction:column; gap:.5rem; }
+        .note-item { border:1px solid #eef1f4; border-radius:.4rem; padding:.5rem .6rem; background:#fafbfc; }
+        .note-meta { font-size:.8rem; color:#6b7280; display:flex; gap:.5rem; justify-content:space-between; margin-bottom:.25rem; }
+        .note-html { font-size:.95rem; }
+        .badge { display:inline-block; padding:.1rem .4rem; border-radius:.4rem; font-size:.75rem; }
+        .badge-proposal { background:#e0f2fe; color:#075985; }
+        .badge-general { background:#ecfccb; color:#365314; }
+        .badge-internal { background:#fee2e2; color:#7f1d1d; }
+      </style>
+
+      <div class="notes-bar">
+        <!-- Templates -->
+        <div class="group">
+          <label for="templateSelect">Template</label>
+          <select id="templateSelect">
+            <option value="">— Select —</option>
+            <% (templates || []).forEach(t => { %>
+              <option value="<%= t.id %>"><%= t.name %></option>
+            <% }) %>
           </select>
-          <button class="btn btn-primary" type="submit">Add</button>
         </div>
-      </form>
 
-      <!-- 🗒️ Notes List -->
-      <div id="notesList">
-        <% if (Array.isArray(notes) && notes.length > 0) { %>
-          <% notes.forEach(note => { %>
-            <div class="note-card mb-3 p-3 border rounded" data-id="<%= note.entry_id %>">
-              <div class="note-meta mb-1">
-                <span class="badge me-2 note-type-badge note-type-<%= note.note_type || 'general' %>">
-                  <%= (note.note_type || 'General').charAt(0).toUpperCase() + (note.note_type || 'General').slice(1) %>
-                </span>
-                <strong><%= note.author || 'Unknown' %></strong> •
-                <%= new Date(note.entry_date).toLocaleString('en-NZ') %>
-              </div>
-              <div class="note-body"><%= note.body || '' %></div>
-              <div class="note-actions mt-2 d-flex gap-2">
-                <button class="btn btn-sm btn-outline-secondary edit-note">Edit</button>
-                <button class="btn btn-sm btn-success save-note d-none">Save</button>
-                <button class="btn btn-sm btn-outline-danger delete-note">Delete</button>
-                <button class="btn btn-sm btn-outline-secondary print-note">🖨️ Print</button>
-              </div>
-            </div>
-          <% }) %>
-        <% } else { %>
-          <p class="text-muted">No notes yet.</p>
-        <% } %>
+        <!-- Status -->
+        <div class="group status-group">
+          <label>Status</label>
+          <label><input type="radio" name="note_status" value="proposal"> Proposal</label>
+          <label><input type="radio" name="note_status" value="general" checked> General</label>
+          <label><input type="radio" name="note_status" value="internal"> Internal</label>
+        </div>
+
+        <!-- Formatting -->
+        <div class="group">
+          <button type="button" title="Bold" data-cmd="bold"><strong>B</strong></button>
+          <button type="button" title="Italic" data-cmd="italic"><em>I</em></button>
+          <button type="button" title="Underline" data-cmd="underline"><u>U</u></button>
+        </div>
+
+        <div class="group">
+          <button type="button" title="Heading 2" data-cmd="formatBlock" data-value="h2">H2</button>
+          <button type="button" title="Heading 3" data-cmd="formatBlock" data-value="h3">H3</button>
+          <button type="button" title="Paragraph" data-cmd="formatBlock" data-value="p">P</button>
+        </div>
+
+        <div class="group">
+          <button type="button" title="Bulleted list" data-cmd="insertUnorderedList">• List</button>
+          <button type="button" title="Numbered list" data-cmd="insertOrderedList">1. List</button>
+          <button type="button" title="Blockquote" data-cmd="formatBlock" data-value="blockquote">❝ Quote</button>
+        </div>
+
+        <div class="group">
+          <button type="button" title="Align left" data-cmd="justifyLeft">⟸</button>
+          <button type="button" title="Align center" data-cmd="justifyCenter">↔</button>
+          <button type="button" title="Align right" data-cmd="justifyRight">⟹</button>
+        </div>
+
+        <div class="group">
+          <button type="button" title="Insert link" data-action="link">🔗 Link</button>
+          <button type="button" title="Remove link" data-cmd="unlink">⛓️‍✂️ Unlink</button>
+          <button type="button" title="Undo" data-cmd="undo">↶</button>
+          <button type="button" title="Redo" data-cmd="redo">↷</button>
+          <button type="button" title="Clear formatting" data-cmd="removeFormat">🧹</button>
+        </div>
+
+        <!-- Tables -->
+        <div class="group">
+          <label>Table</label>
+          <button type="button" data-insert-table data-rows="2" data-cols="2">2×2</button>
+          <button type="button" data-insert-table data-rows="3" data-cols="3">3×3</button>
+        </div>
       </div>
+
+      <!-- Token palette -->
+      <div class="group" style="margin-bottom:.5rem;">
+        <details>
+          <summary style="cursor:pointer;">Merge fields (click to insert)</summary>
+          <div class="token-panel" style="margin-top:.5rem;">
+            <% (mergeFields || []).forEach(f => { %>
+              <button type="button" class="token-btn" data-key="<%- f.key %>" title="<%- f.description || '' %>">
+                {{<%- f.key %>}}
+              </button>
+            <% }) %>
+          </div>
+        </details>
+      </div>
+
+      <!-- Editor surface -->
+      <div id="noteEditor" class="notes-editor-surface" contenteditable="true" spellcheck="true"></div>
+
+      <!-- Actions -->
+      <div class="notes-actions">
+        <button type="button" id="previewNote">Preview</button>
+        <button type="button" id="saveNote">Save</button>
+      </div>
+
+      <!-- Preview pane -->
+      <div id="previewPane" class="preview-wrap"></div>
+
+      <!-- Tiny helper for Link (prompts for URL) -->
+      <script>
+        (function () {
+          const editorEl = document.getElementById('noteEditor');
+          const linkBtn = document.querySelector('[data-action="link"]');
+          if (!editorEl || !linkBtn) return;
+
+          linkBtn.addEventListener('click', () => {
+            const url = window.prompt('Enter URL (including https://)');
+            if (!url) return;
+            document.execCommand('createLink', false, url);
+            editorEl.focus();
+          });
+        })();
+      </script>
+
+      <!-- ===== RENDERED NOTES: Proposal / General / Internal ===== -->
+      <%
+        const notesArr = notes || [];
+        const byStatus = { proposal: [], general: [], internal: [] };
+        notesArr.forEach(n => {
+          const s = (n.note_type || 'general').toLowerCase();
+          if (byStatus[s]) byStatus[s].push(n); else byStatus.general.push(n);
+        });
+
+        function fmtDate(d) {
+          try { return new Date(d).toLocaleString('en-NZ', { hour12: true }); } catch { return ''; }
+        }
+      %>
+
+      <div class="notes-columns">
+        <!-- Proposal -->
+        <div class="notes-card">
+          <header>
+            <span>Proposal</span>
+            <span class="badge badge-proposal"><%= byStatus.proposal.length %></span>
+          </header>
+          <div class="notes-list">
+            <% if (!byStatus.proposal.length) { %>
+              <div class="note-item"><em>No proposal notes yet.</em></div>
+            <% } %>
+            <% byStatus.proposal.forEach(n => { %>
+              <article class="note-item" data-note-id="<%= n.id %>">
+                <div class="note-meta">
+                  <span><%= n.author_name || 'Unknown' %></span>
+                  <span><%= fmtDate(n.updated_at || n.created_at) %></span>
+                </div>
+                <div class="note-html"><%- n.rendered_html || n.content || '' %></div>
+              </article>
+            <% }) %>
+          </div>
+        </div>
+
+        <!-- General -->
+        <div class="notes-card">
+          <header>
+            <span>General</span>
+            <span class="badge badge-general"><%= byStatus.general.length %></span>
+          </header>
+          <div class="notes-list">
+            <% if (!byStatus.general.length) { %>
+              <div class="note-item"><em>No general notes yet.</em></div>
+            <% } %>
+            <% byStatus.general.forEach(n => { %>
+              <article class="note-item" data-note-id="<%= n.id %>">
+                <div class="note-meta">
+                  <span><%= n.author_name || 'Unknown' %></span>
+                  <span><%= fmtDate(n.updated_at || n.created_at) %></span>
+                </div>
+                <div class="note-html"><%- n.rendered_html || n.content || '' %></div>
+              </article>
+            <% }) %>
+          </div>
+        </div>
+
+        <!-- Internal -->
+        <div class="notes-card">
+          <header>
+            <span>Internal</span>
+            <span class="badge badge-internal"><%= byStatus.internal.length %></span>
+          </header>
+          <div class="notes-list">
+            <% if (!byStatus.internal.length) { %>
+              <div class="note-item"><em>No internal notes yet.</em></div>
+            <% } %>
+            <% byStatus.internal.forEach(n => { %>
+              <article class="note-item" data-note-id="<%= n.id %>">
+                <div class="note-meta">
+                  <span><%= n.author_name || 'Unknown' %></span>
+                  <span><%= fmtDate(n.updated_at || n.created_at) %></span>
+                </div>
+                <div class="note-html"><%- n.rendered_html || n.content || '' %></div>
+              </article>
+            <% }) %>
+          </div>
+        </div>
+      </div>
+
     </div>
   </section>
 </main>
 
-<!-- 🧱 Modals (shared across all function pages) -->
-<%- include('../../partials/functions/modals', {
-  fn,
-  linkedContacts: linkedContacts || [],
-  rooms: rooms || [],
-  eventTypes: eventTypes || []
-}) %>
+<!-- 🧱 GLOBAL FUNCTION MODALS (if you include them site-wide) -->
+<%- include('../../partials/functions/modals') %>
 
-<!-- ⚙️ Scripts -->
+<!-- Context for editor JS -->
 <script>
-  window.fnContext = { id: <%- JSON.stringify(fn.id) %> };
+  (function () {
+    // Safely JSON-encode raw data from EJS
+    const fnId       = <%- JSON.stringify(fn.id_uuid) %>;
+    const eventName  = <%- JSON.stringify(fn.event_name || "") %>;
+    const eventDate  = <%- JSON.stringify(fn.event_date || "") %>;
+    const startTime  = <%- JSON.stringify(fn.start_time || "") %>;
+    const endTime    = <%- JSON.stringify(fn.end_time || "") %>;
+
+    const contacts   = <%- JSON.stringify(linkedContacts || []) %>;
+    const rooms      = <%- JSON.stringify(rooms || []) %>;
+    const roomId     = <%- JSON.stringify(fn.room_id || null) %>;
+
+    const templates  = <%- JSON.stringify(templates || []) %>;
+    const mergeFields= <%- JSON.stringify(mergeFields || []) %>;
+
+    const contact    = contacts[0] || {};
+    const room       = rooms.find(r => r.id === roomId) || {};
+
+    window.fnContext = {
+      id: fnId,
+      event: {
+        name: eventName,
+        date: eventDate,
+        start_time: startTime,
+        end_time: endTime,
+      },
+      contact,
+      room,
+      templates,
+      mergeFields,
+    };
+  })();
 </script>
-<script src="/js/functions/notes.js" defer></script>
+
+<script src="/js/functions/notes-editor.js" defer></script>
+<script src="/js/functions/notes-delete.js" defer></script>
 <script src="/js/functions/detail.js" defer></script>
-
-
-
-
-
-

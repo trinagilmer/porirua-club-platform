@@ -1,32 +1,110 @@
 @use "sass:color";
-@use "../core/theme-overrides" as *;
+@use "../core/variables" as *;
+
+// ===========================================================
+// 📊 DASHBOARD PAGE — Modern, Clean, Cohesive
+// ===========================================================
 
 .page-dashboard {
+  padding: 1.5rem;
+
   h1.page-title {
     font-size: $h1-size;
     font-weight: 600;
-    margin-bottom: 1.5rem;
+    color: $neutral-900;
+    margin-bottom: 1.75rem;
   }
 
+  // ---------- TABLE ----------
   table.compact-table {
     font-size: 0.95rem;
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid $color-border;
+    border-radius: $radius;
+    overflow: hidden;
+    background: #fff;
+
     th {
-      color: $gray-700;
+      background-color: $neutral-100;
+      color: $neutral-700;
       font-weight: 600;
+      text-align: left;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid $color-border;
     }
+
     td {
+      padding: 0.75rem 1rem;
       vertical-align: middle;
+      border-bottom: 1px solid $color-border;
+      color: $neutral-900;
+    }
+
+    tr:hover {
+      background-color: $brand-soft;
     }
   }
 
+  // ---------- STATUS BADGES ----------
   .status-badge {
-    padding: 0.25rem 0.6rem;
+    display: inline-block;
+    padding: 0.3rem 0.6rem;
     border-radius: $radius;
     font-size: 0.8rem;
     text-transform: capitalize;
+    font-weight: 600;
 
-    &.status-active { background-color: lighten($primary, 40%); color: $deep; }
-    &.status-confirmed { background-color: lighten($secondary, 35%); color: $deep; }
-    &.status-completed { background-color: $secondary; color: #fff; }
+    &.status-active {
+      background-color: color.scale($brand, $lightness: 40%);
+      color: $neutral-900;
+    }
+
+    &.status-confirmed {
+      background-color: color.scale($success, $lightness: 25%);
+      color: $neutral-900;
+    }
+
+    &.status-completed {
+      background-color: $success;
+      color: #fff;
+    }
+  }
+
+  // ---------- KPI BAR ----------
+  .kpi-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .kpi {
+    background: #fff;
+    border: 1px solid $color-border;
+    border-left: 5px solid $brand;
+    border-radius: $radius;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    padding: 1rem 1.25rem;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+
+    &:hover {
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
+      transform: translateY(-2px);
+    }
+
+    .label {
+      color: $color-text-muted;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .value {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: $neutral-900;
+      margin-top: 0.25rem;
+    }
   }
 }

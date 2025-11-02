@@ -51,6 +51,14 @@ app.locals.formatNZDateTime = (date, time) => {
     return "";
   }
 };
+app.locals.formatCurrency = (value) => {
+  const num = Number(value) || 0;
+  return num.toLocaleString("en-NZ", {
+    style: "currency",
+    currency: "NZD",
+    minimumFractionDigits: 2,
+  });
+};
 
 /* =========================================================
    ⚙️ CORE MIDDLEWARE
@@ -78,33 +86,45 @@ app.use((req, res, next) => {
 
 /* =========================================================
    🧩 STATIC FILES — BEFORE AUTH GUARD
+   Serves JS, CSS, images, and compiled assets from /backend/public
 ========================================================= */
-const publicPath = path.resolve(__dirname, "public"); // ✅ now points to backend/public
+const publicPath = path.join(__dirname, "public");
 console.log("📂 Serving static files from:", publicPath);
 app.use(express.static(publicPath));
 
-
-
 /* =========================================================
-   🧭 Global Default Template Variables
+   🧭 GLOBAL DEFAULT TEMPLATE VARIABLES
 ========================================================= */
 app.use((req, res, next) => {
-  res.locals.pageType = "";                 // prevents undefined in layout
+  res.locals.pageType = "";                   // prevents undefined in layout
   res.locals.title = "Porirua Club Platform"; // fallback title
-  res.locals.active = "";                   // fallback for nav
+  res.locals.active = "";                     // fallback for nav
+  res.locals.pageJs = [];
+  res.locals.pageCss = [];
   next();
 });
 
-// 💬 Flash messages (must come after session)
+/* =========================================================
+   🧭 AUTO-DETECT HELPERS (Layout & Active Tabs)
+========================================================= */
+const setPageType = require("./middleware/setPageType");
+const setActiveTab = require("./middleware/setActiveTab");
+app.use(setPageType);
+app.use(setActiveTab);
+
+/* =========================================================
+   💬 FLASH MESSAGES
+========================================================= */
 const flash = require("connect-flash");
 app.use(flash());
 
-// 🔄 Make flash messages available to all templates
+// Make flash messages available to all templates
 app.use((req, res, next) => {
   res.locals.flashMessage = req.flash("flashMessage")[0];
   res.locals.flashType = req.flash("flashType")[0];
   next();
 });
+
 
 /* =========================================================
    🧪 TEMPLATE ENGINE
@@ -128,8 +148,7 @@ if (process.env.NODE_ENV !== "production") {
     "public/js/functions/notes.js",
     "public/js/functions/tasks.js",
     // ✅ compiled CSS & images
-    "public/css/main.css",
-    "public/img/pc-logo.png",
+       "public/img/pc-logo.png",
   ];
 
   assetsToCheck.forEach((file) => {
@@ -183,23 +202,93 @@ app.use((req, res, next) => {
 /* =========================================================
    🚏 ROUTES — Modular Mounting (now protected by guard)
 ========================================================= */
+//---------------------------------------------------
+// ✅ ROUTE IMPORTS
+//---------------------------------------------------
 const indexRoutes = require("./routes/index");
 const dashboardRoutes = require("./routes/dashboard");
 const testRoutes = require("./routes/test");
-const functionsRoutes = require("./routes/functions");
 const authRoutes = require("./routes/auth");
 const inboxRoutes = require("./routes/inbox");
 const healthRouter = require("./routes/health");
 const settingsRouter = require("./routes/settings");
+const contactsRouter = require("./routes/contacts");
+const notesRouter = require("./routes/notes");
+const menusRouter = require("./routes/menus");
+const paymentsRouter = require("./routes/payments");
+const proposalsRouter = require("./routes/proposals");
+const quoteRouter = require("./routes/quote");       // ✅ must come BEFORE functions
+const functionsRoutes = require("./routes/functions"); // generic, should come later
 
-app.use("/", indexRoutes);
+//---------------------------------------------------
+// ✅ ROUTE REGISTRATION ORDER (most specific → least)
+//---------------------------------------------------
+
+// ✅ ROUTE REGISTRATION ORDER
+app.use("/health", healthRouter);
+app.use("/auth", authRoutes);
+app.use("/functions", quoteRouter);
+app.use("/payments", paymentsRouter);
+app.use("/proposals", proposalsRouter);
+app.use("/menus", menusRouter);
+app.use("/contacts", contactsRouter);
+
+// 🧭 Settings (specific first, then general)
+app.use('/settings', settingsRouter);
+app.use('/settings/menus/categories', require('./routes/settings/menu-categories'));
+app.use('/settings/menus/bulk', require('./routes/settings/menu-bulk'));
+
+
+app.use("/inbox", inboxRoutes);
+app.use("/", notesRouter);
+app.use("/functions", functionsRoutes);
+
+
+// 🔹 Utility and testing
 app.use("/dashboard", dashboardRoutes);
 app.use("/test-db", testRoutes);
-app.use("/functions", functionsRoutes);
-app.use("/inbox", inboxRoutes);
-app.use("/auth", authRoutes);     // whitelisted by OPEN_PATHS
-app.use("/health", healthRouter); // whitelisted by OPEN_PATHS
-app.use("/settings", settingsRouter);
+
+// 🔹 Base routes (should always come last)
+app.use("/", indexRoutes);
+
+
+// 🧩 API routes
+app.use("/api/contacts", require("./routes/contacts"));
+// --- DEV: static tree explorer (lists backend/public contents) ---
+if (process.env.NODE_ENV !== 'production') {
+  const ROOT = path.join(__dirname, 'public');
+
+  function tree(dir, prefix = '') {
+    const entries = fs.readdirSync(dir, { withFileTypes: true })
+      .sort((a, b) => a.name.localeCompare(b.name));
+    let out = '';
+    for (const e of entries) {
+      const isLast = entries[entries.length - 1] === e;
+      const branch = isLast ? '└── ' : '├── ';
+      const nextPrefix = prefix + (isLast ? '    ' : '│   ');
+      out += `${prefix}${branch}${e.name}\n`;
+      if (e.isDirectory()) {
+        out += tree(path.join(dir, e.name), nextPrefix);
+      }
+    }
+    return out;
+  }
+
+  app.get('/__dev/static-tree', (req, res) => {
+    try {
+      const out = [
+        `Static root: ${ROOT}`,
+        '',
+        tree(ROOT),
+        '',
+        'Tip: URLs are /<below after "public">, e.g. /js/settings/menuDrawer.js'
+      ].join('\n');
+      res.type('text/plain').send(out);
+    } catch (err) {
+      res.status(500).type('text/plain').send(`Error reading static tree: ${err.message}`);
+    }
+  });
+}
 
 /* =========================================================
    🚨 404 Fallback

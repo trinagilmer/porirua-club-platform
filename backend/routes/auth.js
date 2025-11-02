@@ -35,7 +35,8 @@ router.post("/login", async (req, res, next) => {
       role: user.role,
     };
 
-    res.redirect("/dashboard");
+    // Automatically start Microsoft Graph login  
+    res.redirect(`/auth/graph/login?next=/dashboard`);
   } catch (err) {
     next(err);
   }
@@ -78,9 +79,30 @@ router.get("/logout", (req, res) => {
 // --- Step 1: Redirect user to Microsoft login page ---
 router.get("/graph/login", async (req, res) => {
   try {
-    // ✅ Preserve intended destination for post-login redirect
-    const next = req.query.next;
-    if (next) req.session.next = next;
+    const nextUrl = req.query.next || "/inbox";
+
+    // 🧠 1️⃣ If an existing valid token is already stored in the session, skip login
+    if (req.session.graphToken && req.session.graphTokenExpires * 1000 > Date.now()) {
+      console.log("✅ [Graph Login] Existing Graph token still valid");
+      return res.redirect(nextUrl);
+    }
+
+    // 🧠 2️⃣ Attempt to silently acquire a new token if we have an MSAL account cached
+    const { getTokenSilent } = require("../auth/msal");
+    if (req.session.account) {
+      const silentResult = await getTokenSilent(req.session.account);
+      if (silentResult && silentResult.accessToken) {
+        req.session.graphToken = silentResult.accessToken;
+        req.session.graphAccessToken = silentResult.accessToken;
+        req.session.graphTokenType = "delegated";
+        req.session.graphTokenExpires = Math.floor(silentResult.expiresOn.getTime() / 1000);
+        console.log("✅ [Graph Login] Silent token refreshed");
+        return res.redirect(nextUrl);
+      }
+    }
+
+    // 🔁 3️⃣ Fallback: Start interactive Microsoft login
+    console.log("🪄 [Graph Login] Redirecting to Microsoft login");
 
     const authCodeUrlParameters = {
       scopes: [
@@ -92,15 +114,17 @@ router.get("/graph/login", async (req, res) => {
         "offline_access",
       ],
       redirectUri: process.env.AZURE_REDIRECT_URI,
+      state: JSON.stringify({ next: nextUrl }),
     };
 
     const url = await cca.getAuthCodeUrl(authCodeUrlParameters);
     res.redirect(url);
   } catch (err) {
-    console.error("❌ Error starting Microsoft login:", err);
+    console.error("❌ [Graph Login] Error:", err);
     res.status(500).send("Error starting Microsoft login.");
   }
-});
+}); // ✅ closes /graph/login route properly
+
 
 // --- Step 2: Handle Microsoft callback ---
 router.get("/graph/callback", async (req, res) => {
@@ -125,19 +149,14 @@ router.get("/graph/callback", async (req, res) => {
     req.session.graphToken = response.accessToken;
     req.session.graphAccessToken = response.accessToken; // ✅ make it available for both inbox/functions
     req.session.graphTokenType = "delegated";
-    req.session.graphTokenExpires = Math.floor(
-      response.expiresOn.getTime() / 1000
-    );
+    req.session.graphTokenExpires = Math.floor(response.expiresOn.getTime() / 1000);
     req.session.account = response.account;
 
     console.log("✅ Microsoft login success:", msUser.username);
     console.log("🕒 Token expires at:", response.expiresOn.toISOString());
 
     // --- Sync Microsoft user with local database ---
-    const { rows } = await pool.query(
-      "SELECT * FROM users WHERE email = $1",
-      [msUser.username]
-    );
+    const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [msUser.username]);
 
     let user;
     if (rows.length) {
@@ -145,25 +164,21 @@ router.get("/graph/callback", async (req, res) => {
     } else {
       const insert = await pool.query(
         "INSERT INTO users (name, email, role) VALUES ($1, $2, $3) RETURNING id, name, email, role",
-        [
-          msUser.name || msUser.username.split("@")[0],
-          msUser.username,
-          "user",
-        ]
+        [msUser.name || msUser.username.split("@")[0], msUser.username, "user"]
       );
       user = insert.rows[0];
     }
 
-    // 🧭 Save user + shared mailbox in session
+    // 🧭 Merge with existing session user if present
     req.session.user = {
+      ...(req.session.user || {}),
       id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
     };
 
-    req.session.sharedMailbox =
-      process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
+    req.session.sharedMailbox = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
     console.log(`📨 Shared mailbox configured: ${req.session.sharedMailbox}`);
 
     // ✅ Redirect back to original page (or inbox as fallback)
@@ -180,6 +195,4 @@ router.get("/graph/callback", async (req, res) => {
 /* =========================================================
    EXPORT
 ========================================================= */
-
 module.exports = router;
-

@@ -1,0 +1,239 @@
+<!-- views/settings/note-templates.ejs -->
+<main class="settings-templates">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0" style="color: var(--deep, #212529);">Note Templates</h1>
+    <div class="d-flex gap-2">
+      <a href="/settings" class="btn btn-outline-secondary">← Back to Settings</a>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTemplateModal">
+        + New Template
+      </button>
+    </div>
+  </div>
+
+  <!-- 🧃 Flash Message -->
+  <% if (typeof flashMessage !== 'undefined' && flashMessage && flashMessage.length) { %>
+    <div class="alert alert-<%= flashType === 'error' ? 'danger' : flashType === 'warning' ? 'warning' : 'success' %> alert-dismissible fade show" role="alert">
+      <%= flashMessage %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  <% } %>
+
+  <div class="row g-4">
+    <!-- LEFT: Builder -->
+    <div class="col-12 col-lg-7">
+      <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong>Create / Edit Template (Quick Builder)</strong>
+          <small class="text-muted">Paste from Word, add headings/tables, click tokens to insert.</small>
+        </div>
+        <div class="card-body">
+          <form action="/settings/note-templates/add" method="POST" onsubmit="return syncEditorToField()">
+            <div class="mb-3">
+              <label class="form-label">Name</label>
+              <input type="text" name="name" class="form-control" placeholder="e.g., Setup Instructions" required />
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Category (optional)</label>
+              <input type="text" name="category" class="form-control" placeholder="e.g., Proposal, AV, Staffing" />
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Description (optional)</label>
+              <input type="text" name="description" class="form-control" placeholder="Short description" />
+            </div>
+
+            <!-- Token palette -->
+            <details class="mb-2">
+              <summary style="cursor:pointer;">Merge fields (click to insert)</summary>
+              <div class="d-flex flex-wrap gap-2 mt-2">
+                <% (mergeFields || []).forEach(f => { %>
+                  <button type="button" class="btn btn-sm btn-outline-secondary token-btn" data-key="<%- f.key %>" title="<%- f.description || '' %>">
+                    {{<%- f.key %>}}<% if (f.formatter) { %><small class="text-muted">|<%= f.formatter %></small><% } %>
+                  </button>
+                <% }) %>
+              </div>
+            </details>
+
+            <!-- Editor -->
+            <div id="tplEditor" class="form-control" contenteditable="true" style="min-height:240px;"></div>
+            <input type="hidden" name="content" id="tplContentField" />
+
+            <div class="d-flex justify-content-end gap-2 mt-3">
+              <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('tplEditor').innerHTML=''">Clear</button>
+              <button type="submit" class="btn btn-primary">Save Template</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <small class="text-muted d-block mt-2">
+        Tip: You can paste from Word and keep basic formatting & tables. Use tokens like <code>{{event.start_time|nzTime}}</code> to auto-personalise in Notes/Proposals.
+      </small>
+    </div>
+
+    <!-- RIGHT: Existing templates -->
+    <div class="col-12 col-lg-5">
+      <div class="card shadow-sm">
+        <div class="card-header"><strong>Existing Templates</strong></div>
+        <div class="list-group list-group-flush">
+          <% if (!templates || !templates.length) { %>
+            <div class="list-group-item text-muted">No templates yet. Create your first one on the left.</div>
+          <% } else { %>
+            <% templates.forEach(tpl => { %>
+              <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <div class="fw-semibold"><%= tpl.name %></div>
+                    <% if (tpl.category) { %><div class="badge text-bg-light me-2"><%= tpl.category %></div><% } %>
+                    <% if (tpl.description) { %><small class="text-muted d-block"><%= tpl.description %></small><% } %>
+                  </div>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-secondary"
+                      data-bs-toggle="modal"
+                      data-bs-target="#editTemplateModal"
+                      data-id="<%= tpl.id %>"
+                      data-name="<%- tpl.name %>"
+                      data-category="<%- tpl.category || '' %>"
+                      data-description="<%- tpl.description || '' %>"
+                      data-content="<%- (tpl.content || '').replace(/"/g, '&quot;') %>">
+                      Edit
+                    </button>
+
+                    <form action="/settings/note-templates/delete" method="POST" onsubmit="return confirm('Delete \"<%= tpl.name %>\"? This cannot be undone.');">
+                      <input type="hidden" name="id" value="<%= tpl.id %>">
+                      <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            <% }) %>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ===================== Modals ===================== -->
+
+<!-- ➕ Add Template uses the builder on the left -->
+
+<!-- ✏️ Edit Template Modal -->
+<div class="modal fade" id="editTemplateModal" tabindex="-1" aria-labelledby="editTemplateLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <form action="/settings/note-templates/edit" method="POST" onsubmit="return syncEditModalEditorToField()">
+        <div class="modal-header">
+          <h5 class="modal-title" id="editTemplateLabel">Edit Template</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <input type="hidden" name="id" id="tplEditId" />
+          <div class="mb-3">
+            <label class="form-label">Name</label>
+            <input type="text" name="name" id="tplEditName" class="form-control" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Category (optional)</label>
+            <input type="text" name="category" id="tplEditCategory" class="form-control" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Description (optional)</label>
+            <input type="text" name="description" id="tplEditDescription" class="form-control" />
+          </div>
+
+          <details class="mb-2">
+            <summary style="cursor:pointer;">Merge fields (click to insert)</summary>
+            <div class="d-flex flex-wrap gap-2 mt-2">
+              <% (mergeFields || []).forEach(f => { %>
+                <button type="button" class="btn btn-sm btn-outline-secondary token-btn-edit" data-key="<%- f.key %>" title="<%- f.description || '' %>">
+                  {{<%- f.key %>}}<% if (f.formatter) { %><small class="text-muted">|<%= f.formatter %></small><% } %>
+                </button>
+              <% }) %>
+            </div>
+          </details>
+
+          <div id="tplEditEditor" class="form-control" contenteditable="true" style="min-height:240px;"></div>
+          <input type="hidden" name="content" id="tplEditContentField" />
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Inline Scripts ===================== -->
+<script>
+  // Insert token into whichever editor is active
+  function insertAtCursor(el, html) {
+    el.focus();
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) { el.innerHTML += html; return; }
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    const temp = document.createElement("div");
+    temp.innerHTML = html;
+    const frag = document.createDocumentFragment();
+    let node, lastNode;
+    while ((node = temp.firstChild)) lastNode = frag.appendChild(node);
+    range.insertNode(frag);
+    if (lastNode) {
+      range.setStartAfter(lastNode);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  }
+
+  // NEW builder token buttons
+  document.addEventListener("click", (e) => {
+    if (e.target.matches(".token-btn")) {
+      const key = e.target.dataset.key;
+      const editor = document.getElementById("tplEditor");
+      if (editor && key) insertAtCursor(editor, `{{${key}}}`);
+    }
+    if (e.target.matches(".token-btn-edit")) {
+      const key = e.target.dataset.key;
+      const editor = document.getElementById("tplEditEditor");
+      if (editor && key) insertAtCursor(editor, `{{${key}}}`);
+    }
+  });
+
+  // Sync hidden field before submit (create)
+  function syncEditorToField() {
+    const editor = document.getElementById("tplEditor");
+    const field  = document.getElementById("tplContentField");
+    field.value = (editor?.innerHTML || "").trim();
+    return true;
+  }
+
+  // Sync hidden field before submit (edit)
+  function syncEditModalEditorToField() {
+    const editor = document.getElementById("tplEditEditor");
+    const field  = document.getElementById("tplEditContentField");
+    field.value = (editor?.innerHTML || "").trim();
+    return true;
+  }
+
+  // Pre-fill Edit modal
+  document.getElementById("editTemplateModal")?.addEventListener("show.bs.modal", (ev) => {
+    const btn = ev.relatedTarget;
+    document.getElementById("tplEditId").value = btn.getAttribute("data-id") || "";
+    document.getElementById("tplEditName").value = btn.getAttribute("data-name") || "";
+    document.getElementById("tplEditCategory").value = btn.getAttribute("data-category") || "";
+    document.getElementById("tplEditDescription").value = btn.getAttribute("data-description") || "";
+
+    const raw = btn.getAttribute("data-content") || "";
+    const editor = document.getElementById("tplEditEditor");
+    // decode &quot; already handled, just set HTML
+    editor.innerHTML = raw;
+  });
+
+  // Paste as-is (keeps Word tables reasonably OK); optional sanitize here if you want stricter HTML.
+</script>

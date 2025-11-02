@@ -2,9 +2,14 @@
 <% locals.layout = 'layouts/main'; %>
 
 <main class="function-layout-two-col">
- <!-- 🧭 Sidebar -->
- <!-- 🧭 LEFT COLUMN — Sidebar Partial -->
-<%- include('../../partials/functions/sidebar') %>
+
+  <!-- 🧭 Sidebar -->
+  <%- include('../../partials/functions/sidebar', {
+    fn,
+    linkedContacts: linkedContacts || [],
+    rooms: rooms || [],
+    eventTypes: eventTypes || []
+  }) %>
 
   <!-- 🧩 Workspace -->
   <section class="function-workspace">
@@ -20,7 +25,7 @@
       <!-- 📨 Back + Title -->
       <div class="d-flex justify-content-between align-items-center mb-3">
         <a class="btn btn-outline-secondary btn-sm"
-           href="/functions/<%= fn.id %>/communications">&larr; Back to Communications</a>
+           href="/functions/<%= fn.id_uuid %>/communications">&larr; Back to Communications</a>
         <h3 class="mb-0">Reply</h3>
         <div></div>
       </div>
@@ -30,7 +35,9 @@
         <div class="message-card p-3 border rounded mb-4">
           <div class="msg-header mb-2">
             <div class="fw-bold"><%= message.from_email || "Unknown Sender" %></div>
-            <div class="text-muted"><%= message.created_at ? new Date(message.created_at).toLocaleString('en-NZ') : "" %></div>
+            <div class="text-muted">
+              <%= message.created_at ? new Date(message.created_at).toLocaleString('en-NZ') : "" %>
+            </div>
           </div>
           <div class="msg-subject h5 mb-3"><%= message.subject || "(No Subject)" %></div>
 
@@ -49,9 +56,9 @@
       <!-- ✉️ Reply form -->
       <div class="card mt-4">
         <div class="card-body">
-          <form id="replyForm" method="POST" action="/functions/<%= fn.id %>/communications/<%= message.id %>/reply">
-            <!-- where to go after sending -->
-            <input type="hidden" name="next" value="/functions/<%= fn.id %>/communications">
+          <form id="replyForm" method="POST"
+                action="/functions/<%= fn.id_uuid %>/communications/<%= message.id %>/reply">
+            <input type="hidden" name="next" value="/functions/<%= fn.id_uuid %>/communications">
 
             <div class="row g-3">
               <div class="col-12">
@@ -69,20 +76,18 @@
               <div class="col-12">
                 <label class="form-label">Message</label>
                 <div id="replyEditor" style="height: 260px;"></div>
-                <!-- hidden field that will receive Quill HTML on submit -->
                 <input type="hidden" name="body" id="replyBody">
               </div>
             </div>
 
             <div class="d-flex justify-content-end gap-2 mt-3">
               <a class="btn btn-outline-secondary"
-                 href="/functions/<%= fn.id %>/communications">Cancel</a>
+                 href="/functions/<%= fn.id_uuid %>/communications">Cancel</a>
               <button class="btn btn-primary" type="submit">Send</button>
             </div>
           </form>
         </div>
       </div>
-
     </div> <!-- end body -->
   </section>
 </main>
@@ -128,8 +133,22 @@
       document.getElementById('replyBody').value = quill.root.innerHTML;
     });
   });
-
-  window.fnContext = { id: <%- JSON.stringify(fn.id) %>, messageId: <%- JSON.stringify(message.id) %> };
 </script>
 
+<script>
+  // ✅ Use UUID-only function context
+  window.fnContext = {
+    id: "<%= fn.id_uuid %>",
+    messageId: "<%= message.id %>",      // already UUID-safe
+    name: "<%= fn.event_name %>",
+    status: "<%= fn.status %>",
+    eventDate: "<%= fn.event_date ? fn.event_date.toISOString().split('T')[0] : '' %>"
+  };
+
+  console.log("📨 Function Context (Comm Detail):", window.fnContext);
+</script>
+
+<!-- JS Controller -->
 <script src="/js/functions/communications.js" defer></script>
+
+

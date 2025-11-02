@@ -1,0 +1,189 @@
+<% locals.layout = 'layouts/main'; %>
+
+
+    <!-- 🔹 Body -->
+    <div class="function-body py-4 px-4">
+
+      <!-- Header & New Quote Button -->
+   <div class="d-flex justify-content-between align-items-center mb-4">
+  <div class="btn-group">
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newQuoteModal">
+      <i class="bi bi-plus-circle"></i> New Quote
+    </button>
+    <button class="btn btn-outline-success" onclick="openMenuDrawer()">
+      <i class="bi bi-list-nested"></i> Add Menu
+    </button>
+  </div>
+</div>
+
+
+      <!-- Quote Overview -->
+      <div class="quote-container">
+
+        <% if (!proposals.length) { %>
+          <div class="alert alert-secondary">
+            <p>No quotes or proposals have been created yet for this function.</p>
+          </div>
+        <% } else { %>
+          <div class="card mb-4">
+            <div class="card-body">
+              <h5 class="card-title">Active Quote #<%= proposals[0].id %></h5>
+              <p>Status: <strong><%= proposals[0].status %></strong></p>
+              <p>Created: <%= new Date(proposals[0].created_at).toLocaleDateString() %></p>
+            </div>
+          </div>
+
+          <% if (proposalItems && proposalItems.length) { %>
+            <div class="card mb-4">
+              <div class="card-header fw-bold">Quote Items</div>
+              <ul class="list-group list-group-flush">
+                <% proposalItems.forEach(item => { %>
+                  <li class="list-group-item d-flex justify-content-between">
+                    <span><%= item.description %></span>
+                    <span>$<%= item.unit_price || 0 %></span>
+                  </li>
+                <% }) %>
+              </ul>
+            </div>
+          <% } %>
+
+          <% if (totals) { %>
+            <div class="card">
+              <div class="card-header fw-bold">Totals</div>
+              <div class="card-body">
+                <p><strong>Subtotal:</strong> $<%= totals.subtotal || 0 %></p>
+                <p><strong>Gratuity:</strong> <%= totals.gratuity_percent || 0 %>% ($<%= totals.gratuity_amount || 0 %>)</p>
+                <p><strong>Discount:</strong> $<%= totals.discount_amount || 0 %></p>
+                <p><strong>Deposit:</strong> $<%= totals.deposit_amount || 0 %></p>
+                <hr>
+                <p><strong>Total Paid:</strong> $<%= totals.total_paid || 0 %></p>
+                <p><strong>Remaining Due:</strong> $<%= totals.remaining_due || 0 %></p>
+              </div>
+            </div>
+          <% } %>
+        <% } %>
+      </div>
+<% if (totals) { %>
+  <div class="text-end mt-3">
+    <button class="btn btn-outline-secondary" id="editTotalsBtn">
+      <i class="bi bi-pencil-square"></i> Edit Totals
+    </button>
+  </div>
+<% } %>
+
+<!-- 🧾 Totals Edit Drawer -->
+<div id="totalsDrawer" class="offcanvas offcanvas-end" tabindex="-1" aria-labelledby="totalsDrawerLabel">
+  <div class="offcanvas-header">
+    <h5 id="totalsDrawerLabel">Edit Quote Totals</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form id="totalsForm" data-proposal-id="<%= proposals[0]?.id || '' %>">
+      <div class="mb-3">
+        <label class="form-label">Subtotal</label>
+        <input type="number" step="0.01" name="subtotal" class="form-control" value="<%= totals.subtotal || 0 %>">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Gratuity %</label>
+        <input type="number" step="0.01" name="gratuity_percent" class="form-control" value="<%= totals.gratuity_percent || 0 %>">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Discount ($)</label>
+        <input type="number" step="0.01" name="discount_amount" class="form-control" value="<%= totals.discount_amount || 0 %>">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Deposit ($)</label>
+        <input type="number" step="0.01" name="deposit_amount" class="form-control" value="<%= totals.deposit_amount || 0 %>">
+      </div>
+      <div class="d-grid">
+        <button type="submit" class="btn btn-success">Save Totals</button>
+      </div>
+    </form>
+  </div>
+</div>
+    </div> <!-- end function-body -->
+  </section>
+</main>
+
+<!-- 🧾 New Quote Modal -->
+<div class="modal fade" id="newQuoteModal" tabindex="-1" aria-labelledby="newQuoteModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form action="/functions/<%= fn.id_uuid %>/quote/new" method="POST">
+        <div class="modal-header">
+          <h5 class="modal-title" id="newQuoteModalLabel">Create New Quote</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p>Select a contact to link to this quote (optional):</p>
+          <select name="contact_id" class="form-select">
+            <option value="">— None —</option>
+            <% linkedContacts.forEach(c => { %>
+              <option value="<%= c.id %>"><%= c.name %> (<%= c.email %>)</option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success">Create Quote</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 🧱 Shared Modals -->
+<%- include('../../partials/functions/modals', {
+  fn,
+  linkedContacts: linkedContacts || [],
+  rooms: rooms || [],
+  eventTypes: eventTypes || []
+}) %>
+<%- include('../../partials/menuDrawer', { categories, units }) %>
+<!-- 🧠 JS Context -->
+<script>
+  // ✅ UUID-only context (modern schema)
+  window.fnContext = {
+    id: "<%= fn.id_uuid %>",
+    name: "<%= fn.event_name %>",
+    status: "<%= fn.status %>",
+    eventDate: "<%= fn.event_date ? fn.event_date.toISOString().split('T')[0] : '' %>"
+  };
+</script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const editBtn = document.getElementById("editTotalsBtn");
+    const totalsForm = document.getElementById("totalsForm");
+
+    if (editBtn && totalsForm) {
+      editBtn.addEventListener("click", () => {
+        const drawer = new bootstrap.Offcanvas(document.getElementById("totalsDrawer"));
+        drawer.show();
+      });
+
+      totalsForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const formData = new FormData(totalsForm);
+        const payload = Object.fromEntries(formData.entries());
+        const proposalId = totalsForm.dataset.proposalId;
+
+        const res = await fetch(`/functions/${proposalId}/totals/update`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          alert("Totals updated successfully!");
+          location.reload();
+        } else {
+          alert("Failed to update totals: " + data.error);
+        }
+      });
+    }
+  });
+</script>
+<script src="/js/settings/menuDrawer.js" defer></script>
+
+<script src="/js/functions/detail.js" defer></script>

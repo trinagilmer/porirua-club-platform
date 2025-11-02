@@ -11,12 +11,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const addTaskBtn = document.getElementById("addTaskBtn");
   const functionId = window.fnContext?.id || window.functionId;
 
-  grid?.addEventListener("click", (e) => {
-  if (e.target.closest(".editTaskBtn")) {
-    console.log("🟦 Edit button clicked");
-  }
-});
-
   // ---------------------------------------------------------
   // 🧩 Toast Utility
   // ---------------------------------------------------------
@@ -40,11 +34,11 @@ document.addEventListener("DOMContentLoaded", () => {
     form.querySelector(".modal-title").textContent = "Add Task";
     document.getElementById("taskId").value = "";
   }
-  addTaskBtn?.addEventListener("click", () => {
-  resetForm();
-  modal?.show();
-});
 
+  addTaskBtn?.addEventListener("click", () => {
+    resetForm();
+    modal?.show();
+  });
 
   // ---------------------------------------------------------
   // 💾 Save Task (Create or Update)
@@ -53,10 +47,10 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
 
     const id = document.getElementById("taskId").value;
-const title = document.getElementById("taskTitle").value.trim();
-const description = document.getElementById("taskDescription")?.value.trim() || null;
-const assigned_to = document.getElementById("taskAssignedTo").value || null;
-const due_at = document.getElementById("taskDueAt").value || null;
+    const title = document.getElementById("taskTitle").value.trim();
+    const description = document.getElementById("taskDescription")?.value.trim() || null;
+    const assigned_to = document.getElementById("taskAssignedTo").value || null;
+    const due_at = document.getElementById("taskDueAt").value || null;
 
     if (!title) return showToast("⚠️ Please enter a task title", "warning");
 
@@ -90,83 +84,89 @@ const due_at = document.getElementById("taskDueAt").value || null;
     }
   });
 
-  // ✏️ Edit Task (Card Layout)
+// ---------------------------------------------------------
+// ✏️ Edit Task (Card Click)
+// ---------------------------------------------------------
 grid?.addEventListener("click", (e) => {
-  const btn = e.target.closest(".editTaskBtn");
-  if (!btn) return;
+  // Ignore clicks on action buttons
+  if (
+    e.target.closest(".completeTaskBtn") ||
+    e.target.closest(".deleteTaskBtn") ||
+    e.target.closest(".reopenTaskBtn")
+  ) {
+    return;
+  }
 
-  const card = btn.closest(".task-card");
+  // Detect click on title or card
+  const card = e.target.closest(".task-card");
   if (!card) return;
 
-  const id = btn.dataset.id;
+  const id = card.dataset.id;
   const title = card.querySelector(".task-card-title")?.textContent.trim() || "";
-  
-  // Grab description safely (skip the “No details” placeholder)
   let description = card.querySelector(".task-card-desc")?.textContent.trim() || "";
   if (description === "No details") description = "";
 
   const assigned = card.querySelector(".task-card-meta span strong")?.nextSibling?.textContent?.trim() || "";
   const dueAt = card.querySelector(".task-card-meta span:nth-of-type(2)")?.textContent?.replace("Due:", "").trim() || "";
 
-  // Fill modal fields
+  // Fill modal
   document.getElementById("taskId").value = id;
   document.getElementById("taskTitle").value = title;
+  document.getElementById("taskDescription").value = description;
 
-  const descField = document.getElementById("taskDescription");
-  if (descField) descField.value = description;
-
-  // Assign dropdown
   const assignedSelect = document.getElementById("taskAssignedTo");
   if (assignedSelect && assigned) {
     const match = [...assignedSelect.options].find(opt => opt.textContent.trim() === assigned);
     assignedSelect.value = match ? match.value : "";
   }
 
-  // Due date
   if (dueAt && dueAt !== "—") {
     const parsed = new Date(dueAt);
     if (!isNaN(parsed)) document.getElementById("taskDueAt").value = parsed.toISOString().split("T")[0];
   }
 
-  // Update modal title and show it
+  // Show modal
   form.querySelector(".modal-title").textContent = "Edit Task";
   modal?.show();
 });
 
   // ---------------------------------------------------------
-  // ✅ Complete / 🗑️ Delete Task
+  // ✅ Complete / 🔁 Reopen / 🗑️ Delete Task
   // ---------------------------------------------------------
   grid?.addEventListener("click", async (e) => {
     const completeBtn = e.target.closest(".completeTaskBtn");
+    const reopenBtn = e.target.closest(".reopenTaskBtn");
     const deleteBtn = e.target.closest(".deleteTaskBtn");
 
     // ✅ COMPLETE TASK
     if (completeBtn) {
       const id = completeBtn.dataset.id;
       try {
-        const res = await fetch(`/functions/tasks/${id}/update`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "completed" }),
-        });
-
+        const res = await fetch(`/functions/tasks/${id}/complete`, { method: "POST" });
         const data = await res.json();
         if (data.success) {
           showToast("✅ Task marked as completed", "success");
-          const card = completeBtn.closest(".task-card");
-          const badge = card.querySelector(".task-card-status");
-          if (badge) {
-            badge.textContent = "Completed";
-            badge.className =
-              "badge bg-primary text-white task-card-status";
-          }
-          completeBtn.remove();
-        } else {
-          showToast("⚠️ Could not complete task", "warning");
-        }
+          setTimeout(() => location.reload(), 600);
+        } else showToast("⚠️ Could not complete task", "warning");
       } catch (err) {
         console.error("[Complete Task] Error:", err);
         showToast("❌ Error completing task", "error");
+      }
+    }
+
+    // 🔁 REOPEN TASK
+    if (reopenBtn) {
+      const id = reopenBtn.dataset.id;
+      try {
+        const res = await fetch(`/functions/tasks/${id}/reopen`, { method: "POST" });
+        const data = await res.json();
+        if (data.success) {
+          showToast("🔄 Task reopened", "success");
+          setTimeout(() => location.reload(), 600);
+        } else showToast("⚠️ Could not reopen task", "warning");
+      } catch (err) {
+        console.error("[Reopen Task] Error:", err);
+        showToast("❌ Error reopening task", "error");
       }
     }
 
@@ -190,8 +190,3 @@ grid?.addEventListener("click", (e) => {
     }
   });
 });
-
-
-
-
-

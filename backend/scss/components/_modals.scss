@@ -2,76 +2,12 @@
 @use "../core/variables" as *;
 
 // ===========================================================
-// 🧩 FUNCTION PAGE MODALS & SLIDE PANELS (FINAL FIXED VERSION)
+// 🧩 FUNCTION PAGE MODALS & SLIDE PANELS — FINAL CLEAN VERSION
 // ===========================================================
 
-// 🔹 Time Modal (centered overlay)
-.time-modal-container {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100dvh;
-  background: rgba(0, 0, 0, 0.45);
-  z-index: 1100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 1;
-  transition: opacity 200ms ease;
-  &.is-fading-out { opacity: 0; }
-}
-/* ✅ Restore white box for time modal */
-.time-modal-box {
-  background: $white;
-  border-radius: $radius;
-  box-shadow: $shadow-md;
-  padding: 1.5rem;
-  min-width: 320px;
-}
-// 🔹 Sliding Contact Panels (Add / Edit)
-.contact-panel,
-.contact-add-panel,
-.contact-edit-panel {
-  --panel-width: 420px;
-  position: fixed;
-  top: 0;
-  right: 0;
-  height: 100dvh;
-  width: var(--panel-width);
-  max-width: min(95vw, var(--panel-width));
-  background: $color-bg-panel;
-  border-left: 1px solid $color-border;
-  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
-  z-index: 1200;
-  transform: translateX(calc(100% + 10px));
-  opacity: 1;
-  transition: transform 0.35s ease, opacity 0.2s ease;
-  padding: 1.5rem;
-  overflow-y: auto;
-  will-change: transform;
-  border-radius: 0;
-
-  &:focus-visible {
-    outline: 2px solid color.adjust($primary, $lightness: -10%);
-    outline-offset: 2px;
-  }
-
-  .btn,
-  .btn-primary,
-  .btn-success {
-    background-color: $primary;
-    border-color: $primary;
-    color: #fff;
-
-    &:hover {
-      background-color: color.adjust($primary, $lightness: -10%);
-      border-color: color.adjust($primary, $lightness: -10%);
-    }
-  }
-}
-
-// 🔹 Overlay (dark backdrop)
-#contactOverlay {
+// 🔹 Shared Overlay (for panels)
+#contactOverlay,
+.modal-overlay {
   position: fixed;
   inset: 0;
   width: 100%;
@@ -81,16 +17,15 @@
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: opacity 200ms ease, visibility 0s linear 200ms;
+  transition: opacity 0.25s ease, visibility 0s linear 0.25s;
 
   &.panel-open {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
-    transition: opacity 200ms ease;
+    transition: opacity 0.25s ease;
   }
 
-  // fallback for legacy .hidden
   &.hidden {
     display: block !important;
     opacity: 0;
@@ -100,83 +35,287 @@
 }
 
 // ===========================================================
-// 🚫 FIX: Prevent .hidden from killing transitions
+// 🕒 TIME MODAL (Centered Popup)
 // ===========================================================
+.time-modal-container {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1200;
+  opacity: 1;
+  transition: opacity 0.25s ease;
 
-// 🚫 FIX: Prevent .hidden from killing transitions
+  &.is-fading-out {
+    opacity: 0;
+  }
+}
+
+.time-modal-box {
+  background: $color-bg-panel;
+  border-radius: $radius;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  padding: 1.5rem 1.75rem;
+  min-width: 340px;
+  max-width: 90vw;
+  color: $neutral-900;
+  animation: modalFadeIn 0.25s ease;
+}
+
+@keyframes modalFadeIn {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+// ===========================================================
+// 🧭 SLIDING CONTACT PANELS (Add/Edit)
+// ===========================================================
+.contact-panel,
+.contact-add-panel,
+.contact-edit-panel {
+  --panel-width: 420px;
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: var(--panel-width);
+  max-width: min(95vw, var(--panel-width));
+  height: 100dvh;
+  background: $color-bg-panel;
+  border-left: 1px solid $color-border;
+  box-shadow: -3px 0 15px rgba(0, 0, 0, 0.1);
+  z-index: 1300;
+  transform: translateX(calc(100% + 8px));
+  opacity: 0;
+  transition: transform 0.35s ease, opacity 0.25s ease;
+  padding: 1.75rem;
+  overflow-y: auto;
+  border-radius: 0;
+
+  &:focus-visible {
+    outline: 2px solid color.scale($brand, $lightness: -10%);
+    outline-offset: 2px;
+  }
+
+  .btn {
+    background-color: $brand;
+    border-color: $brand;
+    color: #fff;
+
+    &:hover {
+      background-color: color.scale($brand, $lightness: -10%);
+      border-color: color.scale($brand, $lightness: -10%);
+    }
+  }
+}
+
+.contact-panel.panel-open,
+.contact-add-panel.panel-open,
+.contact-edit-panel.panel-open {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .contact-panel.hidden,
 .contact-add-panel.hidden,
 .contact-edit-panel.hidden {
   display: none !important;
   opacity: 0;
-  transform: translateX(calc(100% + 10px));
   pointer-events: none;
+  transform: translateX(calc(100% + 8px));
 }
 
-/* ✅ Active (visible) — must come AFTER hidden */
-.contact-panel.panel-open,
-.contact-add-panel.panel-open,
-.contact-edit-panel.panel-open {
-  display: block !important;
-  opacity: 1;
-  transform: translateX(0);
-  pointer-events: auto;
-}
-
-
-// ✅ View modal can truly hide (centered popups)
-.contact-modal.hidden {
-  display: none !important;
-}
-
-// ===========================================================
-// 🧩 Responsive & Reduced Motion
-// ===========================================================
-@media (max-width: 768px) {
+@media (max-width: $breakpoint-md) {
   .contact-panel,
   .contact-add-panel,
   .contact-edit-panel {
     width: 100%;
     max-width: 100%;
+    border-left: none;
+    border-top: 1px solid $color-border;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .contact-panel,
-  .contact-add-panel,
-  .contact-edit-panel,
-  #contactOverlay,
-  .time-modal-container {
-    transition: none !important;
+// ===========================================================
+// 🩹 BOOTSTRAP MODALS — FIXED + BRAND ALIGNED
+// ===========================================================
+.modal.fade {
+  display: none;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.modal.show {
+  display: block;
+}
+
+.modal-dialog {
+  pointer-events: none;
+  max-width: 900px;
+  width: 90%;
+  margin: 2rem auto;
+  transition: transform 0.3s ease-in-out;
+}
+
+.modal-dialog-centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100% - 3.5rem);
+}
+
+.modal-content {
+  pointer-events: auto;
+  border: none;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.modal-header {
+  border-bottom: 1px solid $color-border;
+  background: $brand-soft;
+  color: $brand-dark;
+
+  .modal-title {
+    font-weight: 600;
   }
 }
-/* =========================================================
-   🧹 Legacy Override — Fix position conflicts
-   Ensures slide-in panels are fixed overlays, not inline boxes
-========================================================= */
 
-.contact-panel,
-.contact-add-panel,
-.contact-edit-panel {
-  position: fixed !important;
-  top: 0 !important;
-  right: 0 !important;
-  height: 100dvh !important;
-  overflow: auto !important;
-  border-radius: 0 !important;
-  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.25) !important;
-  background: #fff !important;
-  z-index: 99999 !important;
+.modal-footer {
+  border-top: 1px solid $color-border;
+  background: $brand-soft;
 }
-/* =========================================================
-   🩹 FINAL PATCH — Force panel visible when open
-========================================================= */
-.contact-panel.panel-open,
-.contact-add-panel.panel-open,
-.contact-edit-panel.panel-open {
-  display: block !important;
-  opacity: 1 !important;
-  transform: translateX(0) !important;
-  pointer-events: auto !important;
-  z-index: 99999 !important;
+
+.modal-backdrop.show {
+  opacity: 0.5;
+}
+
+@media (max-width: 768px) {
+  .modal-dialog {
+    margin: 1rem;
+    max-width: 100%;
+  }
+}
+
+#timeInputModal .modal-dialog {
+  max-width: 350px;
+}
+
+#timeInputModal .modal-content {
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+#timeInputModal .modal-body {
+  padding: 1.2rem;
+}
+
+// ===========================================================
+// ⚙️ SETTINGS MODAL (Custom Non-Bootstrap Modal)
+// ===========================================================
+.settings-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 9999;
+
+  &.hidden {
+    display: none !important;
+  }
+// Hide time modal by default
+.time-modal-container.hidden {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+  .settings-modal-dialog {
+    background: #fff;
+    border-radius: 8px;
+    width: 400px;
+    max-width: 90%;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+
+    header, footer {
+      padding: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid $color-border;
+
+      &:last-child {
+        border-bottom: none;
+        border-top: 1px solid $color-border;
+        justify-content: flex-end;
+        gap: 0.5rem;
+      }
+    }
+
+    .settings-modal-body {
+      padding: 1rem;
+    }
+
+    .settings-modal-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+  }
+}
+
+// ===========================================================
+// 🔔 TOAST NOTIFICATIONS
+// ===========================================================
+.toast-container {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 99999;
+}
+
+.toast-message {
+  background: $neutral-900;
+  color: #fff;
+  padding: 12px 16px;
+  border-radius: 8px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+  font-size: 0.875rem;
+  opacity: 0;
+  transform: translateY(-10px);
+  animation: toastIn 0.3s forwards, toastOut 0.3s ease 3s forwards;
+
+  &.success { background: $success; }
+  &.error { background: $danger; }
+  &.warning {
+    background: $warning;
+    color: $neutral-900;
+  }
+}
+
+@keyframes toastIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toastOut {
+  to {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
 }

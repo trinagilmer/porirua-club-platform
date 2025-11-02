@@ -1,0 +1,32 @@
+<main class="menu-categories-page container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="fw-bold text-primary mb-0">Sales Categories</h1>
+  </div>
+
+  <section class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">Manage Categories</h5>
+      <div class="d-flex gap-2">
+        <input type="text" id="newCategoryName" class="form-control form-control-sm" placeholder="New category name">
+        <button class="btn btn-sm btn-primary" id="addCategoryBtn">Add</button>
+      </div>
+    </div>
+    <div class="card-body p-0">
+      <ul id="categoryList" class="list-group list-group-flush">
+        <% if (categories.length) { %>
+          <% categories.forEach(cat => { %>
+            <li class="list-group-item d-flex align-items-center justify-content-between" data-id="<%= cat.id %>">
+              <input type="text" class="form-control form-control-sm cat-name-input" value="<%= cat.name %>">
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary cat-save">Rename</button>
+                <button class="btn btn-sm btn-outline-danger cat-delete">Delete</button>
+              </div>
+            </li>
+          <% }) %>
+        <% } else { %>
+          <li class="list-group-item text-muted fst-italic">No categories yet.</li>
+        <% } %>
+      </ul>
+    </div>
+  </section>
+</main>

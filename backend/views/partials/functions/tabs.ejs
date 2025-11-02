@@ -1,14 +1,22 @@
-<!-- ===== Function Tabs (Partial) ===== -->
+<!-- ===== Function Tabs ===== -->
 <div class="tabs-bar mb-4">
-  <a href="/functions/<%= fn.id %>"
+  <a href="/functions/<%= fn.id_uuid %>"
      class="<%= activeTab === 'info' ? 'active' : '' %>">Info</a>
-  <a href="/functions/<%= fn.id %>/tasks"
+
+  <a href="/functions/<%= fn.id_uuid %>/tasks"
      class="<%= activeTab === 'tasks' ? 'active' : '' %>">Tasks</a>
-  <a href="/functions/<%= fn.id %>/notes"
+
+  <a href="/functions/<%= fn.id_uuid %>/notes"
      class="<%= activeTab === 'notes' ? 'active' : '' %>">Notes</a>
-  <a href="/functions/<%= fn.id %>/communications"
+
+  <a href="/functions/<%= fn.id_uuid %>/communications"
      class="<%= activeTab === 'communications' ? 'active' : '' %>">Communications</a>
-     <a href="/functions/<%= fn.id %>/edit" class="<%= activeTab === 'edit' ? 'active' : '' %>">Edit</a>
+
+ <a href="/functions/<%= fn.id_uuid %>/quote"
+   class="<%= activeTab === 'quote' ? 'active' : '' %>">Quote</a>
+
+  <a href="/functions/<%= fn.id_uuid %>/edit"
+     class="<%= activeTab === 'edit' ? 'active' : '' %>">Edit</a>
 </div>
 
 

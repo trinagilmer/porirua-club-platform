@@ -1,18 +1,41 @@
 @use "sass:color";
-@use 'variables' as *;
+@use "./variables" as *;
+
 // ===========================================================
 // ⚙️ GLOBAL BASE STYLES
 // ===========================================================
 
-body {
- background-color: $gray-100;
-  color: $deep;
+html, body {
+  margin: 0;
+  padding: 0;
   font-family: $font-family-base;
- }
+  font-size: $font-size-base;
+  color: $neutral-900;
+  background-color: $neutral-100;
+  line-height: 1.5;
+}
+// ===========================================================
+// ⚙️ PAGE TYPE OVERRIDES
+// Remove global background and gaps for function detail pages
+// ===========================================================
+body[data-page="function-detail"],
+body.function-detail {
+  background-color: $white !important; // ✅ remove gray shading
+  margin: 0;
+  padding: 0;
+  overflow: hidden; // prevents scroll gap bleed on outer body
+}
+
+// -----------------------------
+// Global typography
+// -----------------------------
+body {
+  color: $neutral-900;
+}
 
 h1, h2, h3, h4, h5 {
   font-weight: 600;
-  color: #222;
+  color: $neutral-900;
   margin-bottom: $spacer * 1.5;
 }
 
@@ -20,47 +43,34 @@ h1, h2, h3, h4, h5 {
   max-width: 1100px;
 }
 
+// -----------------------------
+// Links
+// -----------------------------
 a {
-  color: $primary;
+  color: $brand;
   text-decoration: none;
+  transition: color 0.2s ease;
 
   &:hover {
-    colour: color.adjust($primary, $lightness: -10%);
+    color: color.scale($brand, $lightness: -15%);
+    text-decoration: underline;
   }
 }
 
-// Text helpers
+// -----------------------------
+// Text Helpers
+// -----------------------------
 .text-muted {
   color: $color-text-muted !important;
 }
 
 hr {
-  border-top: 1px solid $gray-300;
-
+  border-top: 1px solid $neutral-200;
 }
 
-
-html, body {
-  margin: 0;
-  padding: 0;
-  font-family: $font-family-base;
-  font-size: $font-size-base;
-  color: $deep;
-  background-color: $gray-100;
-  line-height: 1.5;
-}
-
-a {
-  color: $primary;
-  text-decoration: none;
-  transition: color 0.2s ease;
-
-  &:hover {
-    colour: color.adjust($primary, $lightness: -10%);
-    text-decoration: underline;
-  }
-}
-
+// -----------------------------
+// Media + Tables
+// -----------------------------
 img {
   max-width: 100%;
   height: auto;
@@ -76,6 +86,25 @@ th {
   font-weight: 600;
 }
 
+// -----------------------------
+// Buttons, utilities
+// -----------------------------
 button {
   cursor: pointer;
+}
+
+// -----------------------------
+// Brand Utilities
+// -----------------------------
+.bg-brand {
+  background-color: $brand !important;
+  color: #fff !important;
+}
+
+.text-brand {
+  color: $brand !important;
+}
+
+.border-brand {
+  border-color: $brand !important;
 }

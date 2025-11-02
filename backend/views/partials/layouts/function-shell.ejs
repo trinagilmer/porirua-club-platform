@@ -1,45 +1,55 @@
-<!-- layouts/function-shell.ejs -->
-<main class="function-layout-two-col container-fluid py-4">
+<main class="function-layout-two-col">
+  <!-- 🧭 Sidebar -->
+  <%- include('../functions/sidebar', { fn, linkedContacts, rooms, eventTypes }) %>
 
-  <!-- 🧭 SIDEBAR -->
-  <aside class="function-sidebar">
-    <%- include('../sidebar', {
-      fn,
-      linkedContacts: linkedContacts || [],
-      rooms: rooms || [],
-      eventTypes: eventTypes || []
-    }) %>
-  </aside>
-
-  <!-- 🧩 WORKSPACE -->
+  <!-- 🧩 Main Workspace -->
   <section class="function-workspace">
-    <!-- 🔹 Tabs -->
-    <%- include('../function-tabs', {
-      fn,
-      activeTab: activeTab || 'overview'
+    <!-- 🔹 Fixed Title Bar -->
+    <%- include('../functions/title', { 
+      fn, 
+      title, 
+      pageName: typeof activeTab !== 'undefined' && activeTab ? activeTab : 'overview' 
     }) %>
 
-    <!-- 🔹 Dynamic Body -->
-    <div class="function-body px-4 py-3">
-      <%- typeof body !== 'undefined' ? body : '' %>
+    <!-- 🔹 Tabs (fixed under title) -->
+    <div class="function-tabs-wrapper">
+      <%- include('../functions/tabs', { 
+        fn, 
+        activeTab: typeof activeTab !== 'undefined' && activeTab ? activeTab : 'overview' 
+      }) %>
+    </div>
+
+    <!-- 🔹 Scrollable Body -->
+    <div class="function-body">
+      <% const viewToInclude = `../../pages/functions/${activeTab || 'overview'}`; %>
+      <%- include(viewToInclude, { 
+        fn, 
+        grouped: typeof grouped !== 'undefined' ? grouped : null, 
+        activeTab, 
+        rooms, 
+        eventTypes, 
+        linkedContacts 
+      }) %>
     </div>
   </section>
 </main>
 
 <!-- 🧱 GLOBAL FUNCTION MODALS & PANELS -->
-<%- include('../partials/function/modals') %>
-<script>
-  // Ensure consistent page type across all function views
-  document.body.dataset.page = "function-detail";
-</script>
+<%- include('../functions/modals') %>
 
+<!-- 🧠 JS Context -->
 <script>
+  document.body.dataset.page = "function-detail";
   window.fnContext = {
-    id: "<%= fn.id %>",
+    id: "<%= fn.id_uuid %>",
     name: "<%= fn.event_name %>",
     userId: "<%= user ? user.id : '' %>"
   };
 </script>
-<!-- ⚙️ Load Bootstrap JS + Sidebar Controller -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-<script src="/js/sidebar.js" defer></script>
+
+<!-- ⚙️ Initialise Core Scripts -->
+<script type="module" src="/js/core/init.js"></script>
+
+
+
+

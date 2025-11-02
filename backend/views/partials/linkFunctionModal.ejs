@@ -3,22 +3,21 @@
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content p-4">
       <h4>🧩 Link Message to Function</h4>
-      <div id="function-alert-area"></div>
 
-      <form action="/inbox/link-function/<%= message.id %>" method="POST" id="linkFunctionForm">
+      <form action="/inbox/link/<%= message.id %>" method="POST">
         <div class="form-group mb-3">
           <label for="function_id">Function</label>
           <select name="function_id" id="function_id" class="form-control">
             <option value="">(none)</option>
             <% functions.forEach(f => { %>
-              <option value="<%= f.id %>" <%= String(message.related_function) === String(f.id) ? 'selected' : '' %>>
+              <option 
+                value="<%= f.id_uuid || f.id %>" 
+                <%= String(message.related_function) === String(f.id_uuid || f.id) ? 'selected' : '' %>>
                 <%= f.event_name %>
               </option>
             <% }) %>
           </select>
         </div>
-
-        <div id="function-status" class="small text-muted mt-2"></div>
 
         <div class="modal-footer d-flex justify-content-between">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -28,53 +27,3 @@
     </div>
   </div>
 </div>
-
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-  const form = document.getElementById("linkFunctionForm");
-  const alertArea = document.getElementById("function-alert-area");
-  const statusDiv = document.getElementById("function-status");
-  const messageId = "<%= message.id %>";
-
-  function showAlert(type, text) {
-    alertArea.innerHTML = `
-      <div class="alert alert-${type} alert-dismissible fade show" role="alert">
-        ${text}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-      </div>`;
-  }
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    statusDiv.textContent = "Saving...";
-    const formData = new FormData(form);
-    const function_id = formData.get("function_id");
-    const action = form.getAttribute("action");
-
-    try {
-      const res = await fetch(action, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ function_id }),
-      });
-      const result = await res.json();
-
-      if (result.success) {
-        showAlert("success", "✅ Function linked successfully!");
-        const modalEl = document.getElementById("linkFunctionModal");
-        modalEl.classList.remove("fade");
-        const modalInstance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-        modalInstance.hide();
-        setTimeout(() => {
-          window.location.assign(`/inbox/${messageId}`);
-        }, 400);
-      } else {
-        showAlert("danger", result.error || "Failed to link function.");
-      }
-    } catch (err) {
-      console.error("❌ Function link failed:", err);
-      showAlert("danger", "An error occurred while linking the function.");
-    }
-  });
-});
-</script>

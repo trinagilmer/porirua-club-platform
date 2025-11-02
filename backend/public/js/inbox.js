@@ -34,20 +34,25 @@ document.addEventListener("DOMContentLoaded", () => {
   /* ---------------------------------------------------------
      💌 Message cards → click to open detail page
   --------------------------------------------------------- */
-  const messageCards = document.querySelectorAll(".message-card");
-  messageCards.forEach((card) => {
-    card.addEventListener("click", (e) => {
-      // Prevent clicks on internal buttons (if any)
-      if (e.target.closest("button, a")) return;
-      const id = card.dataset.id;
-      if (id) {
-        console.log(`📨 Opening message ${id}`);
-        window.location.href = `/inbox/${id}`;
-      } else {
-        console.warn("⚠️ Message card missing data-id");
-      }
-    });
+  // 🎯 Open message detail when clicking on a message card
+document.querySelectorAll(".message-card").forEach((card) => {
+  card.addEventListener("click", (e) => {
+    // ⛔ Prevent opening detail if the click was on a button or link
+    if (e.target.closest("button") || e.target.closest("a")) {
+      e.stopPropagation();
+      return;
+    }
+
+    const id = card.dataset.id;
+    if (id) {
+      console.log(`📨 Opening message ${id}`);
+      window.location.href = `/inbox/${id}`;
+    } else {
+      console.warn("⚠️ Message card missing data-id");
+    }
   });
+});
+
 
   /* ---------------------------------------------------------
      💬 Modal Triggers (Reply / Link)
@@ -125,5 +130,24 @@ document.addEventListener("DOMContentLoaded", () => {
   if (flash) showToast(flash.textContent, flash.dataset.type || "info");
 });
 
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest(".delete-btn");
+  if (!btn) return;
 
+  const messageId = btn.dataset.id;
+  if (!confirm("🗑️ Delete this message?")) return;
 
+  try {
+    const res = await fetch(`/inbox/delete/${messageId}`, { method: "POST" });
+    const result = await res.json();
+
+    if (result.success) {
+      btn.closest(".message-card").remove();
+    } else {
+      alert("Failed to delete message.");
+    }
+  } catch (err) {
+    console.error("❌ Delete failed:", err);
+    alert("Error deleting message.");
+  }
+});

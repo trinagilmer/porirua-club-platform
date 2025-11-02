@@ -1,0 +1,18 @@
+// ===========================
+// 🧱 Drawer Component Styles
+// ===========================
+#menuDrawer {
+  .offcanvas-header {
+    background: var(--bs-light);
+    border-bottom: 1px solid #ddd;
+  }
+
+  .offcanvas-body {
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+  }
+
+  .list-group-item {
+    font-size: 0.9rem;
+  }
+}

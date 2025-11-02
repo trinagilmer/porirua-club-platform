@@ -51,7 +51,6 @@ async function getAppAccessToken() {
 /**
  * 🧠 getGraphAccessToken(req)
  * Requires a valid delegated Microsoft Graph token (user login)
- * — If missing, redirect user to /auth/graph/login
  */
 async function getGraphAccessToken(req, res) {
   const s = req.session || {};
@@ -66,17 +65,16 @@ async function getGraphAccessToken(req, res) {
     return delegated;
   }
 
-  console.warn("⚠️ No delegated Graph token in session — user must sign in again.");
+  console.warn("⚠️ No delegated Graph token in session — prompting re-auth.");
+  if (res) return res.status(401).json({ error: "Session expired. Please sign in again." });
   throw new Error("no_delegated_token");
 }
 
 
 router.use(express.json());
 
-
-
 /* =========================================================
-   🧭 1. FUNCTIONS DASHBOARD
+   🧭 1. FUNCTIONS DASHBOARD (UUID-Ready, Clean Version)
 ========================================================= */
 router.get("/", async (req, res, next) => {
   try {
@@ -92,11 +90,17 @@ router.get("/", async (req, res, next) => {
       balance_due: ["balance_due"],
       completed: ["completed"],
     };
+
     const statuses = statusGroups[statusFilter] || statusGroups.active;
 
-    let sql = `
-      SELECT f.*, r.name AS room_name, u.name AS owner_name,
-             COALESCE(contact_data.contacts, '[]'::json) AS contacts
+    // 🧩 Base query
+    let baseQuery = `
+      SELECT 
+        f.*, 
+        f.id_uuid AS id, 
+        r.name AS room_name, 
+        u.name AS owner_name,
+        COALESCE(contact_data.contacts, '[]') AS contacts
       FROM functions f
       LEFT JOIN rooms r ON f.room_id = r.id
       LEFT JOIN users u ON f.owner_id = u.id
@@ -112,20 +116,23 @@ router.get("/", async (req, res, next) => {
         ) AS contacts
         FROM function_contacts fc
         JOIN contacts c ON fc.contact_id = c.id
-        WHERE fc.function_id = f.id
+        WHERE fc.function_id = f.id_uuid
       ) contact_data ON TRUE
       WHERE f.status = ANY($1)
-      ORDER BY f.event_date ASC;
     `;
 
     const params = [statuses];
+
     if (myOnly) {
-      sql = sql.replace("ORDER BY", "AND f.owner_id = $2 ORDER BY");
+      baseQuery += ` AND f.owner_id = $2`;
       params.push(userId);
     }
 
-    const { rows: events } = await pool.query(sql, params);
+    baseQuery += ` ORDER BY f.event_date ASC;`;
 
+    const { rows: functionEvents } = await pool.query(baseQuery, params);
+
+    // 💰 Totals by status
     const { rows: totals } = await pool.query(`
       SELECT
         COALESCE(SUM(CASE WHEN status='lead' THEN totals_price ELSE 0 END),0) AS lead_value,
@@ -133,15 +140,15 @@ router.get("/", async (req, res, next) => {
         COALESCE(SUM(CASE WHEN status='confirmed' THEN totals_price ELSE 0 END),0) AS confirmed_value,
         COALESCE(SUM(CASE WHEN status='balance_due' THEN totals_price ELSE 0 END),0) AS balance_due_value,
         COALESCE(SUM(CASE WHEN status='completed' THEN totals_price ELSE 0 END),0) AS completed_value
-      FROM public.functions;
+      FROM functions;
     `);
 
-    // ✅ updated render path
+    // 🖥️ Render dashboard
     res.render("pages/functions/index", {
       title: "Functions Dashboard",
       active: "functions",
       user: req.session.user || null,
-      events,
+      events: functionEvents,
       totals: totals[0],
       statusFilter,
       myOnly,
@@ -153,44 +160,27 @@ router.get("/", async (req, res, next) => {
 });
 
 
-// ======================================================
-// 💬 FUNCTION OVERVIEW
-// - List messages for a function
-// - Send new message (returns inserted id)
-// - View a function-scoped message detail
-// - Reply to that message (returns inserted id)
-// ======================================================
+/* =========================================================
+   💬 COMMUNICATIONS ROUTES (UUID-Ready, Clean Version)
+========================================================= */
 
-// Helpers to store/retrieve recipients consistently
-const toArrayList = (v) => {
-  if (!v) return [];
-  if (Array.isArray(v)) return v;
-  if (typeof v === "string") {
-    return v.split(",").map(s => s.trim()).filter(Boolean);
-  }
-  return [];
-};
-const toStringList = (v) => toArrayList(v).join(", ");
-
-// ======================================================
-// 📜 LIST: Function → Communications
-// GET /functions/:id/communications
-// ======================================================
+// 📨 List all communications for a function
 router.get("/:id/communications", async (req, res, next) => {
-  const { id } = req.params;
+  const { id: functionId } = req.params; // UUID
 
   try {
-    // 1️⃣ Function header info
+    // 1️⃣ Fetch the parent function
     const { rows: fnRows } = await pool.query(
-      `SELECT id, event_name, event_date, status, attendees, budget, totals_cost, totals_price, room_id, event_type 
+      `SELECT id_uuid, event_name, event_date, status, attendees, budget, totals_cost, totals_price, room_id, event_type 
        FROM functions 
-       WHERE id = $1;`,
-      [id]
+       WHERE id_uuid = $1;`,
+      [functionId]
     );
+
     const fn = fnRows[0];
     if (!fn) return res.status(404).send("Function not found");
 
-    // 2️⃣ Messages for this function (newest first)
+    // 2️⃣ Fetch related messages
     const { rows: messages } = await pool.query(
       `SELECT 
          id,
@@ -205,199 +195,121 @@ router.get("/:id/communications", async (req, res, next) => {
        FROM messages
        WHERE related_function = $1
        ORDER BY created_at DESC;`,
-      [id]
+      [functionId]
     );
 
-    // 3️⃣ Sidebar data
+    // 3️⃣ Linked contacts
     const linkedContactsRes = await pool.query(
       `SELECT c.id, c.name, c.email, c.phone, c.company, fc.is_primary
-         FROM contacts c
-         JOIN function_contacts fc ON fc.contact_id = c.id
-        WHERE fc.function_id = $1
-        ORDER BY fc.is_primary DESC, c.name ASC;`,
-      [id]
+       FROM contacts c
+       JOIN function_contacts fc ON fc.contact_id = c.id
+       WHERE fc.function_id = $1
+       ORDER BY fc.is_primary DESC, c.name ASC;`,
+      [functionId]
     );
+
+    // 4️⃣ Supporting data
     const roomsRes = await pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`);
     const eventTypesRes = await pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`);
 
-      res.render("pages/functions/communications", {
+    // 🖥️ Render page
+    res.render("pages/functions/communications", {
       layout: "layouts/main",
-  title: `Communications – ${fn.event_name}`,
-  user: req.session.user || null,
-  fn,
-  messages,
-  linkedContacts: linkedContactsRes.rows,
-  rooms: roomsRes.rows,
-  eventTypes: eventTypesRes.rows,
-  activeTab: "Communications",
-});
-
+      title: `Communications – ${fn.event_name}`,
+      user: req.session.user || null,
+      fn,
+      messages,
+      linkedContacts: linkedContactsRes.rows,
+      rooms: roomsRes.rows,
+      eventTypes: eventTypesRes.rows,
+      activeTab: "communications",
+    });
   } catch (err) {
     console.error("❌ [Communications] Error:", err);
     next(err);
   }
 });
-// ======================================================
-// 📄 DETAIL: Single Communication Message
-// GET /functions/:id/communications/:messageId
-// ======================================================
+
+
+// 📄 Single communication message detail
 router.get("/:id/communications/:messageId", async (req, res, next) => {
-  const { id, messageId } = req.params;
+  const { id: functionId, messageId } = req.params;
 
   try {
-    // 1️⃣ Fetch the parent function
+    // Fetch parent function
     const { rows: fnRows } = await pool.query(
-      `SELECT id, event_name, event_date, status
-         FROM functions WHERE id = $1;`,
-      [id]
+      `SELECT id_uuid, event_name, event_date, status
+       FROM functions 
+       WHERE id_uuid = $1;`,
+      [functionId]
     );
+
     const fn = fnRows[0];
     if (!fn) return res.status(404).send("Function not found");
 
-    // 2️⃣ Fetch the specific message
+    // Fetch message detail
     const { rows: msgRows } = await pool.query(
       `SELECT id, subject, body, body_html, from_email, to_email, created_at
-         FROM messages
-        WHERE id = $1 AND related_function = $2;`,
-      [messageId, id]
+       FROM messages
+       WHERE id = $1 AND related_function = $2;`,
+      [messageId, functionId]
     );
+
     const message = msgRows[0];
     if (!message) return res.status(404).send("Message not found");
 
-    // 3️⃣ Sidebar context (contacts, rooms, event types)
+    // Fetch related contacts, rooms, event types
     const linkedContactsRes = await pool.query(
       `SELECT c.id, c.name, c.email, c.phone, c.company, fc.is_primary
-         FROM contacts c
-         JOIN function_contacts fc ON fc.contact_id = c.id
-        WHERE fc.function_id = $1
-        ORDER BY fc.is_primary DESC, c.name ASC;`,
-      [id]
+       FROM contacts c
+       JOIN function_contacts fc ON fc.contact_id = c.id
+       WHERE fc.function_id = $1
+       ORDER BY fc.is_primary DESC, c.name ASC;`,
+      [functionId]
     );
+
     const roomsRes = await pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`);
     const eventTypesRes = await pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`);
 
-    // 4️⃣ Render the detail page
-    res.render("pages/functions/communication-detail", {
-      layout: "layouts/main",
-      title: `Message — ${fn.event_name}`,
-      user: req.session.user || null,
-      fn,
-      message,
-      linkedContacts: linkedContactsRes.rows,
-      rooms: roomsRes.rows,
-      eventTypes: eventTypesRes.rows,
-      activeTab: "communications"
-    });
+// Render message detail page
+res.render("pages/functions/communication-detail", {
+  layout: "layouts/main",
+  title: `Message — ${fn.event_name}`,
+  user: req.session.user || null,
+  fn,
+  message,
+  messages: [], // ✅ prevents "messages is not defined" error
+  linkedContacts: linkedContactsRes.rows,
+  rooms: roomsRes.rows,
+  eventTypes: eventTypesRes.rows,
+  activeTab: "communications",
+  pageType: "function-page" // ✅ prevents main.ejs from using function-shell
+});
+
   } catch (err) {
     console.error("❌ [Communication DETAIL] Error:", err);
     next(err);
   }
 });
 
-// ======================================================
-// ✉️ SEND: New message from Function → Communications
-// POST /functions/:id/communications/send
-// Returns: { success, data: { id } }
-// ======================================================
+
+// ✉️ SEND new message
 router.post("/:id/communications/send", async (req, res) => {
-  const { id } = req.params;
+  const { id: functionId } = req.params;
   const sender = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
 
-  const to      = normalizeRecipients(req.body.to);
-  const cc      = normalizeRecipients(req.body.cc);
-  const bcc     = normalizeRecipients(req.body.bcc);
-  const subject = (req.body.subject || "(No subject)").trim();
-  const body    = req.body.body || "";
-
-  try {
-    const accessToken = await getGraphAccessToken(req);
-    // 1) send via Microsoft Graph
-    await graphSendMail(accessToken, { to, cc, bcc, subject, body });
-
-    // 2) store DB record as 'outbound'
-    const insert = await pool.query(
-      `INSERT INTO messages
-         (related_function, from_email, to_email, subject, body, created_at, message_type)
-       VALUES ($1, $2, $3, $4, $5, NOW(), 'outbound')
-       RETURNING id;`,
-      [id, sender, to.join(", "), subject, body]
-    );
-
-    return res.json({ success: true, data: { id: insert.rows[0].id } });
-  } catch (err) {
-    console.error("❌ [Function SEND via Graph]", err?.message || err);
-    // If token is invalid/expired and this was an XHR, hint login
-    if (String(err).includes("invalid_grant") || String(err).includes("401")) {
-      return res
-        .status(401)
-        .json({ success: false, error: "auth", redirect: `/auth/login?next=${encodeURIComponent(req.originalUrl)}` });
-    }
-    return res.status(500).json({ success: false, error: "Failed to send via Graph" });
-  }
-});
-
-
-// ✉️ POST: Reply to a specific function message
-// Sends via Microsoft Graph (using your graphservice.js),
-// stores the outbound in DB, then redirects back
-// ======================================================
-router.post("/:id/communications/:messageId/reply", async (req, res) => {
-  const { id: functionId, messageId } = req.params;
-  const sender = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
-
-  console.log(
-    "SESSION GRAPH TOKEN:",
-    req.session?.graphAccessToken ? "✅ Present" : "❌ Missing"
-  );
-
-  // Accept JSON or form-encoded posts
   const to = normalizeRecipients(req.body.to);
   const cc = normalizeRecipients(req.body.cc);
   const bcc = normalizeRecipients(req.body.bcc);
-  const subject = (req.body.subject || "Re:").trim();
+  const subject = (req.body.subject || "(No subject)").trim();
   const body = req.body.body || "";
 
-  // Where to go after sending (allow override via hidden input "next")
-  const nextUrl =
-    req.body.next && typeof req.body.next === "string"
-      ? req.body.next
-      : `/functions/${encodeURIComponent(functionId)}/communications`;
-
   try {
-    // (Optional) ensure the original belongs to this function
-    const { rows: orig } = await pool.query(
-      `SELECT id FROM messages WHERE id = $1 AND related_function = $2`,
-      [messageId, functionId]
-    );
+    const accessToken = await getGraphAccessToken(req, res);
+    if (!accessToken) return; // 401 already sent
 
-    if (!orig.length) {
-      const wantsJSON = (req.headers.accept || "").includes("application/json");
-      return wantsJSON
-        ? res
-            .status(404)
-            .json({ success: false, error: "Original message not found" })
-        : res.status(404).send("Original message not found");
-    }
+    await graphSendMail(accessToken, { to, cc, bcc, subject, body });
 
-// 1️⃣ Acquire a token (delegated from session; redirect if missing)
-let accessToken;
-try {
-  accessToken = await getGraphAccessToken(req);
-} catch (err) {
-  if (err && err.message === "no_delegated_token") {
-    console.warn("🧭 Redirecting user to Microsoft login to restore Graph token");
-
-    // Preserve the user's intended page for redirect after login
-    const returnTo = encodeURIComponent(req.originalUrl);
-    return res.redirect(`/auth/graph/login?next=${returnTo}`);
-  }
-  throw err;
-}
-
-// 2️⃣ Send via Microsoft Graph
-await graphSendMail(accessToken, { to, cc, bcc, subject, body });
-
-    // 3️⃣ Store the sent message
     const insert = await pool.query(
       `INSERT INTO messages
          (related_function, from_email, to_email, subject, body, created_at, message_type)
@@ -406,62 +318,87 @@ await graphSendMail(accessToken, { to, cc, bcc, subject, body });
       [functionId, sender, to.join(", "), subject, body]
     );
 
-    // 4️⃣ Return response
-    const wantsJSON =
-      req.xhr ||
-      req.headers["x-requested-with"] === "XMLHttpRequest" ||
-      (req.headers.accept || "").includes("application/json") ||
-      (req.headers["content-type"] || "").includes("application/json");
-
-    if (wantsJSON)
-      return res.json({ success: true, data: { id: insert.rows[0].id } });
-
-    return res.redirect(nextUrl);
+    return res.json({ success: true, data: { id: insert.rows[0].id } });
   } catch (err) {
-    console.error("❌ [Function REPLY via Graph]", err?.message || err);
-    const wantsJSON =
-      req.xhr ||
-      req.headers["x-requested-with"] === "XMLHttpRequest" ||
-      (req.headers.accept || "").includes("application/json") ||
-      (req.headers["content-type"] || "").includes("application/json");
-
-    return wantsJSON
-      ? res
-          .status(500)
-          .json({ success: false, error: "Failed to send reply via Graph" })
-      : res.status(500).send("Failed to send reply via Graph");
+    console.error("❌ [Function SEND via Graph]", err?.message || err);
+    res.status(500).json({ success: false, error: "Failed to send via Graph" });
   }
 });
-/* =========================================================
-   ✏️ FUNCTION EDIT — GET + POST
-========================================================= */
 
-// 🧭 GET: Edit Form
-router.get("/:id/edit", async (req, res, next) => {
-  const { id } = req.params;
+
+// ✉️ REPLY to message
+router.post("/:id/communications/:messageId/reply", async (req, res) => {
+  const { id: functionId, messageId } = req.params;
+  const sender = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
+
+  const to = normalizeRecipients(req.body.to);
+  const cc = normalizeRecipients(req.body.cc);
+  const bcc = normalizeRecipients(req.body.bcc);
+  const subject = (req.body.subject || "Re:").trim();
+  const body = req.body.body || "";
+
+  const nextUrl = req.body.next || `/functions/${functionId}/communications`;
 
   try {
-    // 1️⃣ Fetch the function
-    const { rows: fnRows } = await pool.query(`
-      SELECT * FROM functions WHERE id = $1;
-    `, [id]);
+    const { rows: orig } = await pool.query(
+      `SELECT id FROM messages WHERE id = $1 AND related_function = $2`,
+      [messageId, functionId]
+    );
+
+    if (!orig.length) return res.status(404).send("Original message not found");
+
+    const accessToken = await getGraphAccessToken(req, res);
+    if (!accessToken) return; // 401 already sent
+
+    await graphSendMail(accessToken, { to, cc, bcc, subject, body });
+
+    await pool.query(
+      `INSERT INTO messages
+         (related_function, from_email, to_email, subject, body, created_at, message_type)
+       VALUES ($1, $2, $3, $4, $5, NOW(), 'outbound');`,
+      [functionId, sender, to.join(", "), subject, body]
+    );
+
+    res.redirect(nextUrl);
+  } catch (err) {
+    console.error("❌ [Function REPLY via Graph]", err?.message || err);
+    res.status(500).json({ success: false, error: "Failed to send reply via Graph" });
+  }
+});
+
+/* =========================================================
+   ✏️ FUNCTION EDIT — GET + POST (UUID-Ready, Clean Version)
+========================================================= */
+
+// 🧭 GET: Function edit page
+router.get("/:id/edit", async (req, res, next) => {
+  const { id: functionId } = req.params;
+
+  try {
+    // 1️⃣ Load function details
+    const { rows: fnRows } = await pool.query(
+      `SELECT * FROM functions WHERE id_uuid = $1;`,
+      [functionId]
+    );
+
     const fn = fnRows[0];
     if (!fn) return res.status(404).send("Function not found");
 
-    // 2️⃣ Sidebar Data
+    // 2️⃣ Load related data concurrently
     const [linkedContactsRes, roomsRes, eventTypesRes] = await Promise.all([
       pool.query(`
         SELECT c.id, c.name, c.email, c.phone, fc.is_primary
         FROM contacts c
         JOIN function_contacts fc ON fc.contact_id = c.id
         WHERE fc.function_id = $1
-        ORDER BY fc.is_primary DESC, c.name ASC;
-      `, [id]),
+        ORDER BY fc.is_primary DESC, c.name ASC;`,
+        [functionId]
+      ),
       pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`),
       pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`)
     ]);
 
-    // 3️⃣ Render the edit page
+    // 3️⃣ Render edit page
     res.render("pages/functions/edit", {
       layout: "layouts/main",
       title: `Edit — ${fn.event_name}`,
@@ -479,9 +416,10 @@ router.get("/:id/edit", async (req, res, next) => {
   }
 });
 
-// 💾 POST: Save changes
+
+// 📝 POST: Save edited function
 router.post("/:id/edit", async (req, res) => {
-  const { id } = req.params;
+  const { id: functionId } = req.params;
   const {
     event_name,
     event_date,
@@ -501,38 +439,39 @@ router.post("/:id/edit", async (req, res) => {
     await pool.query(`
       UPDATE functions
       SET
-        event_name = $1,
-        event_date = $2,
-        event_time = $3,
-        start_time = $4,
-        end_time = $5,
-        attendees = $6,
-        budget = $7,
+        event_name   = $1,
+        event_date   = $2,
+        event_time   = $3,
+        start_time   = $4,
+        end_time     = $5,
+        attendees    = $6,
+        budget       = $7,
         totals_price = $8,
-        totals_cost = $9,
-        room_id = $10,
-        event_type = $11,
-        status = $12,
-        updated_at = NOW()
-      WHERE id = $13;
-    `, [
-      event_name,
-      event_date || null,
-      event_time || null,
-      start_time || null,
-      end_time || null,
-      attendees || null,
-      budget || null,
-      totals_price || 0,
-      totals_cost || 0,
-      room_id || null,
-      event_type || null,
-      status,
-      id
-    ]);
+        totals_cost  = $9,
+        room_id      = $10,
+        event_type   = $11,
+        status       = $12,
+        updated_at   = NOW()
+      WHERE id_uuid = $13;`,
+      [
+        event_name,
+        event_date || null,
+        event_time || null,
+        start_time || null,
+        end_time || null,
+        attendees || null,
+        budget || null,
+        totals_price || 0,
+        totals_cost || 0,
+        room_id || null,
+        event_type || null,
+        status,
+        functionId
+      ]
+    );
 
-    console.log(`✅ Function ${id} updated successfully`);
-    res.redirect(`/functions/${id}`);
+    console.log(`✅ Function updated successfully (UUID: ${functionId}, Name: ${event_name})`);
+    res.redirect(`/functions/${functionId}`);
 
   } catch (err) {
     console.error("❌ Error updating function:", err);
@@ -543,180 +482,64 @@ router.post("/:id/edit", async (req, res) => {
 
 
 /* =========================================================
-   🗒️ NOTES ROUTE (with layout + sidebar integration)
-========================================================= */
-
-router.get("/:id/notes", async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    // ✅ Fetch function
-    const fnRes = await pool.query(
-      `SELECT id, event_name, event_date, status, attendees, budget, totals_cost, totals_price, room_id, event_type 
-       FROM functions WHERE id = $1;`,
-      [id]
-    );
-    const fn = fnRes.rows[0];
-    if (!fn) return res.status(404).send("Function not found");
-
-    // ✅ Fetch notes with author and timestamps
-    const { rows: notes } = await pool.query(
-      `
-      SELECT 
-        n.id AS entry_id,
-        n.function_id,
-        n.content AS body,
-        n.note_type,
-        n.created_at AS entry_date,
-        n.updated_at,
-        u.name AS author
-      FROM function_notes n
-      LEFT JOIN users u ON u.id = n.created_by
-      WHERE n.function_id = $1
-      ORDER BY n.created_at DESC;
-      `,
-      [id]
-    );
-
-    // ✅ Fetch sidebar data (contacts, rooms, event types)
-   const linkedContactsRes = await pool.query(
-  `
-  SELECT c.id, c.name, c.email, c.phone, fc.is_primary
-  FROM contacts c
-  JOIN function_contacts fc ON fc.contact_id = c.id
-  WHERE fc.function_id = $1
-  ORDER BY fc.is_primary DESC, c.name ASC;
-  `,
-  [id]
-);
-
-
-    const roomsRes = await pool.query(
-      `SELECT id, name, capacity FROM rooms ORDER BY name ASC;`
-    );
-
-    const eventTypesRes = await pool.query(
-      `SELECT name FROM club_event_types ORDER BY name ASC;`
-    );
-
-    // ✅ Render with full layout + sidebar context
-    res.render("pages/functions/notes", {
-      layout: "layouts/main",
-      title: `${fn.event_name} — Notes`,
-      pageType: "function/notes",      // 👈 helps JS autoload correct modules
-      active: "functions",             // 👈 highlights nav item
-      user: req.session.user || null,  // 👈 for header
-      fn,
-      notes,
-      linkedContacts: linkedContactsRes.rows,
-      rooms: roomsRes.rows,
-      eventTypes: eventTypesRes.rows,
-      activeTab: "notes",
-    });
-  } catch (err) {
-    console.error("❌ Error loading notes:", err);
-    res.status(500).send("Failed to load notes");
-  }
-});
-
-
-// 🆕 Create a new note
-router.post("/:id/notes/new", async (req, res) => {
-  const { id } = req.params;
-  const { content, note_type } = req.body;
-  const userId = req.session.user?.id || null;
-
-  try {
-    await pool.query(
-      `
-      INSERT INTO function_notes (function_id, content, note_type, created_by, created_at)
-      VALUES ($1, $2, $3, $4, NOW());
-      `,
-      [id, content, note_type || "general", userId]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    console.error("❌ Error creating note:", err);
-    res.status(500).json({ success: false, message: "Failed to create note" });
-  }
-});
-
-
-
-// ✏️ Update a note
-router.post("/notes/:noteId/update", async (req, res) => {
-  const { noteId } = req.params;
-  const { content, note_type } = req.body;
-
-  try {
-    await pool.query(
-      `
-      UPDATE function_notes
-      SET content = $1,
-          note_type = COALESCE($2, 'general'),
-          updated_at = NOW()
-      WHERE id = $3;
-      `,
-      [content, note_type, noteId]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    console.error("❌ Error updating note:", err);
-    res.status(500).json({ success: false });
-  }
-});
-
-// 🗑️ Delete a note
-router.delete("/notes/:noteId", async (req, res) => {
-  const { noteId } = req.params;
-
-  try {
-    await pool.query(`DELETE FROM function_notes WHERE id = $1;`, [noteId]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error("❌ Error deleting note:", err);
-    res.status(500).json({ success: false });
-  }
-});
-
-/* =========================================================
-   🧭 FUNCTION DETAIL VIEW — Full (Sidebar + Timeline)
+   🧭 FUNCTION DETAIL VIEW — Full (Sidebar + Timeline, UUID Safe, Clean Version)
 ========================================================= */
 router.get("/:id", async (req, res, next) => {
   try {
-    const { id } = req.params;
+    const functionId = req.params.id.trim(); // UUID, trimmed for safety
     const activeTab = req.query.tab || "overview";
 
-    // 1️⃣ Fetch base function info
-    const { rows: fnRows } = await pool.query(`
-      SELECT f.*, r.name AS room_name, u.name AS owner_name
+    // 1️⃣ Fetch base function info (by UUID)
+    const { rows: fnRows } = await pool.query(
+      `
+      SELECT 
+        f.*, 
+        r.name AS room_name, 
+        u.name AS owner_name
       FROM functions f
       LEFT JOIN rooms r ON f.room_id = r.id
       LEFT JOIN users u ON f.owner_id = u.id
-      WHERE f.id = $1;
-    `, [id]);
+      WHERE f.id_uuid = $1;
+      `,
+      [functionId]
+    );
 
     const fn = fnRows[0];
-    if (!fn) return res.status(404).send("Function not found");
+    if (!fn) {
+      console.warn(`⚠️ Function not found for UUID: ${functionId}`);
+      return res.status(404).send("Function not found");
+    }
 
-    // 2️⃣ Load all related data concurrently
+    // 2️⃣ Load related data concurrently (UUID-safe)
     const [
-      linkedContacts,
-      notes,
-      tasks,
-      messages,
-      rooms,
-      eventTypes
+      linkedContactsRes,
+      notesRes,
+      tasksRes,
+      messagesRes,
+      roomsRes,
+      eventTypesRes
     ] = await Promise.all([
-      pool.query(`
-        SELECT c.id, c.name, c.email, c.phone, c.company, fc.is_primary
+      // Contacts
+      pool.query(
+        `
+        SELECT 
+          c.id, 
+          c.name, 
+          c.email, 
+          c.phone, 
+          c.company, 
+          fc.is_primary
         FROM function_contacts fc
         JOIN contacts c ON fc.contact_id = c.id
         WHERE fc.function_id = $1
         ORDER BY fc.is_primary DESC, c.name ASC;
-      `, [id]),
+        `,
+        [functionId]
+      ),
 
-      pool.query(`
+      // Notes
+      pool.query(
+        `
         SELECT 
           n.id AS entry_id,
           n.function_id,
@@ -729,9 +552,13 @@ router.get("/:id", async (req, res, next) => {
         LEFT JOIN users u ON u.id = n.created_by
         WHERE n.function_id = $1
         ORDER BY n.created_at DESC;
-      `, [id]),
+        `,
+        [functionId]
+      ),
 
-      pool.query(`
+      // Tasks
+      pool.query(
+        `
         SELECT 
           t.id, 
           t.title, 
@@ -740,32 +567,38 @@ router.get("/:id", async (req, res, next) => {
           t.created_at AS entry_date,
           u.name AS assigned_to_name
         FROM tasks t
-        LEFT JOIN users u ON u.id = t.assigned_to
+        LEFT JOIN users u ON u.id::text = t.assigned_to::text
         WHERE t.function_id = $1
         ORDER BY t.created_at DESC;
-      `, [id]),
+        `,
+        [functionId]
+      ),
 
-pool.query(`
-  SELECT 
-    m.id AS entry_id,
-    m.subject,
-    m.created_at AS entry_date
-  FROM messages m
-  WHERE m.related_function = $1
-  ORDER BY m.created_at DESC
-  LIMIT 5;
-`, [id]),
+      // Messages
+      pool.query(
+        `
+        SELECT 
+          m.id AS entry_id,
+          m.subject,
+          m.created_at AS entry_date
+        FROM messages m
+        WHERE m.related_function = $1
+        ORDER BY m.created_at DESC
+        LIMIT 5;
+        `,
+        [functionId]
+      ),
 
-
+      // Static lookup data
       pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`),
       pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`)
     ]);
 
-    // 3️⃣ Combine & group entries
+    // 3️⃣ Build combined timeline entries
     const allEntries = [
-      ...notes.rows.map(n => ({ ...n, entry_type: "note" })),
-      ...tasks.rows.map(t => ({ ...t, entry_type: "task" })),
-      ...messages.rows.map(m => ({ ...m, entry_type: "message" }))
+      ...notesRes.rows.map(n => ({ ...n, entry_type: "note" })),
+      ...tasksRes.rows.map(t => ({ ...t, entry_type: "task" })),
+      ...messagesRes.rows.map(m => ({ ...m, entry_type: "message" }))
     ];
 
     const grouped = allEntries.reduce((acc, entry) => {
@@ -775,248 +608,103 @@ pool.query(`
       return acc;
     }, {});
 
-// 4️⃣ Render Function Detail Page (using unified layout)
+    // 4️⃣ Render function detail view
 res.render("pages/functions/overview", {
-  layout: "layouts/main",
- // 🧩 this line is the key addition
+  layout: 'layouts/main',  // ✅ use main layout again
   title: fn.event_name,
   active: "functions",
   user: req.session.user || null,
+  pageType: 'function-detail',
   fn,
-  linkedContacts: linkedContacts.rows,
-  notes: notes.rows,
-  tasks: tasks.rows,
+  linkedContacts: linkedContactsRes.rows,
+  notes: notesRes.rows,
+  tasks: tasksRes.rows,
   grouped,
   activeTab,
-  rooms: rooms.rows,
-  eventTypes: eventTypes.rows
+  rooms: roomsRes.rows,
+  eventTypes: eventTypesRes.rows
 });
 
-
   } catch (err) {
-    console.error("❌ Error loading function detail:", err);
+    console.error("❌ [Function DETAIL] Error loading function detail:", err);
     res.status(500).send("Error loading function detail");
   }
 });
 
-
 /* =========================================================
-   📇 3. CONTACT MANAGEMENT (RESTFUL)
+   🧩 TASK MANAGEMENT (UUID-SAFE, CLEAN VERSION)
 ========================================================= */
 
-// ✅ Fetch contact by ID
-router.get("/:fnId/contacts/:contactId", async (req, res) => {
-  const { contactId } = req.params;
-  try {
-    const { rows } = await pool.query("SELECT * FROM contacts WHERE id = $1", [contactId]);
-    if (rows.length === 0) return res.status(404).json({ error: "Contact not found" });
-    res.json(rows[0]);
-  } catch (err) {
-    console.error("❌ Error fetching contact:", err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
-
-// ✅ Fetch recent communications for contact
-router.get("/:fnId/contacts/:contactId/communications", async (req, res) => {
-  const { contactId } = req.params;
-  try {
-    const [messages, notes, tasks] = await Promise.all([
-      pool.query(`
-        SELECT id AS entry_id, 'message' AS entry_type, message_type, subject, body, from_email, to_email, created_at AS entry_date
-        FROM messages
-        WHERE related_contact = $1
-      `, [contactId]),
-      pool.query(`
-        SELECT id AS entry_id, 'note' AS entry_type, note_type AS message_type, content AS body, created_at AS entry_date
-        FROM function_notes
-        WHERE function_id IN (SELECT function_id FROM function_contacts WHERE contact_id = $1)
-      `, [contactId]),
-      pool.query(`
-        SELECT id AS entry_id, 'task' AS entry_type, status AS message_type, title AS subject, created_at AS entry_date
-        FROM tasks
-        WHERE function_id IN (SELECT function_id FROM function_contacts WHERE contact_id = $1)
-      `, [contactId])
-    ]);
-
-    const rows = [...messages.rows, ...notes.rows, ...tasks.rows]
-      .sort((a, b) => new Date(b.entry_date) - new Date(a.entry_date))
-      .slice(0, 10);
-
-    res.json(rows);
-  } catch (err) {
-    console.error("❌ Error loading contact communications:", err);
-    res.status(500).json({ message: "Error loading communications" });
-  }
-});
-
-
-// ✅ Link an existing contact
-router.post("/:fnId/link-contact", async (req, res) => {
-  const { fnId } = req.params;
-  const { contact_id } = req.body;
-  try {
-    await pool.query(`
-      INSERT INTO function_contacts (function_id, contact_id, is_primary, created_at)
-      VALUES ($1, $2, false, NOW())
-      ON CONFLICT DO NOTHING;
-    `, [fnId, contact_id]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error("❌ Error linking contact:", err);
-    res.status(500).json({ success: false });
-  }
-});
-// ✅ Fetch all contacts (for "Link Existing Contact" dropdown)
-router.get("/api/contacts", async (req, res) => {
-  try {
-    const { rows } = await pool.query(
-      "SELECT id, name, email FROM contacts ORDER BY name ASC;"
-    );
-    res.json(rows);
-  } catch (err) {
-    console.error("❌ Error loading contacts list:", err);
-    res.status(500).json({ success: false, message: "Failed to load contacts" });
-  }
-});
-
-// ✅ Add a new contact
-router.post("/:fnId/new-contact", async (req, res) => {
-  const { fnId } = req.params;
-  const { name, email, phone, company } = req.body;
-  try {
-    const { rows } = await pool.query(
-      `INSERT INTO contacts (name, email, phone, company) VALUES ($1, $2, $3, $4) RETURNING id;`,
-      [name, email, phone, company]
-    );
-    const contactId = rows[0].id;
-
-    await pool.query(`
-      INSERT INTO function_contacts (function_id, contact_id, is_primary, created_at)
-      VALUES ($1, $2, false, NOW());
-    `, [fnId, contactId]);
-
-    res.json({ success: true, id: contactId });
-  } catch (err) {
-    console.error("❌ Error creating contact:", err);
-    res.status(500).json({ success: false });
-  }
-});
-
-// ✅ Remove a linked contact
-router.post("/:fnId/remove-contact", async (req, res) => {
-  const { fnId } = req.params;
-  const { contact_id } = req.body;
-  try {
-    await pool.query(`DELETE FROM function_contacts WHERE function_id = $1 AND contact_id = $2;`, [fnId, contact_id]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error("❌ Error removing contact:", err);
-    res.status(500).json({ success: false });
-  }
-});
-
-// ✅ Set a primary contact
-router.post("/:fnId/set-primary", async (req, res) => {
-  const { fnId } = req.params;
-  const { contact_id } = req.body;
-  try {
-    await pool.query(`UPDATE function_contacts SET is_primary = false WHERE function_id = $1;`, [fnId]);
-    await pool.query(`UPDATE function_contacts SET is_primary = true WHERE function_id = $1 AND contact_id = $2;`, [fnId, contact_id]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error("❌ Error setting primary contact:", err);
-    res.status(500).json({ success: false });
-  }
-});
-
-// ✅ Delete a contact permanently
-router.delete("/contacts/:id/delete", async (req, res) => {
-  const { id } = req.params;
-  try {
-    await pool.query(`DELETE FROM contacts WHERE id = $1;`, [id]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error("❌ Error deleting contact:", err);
-    res.status(500).json({ success: false });
-  }
-});
-// ✅ Update an existing contact
-router.post("/contacts/:id/update", async (req, res) => {
-  const { id } = req.params;
-  const { name, email, phone, company } = req.body;
-  try {
-    await pool.query(
-      `
-      UPDATE contacts
-      SET name = $1, email = $2, phone = $3, company = $4, updated_at = NOW()
-      WHERE id = $5
-      `,
-      [name, email, phone, company, id]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    console.error("❌ Error updating contact:", err);
-    res.status(500).json({ success: false, message: "Failed to update contact" });
-  }
-});
-// ======================================================
-// 🧩 TASK MANAGEMENT ROUTES
-// ======================================================
+// 🧭 GET: All tasks for a given function
 router.get("/:id/tasks", async (req, res) => {
-  const { id } = req.params;
+  const { id: functionId } = req.params;
 
   try {
-    // 1️⃣ Fetch function
+    // 1️⃣ Fetch parent function info
     const { rows: fnRows } = await pool.query(
-      `SELECT id, event_name, event_date, status, attendees, budget, totals_cost, totals_price, room_id, event_type 
-       FROM functions WHERE id = $1;`,
-      [id]
+      `
+      SELECT 
+        id_uuid, event_name, event_date, status, attendees, budget, 
+        totals_cost, totals_price, room_id, event_type 
+      FROM functions 
+      WHERE id_uuid = $1;
+      `,
+      [functionId]
     );
+
     const fn = fnRows[0];
-    if (!fn) return res.status(404).send("Function not found");
+    if (!fn) {
+      console.warn(`⚠️ [Tasks GET] Function not found: ${functionId}`);
+      return res.status(404).send("Function not found");
+    }
 
     // 2️⃣ Fetch tasks
     const { rows: tasks } = await pool.query(
-      `SELECT 
-         t.*, 
-         u.name AS assigned_user_name, 
-         u.email AS assigned_user_email
-       FROM tasks t
-       LEFT JOIN users u ON t.assigned_to = u.id
-       WHERE t.function_id = $1
-       ORDER BY t.created_at DESC;`,
-      [id]
+      `
+      SELECT 
+        t.*, 
+        u.name AS assigned_user_name, 
+        u.email AS assigned_user_email
+      FROM tasks t
+      LEFT JOIN users u ON u.id = t.assigned_user_id
+      WHERE t.function_id = $1
+      ORDER BY t.created_at DESC;
+      `,
+      [functionId]
     );
 
-    // 3️⃣ Sidebar data
-    const linkedContactsRes = await pool.query(
-      `SELECT c.id, c.name, c.email, c.phone, c.company, fc.is_primary
-       FROM contacts c
-       JOIN function_contacts fc ON fc.contact_id = c.id
-       WHERE fc.function_id = $1
-       ORDER BY fc.is_primary DESC, c.name ASC;`,
-      [id]
-    );
+    // 3️⃣ Fetch supporting data
+    const [linkedContactsRes, roomsRes, eventTypesRes, usersRes] = await Promise.all([
+      pool.query(`
+        SELECT 
+          c.id, c.name, c.email, c.phone, c.company, fc.is_primary
+        FROM contacts c
+        JOIN function_contacts fc ON fc.contact_id = c.id
+        WHERE fc.function_id = $1
+        ORDER BY fc.is_primary DESC, c.name ASC;
+      `, [functionId]),
 
-    const roomsRes = await pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`);
-    const eventTypesRes = await pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`);
+      pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`),
+      pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`),
+      pool.query(`SELECT id, name FROM users ORDER BY name ASC;`)
+    ]);
 
-    // 4️⃣ Fetch all users for Assign dropdown
-    const usersRes = await pool.query(`SELECT id, name FROM users ORDER BY name ASC;`);
-
-    // 5️⃣ Render with full context
+    // 🖥️ Render the task management page
     res.render("pages/functions/tasks", {
       layout: "layouts/main",
+      title: `${fn.event_name} — Tasks`,
+      pageName: 'Tasks',   // 👈 add this
       user: req.session.user || null,
       fn,
       tasks,
       linkedContacts: linkedContactsRes.rows,
       rooms: roomsRes.rows,
       eventTypes: eventTypesRes.rows,
-      users: usersRes.rows, // ✅ this now works properly
-      activeTab: "tasks",
+      users: usersRes.rows,
+      activeTab: "tasks"
     });
+
+    console.log(`🧾 [Tasks GET] Loaded ${tasks.length} tasks for function ${functionId}`);
 
   } catch (err) {
     console.error("❌ [Tasks GET] Error:", err);
@@ -1025,44 +713,30 @@ router.get("/:id/tasks", async (req, res) => {
 });
 
 
-
-// ✅ Create a new task (now includes `description`)
+// 🆕 POST: Create a new task for a function
 router.post("/:id/tasks/new", async (req, res) => {
+  const { id: functionId } = req.params;
+  const { title, description, assigned_to, due_at } = req.body;
+
+  if (!title?.trim()) {
+    return res.status(400).json({ success: false, error: "Task title is required" });
+  }
+
   try {
-    const { id } = req.params;
-    const { title, description, assigned_to, due_at } = req.body;
+    // 🧠 Convert frontend variable to correct type
+    const assignedUserId = assigned_to ? parseInt(assigned_to, 10) : null;
 
     const { rows } = await pool.query(
-      `INSERT INTO tasks (title, description, function_id, assigned_to, due_at, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, 'open', NOW())
-       RETURNING *;`,
-      [title, description || null, id, assigned_to || null, due_at || null]
+      `
+      INSERT INTO tasks (title, description, function_id, assigned_user_id, due_at, status, created_at)
+      VALUES ($1, $2, $3, $4, $5, 'open', NOW())
+      RETURNING *;
+      `,
+      [title.trim(), description || null, functionId, assignedUserId, due_at || null]
     );
 
     const newTask = rows[0];
-
-    // ✉️ Send email if user assigned
-    if (assigned_to && req.session.graphToken) {
-      const { rows: users } = await pool.query(
-        `SELECT id, name, email FROM users WHERE id = $1`,
-        [assigned_to]
-      );
-
-      const assignedUser = users[0];
-      if (assignedUser && assignedUser.email) {
-        try {
-          await sendTaskAssignmentEmail(
-            req.session.graphToken,
-            newTask,
-            assignedUser,
-            req.session.user || { name: "System" }
-          );
-          console.log(`📧 Task assignment email sent to ${assignedUser.email}`);
-        } catch (err) {
-          console.error("⚠️ Failed to send assignment email:", err.message);
-        }
-      }
-    }
+    console.log(`✅ [Tasks NEW] Created task '${title}' for function ${functionId}`);
 
     res.json({ success: true, task: newTask });
   } catch (err) {
@@ -1070,129 +744,178 @@ router.post("/:id/tasks/new", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
-// ✅ Update or complete a task
+// ✏️ UPDATE an existing task
 router.post("/tasks/:taskId/update", async (req, res) => {
+  const { taskId } = req.params;
+  const { title, description, assigned_to, due_at, status } = req.body;
+
   try {
-    const { taskId } = req.params;
-    const { title, description, assigned_to, due_at, status } = req.body;
+    const assignedUserId = assigned_to ? parseInt(assigned_to, 10) : null;
 
-    // Build a dynamic SQL update query based on which fields are sent
-    const fields = [];
-    const values = [];
-    let idx = 1;
-
-    if (title !== undefined) {
-      fields.push(`title = $${idx++}`);
-      values.push(title);
-    }
-    if (description !== undefined) {
-      fields.push(`description = $${idx++}`);
-      values.push(description);
-    }
-    if (assigned_to !== undefined) {
-      fields.push(`assigned_to = $${idx++}`);
-      values.push(assigned_to);
-    }
-    if (due_at !== undefined) {
-      fields.push(`due_at = $${idx++}`);
-      values.push(due_at);
-    }
-    if (status !== undefined) {
-      fields.push(`status = $${idx++}`);
-      values.push(status);
-    }
-
-    if (fields.length === 0) {
-      return res
-        .status(400)
-        .json({ success: false, error: "No fields to update" });
-    }
-
-    // Always update updated_at
-    fields.push(`updated_at = NOW()`);
-
-    values.push(taskId);
-
-    const query = `
+    const { rowCount } = await pool.query(
+      `
       UPDATE tasks
-      SET ${fields.join(", ")}
-      WHERE id = $${idx}
-      RETURNING *;
-    `;
+      SET 
+        title = $1,
+        description = $2,
+        assigned_user_id = $3,
+        due_at = $4,
+        status = COALESCE($5, status),
+        updated_at = NOW()
+      WHERE id = $6;
+      `,
+      [title, description || null, assignedUserId, due_at || null, status || null, taskId]
+    );
 
-    const { rows } = await pool.query(query, values);
-    res.json({ success: true, task: rows[0] });
-  } catch (err) {
-    console.error("❌ [Tasks UPDATE] Error:", err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+    if (rowCount === 0) {
+      return res.status(404).json({ success: false, error: "Task not found" });
+    }
 
-// ✅ Delete a task
-router.delete("/tasks/:taskId", async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    await pool.query(`DELETE FROM tasks WHERE id = $1;`, [taskId]);
+    console.log(`✏️ [Tasks UPDATE] Task ${taskId} updated successfully`);
     res.json({ success: true });
   } catch (err) {
-    console.error("❌ [Tasks DELETE] Error:", err);
+    console.error("❌ [Tasks UPDATE] Error:", err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
+// ✅ MARK TASK AS COMPLETED
+router.post("/tasks/:taskId/complete", async (req, res) => {
+  const { taskId } = req.params;
+
+  try {
+    const { rowCount } = await pool.query(
+      `
+      UPDATE tasks
+      SET status = 'completed', updated_at = NOW()
+      WHERE id = $1;
+      `,
+      [taskId]
+    );
+
+    if (rowCount === 0) {
+      return res.status(404).json({ success: false, error: "Task not found" });
+    }
+
+    console.log(`🏁 [Tasks COMPLETE] Task ${taskId} marked as completed`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ [Tasks COMPLETE] Error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+// 🔁 REOPEN a completed task
+router.post("/tasks/:taskId/reopen", async (req, res) => {
+  const { taskId } = req.params;
+
+  try {
+    const { rowCount } = await pool.query(
+      `
+      UPDATE tasks
+      SET status = 'open', updated_at = NOW()
+      WHERE id = $1;
+      `,
+      [taskId]
+    );
+
+    if (rowCount === 0) {
+      return res.status(404).json({ success: false, error: "Task not found" });
+    }
+
+    console.log(`🔄 [Tasks REOPEN] Task ${taskId} reopened`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ [Tasks REOPEN] Error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+// 🗑️ DELETE an existing task
+router.delete("/tasks/:taskId", async (req, res) => {
+  const { taskId } = req.params;
+
+  try {
+    const result = await pool.query("DELETE FROM tasks WHERE id = $1;", [taskId]);
+    if (result.rowCount === 0)
+      return res.status(404).json({ success: false, error: "Task not found" });
+
+    console.log(`🗑️ [Tasks DELETE] Task ${taskId} deleted`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ [Tasks DELETE] Error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
 /* =========================================================
-   🕒 FUNCTION FIELD UPDATE (start_time / end_time etc.)
+   🕒 FUNCTION FIELD UPDATE (UUID-SAFE, TYPE-SAFE VERSION)
 ========================================================= */
 router.post("/:id/update-field", async (req, res) => {
-  const { id } = req.params;
-  let { field, value } = req.body; // 👈 use let instead of const so we can modify value
+  const { id: functionId } = req.params; // UUID string
+  let { field, value } = req.body;
 
-  // ✅ Whitelist of safe, editable fields
-  const allowed = [
-    "start_time",
-    "end_time",
-    "event_date",
-    "event_time",
-    "status",
-    "event_name",
-    "event_type",
-    "budget",
-    "totals_price",
-    "totals_cost",
-    "notes",
-    "room_id"
-  ];
+  // ✅ Define only allowed, safe-to-update columns
+  const allowed = new Map([
+    ["start_time", "start_time"],
+    ["end_time", "end_time"],
+    ["event_date", "event_date"],
+    ["event_time", "event_time"],
+    ["status", "status"],
+    ["event_name", "event_name"],
+    ["event_type", "event_type"],
+    ["budget", "budget"],
+    ["totals_price", "totals_price"],
+    ["totals_cost", "totals_cost"],
+    ["notes", "notes"],
+    ["room_id", "room_id"] // integer column — handle separately
+  ]);
 
-  if (!allowed.includes(field)) {
+  const column = allowed.get(field);
+  if (!column) {
+    console.warn(`⚠️ [Update-Field] Invalid field attempted: ${field}`);
     return res.status(400).json({ success: false, error: "Invalid field name" });
   }
 
-  // ✅ Normalize time format (e.g. "10:30" → "10:30:00")
-  if (["start_time", "end_time"].includes(field) && value) {
-    if (/^\d{2}:\d{2}$/.test(value)) {
-      value = `${value}:00`;
-    }
+  // 🧩 Normalize time formats
+  if (["start_time", "end_time"].includes(column) && value && /^\d{2}:\d{2}$/.test(value)) {
+    value = `${value}:00`;
   }
+
+  // 🧩 Coerce types for numeric fields
+  if (["budget", "totals_price", "totals_cost"].includes(column)) {
+    value = value === "" ? null : parseFloat(value);
+  }
+
+  if (column === "room_id") {
+    value = value === "" ? null : parseInt(value, 10);
+  }
+
+  // 💬 Debug logging before query
+  console.log(`🛠️ [Function UPDATE-FIELD] Updating ${column} to '${value}' for function ${functionId}`);
 
   try {
     const query = `
       UPDATE functions 
-      SET ${field} = $1, updated_at = NOW()
-      WHERE id = $2
+      SET ${column} = $1, updated_at = NOW()
+      WHERE id_uuid = $2
       RETURNING *;
     `;
-    const { rows } = await pool.query(query, [value, id]);
 
-    if (rows.length === 0) {
+    const { rows } = await pool.query(query, [value, functionId]);
+
+    if (!rows.length) {
+      console.warn(`⚠️ [Update-Field] Function not found for UUID: ${functionId}`);
       return res.status(404).json({ success: false, error: "Function not found" });
     }
 
+    console.log(`✅ [Function UPDATE-FIELD] Updated ${column} successfully for ${functionId}`);
     res.json({ success: true, data: rows[0] });
+
   } catch (err) {
-    console.error("❌ [Function Field Update] Error:", err);
+    console.error("❌ [Function UPDATE-FIELD] Error:", err.message);
     res.status(500).json({ success: false, error: "Database update failed" });
   }
 });
-
 
 module.exports = router;

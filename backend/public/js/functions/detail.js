@@ -1,168 +1,16 @@
 /* =========================================================
-   🧩 FUNCTION DETAIL CONTROLLER (CLEANED & UPDATED)
-   Handles modals, edit panels, contacts, and notes.
-   Sidebar menus & time modals are now in sidebar.js
+   🧠 FUNCTION DETAIL CONTROLLER — UUID Safe
+   Handles Add/Link/View/Primary/Remove Contact
 ========================================================= */
 
 document.addEventListener("DOMContentLoaded", () => {
-  console.log("🧠 Function Detail Controller initialized.");
+  console.log("🧠 Function Detail Controller initialized");
 
-  const fnId = window.fnContext?.id || document.body.dataset.fnId || null;
+  const fnUUID = window.fnContext?.id;
   const overlay = document.getElementById("contactOverlay");
-
-  /* =========================================================
-     🧭 Toast Notification (Shared Utility)
-  ========================================================== */
-  function showToast(message) {
-    const toast = document.createElement("div");
-    toast.className = "toast";
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.classList.add("show"), 10);
-    setTimeout(() => {
-      toast.classList.remove("show");
-      setTimeout(() => toast.remove(), 300);
-    }, 3000);
-  }
-
-  /* =========================================================
-     👁️ VIEW CONTACT MODAL
-  ========================================================== */
-  const viewModal = document.getElementById("viewContactModal");
-  const modalBody = document.getElementById("contactModalBody");
-  const closeViewModal = document.getElementById("closeViewModal");
-
-  const openModal = (html) => {
-    modalBody.innerHTML = html;
-    viewModal.classList.remove("hidden");
-  };
-  const closeModal = () => viewModal.classList.add("hidden");
-
-  closeViewModal?.addEventListener("click", closeModal);
-  window.addEventListener("click", (e) => {
-    if (e.target.classList.contains("contact-modal")) closeModal();
-  });
-
-  document.addEventListener("click", async (e) => {
-    if (!e.target.classList.contains("view-btn")) return;
-    const id = e.target.dataset.id;
-
-    try {
-      const contactRes = await fetch(`/functions/${fnId}/contacts/${id}`);
-      if (!contactRes.ok) throw new Error("Failed to load contact");
-      const contact = await contactRes.json();
-
-      const commsRes = await fetch(`/functions/${fnId}/contacts/${id}/communications`);
-      const comms = commsRes.ok ? await commsRes.json() : [];
-
-      let commsHTML = "<h4>Recent Communications</h4>";
-      if (Array.isArray(comms) && comms.length > 0) {
-        commsHTML +=
-          "<ul>" +
-          comms
-            .map((c) => {
-              const text = c.subject || c.body || "[No content]";
-              return `<li><strong>${c.entry_type}:</strong> ${text}</li>`;
-            })
-            .join("") +
-          "</ul>";
-      } else {
-        commsHTML += "<p>No communications yet.</p>";
-      }
-
-      openModal(`
-        <h2>${contact.name}</h2>
-        <p><strong>Email:</strong> ${contact.email || "—"}</p>
-        <p><strong>Phone:</strong> ${contact.phone || "—"}</p>
-        <p><strong>Company:</strong> ${contact.company || "—"}</p>
-        <hr>${commsHTML}
-      `);
-    } catch (err) {
-      console.error("❌ View contact error:", err);
-      openModal("<p>Failed to load contact details.</p>");
-    }
-  });
-
-  /* =========================================================
-     ✏️ EDIT CONTACT PANEL
-  ========================================================== */
-  const editPanel = document.getElementById("editContactPanel");
-  const editForm = document.getElementById("editContactForm");
-  const closeEditPanelBtn = document.getElementById("closeEditPanel");
-  const cancelEditBtn = document.getElementById("cancelEdit");
-
-  // 🟢 Open edit panel
-  document.addEventListener("click", async (e) => {
-    if (!e.target.classList.contains("edit-btn")) return;
-    const id = e.target.dataset.id;
-
-    try {
-      const res = await fetch(`/functions/${fnId}/contacts/${id}`);
-      if (!res.ok) throw new Error("Failed to fetch contact");
-      const contact = await res.json();
-
-      // Populate fields
-      document.getElementById("editContactId").value = contact.id;
-      document.getElementById("editContactName").value = contact.name || "";
-      document.getElementById("editContactEmail").value = contact.email || "";
-      document.getElementById("editContactPhone").value = contact.phone || "";
-      document.getElementById("editContactCompany").value = contact.company || "";
-
-      editPanel.classList.remove("hidden");
-      editPanel.classList.add("panel-open");
-      overlay?.classList.add("panel-open"); // ✅ fixed (was .active)
-    } catch (err) {
-      console.error("⚠️ Edit Panel Error:", err);
-      showToast("⚠️ Could not load contact");
-    }
-  });
-
-  // 🟡 Close edit panel
-  const closeEdit = () => {
-    editPanel.classList.remove("panel-open");
-    overlay?.classList.remove("panel-open");
-    setTimeout(() => editPanel.classList.add("hidden"), 350);
-  };
-  [closeEditPanelBtn, cancelEditBtn].forEach((btn) =>
-    btn?.addEventListener("click", closeEdit)
-  );
-
-  // 💾 Save edits
-  editForm?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const id = document.getElementById("editContactId").value;
-    const body = {
-      name: document.getElementById("editContactName").value.trim(),
-      email: document.getElementById("editContactEmail").value.trim(),
-      phone: document.getElementById("editContactPhone").value.trim(),
-      company: document.getElementById("editContactCompany").value.trim(),
-    };
-
-    try {
-      const res = await fetch(`/functions/contacts/${id}/update`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        showToast("✅ Contact updated");
-        closeEdit();
-        setTimeout(() => location.reload(), 400);
-      } else showToast("⚠️ Update failed");
-    } catch (err) {
-      console.error("⚠️ Update Error:", err);
-      showToast("⚠️ Update failed");
-    }
-  });
-
-  /* =========================================================
-     ➕ ADD / LINK CONTACT PANEL
-  ========================================================== */
   const addPanel = document.getElementById("addContactPanel");
   const openAddBtn = document.getElementById("openAddPanelBtn");
-  const closeAddPanel = document.getElementById("closeAddPanel");
+  const closeAddPanelBtn = document.getElementById("closeAddPanel");
   const tabNew = document.getElementById("tabNew");
   const tabExisting = document.getElementById("tabExisting");
   const newForm = document.getElementById("newContactForm");
@@ -171,36 +19,48 @@ document.addEventListener("DOMContentLoaded", () => {
   const selectDropdown = document.getElementById("existingSelect");
   const linkExistingBtn = document.getElementById("linkExisting");
 
-  // 🟢 Open Add Panel
-  openAddBtn?.addEventListener("click", () => {
+  const showToast = (msg) => {
+    const t = document.createElement("div");
+    t.className = "toast";
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.classList.add("show"), 10);
+    setTimeout(() => {
+      t.classList.remove("show");
+      setTimeout(() => t.remove(), 300);
+    }, 2500);
+  };
+
+  /* =========================================================
+     ➕ ADD CONTACT PANEL
+  ========================================================== */
+  const openPanel = () => {
     addPanel.classList.remove("hidden");
+    overlay.classList.remove("hidden");
     addPanel.classList.add("panel-open");
-    overlay.classList.add("panel-open"); // ✅ fixed
-  });
-
-  // 🔴 Close Add Panel
-  closeAddPanel?.addEventListener("click", () => {
+  };
+  const closePanel = () => {
     addPanel.classList.remove("panel-open");
-    overlay.classList.remove("panel-open");
-    setTimeout(() => addPanel.classList.add("hidden"), 350);
-  });
+    addPanel.classList.add("hidden");
+    overlay.classList.add("hidden");
+  };
 
-  // ⚫ Close by clicking overlay
+  openAddBtn?.addEventListener("click", openPanel);
+  closeAddPanelBtn?.addEventListener("click", closePanel);
   overlay?.addEventListener("click", () => {
-    document.querySelectorAll(".contact-panel.panel-open").forEach(panel => {
-      panel.classList.remove("panel-open");
-      setTimeout(() => panel.classList.add("hidden"), 350);
-    });
-    overlay.classList.remove("panel-open");
+    if (addPanel.classList.contains("panel-open")) closePanel();
   });
 
-  // 🔹 Tabs
+  /* =========================================================
+     TABS + LOAD CONTACTS
+  ========================================================== */
   tabNew?.addEventListener("click", () => {
     tabNew.classList.add("active");
     tabExisting.classList.remove("active");
     newForm.classList.remove("hidden");
     existingSection.classList.add("hidden");
   });
+
   tabExisting?.addEventListener("click", async () => {
     tabExisting.classList.add("active");
     tabNew.classList.remove("active");
@@ -210,14 +70,26 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   async function loadContacts() {
-    const res = await fetch("/functions/api/contacts");
-    const contacts = await res.json();
-    selectDropdown.innerHTML = contacts
-      .map((c) => `<option value="${c.id}">${c.name} (${c.email || "no email"})</option>`)
-      .join("");
+    try {
+      const res = await fetch("/api/contacts");
+      const data = await res.json();
+      selectDropdown.innerHTML = "";
+      if (!Array.isArray(data) || !data.length) {
+        selectDropdown.innerHTML = `<option disabled>No contacts available</option>`;
+        return;
+      }
+      data.forEach((c) => {
+        const opt = document.createElement("option");
+        opt.value = c.id_uuid || c.id;
+        opt.textContent = `${c.name}${c.email ? " – " + c.email : ""}`;
+        selectDropdown.appendChild(opt);
+      });
+    } catch (err) {
+      console.error("❌ Load contacts error:", err);
+      selectDropdown.innerHTML = `<option disabled>Error loading contacts</option>`;
+    }
   }
 
-  // 🔍 Filter dropdown
   searchInput?.addEventListener("input", () => {
     const term = searchInput.value.toLowerCase();
     Array.from(selectDropdown.options).forEach((opt) => {
@@ -225,59 +97,100 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // 🆕 Add new contact
+  /* =========================================================
+     CREATE / LINK CONTACT
+  ========================================================== */
   newForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const body = {
-      name: document.getElementById("newName").value,
-      email: document.getElementById("newEmail").value,
-      phone: document.getElementById("newPhone").value,
-      company: document.getElementById("newCompany").value,
+      name: document.getElementById("newName").value.trim(),
+      email: document.getElementById("newEmail").value.trim(),
+      phone: document.getElementById("newPhone").value.trim(),
+      company: document.getElementById("newCompany").value.trim(),
     };
-    const res = await fetch(`/functions/${fnId}/new-contact`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast("✅ Contact added");
-      addPanel.classList.remove("panel-open");
-      overlay.classList.remove("panel-open");
-      setTimeout(() => addPanel.classList.add("hidden"), 350);
-      location.reload();
+    if (!body.name) return showToast("⚠️ Name required");
+
+    try {
+      const res = await fetch(`/api/contacts/link/${fnUUID}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("✅ Contact added & linked");
+        closePanel();
+        setTimeout(() => location.reload(), 400);
+      } else showToast(data.message || "❌ Failed to add contact");
+    } catch (err) {
+      console.error("❌ Create contact error:", err);
+      showToast("❌ Error creating contact");
     }
   });
 
-  // 🔗 Link existing contact
   linkExistingBtn?.addEventListener("click", async () => {
     const contactId = selectDropdown.value;
-    if (!contactId) return alert("Please select a contact.");
-    const res = await fetch(`/functions/${fnId}/link-contact`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contact_id: contactId }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast("🔗 Contact linked");
-      addPanel.classList.remove("panel-open");
-      overlay.classList.remove("panel-open");
-      setTimeout(() => addPanel.classList.add("hidden"), 350);
-      location.reload();
+    if (!contactId) return showToast("⚠️ Select a contact first");
+    try {
+      const res = await fetch(`/api/contacts/link/${fnUUID}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact_id: contactId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("🔗 Contact linked");
+        closePanel();
+        setTimeout(() => location.reload(), 400);
+      } else showToast(data.message || "❌ Failed to link contact");
+    } catch (err) {
+      console.error("❌ Link contact error:", err);
+      showToast("❌ Error linking contact");
     }
   });
 
   /* =========================================================
-     ⌨️ ESCAPE KEY CLOSE (All Panels)
+     REMOVE / MAKE PRIMARY
   ========================================================== */
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      document.querySelectorAll(".contact-panel.panel-open").forEach((panel) => {
-        panel.classList.remove("panel-open");
-        setTimeout(() => panel.classList.add("hidden"), 350);
-      });
-      overlay?.classList.remove("panel-open");
+  document.addEventListener("click", async (e) => {
+    const contactId = e.target.dataset.id;
+    if (e.target.classList.contains("remove-btn")) {
+      if (!confirm("Remove this contact?")) return;
+      try {
+        const res = await fetch(`/api/contacts/${fnUUID}/remove-contact`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contact_id: contactId }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast("🗑️ Contact removed");
+          setTimeout(() => location.reload(), 400);
+        } else showToast("❌ Remove failed");
+      } catch (err) {
+        console.error("❌ Remove error:", err);
+        showToast("❌ Server error");
+      }
+    }
+
+    if (e.target.classList.contains("primary-btn")) {
+      try {
+        const res = await fetch(`/api/contacts/${fnUUID}/set-primary`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contact_id: contactId }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast("⭐ Primary contact updated");
+          setTimeout(() => location.reload(), 400);
+        } else showToast("⚠️ Update failed");
+      } catch (err) {
+        console.error("❌ Primary error:", err);
+        showToast("❌ Server error");
+      }
     }
   });
 });
+
+

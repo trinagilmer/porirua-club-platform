@@ -1,29 +1,12 @@
 <!-- 🛠️ pages/functions/edit.ejs -->
 <% locals.layout = 'layouts/main'; %>
 
-<main class="function-layout-two-col">
-
-  <!-- 🧭 Sidebar -->
- <!-- 🧭 LEFT COLUMN — Sidebar Partial -->
-<%- include('../../partials/functions/sidebar') %>
-
-
-  <!-- 🧩 Workspace -->
-  <section class="function-workspace">
-    <!-- 🔹 Tabs -->
-    <%- include('../../partials/functions/tabs', {
-      fn,
-      activeTab: 'edit'
-    }) %>
 
     <!-- 🔹 Body -->
-    <div class="function-body container py-4">
-      <div class="workspace-header mb-4">
-        <h1 class="mb-0">✏️ Edit Function</h1>
-      </div>
+    <div class="function-body py-4 px-4">
 
       <!-- 🧾 Edit Form -->
-      <form method="POST" action="/functions/<%= fn.id %>/edit" class="card p-4 shadow-sm">
+      <form method="POST" action="/functions/<%= fn.id_uuid %>/edit" class="card p-4 shadow-sm">
         <div class="row g-3">
           <div class="col-md-6">
             <label class="form-label">Event Name</label>
@@ -32,18 +15,18 @@
 
           <div class="col-md-3">
             <label class="form-label">Date</label>
-            <input type="date" name="event_date" class="form-control" 
+            <input type="date" name="event_date" class="form-control"
                    value="<%= fn.event_date ? fn.event_date.toISOString().slice(0,10) : '' %>" />
           </div>
 
           <div class="col-md-6">
-              <label class="form-label">Start Time</label>
-              <input type="time" name="start_time" class="form-control" value="<%= fn.start_time || '' %>" />
+            <label class="form-label">Start Time</label>
+            <input type="time" name="start_time" class="form-control" value="<%= fn.start_time || '' %>" />
           </div>
 
           <div class="col-md-6">
-              <label class="form-label">End Time</label>
-              <input type="time" name="end_time" class="form-control" value="<%= fn.end_time || '' %>" />
+            <label class="form-label">End Time</label>
+            <input type="time" name="end_time" class="form-control" value="<%= fn.end_time || '' %>" />
           </div>
 
           <div class="col-md-4">
@@ -65,6 +48,7 @@
             <label class="form-label">Total Cost</label>
             <input type="number" step="0.01" name="totals_cost" class="form-control" value="<%= fn.totals_cost || 0 %>" />
           </div>
+
           <div class="col-md-6">
             <label class="form-label">Room / Space</label>
             <select name="room_id" class="form-select">
@@ -76,18 +60,17 @@
               <% }) %>
             </select>
           </div>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Event Type</label>
-          <select name="event_type" class="form-select">
-            <option value="">Select an event type</option>
-            <% eventTypes.forEach(t => { %>
-            <option value="<%= t.name %>" <%= fn.event_type === t.name ? 'selected' : '' %>>
-        <%= t.name %>
-      </option>
-    <% }) %>
-  </select>
-</div>
+
+          <div class="col-md-6">
+            <label class="form-label">Event Type</label>
+            <select name="event_type" class="form-select">
+              <option value="">Select an event type</option>
+              <% eventTypes.forEach(t => { %>
+                <option value="<%= t.name %>" <%= fn.event_type === t.name ? 'selected' : '' %>><%= t.name %></option>
+              <% }) %>
+            </select>
+          </div>
+
           <div class="col-md-6">
             <label class="form-label">Status</label>
             <select name="status" class="form-select">
@@ -101,7 +84,7 @@
         </div>
 
         <div class="mt-4 d-flex justify-content-end gap-2">
-          <a href="/functions/<%= fn.id %>" class="btn btn-outline-secondary">Cancel</a>
+          <a href="/functions/<%= fn.id_uuid %>" class="btn btn-outline-secondary">Cancel</a>
           <button type="submit" class="btn btn-primary">Save Changes</button>
         </div>
       </form>
@@ -119,6 +102,17 @@
 
 <!-- ⚙️ Scripts -->
 <script>
-  window.fnContext = <%- JSON.stringify({ id: fn.id }) %>;
+  // ✅ Use UUID-only context (no integer fallback)
+  window.fnContext = {
+    id: "<%= fn.id_uuid %>",
+    name: "<%= fn.event_name %>",
+    status: "<%= fn.status %>",
+    eventDate: "<%= fn.event_date ? fn.event_date.toISOString().split('T')[0] : '' %>"
+  };
+
+  console.log("🛠️ Function Context (Edit):", window.fnContext);
 </script>
+
+<!-- JS Controller -->
 <script src="/js/functions/edit.js" defer></script>
+

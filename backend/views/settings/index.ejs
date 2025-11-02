@@ -14,16 +14,21 @@
       <a href="/settings/spaces" class="btn btn-outline-primary btn-sm">Manage</a>
     </div>
 
-    <div class="overview-card disabled">
-      <h4>Services</h4>
-      <p>Coming soon</p>
+    <div class="overview-card">
+      <h4>Note Templates</h4>
+      <p><%= (counts && typeof counts.noteTemplates !== 'undefined') ? counts.noteTemplates : 0 %> templates</p>
+      <a href="/settings/note-templates" class="btn btn-outline-primary btn-sm">Manage</a>
     </div>
 
-    <div class="overview-card disabled">
-      <h4>Facilities</h4>
-      <p>Coming soon</p>
-    </div>
-  </div>
+  <div class="overview-card">
+  <h4>Menus</h4>
+  <p>Manage all sales categories and menu items</p>
+  <a href="/settings/menus" class="btn btn-outline-primary btn-sm">Menu Structure</a>
+</div>
+
+
+
+
 </main>
 
 <script type="module" src="/js/settings/index.js"></script>
@@ -53,4 +58,3 @@
   pointer-events: none;
 }
 </style>
-

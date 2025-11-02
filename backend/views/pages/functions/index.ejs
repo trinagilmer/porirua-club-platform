@@ -1,10 +1,12 @@
 <!-- 📊 pages/functions/index.ejs -->
 <% locals.layout = 'layouts/main'; %>
 
-<div class="container-fluid py-4 page-functions">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="mb-0" style="color:var(--deep);">Functions Dashboard</h1>
-  </div>
+<div class="function-dashboard container-fluid py-4">
+<div class="dashboard-header function-header d-flex justify-content-between align-items-center">
+  <h1 class="page-title">Functions Dashboard</h1>
+  <a href="/functions/new" class="btn btn-brand">+ Add Function</a>
+</div>
+
 
   <!-- KPI Overview -->
   <div class="kpi-bar mb-4">
@@ -33,18 +35,17 @@
   <!-- Status Filters -->
   <div class="status-filters mb-4">
     <% ['active','lead','qualified','confirmed','balance_due','completed'].forEach(st => { %>
-      <a href="/functions?status=<%= st %>" class="<%= statusFilter === st ? 'active' : '' %>">
+      <a href="/functions?status=<%= st %>"
+         class="filter-pill <%= statusFilter === st ? 'active' : '' %>">
         <%= st.replace('_',' ') %>
       </a>
     <% }) %>
-    <a href="/functions?mine=true" class="<%= myOnly ? 'active' : '' %>">My Events</a>
-    <a href="/functions/new" class="add-btn btn">+ Add Function</a>
+    <a href="/functions?mine=true" class="filter-pill <%= myOnly ? 'active' : '' %>">My Events</a>
   </div>
 
   <!-- Functions Table -->
-  <div class="card shadow-sm">
-  <div class="card-content">
-    <table class="table compact-table align-middle">
+<div class="table-wrapper">
+  <table class="table function-table">
       <thead>
         <tr>
           <th>Event</th>
@@ -58,7 +59,6 @@
           <th>Actions</th>
         </tr>
       </thead>
-
       <tbody>
         <% if (events.length === 0) { %>
           <tr>
@@ -71,12 +71,15 @@
             <tr>
               <!-- Event + Contact -->
               <td>
-                <a href="/functions/<%= e.id %>" class="event-link fw-semibold"><%= e.event_name %></a><br>
+                <a href="/functions/<%= e.id_uuid %>" class="event-link">
+                  <%= e.event_name %>
+                </a><br>
 
                 <% 
                   let contacts = e.contacts || [];
                   if (typeof contacts === 'string') contacts = JSON.parse(e.contacts); 
                 %>
+
                 <% if (contacts.length > 0) { 
                      const primary = contacts.find(c => c.is_primary) || contacts[0];
                      const extra = contacts.length - 1;
@@ -94,7 +97,9 @@
 
               <!-- Status -->
               <td>
-                <span class="status-badge status-<%= e.status %>"><%= e.status %></span>
+                <span class="status-badge status-<%= e.status %>">
+                  <%= e.status %>
+                </span>
               </td>
 
               <!-- Date + Time -->
@@ -105,10 +110,8 @@
                 <% } %>
               </td>
 
-              <!-- Attendees -->
               <td><%= e.attendees || '' %></td>
 
-              <!-- Value -->
               <td>
                 <% if (e.totals_price) { %>
                   $<%= Number(e.totals_price).toFixed(2) %>
@@ -117,19 +120,14 @@
                 <% } %>
               </td>
 
-              <!-- Room -->
               <td><%= e.room_name || '' %></td>
-
-              <!-- Owner -->
               <td><%= e.owner_name || '' %></td>
-
-              <!-- Created -->
               <td><%= formatNZDate(e.created_at) %></td>
 
               <!-- Actions -->
               <td class="table-actions">
-                <a href="/functions/<%= e.id %>" class="btn btn-sm btn-outline-primary">View</a>
-                <a href="/functions/<%= e.id %>/edit" class="btn btn-sm btn-outline-secondary">Edit</a>
+                <a href="/functions/<%= e.id_uuid %>" class="btn btn-sm btn-outline-primary">View</a>
+                <a href="/functions/<%= e.id_uuid %>/edit" class="btn btn-sm btn-outline-secondary">Edit</a>
               </td>
             </tr>
           <% }) %>
@@ -138,70 +136,3 @@
     </table>
   </div>
 </div>
-
-<!-- 🧩 Page Styles -->
-<style>
-  .status-filters {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-  }
-  .status-filters a {
-    padding: 6px 12px;
-    border-radius: 6px;
-    border: 1px solid var(--primary);
-    color: var(--primary);
-    background: #fff;
-    text-transform: capitalize;
-    font-size: 0.9rem;
-    transition: all 0.2s ease;
-  }
-  .status-filters a.active {
-    background: var(--primary);
-    color: #fff;
-    font-weight: 600;
-  }
-  .status-filters a:hover {
-    background: var(--deep);
-    color: #fff;
-  }
-  .kpi-bar {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
-  }
-  .kpi {
-    background: var(--white);
-    border-left: 5px solid var(--primary);
-    border-radius: var(--radius);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    padding: 12px 16px;
-  }
-  .kpi .label {
-    color: #666;
-    font-size: 0.85rem;
-    text-transform: uppercase;
-  }
-  .kpi .value {
-    font-size: 1.4rem;
-    font-weight: 600;
-    color: var(--deep);
-  }
-  .table-actions a {
-    margin-right: 6px;
-  }
-  .add-btn {
-    float: right;
-    background: var(--accent);
-    color: var(--deep);
-    font-weight: 600;
-  }
-  .add-btn:hover {
-    background: var(--deep);
-    color: #fff;
-  }
-</style>
-
-

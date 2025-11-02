@@ -1,0 +1,226 @@
+@use "sass:color";
+@use "../core/variables" as *;
+
+/* =========================================================
+   🃏 TASK, NOTE & MESSAGE CARDS — Unified Modern Version
+   Combines SCSS variables with cleaned legacy layout
+========================================================= */
+
+/* ---------- Generic Card Shell ---------- */
+.task-card,
+.note-card,
+.message-card {
+  background: $color-bg-panel;
+  border: 1px solid $color-border;
+  border-radius: $radius;
+  box-shadow: $shadow-sm;
+  padding: $spacer * 1.5;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+
+  &:hover {
+    box-shadow: $shadow-md;
+    transform: translateY(-3px);
+  }
+}
+
+/* ---------- TASK CARD SPECIFIC ---------- */
+.task-card {
+  position: relative;
+  padding: 1rem;
+  border-left: 4px solid $primary;
+  border-radius: 0.75rem;
+  background-color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  overflow: visible; // prevents button clipping
+
+  .task-card-title,
+  .card-title {
+    color: $primary;
+    font-weight: 600;
+    line-height: 1.3;
+    margin-bottom: 0.5rem;
+    text-decoration: none;
+
+    a {
+      color: inherit;
+      text-decoration: none;
+
+      &:hover {
+        color: color.adjust($primary, $lightness: -10%);
+      }
+    }
+  }
+
+  .task-card-desc {
+    font-size: 0.9rem;
+    color: #6c757d;
+    line-height: 1.4;
+    margin-bottom: 0.5rem;
+  }
+
+  .task-card-meta {
+    font-size: 0.85rem;
+    color: $color-text-muted;
+
+    strong {
+      color: #333;
+    }
+  }
+
+  .task-card-status {
+    display: inline-block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    background: #e7f1ff;
+    color: $primary;
+    border: 1px solid $primary;
+    border-radius: 20px;
+    padding: 0.4em 0.75em;
+
+    &.bg-brand {
+      background-color: $primary !important;
+      color: #fff !important;
+    }
+  }
+
+  .btn {
+    font-size: 0.75rem;
+    border-radius: 0.4rem;
+    margin-bottom: 0.25rem;
+  }
+}
+
+/* ---------- GRID LAYOUT ---------- */
+.task-cards-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1rem;
+
+  .col-md-6,
+  .col-lg-4 {
+    display: flex;
+  }
+
+  .task-card {
+    flex: 1;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+    &:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.12);
+    }
+  }
+}
+
+/* ---------- BADGE UTILITY ---------- */
+.badge.bg-brand {
+  background-color: $primary !important;
+  color: #fff !important;
+}
+
+/* ---------- Utility / Notes ---------- */
+.note-type-badge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: $radius-sm;
+  background-color: $gray-200;
+  color: $deep;
+}
+
+.table.compact-table > :not(caption) > * > * {
+  padding: 0.4rem 0.5rem;
+}
+
+.card-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: $spacer;
+}
+
+.saved-flash {
+  animation: flashHighlight 0.8s ease;
+}
+
+@keyframes flashHighlight {
+  0%   { background-color: $accent; }
+  100% { background-color: $color-bg-panel; }
+}
+/* =========================================================
+   🧩 TASK CARD BUTTON ALIGNMENT FIX
+   Ensures all button rows align properly and stay inside cards
+========================================================= */
+
+.task-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  .task-card-desc,
+  .task-card-meta {
+    flex-grow: 1; // pushes buttons to bottom of card
+  }
+
+  .d-flex.justify-content-end {
+    margin-top: auto;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+  }
+
+  .btn {
+    min-width: 80px;
+    text-align: center;
+    white-space: nowrap;
+  }
+}
+/* =========================================================
+   🧮 TASK CARD BUTTONS — Alignment & Wrapping Fix
+   Keeps all task card buttons aligned, even when one is missing
+========================================================= */
+
+.task-card {
+  // ensures consistent layout for all cards
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  // container for buttons
+  .d-flex.justify-content-end {
+    flex-wrap: nowrap !important;
+    justify-content: flex-end !important;
+    align-items: center;
+    gap: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    margin-top: auto;
+
+    // ✅ ensures the buttons never overflow card width
+    overflow-x: hidden;
+  }
+
+  // consistent button width + prevent overlapping
+  .btn {
+    min-width: 85px;
+    flex: 0 0 auto;
+    text-align: center;
+    white-space: nowrap;
+    margin-bottom: 0;
+  }
+
+  // makes sure smaller cards align nicely with fewer buttons
+  .btn + .btn {
+    margin-left: 0 !important;
+  }
+}
+.task-card {
+  cursor: pointer;
+
+  &:hover {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  }
+
+  .btn {
+    cursor: default; // prevents pointer confusion on buttons
+  }
+}

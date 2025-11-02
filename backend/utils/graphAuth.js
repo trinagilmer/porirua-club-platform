@@ -1,5 +1,5 @@
 // backend/utils/graphAuth.js
-const { cca } = require("../routes/auth"); // shared MSAL client
+const { cca } = require("../auth/msal");
 
 /**
  * Returns a valid Microsoft Graph access token for this session.

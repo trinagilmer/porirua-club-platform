@@ -1,0 +1,35 @@
+// 📊 Reusable KPI Cards
+.kpi-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.kpi {
+  background: var(--white);
+  border-left: 5px solid var(--primary);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  padding: 12px 16px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+  }
+
+  .label {
+    color: #666;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .value {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--deep);
+    margin-top: 4px;
+  }
+}

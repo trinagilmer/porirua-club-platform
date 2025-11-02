@@ -1,0 +1,235 @@
+@use "../core/variables" as *;
+
+.function-dashboard {
+  background: $neutral-50;
+  color: $neutral-900;
+
+  .page-title {
+    color: #444;
+    font-weight: 600;
+  }
+// -------------------------
+// HEADER SPACING TUNE
+// -------------------------
+.function-dashboard {
+  .function-header {
+    margin-top: 2rem;          // 👈 moves it down slightly
+    margin-bottom: 2rem;       // matches spacing from other pages
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid $neutral-200; // optional visual divider
+  }
+}
+
+  .btn-brand {
+    background: $brand;
+    color: #fff;
+    font-weight: 600;
+    border-radius: 6px;
+
+    &:hover {
+      background: $brand-dark;
+    }
+  }
+
+  // KPI bar
+  .kpi-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1rem;
+  }
+
+  .kpi {
+    background: #fff;
+    border-left: 4px solid $brand;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba($black, 0.1);
+    padding: 0.75rem 1rem;
+
+    .label {
+      font-size: 0.85rem;
+      color: $neutral-600;
+      text-transform: uppercase;
+    }
+
+    .value {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: $brand-dark;
+    }
+  }
+
+  // Filters
+  .status-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .filter-pill {
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 1px solid $brand;
+    color: $brand;
+    font-weight: 500;
+    font-size: 0.9rem;
+    text-transform: capitalize;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: $brand-dark;
+      color: #fff;
+    }
+
+    &.active {
+      background: $brand;
+      color: #fff;
+      font-weight: 600;
+    }
+  }
+
+  // Table styling
+  .function-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 0.4rem;
+
+    tr {
+      background: #fff;
+      transition: all 0.2s ease;
+      cursor: pointer;
+
+      &:hover {
+        background: $brand-soft;
+      }
+    }
+
+    th {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: $neutral-700;
+      text-transform: uppercase;
+      border-bottom: 2px solid $neutral-200;
+    }
+
+    td {
+      font-size: 0.9rem;
+      color: $neutral-800;
+      vertical-align: middle;
+    }
+
+    .event-link {
+      font-weight: 600;
+      color: $brand;
+
+      &:hover {
+        color: $brand-dark;
+        text-decoration: underline;
+      }
+    }
+
+    .subtext {
+      font-size: 0.8rem;
+      color: $neutral-600;
+    }
+
+    .table-actions .btn {
+      margin-right: 0.25rem;
+    }
+  }
+
+  .status-badge {
+    text-transform: capitalize;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 4px;
+    padding: 0.25em 0.6em;
+    background: $brand-soft;
+    color: $brand;
+  }
+}
+.kpi-bar {
+  border-top: 2px solid $neutral-100;
+  padding-top: 1rem;
+}
+// ===========================================================
+// 🏷️ STATUS BADGES — Outlined, Brand-Tinted, Minimal
+// ===========================================================
+
+.status-badge {
+  display: inline-block;
+  text-transform: capitalize;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 0.3em 0.75em;
+  background: $white;
+  border: 1.5px solid $neutral-300;
+  color: $neutral-700;
+  transition: all 0.2s ease;
+  line-height: 1.2;
+
+  &:hover {
+    filter: brightness(0.97);
+    transform: translateY(-1px);
+  }
+
+  // 🎯 Lead — soft brand blue outline
+  &.status-lead {
+    border-color: $brand;
+    color: $brand-dark;
+
+    &:hover {
+      background: mix($brand-soft, $white, 70%);
+    }
+  }
+
+  // 🟡 Qualified — warm golden tone
+  &.status-qualified {
+    border-color: $warning;
+    color: mix($warning, $neutral-700, 40%);
+
+    &:hover {
+      background: mix($warning, $white, 80%);
+    }
+  }
+
+  // 🟢 Confirmed — positive green outline
+  &.status-confirmed {
+    border-color: $success;
+    color: mix($success, $neutral-700, 35%);
+
+    &:hover {
+      background: mix($success, $white, 80%);
+    }
+  }
+
+  // 🔵 Balance Due — calm teal accent
+  &.status-balance_due {
+    border-color: $info;
+    color: mix($info, $neutral-700, 40%);
+
+    &:hover {
+      background: mix($info, $white, 80%);
+    }
+  }
+
+  // ⚫ Completed — neutral outline
+  &.status-completed {
+    border-color: $neutral-400;
+    color: $neutral-700;
+
+    &:hover {
+      background: $neutral-100;
+    }
+  }
+
+  // 🔹 Active — soft brand outline
+  &.status-active {
+    border-color: $brand-dark;
+    color: mix($brand-dark, $neutral-700, 40%);
+
+    &:hover {
+      background: mix($brand-soft, $white, 75%);
+    }
+  }
+}

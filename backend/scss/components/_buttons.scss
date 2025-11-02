@@ -1,158 +1,175 @@
 @use "sass:color";
 @use "../core/variables" as *;
 
-// ===========================================================
-// 🧩 FUNCTION PAGE BUTTONS — Primary, Accent, Ghost, Outline
-// Modular partial: _buttons.scss
-// ===========================================================
+// =========================================================
+// 🃏 MODERN CARD COMPONENTS
+// =========================================================
 
-// -----------------------------
-// Base button styling
-// -----------------------------
-button.btn,
-.btn {
+// Shared base styles for all cards
+.task-card,
+.note-card,
+.message-card {
+  background: $color-bg-panel;
+  border: 1px solid $color-border;
   border-radius: $radius;
-  font-weight: 500;
-  font-family: $font-family-base;
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem; // icon + label spacing
-
-  &:focus-visible {
-    outline: 2px solid color.adjust($primary, $lightness: -15%);
-    outline-offset: 2px;
-  }
-
-  &:disabled,
-  &.disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    pointer-events: none;
-  }
-}
-
-// Size utilities
-.btn-sm { font-size: 0.875rem; padding: 0.25rem 0.5rem; border-radius: $radius; }
-.btn-lg { font-size: 1rem; padding: 0.6rem 1rem; border-radius: $radius; }
-.btn-block { display: flex; width: 100%; }
-
-// Icon alignment helpers
-.btn i, .btn svg { font-size: 1rem; line-height: 1; }
-.btn .icon-left { margin-right: 0.35rem; }
-.btn .icon-right { margin-left: 0.35rem; }
-
-// -----------------------------
-// Mixins to keep variants consistent
-// -----------------------------
-@mixin btn-variant($bg, $color: #fff, $border: $bg) {
-  background-color: $bg;
-  border-color: $border;
-  color: $color;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  padding: $spacer * 1.25;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
 
   &:hover {
-    background-color: color.adjust($bg, $lightness: -8%);
-    border-color: color.adjust($border, $lightness: -12%);
-    color: $color;
-  }
-
-  &:focus,
-  &:active,
-  &:focus-visible {
-    background-color: color.adjust($bg, $lightness: -12%);
-    border-color: color.adjust($border, $lightness: -15%);
-    color: $color;
-    box-shadow: 0 0 0 3px rgba($bg, 0.25); // subtle focus ring
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
   }
 }
 
-@mixin btn-outline-variant($base) {
-  background-color: transparent;
-  border: 1px solid $base;
-  color: $base;
+// =========================================================
+// 🧮 TASK CARDS — Clean + Structured
+// =========================================================
+.task-card {
+  position: relative;
+  border-left: 4px solid $brand;
+  background-color: #fff;
+  border-radius: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1rem;
 
-  &:hover,
-  &:focus {
-    background-color: rgba($base, 0.08);
-    color: $base;
-    border-color: $base;
+  // Title
+  .task-card-title,
+  .card-title {
+    color: $brand;
+    font-weight: 600;
+    line-height: 1.3;
+    margin-bottom: 0.5rem;
+
+    a {
+      color: inherit;
+      text-decoration: none;
+
+      &:hover {
+        color: color.scale($brand, $lightness: -10%);
+      }
+    }
   }
 
-  &:active {
-    background-color: rgba($base, 0.12);
-    color: $base;
-    border-color: color.adjust($base, $lightness: -8%);
+  // Description
+  .task-card-desc {
+    font-size: 0.9rem;
+    color: $color-text-muted;
+    line-height: 1.4;
+    margin-bottom: 0.5rem;
+  }
+
+  // Meta info
+  .task-card-meta {
+    font-size: 0.85rem;
+    color: $color-text-muted;
+
+    strong {
+      color: $neutral-900;
+    }
+  }
+
+  // Status badge
+  .task-card-status {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    background: $brand-soft;
+    color: $brand;
+    border: 1px solid color.scale($brand, $lightness: -5%);
+    border-radius: 20px;
+    padding: 0.35em 0.75em;
+
+    &.bg-brand {
+      background-color: $brand !important;
+      color: #fff !important;
+      border-color: $brand !important;
+    }
+  }
+
+  // Action section
+  .d-flex.justify-content-end {
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    margin-top: auto;
+  }
+
+  .btn {
+    min-width: 85px;
+    font-size: 0.8rem;
+    border-radius: 0.4rem;
+    white-space: nowrap;
   }
 }
 
-// -----------------------------
-// Brand variants
-// -----------------------------
+// =========================================================
+// 🧩 GRID LAYOUT
+// =========================================================
+.task-cards-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1rem;
 
-// Accent (alias of primary but kept for semantic clarity)
-.btn-accent { @include btn-variant($primary); }
-
-// Ghost (neutral outline)
-.btn-ghost {
-  background-color: transparent;
-  border: 1px solid $color-border;
-  color: $deep;
-
-  &:hover { border-color: $primary; color: $primary; }
-  &:focus-visible { box-shadow: 0 0 0 3px rgba($primary, 0.2); }
-}
-
-// Primary & Success (brand-aligned)
-.btn-primary, .btn-success { @include btn-variant($brand); }
-
-/* ✅ Improved outline primary contrast */
-.btn-outline-primary {
-  background-color: transparent;
-  border: 1px solid color.adjust($primary, $lightness: -10%);
-  color: color.adjust($primary, $lightness: -25%);
-
-  &:hover,
-  &:focus {
-    background-color: color.adjust($primary, $lightness: -10%);
-    color: #fff;
-    border-color: color.adjust($primary, $lightness: -10%);
+  .col-md-6,
+  .col-lg-4 {
+    display: flex;
   }
 
-  &:active {
-    background-color: color.adjust($primary, $lightness: -15%);
-    color: #fff;
+  .task-card {
+    flex: 1;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+    &:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+    }
   }
 }
-// Outline secondary (muted)
-.btn-outline-secondary {
-  background-color: transparent;
-  border: 1px solid $color-border;
-  color: $color-text-muted;
 
-  &:hover { border-color: $primary; color: $primary; }
+// =========================================================
+// 🏷️ BADGES & NOTES
+// =========================================================
+.badge.bg-brand {
+  background-color: $brand !important;
+  color: #fff !important;
 }
 
-// Link-style button (avoid default browser blue)
-.btn-link {
-  background: transparent;
-  border: none;
-  color: $color-text-dark; // neutral by default
-  padding: 0; // mimic link
-  text-decoration: underline;
-
-  &:hover { color: $primary; }
-  &:focus-visible { outline: 2px solid $primary; outline-offset: 2px; }
+.note-type-badge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: $radius;
+  background-color: $neutral-100;
+  color: $neutral-900;
 }
 
-// Utility button spacing
-.btn + .btn { margin-left: 0.5rem; }
+// =========================================================
+// ✨ INTERACTION POLISH
+// =========================================================
+.task-card {
+  cursor: pointer;
 
-// Respect reduced motion
-@media (prefers-reduced-motion: reduce) {
-  .btn { transition: none !important; }
+  &:hover {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  }
+
+  .btn {
+    cursor: default;
+  }
 }
-// Alias: support markup that uses `class="btn ghost"`
-.btn.ghost {
-  @extend .btn-ghost;
+
+.saved-flash {
+  animation: flashHighlight 0.8s ease;
+}
+
+@keyframes flashHighlight {
+  0%   { background-color: color.scale($brand, $lightness: 35%); }
+  100% { background-color: $color-bg-panel; }
 }

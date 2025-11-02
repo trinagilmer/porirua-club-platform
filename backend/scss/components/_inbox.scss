@@ -1,0 +1,224 @@
+// ==============================================
+// 📬 Inbox Styles (Smart Lead/Linked UI)
+// ==============================================
+
+// Variables (adjust to match your theme)
+$inbox-bg: #ffffff;
+$inbox-hover: #f8f9fa;
+$linked-color: #6bb4de; // Bootstrap green
+$unlinked-color: #ffc107; // Bootstrap yellow
+$lead-border: #ffb300;
+$text-muted: #6c757d;
+$transition-fast: 0.15s ease;
+
+// Inbox container
+.inbox-list {
+  display: flex;
+  flex-direction: column;
+  background: $inbox-bg;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+
+  .message-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 0.85rem 1.25rem;
+    border-bottom: 1px solid #e9ecef;
+    cursor: pointer;
+    transition: background-color $transition-fast;
+
+    &:hover {
+      background-color: $inbox-hover;
+    }
+
+    // Lead highlighting
+    &.border-warning {
+      border-left: 4px solid $lead-border;
+    }
+
+    .msg-left {
+      flex: 1;
+      .msg-from {
+        font-weight: 600;
+        font-size: 0.95rem;
+        margin-bottom: 0.2rem;
+        color: #212529;
+
+        .badge {
+          font-size: 0.75rem;
+          font-weight: 500;
+          margin-left: 0.4rem;
+          vertical-align: middle;
+
+          &.bg-success {
+            background: $linked-color;
+          }
+          &.bg-warning {
+            background: $unlinked-color;
+            color: #212529;
+          }
+        }
+      }
+
+      .msg-subject {
+        font-size: 0.9rem;
+        color: #0f766e; // your Porirua Club accent color
+        margin-bottom: 0.2rem;
+      }
+
+      .msg-preview {
+        font-size: 0.85rem;
+        color: $text-muted;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 600px;
+      }
+    }
+
+    .msg-date {
+      font-size: 0.8rem;
+      color: $text-muted;
+      text-align: right;
+      min-width: 120px;
+      white-space: nowrap;
+    }
+  }
+}
+
+// Header Bar (Top Stats)
+.inbox-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+
+  h1 {
+    font-size: 1.5rem;
+    color: #0f766e;
+  }
+
+  .inbox-stats {
+    display: flex;
+    gap: 1rem;
+
+    .stat-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+
+      .stat-number {
+        font-weight: 700;
+        font-size: 1.2rem;
+
+        &.linked {
+          color: $linked-color;
+        }
+
+        &.unlinked {
+          color: darken($unlinked-color, 10%);
+        }
+      }
+
+      .stat-label {
+        font-size: 0.8rem;
+        color: $text-muted;
+      }
+    }
+  }
+}
+
+// Tabs
+#inboxTabs {
+  .nav-link {
+    font-weight: 500;
+    color: #6bb4de;
+
+    &.active {
+      color: #0f766e;
+      border-color: #0f766e #0f766e transparent;
+      background: rgba(15, 118, 110, 0.05);
+    }
+
+    .badge {
+      font-size: 0.7rem;
+      margin-left: 0.25rem;
+      vertical-align: middle;
+    }
+  }
+}
+
+// Empty state
+.empty-box {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: $text-muted;
+  font-style: italic;
+}
+.message-card {
+  position: relative;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+
+  a {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+}
+.delete-btn {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  line-height: 1;
+  border-radius: 6px;
+  color: #dc3545;
+  border: 1px solid #dc3545;
+  background: #fff;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #dc3545;
+    color: #fff;
+  }
+}
+#deleted .message-card {
+  opacity: 0.7;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+#deleted .message-card:hover {
+  opacity: 1;
+  transform: scale(1.01);
+}
+.restore-btn {
+  font-size: 0.8rem;
+  padding: 4px 8px;
+}
+.badge-linked {
+  background-color: #ffffff; // green shade
+  color: black;
+}
+
+.badge-unlinked {
+  background-color: #e0a800; // amber
+  color: black;
+}
+
+.badge-followup {
+  background-color: #6bb4de; // bright blue
+  color: white;
+}
+
+.badge-deleted {
+  background-color: #6c757d; // gray
+  color: white;
+}
+.badge-lead {
+  background-color: #6c757d; // gray
+  color: white;
+}

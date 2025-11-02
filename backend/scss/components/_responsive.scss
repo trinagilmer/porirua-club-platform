@@ -20,15 +20,15 @@
   }
 
   .function-workspace {
-    padding: 1.5rem;
+    padding: 1.2rem;
   }
 }
 
 @media (max-width: 991px) {
   .function-layout-two-col {
     flex-direction: column;
-    padding: 1rem;
-    gap: 1rem;
+    padding: .25rem;
+    gap: .25rem;
   }
 
   .function-sidebar {
@@ -70,15 +70,238 @@
 
 @media (min-width: 1400px) {
   .function-layout-two-col {
-    gap: 2rem;
+    gap: 0rem;
 
     .function-sidebar {
       flex: 0 0 320px;
     }
 
-    .function-workspace {
-      padding: 2rem;
-    }
   }
 } 
+// RESPONSIVE LAYOUT CORRECTION
+@media (max-width: 992px) {
+  .function-layout-two-col {
+    flex-direction: column;
+    align-items: stretch;
+    padding: .1rem;
+  }
 
+  .function-sidebar {
+    flex: 0 0 auto;
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #eaeaea;
+    box-shadow: none;
+    border-radius: 0;
+    margin-bottom: 1rem;
+    min-height: auto;
+  }
+
+  .function-workspace {
+    flex: 1;
+    width: 100%;
+    padding: 1rem;
+    box-shadow: none;
+    border-radius: 0;
+  }
+  ::after, ::before {
+    box-sizing: border-box;
+}
+}
+
+// BURGER MENU BACKGROUND FIX
+@media (max-width: 768px) {
+  .navbar-toggler {
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    border: 1px solid #ddd;
+    z-index: 9999;
+  }
+
+  .navbar-toggler-icon {
+    filter: invert(0.4);
+  }
+}
+/* =========================================================
+   🧭 FINAL LAYOUT + HEADER FIX
+========================================================= */
+
+/* ---------- HEADER ---------- */
+.main-header.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 1050;
+  width: 100%;
+  background-color: #212529 !important; /* ensure dark header stays dark */
+}
+
+/* Burger button visibility and alignment */
+.navbar-toggler {
+  background-color: #fff !important;
+  border: 1px solid #aaa !important;
+  padding: 0.5rem 0.7rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.navbar-toggler-icon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3E%3Cpath stroke='rgba(0,0,0,0.8)' stroke-width='2' stroke-linecap='round' stroke-miterlimit='10' d='M4 7h22M4 15h22M4 23h22'/%3E%3C/svg%3E");
+}
+
+/* Ensure collapse background covers full width in mobile view */
+@media (max-width: 992px) {
+  .navbar-collapse {
+    background: #212529 !important;
+    padding: 1rem;
+  }
+
+  .navbar-collapse .nav-link {
+    color: #fff !important;
+    font-weight: 500;
+    margin: 0.25rem 0;
+  }
+
+  /* Keep user icon aligned right, not at bottom */
+  .header-right {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.75rem;
+  }
+}
+
+/* ---------- SIDEBAR LAYOUT ---------- */
+.function-layout-two-col {
+  display: flex;
+  align-items: stretch; /* equal column height */
+  justify-content: flex-start;
+  min-height: calc(100vh - 80px); /* fill viewport minus header */
+}
+
+.function-sidebar {
+  flex: 0 0 360px;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  background: #f2f5fa;
+  border-right: 0px solid #e0e0e0;
+  box-shadow: 0px 0 0px rgba(0,0,0,0.04);
+  padding: 1.25rem 1rem 2rem 1rem;
+}
+
+.function-details {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+
+  .detail-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+
+    .detail-item {
+      flex: 1 1 47%;
+      display: flex;
+      flex-direction: column;
+
+      label {
+        font-size: 0.875rem;
+        font-weight: 500;
+        margin-bottom: 0.2rem;
+        color: #333;
+      }
+      input, select, button {
+        width: 100%;
+        font-size: 0.9rem;
+      }
+    }
+  }
+}
+
+/* ---------- RESPONSIVE STACK ---------- */
+@media (max-width: 992px) {
+  .function-layout-two-col {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .function-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #eaeaea;
+    box-shadow: none;
+    margin-bottom: 1rem;
+  }
+  .function-workspace {
+    width: 100%;
+    padding: 1rem;
+  }
+}
+/* =========================================================
+   🧭 FUNCTION PAGE TABS — Responsive + Scrollable
+========================================================= */
+
+.tabs-bar {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;          /* allow horizontal scroll */
+  scrollbar-width: thin;     /* Firefox */
+  -webkit-overflow-scrolling: touch; /* smooth scroll on iOS */
+  border-bottom: 1px solid #e0e0e0;
+  background: #fff;
+  padding: 0.25rem 0.5rem;
+  gap: 0.5rem;
+
+  a {
+    flex: 0 0 auto; /* prevent stretching */
+    display: inline-block;
+    text-decoration: none;
+    padding: 0.6rem 1rem;
+    font-weight: 500;
+    color: #555;
+    border-radius: 6px 6px 0 0;
+    transition: background 0.2s ease, color 0.2s ease;
+
+    &:hover {
+      background: #f5f5f5;
+      color: #000;
+    }
+
+    &.active {
+      background: #6BB4DE;
+      color: #fff;
+      font-weight: 600;
+    }
+  }
+}
+
+/* 📱 Small screens — center or scrollable nav */
+@media (max-width: 768px) {
+  .tabs-bar {
+    justify-content: flex-start;
+    overflow-x: auto;
+    gap: 0.4rem;
+    padding: 0.5rem;
+  }
+
+  .tabs-bar a {
+    font-size: 0.9rem;
+    padding: 0.45rem 0.75rem;
+    white-space: nowrap;
+  }
+
+  /* Optional: subtle shadow to indicate scroll */
+  .tabs-bar::after {
+    content: '';
+    flex: 0 0 1rem;
+  }
+}
+
+/* 🖥️ Desktop — keep them inline, spaced evenly */
+@media (min-width: 769px) {
+  .tabs-bar {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}

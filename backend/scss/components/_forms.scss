@@ -2,14 +2,15 @@
 @use "../core/variables" as *;
 
 // ===========================================================
-// 🧾 FUNCTION PAGE FORMS — Inputs, Selects, Validation
+// 🧾 FORMS — Clean, Modern Inputs, Selects & Validation
 // ===========================================================
 
 .form-label {
   font-weight: 500;
   font-size: 0.9rem;
-  color: $color-text-muted;
+  color: $neutral-700;
   margin-bottom: 0.25rem;
+  display: inline-block;
 }
 
 .form-control,
@@ -17,54 +18,111 @@
 textarea,
 input {
   width: 100%;
-  padding: 0.45rem 0.6rem;
-  border: 1px solid $color-border;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid $neutral-200;
   border-radius: $radius;
-  margin-bottom: $spacer * 1.5;
-  background-color: $color-bg-panel;
-  color: $deep;
+  background-color: $white;
+  color: $neutral-900;
+  font-size: 0.95rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 
   &:focus {
     outline: none;
-    border-color: $primary;
-    box-shadow: 0 0 0 2px rgba($primary, 0.2);
+    border-color: $brand;
+    box-shadow: 0 0 0 3px rgba($brand, 0.2);
+    background-color: $brand-soft;
   }
 
   &:disabled {
-    opacity: 0.7;
+    opacity: 0.65;
     cursor: not-allowed;
+    background-color: $neutral-100;
+  }
+
+  &::placeholder {
+    color: $neutral-700;
+    opacity: 0.6;
   }
 }
 
+// ===========================================================
+// 🔴 Validation States
+// ===========================================================
 .is-invalid {
-  border-color: #dc3545;
-  box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.1);
+  border-color: $danger;
+  box-shadow: 0 0 0 3px rgba($danger, 0.2);
 }
 
+.is-valid {
+  border-color: $success;
+  box-shadow: 0 0 0 3px rgba($success, 0.2);
+}
+
+// ===========================================================
+// 🧩 Form Container Card (Panels / Detail Views)
+// ===========================================================
 form.card {
-  background: $color-bg-panel;
+  background: $white;
   border-radius: $radius;
-  box-shadow: $shadow-sm;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  padding: 1.5rem;
+
+  .form-label {
+    color: $neutral-900;
+  }
 }
 
 .workspace-header h1 {
-  color: $deep;
+  color: $neutral-900;
   font-weight: 600;
+  margin-bottom: 1rem;
 }
 
-// Utility spacing for form groups
+// ===========================================================
+// 🧮 Spacing Utilities
+// ===========================================================
 .form-group {
-  margin-bottom: $spacer * 1.5;
-} 
-/* 🔧 Compact form fields for modals and panels */
-.contact-panel input,
-.contact-panel select,
-.contact-panel textarea,
-.contact-add-panel input,
-.contact-edit-panel input {
-  margin-bottom: $spacer; // tighten from 2.25rem → 1rem
+  margin-bottom: $spacer * 1.25;
 }
 
-.contact-panel label {
-  margin-bottom: 0.25rem;
+input,
+select,
+textarea {
+  margin-bottom: $spacer;
+}
+
+// ===========================================================
+// 🧩 Compact Modal / Panel Forms
+// ===========================================================
+.contact-panel,
+.contact-add-panel,
+.contact-edit-panel {
+  input,
+  select,
+  textarea {
+    margin-bottom: 0.75rem;
+  }
+
+  label {
+    margin-bottom: 0.25rem;
+    color: $neutral-800;
+  }
+}
+
+// ===========================================================
+// 🌙 Optional Dark Mode
+// ===========================================================
+@media (prefers-color-scheme: dark) {
+  .form-control,
+  .form-select,
+  textarea,
+  input {
+    background: color.scale($neutral-900, $lightness: 15%);
+    color: $white;
+    border-color: color.scale($neutral-900, $lightness: 30%);
+  }
+
+  .form-label {
+    color: $neutral-200;
+  }
 }

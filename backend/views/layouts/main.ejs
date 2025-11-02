@@ -16,16 +16,10 @@
     crossorigin="anonymous"
   />
 
-  <!-- 🎨 Main compiled SCSS (modern styling) -->
+  <!-- 🎨 Main compiled SCSS -->
   <link rel="stylesheet" href="/css/main.css?v=2.0" />
-    <!-- 🎨 Legacy fallback styles -->
-  <link rel="stylesheet" href="/css/bootstrap-fix.css" />
-  <link rel="stylesheet" href="/css/legacy/main.css" />
-  <link rel="stylesheet" href="/css/legacy/styles.css" />
-  <link rel="stylesheet" href="/css/legacy/inbox.css" />
 
-
-  <!-- 💬 Page-specific CSS (optional) -->
+  <!-- 💬 Page-specific CSS -->
   <% if (typeof pageCss !== 'undefined' && pageCss) { %>
     <% (Array.isArray(pageCss) ? pageCss : [pageCss]).forEach(file => { %>
       <link rel="stylesheet" href="<%= file %>">
@@ -35,7 +29,6 @@
   <!-- 🪶 Quill Editor styles -->
   <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet" />
 </head>
-
 
 <body data-page="<%= typeof pageType !== 'undefined' ? pageType : '' %>">
 
@@ -84,10 +77,19 @@
   </header>
 
   <!-- 💠 Main Content -->
-  <main class="main-content container-fluid px-4 py-4">
-
-    <%- body %>
-  </main>
+  <div class="main-content <%= pageType === 'function-detail' ? 'p-0' : 'px-4 py-4' %>">
+    <% if (typeof fn !== 'undefined' && pageType === 'function-detail') { %>
+      <%- include('../partials/layouts/function-shell', {
+        fn,
+        linkedContacts,
+        rooms,
+        eventTypes,
+        activeTab: typeof activeTab !== 'undefined' && activeTab ? activeTab : 'overview'
+      }) %>
+    <% } else { %>
+      <%- body %>
+    <% } %>
+  </div>
 
   <!-- 📣 Toast Notifications -->
   <div id="toast-container"></div>
@@ -100,16 +102,15 @@
   ></script>
   <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 
-  <!-- ⚙️ Core App Script -->
+  <!-- Core app initialisation -->
   <script type="module" src="/js/core/init.js"></script>
 
-  <!-- 🧩 Page-specific JS (optional) -->
+  <!-- Page-specific JS -->
   <% if (typeof pageJs !== 'undefined' && pageJs) { %>
     <% (Array.isArray(pageJs) ? pageJs : [pageJs]).forEach(file => { %>
       <script src="<%= file %>"></script>
     <% }); %>
   <% } %>
-
 </body>
 </html>
 

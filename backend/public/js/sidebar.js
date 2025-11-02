@@ -1,249 +1,242 @@
 /* =========================================================
-   🧭 SIDEBAR CONTROLLER — Universal Init (post-load safe)
+   🧭 SIDEBAR CONTROLLER — UUID Safe, Stable Overlay/Burger
 ========================================================= */
 
 console.log("🧭 Sidebar script loaded");
 
-// add leading semicolon to protect against concatenation/ASI issues
-;(function initSidebar() {
-  // Safe start: run whether DOM already loaded or not
-  const start = () => {
-    const sidebar = document.querySelector(".function-sidebar");
-    if (!sidebar) {
-      console.warn("⚠️ Sidebar not found — skipping init");
-      return;
-    }
+(function initSidebar() {
+  const sidebar = document.querySelector(".function-sidebar");
+  if (!sidebar) return console.warn("⚠️ Sidebar not found — skipping init");
 
-    console.log("✅ Sidebar found — initializing sidebar controller...");
-    initializeSidebar(sidebar);
+  const overlay = document.getElementById("contactOverlay");
+  const editPanel = document.getElementById("editContactPanel");
+
+  const showToast = (msg) => {
+    const t = document.createElement("div");
+    t.className = "toast";
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.classList.add("show"), 10);
+    setTimeout(() => {
+      t.classList.remove("show");
+      setTimeout(() => t.remove(), 300);
+    }, 2500);
   };
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", start);
-  } else {
-    start();
-  }
-
   /* =========================================================
-     MAIN INITIALIZER
-  ========================================================== */
-  function initializeSidebar(sidebar) {
-    console.log("🧩 Sidebar Controller loaded ✅");
-
-    // Shared elements
-    const overlay = document.getElementById("contactOverlay");
-    const addPanel = document.getElementById("addContactPanel");
-    const editPanel = document.getElementById("editContactPanel");
-    const addBtn = document.getElementById("openAddPanelBtn");
-
-    /* =========================================================
-       🔔 Toast Utility
-    ========================================================== */
-    const showToast = (msg) => {
-      const t = document.createElement("div");
-      t.className = "toast";
-      t.textContent = msg;
-      document.body.appendChild(t);
-      setTimeout(() => t.classList.add("show"), 10);
-      setTimeout(() => {
-        t.classList.remove("show");
-        setTimeout(() => t.remove(), 300);
-      }, 2500);
-    };
-
-    /* Duplicate simple menu handler removed in favor of the portal-safe handler below */
-
-// =========================================================
-// ⋮ CONTACT MENU (Fixed Toggle + Portal-safe)
-// =========================================================
+   ⋮ BURGER MENU — Stable toggle (no flicker, portal-safe)
+========================================================= */
 document.addEventListener("click", (e) => {
-  const isMenuBtn = e.target.classList.contains("menu-btn");
-  const isDropdown = e.target.closest(".menu-dropdown");
+  const isMenuButton = e.target.classList.contains("menu-btn");
+  const isMenuDropdown = e.target.closest(".menu-dropdown");
 
-  // Click outside → close all menus
-  if (!isMenuBtn && !isDropdown) {
-    document.querySelectorAll(".menu-dropdown").forEach((m) => m.classList.add("hidden"));
-    return;
-  }
+  // Ignore clicks inside an open menu
+  if (isMenuDropdown) return;
 
-  // Toggle active dropdown
-  if (isMenuBtn) {
+  // Handle burger menu toggle
+  if (isMenuButton) {
     e.stopPropagation();
     const id = e.target.dataset.id;
     const menu = document.getElementById(`menu-${id}`);
     if (!menu) return;
 
-    // Re-parent menu to body (portalize)
-    if (!menu.dataset.portalized) {
-      document.body.appendChild(menu);
-      menu.dataset.portalized = "true";
-      menu.style.position = "fixed";
-    }
+    // Close all other menus
+    document.querySelectorAll(".menu-dropdown").forEach(m => m.classList.add("hidden"));
 
-    // Close other menus
-    document.querySelectorAll(".menu-dropdown").forEach((m) => {
-      if (m !== menu) m.classList.add("hidden");
-    });
-
-    // Toggle visibility
+    // Toggle this one
     menu.classList.toggle("hidden");
 
-    // Recalculate position relative to the burger button
-    if (!menu.classList.contains("hidden")) {
-      const rect = e.target.getBoundingClientRect();
-      const menuWidth = menu.offsetWidth || 180;
-      const top = rect.bottom + 6; // a little gap below the button
-      const left = rect.right - menuWidth;
-      menu.style.top = `${top}px`;
-      menu.style.left = `${left}px`;
-      menu.style.zIndex = "99999";
-    }
+    return;
   }
+
+  // Click anywhere else closes all menus
+  document.querySelectorAll(".menu-dropdown").forEach(m => m.classList.add("hidden"));
 });
 
-
-    /* =========================================================
-       🧩 CONTACT PANELS — Add/Edit
-    ========================================================== */
-    const openPanel = (panel) => {
-      panel.classList.remove("hidden");
-      overlay.classList.remove("hidden");
-      document.body.classList.add("no-scroll");
-    };
-
-    const closePanels = () => {
-      [addPanel, editPanel].forEach((p) => p?.classList.add("hidden"));
-      overlay.classList.add("hidden");
-      document.body.classList.remove("no-scroll");
-    };
-
-    addBtn?.addEventListener("click", () => openPanel(addPanel));
-    overlay?.addEventListener("click", closePanels);
-
-    document.addEventListener("click", (e) => {
-      if (["closeAddPanel", "closeEditPanel", "cancelEdit"].includes(e.target.id)) {
-        closePanels();
-      }
-    });
-
-    document.addEventListener("click", (e) => {
-      if (e.target.classList.contains("edit-btn")) {
-        e.preventDefault();
-        openPanel(editPanel);
-      }
-    });
-// =========================================================
-// 👤 CONTACT ACTIONS — Make Primary / Remove
-// =========================================================
+ /* =========================================================
+   ✏️ EDIT CONTACT PANEL (MATCHING ADD PANEL BEHAVIOR)
+========================================================= */
 document.addEventListener("click", async (e) => {
-  const fnId = window.fnContext?.id || document.body.dataset.fnId;
+  if (!e.target.classList.contains("edit-btn")) return;
 
-  // 🟢 Make Primary
-  if (e.target.classList.contains("primary-btn")) {
-    e.preventDefault();
-    const contactId = e.target.dataset.id;
-    try {
-      const res = await fetch(`/functions/${fnId}/set-primary`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contact_id: contactId }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast("✅ Primary contact updated");
-        setTimeout(() => location.reload(), 400);
-      } else {
-        showToast("⚠️ Failed to update primary");
-      }
-    } catch (err) {
-      console.error("❌ Primary contact error:", err);
-      showToast("❌ Error updating primary");
-    }
+  e.stopPropagation(); // prevent global click from closing menu
+
+  const contactId = e.target.dataset.id;
+  const fnId = window.fnContext?.id;
+  const editPanel = document.getElementById("editContactPanel");
+  const overlay = document.getElementById("contactOverlay");
+
+  if (!contactId || !fnId) {
+    console.warn("⚠️ Missing contactId or fnId for edit");
+    return;
   }
 
-  // 🔴 Remove Contact
-  if (e.target.classList.contains("remove-btn")) {
-    e.preventDefault();
-    const contactId = e.target.dataset.id;
-    if (!confirm("Are you sure you want to remove this contact?")) return;
+  try {
+    // Fetch the contact data (UUID-safe)
+    const res = await fetch(`/api/contacts/${contactId}`);
+    if (!res.ok) throw new Error("Failed to load contact details");
+    const contact = await res.json();
 
-    try {
-      const res = await fetch(`/functions/${fnId}/remove-contact`, {
-        method: "POST",
+    // Populate the form fields
+    document.getElementById("editContactId").value = contact.id_uuid || contact.id || "";
+    document.getElementById("editContactFnId").value = fnId;
+    document.getElementById("editContactName").value = contact.name || "";
+    document.getElementById("editContactEmail").value = contact.email || "";
+    document.getElementById("editContactPhone").value = contact.phone || "";
+    document.getElementById("editContactCompany").value = contact.company || "";
+
+    // --- open panel (same as add contact pattern) ---
+    editPanel.classList.remove("hidden");
+    overlay.classList.remove("hidden");
+    void editPanel.offsetWidth; // force reflow for transition
+    editPanel.classList.add("panel-open");
+
+  } catch (err) {
+    console.error("❌ Error loading contact for edit:", err);
+    alert("❌ Failed to load contact details");
+  }
+});
+/* =========================================================
+   💾 SAVE EDITED CONTACT (UUID SAFE)
+========================================================= */
+document.getElementById("editContactForm")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const contactId =
+    document.getElementById("editContactId").value?.trim() ||
+    document.getElementById("editContactId").dataset.id;
+  const fnUUID = window.fnContext?.id;
+
+  const body = {
+    name: document.getElementById("editContactName").value.trim(),
+    email: document.getElementById("editContactEmail").value.trim(),
+    phone: document.getElementById("editContactPhone").value.trim(),
+    company: document.getElementById("editContactCompany").value.trim(),
+  };
+
+  if (!contactId) {
+    alert("❌ Missing contact ID — cannot save");
+    return;
+  }
+
+  try {
+    console.log("🛰️ Saving contact update:", { contactId, body });
+
+    // Try the UUID route first (if your backend groups contacts under a function)
+    const res = await fetch(`/api/contacts/${fnUUID}/contacts/${contactId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    // If that 404s or fails, fall back to the simple route
+    if (!res.ok) {
+      console.warn("First route failed, trying flat /api/contacts/:id...");
+      const res2 = await fetch(`/api/contacts/${contactId}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contact_id: contactId }),
+        body: JSON.stringify(body),
       });
-      const data = await res.json();
+      if (!res2.ok) throw new Error(`Update failed: ${res2.status}`);
+      const data = await res2.json();
       if (data.success) {
-        showToast("🗑️ Contact removed");
+        alert("✅ Contact updated successfully");
         setTimeout(() => location.reload(), 400);
-      } else {
-        showToast("⚠️ Failed to remove contact");
+        return;
       }
-    } catch (err) {
-      console.error("❌ Remove contact error:", err);
-      showToast("❌ Error removing contact");
     }
+
+    const data = await res.json();
+    console.log("✅ Contact update response:", data);
+
+    if (data.success) {
+      alert("✅ Contact updated successfully");
+      setTimeout(() => location.reload(), 400);
+    } else {
+      alert(data.message || "⚠️ Contact update failed on server");
+    }
+  } catch (err) {
+    console.error("❌ Edit contact save error:", err);
+    alert("❌ Failed to update contact — see console for details");
   }
 });
 
-    /* =========================================================
-       🕒 TIME MODAL CONTROLS
-    ========================================================== */
-    const modal = document.getElementById("timeModalContainer");
-    const title = document.getElementById("timeModalTitle");
-    const input = document.getElementById("timeInputField");
-    const save = document.getElementById("saveTimeBtn");
-    const cancel = document.getElementById("cancelTimeBtn");
-    const closeBtn = document.getElementById("closeTimeModal");
-    const fnId = window.fnContext?.id || document.body.dataset.fnId;
-    let currentField = null;
+/* =========================================================
+   🔐 CLOSE EDIT PANEL (same pattern as add)
+========================================================= */
+const closeEditPanel = () => {
+  const editPanel = document.getElementById("editContactPanel");
+  const overlay = document.getElementById("contactOverlay");
+  if (!editPanel) return;
 
-    sidebar.querySelectorAll(".time-modal-btn").forEach((btn) =>
-      btn.addEventListener("click", (e) => {
-        currentField = e.currentTarget.dataset.field;
-        title.textContent = currentField === "start_time" ? "Set Start Time" : "Set End Time";
-        const currentValue = e.currentTarget.textContent.trim();
-        input.value = currentValue.includes(":") ? currentValue.slice(0, 5) : "";
-        modal.classList.remove("hidden");
-        document.body.style.overflow = "hidden";
-      })
-    );
+  editPanel.classList.remove("panel-open");
+  overlay.classList.remove("panel-open");
+  setTimeout(() => {
+    editPanel.classList.add("hidden");
+    overlay.classList.add("hidden");
+  }, 350); // match CSS transition
+};
 
-    const closeTimeModal = () => {
-      modal.classList.add("hidden");
-      document.body.style.overflow = "";
-      currentField = null;
-    };
+// ✖️ Button + Overlay close triggers
+document.getElementById("closeEditPanel")?.addEventListener("click", closeEditPanel);
+document.getElementById("cancelEdit")?.addEventListener("click", closeEditPanel);
+document.getElementById("contactOverlay")?.addEventListener("click", (e) => {
+  const editPanel = document.getElementById("editContactPanel");
+  if (editPanel.classList.contains("panel-open")) closeEditPanel();
+});
 
-    [cancel, closeBtn].forEach((b) => b?.addEventListener("click", closeTimeModal));
+  /* =========================================================
+     🕒 TIME MODAL
+  ========================================================== */
+  const modal = document.getElementById("timeModalContainer");
+  const title = document.getElementById("timeModalTitle");
+  const input = document.getElementById("timeInputField");
+  const save = document.getElementById("saveTimeBtn");
+  const cancel = document.getElementById("cancelTimeBtn");
+  const closeBtn = document.getElementById("closeTimeModal");
+  const fnId = window.fnContext?.id;
+  let currentField = null;
 
-    save?.addEventListener("click", async () => {
-      if (!fnId || !currentField) return showToast("⚠️ Invalid time field");
-      const val = input.value;
-      if (!val) return showToast("⚠️ Please select a time");
+  sidebar.querySelectorAll(".time-modal-btn").forEach((btn) =>
+    btn.addEventListener("click", (e) => {
+      currentField = e.currentTarget.dataset.field;
+      title.textContent = currentField === "start_time" ? "Set Start Time" : "Set End Time";
+      const currentValue = e.currentTarget.textContent.trim();
+      input.value = currentValue.includes(":") ? currentValue.slice(0, 5) : "";
+      modal.classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+    })
+  );
 
-      try {
-        const res = await fetch(`/functions/${fnId}/update-field`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ field: currentField, value: `${val}:00` }),
-        });
-        const data = await res.json();
-        if (data.success) {
-          showToast("🕒 Time updated");
-          closeTimeModal();
-          setTimeout(() => location.reload(), 400);
-        } else showToast("⚠️ Update failed");
-      } catch (err) {
-        console.error("❌ Time modal error:", err);
-        showToast("❌ Error saving time");
-      }
-    });
+  const closeTimeModal = () => {
+    modal.classList.add("hidden");
+    document.body.style.overflow = "";
+    currentField = null;
+  };
 
-    window.addEventListener("click", (e) => {
-      if (e.target === modal) closeTimeModal();
-    });
-  } // end initializeSidebar
+  [cancel, closeBtn].forEach((b) => b?.addEventListener("click", closeTimeModal));
+  window.addEventListener("click", (e) => {
+    if (e.target === modal) closeTimeModal();
+  });
 
-})(); // end self-invoking function
+  save?.addEventListener("click", async () => {
+    if (!fnId || !currentField) return showToast("⚠️ Invalid time field");
+    const val = input.value;
+    if (!val) return showToast("⚠️ Please select a time");
+    try {
+      const res = await fetch(`/functions/${fnId}/update-field`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field: currentField, value: `${val}:00` }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("🕒 Time updated");
+        closeTimeModal();
+        setTimeout(() => location.reload(), 400);
+      } else showToast("⚠️ Update failed");
+    } catch (err) {
+      console.error("❌ Time modal error:", err);
+      showToast("❌ Error saving time");
+    }
+  });
+})();

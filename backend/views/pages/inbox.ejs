@@ -1,63 +1,291 @@
 <!-- 📬 Inbox Header -->
 <div class="inbox-header-bar">
   <h1>📨 Inbox</h1>
-
   <% if (stats && stats.total) { %>
-    <div class="inbox-stats">
-      <div class="stat-box">
-        <span class="stat-number"><%= stats.total %></span>
-        <span class="stat-label">Total</span>
-      </div>
-      <div class="stat-box">
-        <span class="stat-number linked"><%= stats.linked %></span>
-        <span class="stat-label">Linked</span>
-      </div>
-      <div class="stat-box">
-        <span class="stat-number unlinked"><%= stats.unlinked %></span>
-        <span class="stat-label">Unlinked</span>
-      </div>
-    </div>
+<div class="inbox-stats">
+  <div class="stat-box">
+    <span class="stat-number"><%= stats.total %></span>
+    <span class="stat-label">Total</span>
+  </div>
+  <div class="stat-box">
+    <span class="stat-number text-warning"><%= stats.leads %></span>
+    <span class="stat-label">Leads</span>
+  </div>
+  <div class="stat-box">
+    <span class="stat-number text-info"><%= stats.followUp %></span>
+    <span class="stat-label">Follow-Up</span>
+  </div>
+  <div class="stat-box">
+    <span class="stat-number text-primary"><%= stats.sent %></span>
+    <span class="stat-label">Sent</span>
+  </div>
+  <div class="stat-box">
+    <span class="stat-number text-muted"><%= stats.deleted %></span>
+    <span class="stat-label">Deleted</span>
+  </div>
+</div>
   <% } %>
 </div>
 
+<!-- 🧭 Tabs -->
+<ul class="nav nav-tabs mb-3" id="inboxTabs" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" data-bs-toggle="tab" href="#inbox" role="tab">
+      Inbox <span class="badge bg-secondary"><%= stats.total %></span>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#leads" role="tab">
+      Leads <span class="badge bg-warning text-dark"><%= stats.leads %></span>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#followUp" role="tab">
+      Follow-Up <span class="badge bg-info text-dark"><%= stats.followUp %></span>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#sent" role="tab">
+      Sent <span class="badge bg-primary"><%= stats.sent %></span>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#deleted" role="tab">
+      Deleted <span class="badge bg-dark"><%= stats.deleted %></span>
+    </a>
+  </li>
+</ul>
 
-<% if (!messages || !messages.length) { %>
-  <div class="empty-box"><p>No messages found.</p></div>
-<% } else { %>
-  <div class="inbox-list">
-    <% messages.forEach((m) => { 
-         const sender = m.from_email || "Unknown Sender";
-         const subject = m.subject || "(No Subject)";
-         const preview = m.body_html ? m.body_html.replace(/<[^>]+>/g, '').slice(0, 120) 
-          : (m.body ? m.body.slice(0, 120) : "(No content)");
-         const dateVal = m.received_at || m.created_at;
-         const linked = m.contact_name || m.function_name;
-    %>
-      <div 
-        class="message-card"
-        data-id="<%= m.id %>"
-        data-linked="<%= linked ? 'true' : 'false' %>"
-      >
-        <div class="msg-left">
-          <div class="msg-from">
-            <%= sender %>
-            <% if (linked) { %>
-              <span class="badge badge-linked">Linked</span>
-            <% } else { %>
-              <span class="badge badge-unlinked">Unlinked</span>
-            <% } %>
+<div class="tab-content">
+  <!-- 🟩 Inbox -->
+  <div class="tab-pane fade show active" id="inbox" role="tabpanel">
+    <% if (!messages || !messages.length) { %>
+      <div class="empty-box"><p>No inbox messages found.</p></div>
+    <% } else { %>
+      <div class="inbox-list">
+        <% messages.forEach((m) => { 
+             const sender = m.from_email || "Unknown Sender";
+             const subject = m.subject || "(No Subject)";
+             const preview = m.body_html 
+               ? m.body_html.replace(/<[^>]+>/g, '').slice(0, 120)
+               : (m.body ? m.body.slice(0, 120) : "(No content)");
+             const linked = m.contact_name || m.function_name;
+             const dateVal = m.received_at || m.created_at;
+             const formattedDate = dateVal
+               ? new Date(dateVal).toLocaleString("en-NZ", { timeZone: "Pacific/Auckland", dateStyle: "medium", timeStyle: "short" })
+               : "";
+        %>
+          <div class="message-card" data-id="<%= m.id %>">
+            <div class="msg-left">
+              <div class="msg-from">
+                <%= sender %>
+                <% if (linked) { %>
+                  <span class="badge badge-linked">Linked</span>
+                <% } else { %>
+                  <span class="badge badge-unlinked">Unlinked</span>
+                <% } %>
+              </div>
+              <div class="msg-subject"><%= subject %></div>
+              <div class="msg-preview"><%= preview %></div>
+            </div>
+            <div class="msg-date"><%= formattedDate %></div>
           </div>
-          <div class="msg-subject"><%= subject %></div>
-          <div class="msg-preview"><%= preview %></div>
-        </div>
-        <div class="msg-date" data-time="<%= dateVal %>"><%= dateVal ? new Date(dateVal).toLocaleString() : "" %></div>
+        <% }) %>
       </div>
-    <% }) %>
+    <% } %>
   </div>
-<% } %>
 
+  <!-- 🟨 Leads -->
+  <div class="tab-pane fade" id="leads" role="tabpanel">
+    <% if (!leads || !leads.length) { %>
+      <div class="empty-box"><p>🎉 All messages are linked!</p></div>
+    <% } else { %>
+      <div class="inbox-list">
+        <% leads.forEach((m) => { 
+             const sender = m.from_email || "Unknown Sender";
+             const subject = m.subject || "(No Subject)";
+             const preview = m.body_html 
+               ? m.body_html.replace(/<[^>]+>/g, '').slice(0, 120)
+               : (m.body ? m.body.slice(0, 120) : "(No content)");
+             const dateVal = m.received_at || m.created_at;
+             const formattedDate = dateVal
+               ? new Date(dateVal).toLocaleString("en-NZ", { timeZone: "Pacific/Auckland", dateStyle: "medium", timeStyle: "short" })
+               : "";
+        %>
+          <div class="message-card border-warning" data-id="<%= m.id %>">
+            <div class="msg-left">
+              <div class="msg-from">
+                <%= sender %> <span class="badge badge-lead">Lead</span>
+              </div>
+              <div class="msg-subject"><%= subject %></div>
+              <div class="msg-preview"><%= preview %></div>
+            </div>
+            <div class="msg-date"><%= formattedDate %></div>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </div>
 
+  <!-- 🟦 Follow-Up -->
+  <div class="tab-pane fade" id="followUp" role="tabpanel">
+    <% if (!followUp || !followUp.length) { %>
+      <div class="empty-box"><p>✅ No follow-ups pending!</p></div>
+    <% } else { %>
+      <div class="inbox-list">
+        <% followUp.forEach((m) => { 
+             const sender = m.from_email || "Unknown Sender";
+             const subject = m.subject || "(No Subject)";
+             const preview = m.body_html 
+               ? m.body_html.replace(/<[^>]+>/g, '').slice(0, 120)
+               : (m.body ? m.body.slice(0, 120) : "(No content)");
+             const dateVal = m.received_at_nz || m.created_at_nz;
+        %>
+          <div class="message-card border-primary" data-id="<%= m.id %>">
+            <div class="msg-left">
+              <div class="msg-from">
+                <%= sender %> <span class="badge badge-followup">Follow-Up</span>
+              </div>
+              <div class="msg-subject"><%= subject %></div>
+              <div class="msg-preview"><%= preview %></div>
+            </div>
+            <div class="msg-date"><%= dateVal %></div>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </div>
 
+  <!-- 📨 Sent -->
+  <div class="tab-pane fade" id="sent" role="tabpanel">
+    <% if (!sent || !sent.length) { %>
+      <div class="empty-box"><p>No sent messages.</p></div>
+    <% } else { %>
+      <div class="inbox-list">
+        <% sent.forEach((m) => { 
+             const recipient = m.to_email || "(Unknown recipient)";
+             const subject = m.subject || "(No Subject)";
+             const preview = m.body_html 
+               ? m.body_html.replace(/<[^>]+>/g, '').slice(0, 120)
+               : (m.body ? m.body.slice(0, 120) : "(No content)");
+             const dateVal = m.received_at || m.created_at;
+             const formattedDate = dateVal
+               ? new Date(dateVal).toLocaleString("en-NZ", { timeZone: "Pacific/Auckland", dateStyle: "medium", timeStyle: "short" })
+               : "";
+        %>
+          <div class="message-card" data-id="<%= m.id %>">
+            <div class="msg-left">
+              <div class="msg-from">
+                To: <%= recipient %>
+                <span class="badge badge-sent">Sent</span>
+              </div>
+              <div class="msg-subject"><%= subject %></div>
+              <div class="msg-preview"><%= preview %></div>
+            </div>
+            <div class="msg-date"><%= formattedDate %></div>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </div>
 
+  <!-- 🗑️ Deleted -->
+  <div class="tab-pane fade" id="deleted" role="tabpanel">
+    <% if (!deleted || !deleted.length) { %>
+      <div class="empty-box"><p>🧹 Trash is empty.</p></div>
+    <% } else { %>
+      <div class="inbox-list">
+        <% deleted.forEach((m) => { 
+             const sender = m.from_email || "Unknown Sender";
+             const subject = m.subject || "(No Subject)";
+             const preview = m.body_html 
+               ? m.body_html.replace(/<[^>]+>/g, '').slice(0, 120)
+               : (m.body ? m.body.slice(0, 120) : "(No content)");
+             const dateVal = m.deleted_at || m.received_at || m.created_at;
+             const formattedDate = dateVal
+               ? new Date(dateVal).toLocaleString("en-NZ", { timeZone: "Pacific/Auckland", dateStyle: "medium", timeStyle: "short" })
+               : "";
+        %>
+          <div class="message-card border-dark bg-light opacity-75" data-id="<%= m.id %>">
+            <div class="msg-left">
+              <div class="msg-from">
+                <%= sender %> 
+                <span class="badge badge-deleted">Deleted</span>
+              </div>
+              <div class="msg-subject"><%= subject %></div>
+              <div class="msg-preview"><%= preview %></div>
+            </div>
+            <div class="msg-date text-end">
+              <small><%= formattedDate %></small><br>
+              <button 
+                class="btn btn-sm btn-outline-success mt-1 restore-btn" 
+                data-id="<%= m.id %>">
+                ♻️ Restore
+              </button>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </div>
+</div>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll(".restore-btn").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation(); // prevent message-card click
+      const id = btn.dataset.id;
+      if (!id) return;
 
+      if (!confirm("Restore this message to your inbox?")) return;
 
+      try {
+        const res = await fetch(`/inbox/restore/${id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          btn.closest(".message-card").remove();
+          alert("✅ Message restored successfully.");
+        } else {
+          alert("❌ Failed to restore message.");
+        }
+      } catch (err) {
+        console.error("Restore error:", err);
+        alert("⚠️ Error restoring message.");
+      }
+    });
+  });
+});
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const params = new URLSearchParams(window.location.search);
+
+  // ✅ Deleted message feedback
+  if (params.get("deleted") === "true") {
+    showToast("🗑️ Message deleted successfully", "danger");
+  }
+
+  // ✅ Restored message feedback
+  if (params.get("restored") === "true") {
+    showToast("♻️ Message restored successfully", "success");
+  }
+
+  function showToast(message, type) {
+    const toast = document.createElement("div");
+    toast.className = `toast align-items-center text-bg-${type} border-0 position-fixed bottom-0 end-0 m-3 p-3 fade show`;
+    toast.innerHTML = `<div>${message}</div>`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.classList.remove("show"), 3000);
+
+    // Clean up the URL
+    const cleanUrl = window.location.pathname;
+    window.history.replaceState({}, document.title, cleanUrl);
+  }
+});
+</script>
+
+</div>

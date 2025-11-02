@@ -1,45 +1,104 @@
-@use '../core/variables' as *;
+@use "../core/variables" as *;
 
-/* =========================================================
-   🧭 FUNCTION SIDEBAR
-========================================================= */
-aside.function-sidebar {
-  width: 320px;
-  background: $color-bg-panel;
-  border-right: 1px solid $color-border;
-  padding: $spacer * 2;
+// ===========================================================
+// 🎨 FUNCTION SIDEBAR — Unified Version
+// ===========================================================
+
+// Theme colors
+$sidebar-bg: #f2f5fa !default;         // Soft blue-grey background
+$sidebar-border: #d0d6e0 !default;     // Muted blue-grey border
+$sidebar-shadow: rgba(0, 0, 0, 0.03);
+$sidebar-scrollbar: #9db1c7;
+$sidebar-heading: #2b3a4a;
+$sidebar-text: #556173;
+
+// ===========================================================
+// MAIN SIDEBAR LAYOUT
+// ===========================================================
+.function-sidebar {
   display: flex;
   flex-direction: column;
-  gap: $spacer * 2;
-  position: sticky; // ✅ keep fixed as you scroll
-  top: 90px;
-  align-self: flex-start;
-  min-height: calc(100vh - 100px); // ✅ extend white column
-  border-radius: $radius;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-  z-index: 2;
+  width: 360px;
+  max-width: 100%;
+  background-color: $sidebar-bg;
+  border-right: 1px solid $sidebar-border;
+  box-shadow: inset -1px 0 0 $sidebar-shadow;
+  color: $sidebar-text;
+  position: relative;
+  overflow: hidden; // Sidebar itself doesn’t scroll
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  z-index: 10;
 
-  // Editable fields
-  .editable {
-    border: 1px solid $color-border;
-    border-radius: $radius;
-    padding: $spacer;
-    width: 100%;
-    font-size: 0.95rem;
+  // =======================================================
+  // INNER SCROLL AREA
+  // =======================================================
+  .sidebar-scroll-container {
+    flex: 1;
+    height: calc(100vh - 70px); // Adjusted for header height
+    overflow-y: scroll;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    box-sizing: content-box;
+    width: calc(100% + 8px); // makes scrollbar flush on the right edge
+    padding: 1.25rem 1.25rem 1rem 0.2rem;
+    margin-right: -8px; // pushes scrollbar to edge
 
-    &:focus {
-      outline: none;
-      border-color: $primary;
-      box-shadow: 0 0 0 2px rgba($primary, 0.2);
+    scrollbar-width: thin;
+    scrollbar-color: $sidebar-scrollbar transparent;
+
+    &::-webkit-scrollbar {
+      width: 8px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background-color: $sidebar-scrollbar;
+      border-radius: 4px;
+    }
+    &::-webkit-scrollbar-track {
+      background-color: rgba($black, 0.05);
     }
   }
 
-  // CONTACT BLOCK
+  // =======================================================
+  // SIDEBAR CONTENT BLOCKS
+  // =======================================================
+  .function-meta,
+  .function-contact-block,
+  .function-details {
+    width: 100%;
+    background-color: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .function-meta {
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: $sidebar-heading;
+      margin-bottom: 0.5rem;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      padding-bottom: 0.25rem;
+    }
+
+    .status-select {
+      width: 100%;
+      font-size: 0.9rem;
+      border-radius: 6px;
+    }
+  }
+
   .function-contact-block {
     h4 {
+      font-size: 1rem;
       font-weight: 600;
-      color: $color-text-dark;
-      margin-bottom: $spacer;
+      color: $sidebar-heading;
+      margin-bottom: 0.75rem;
     }
 
     .contact-list {
@@ -48,238 +107,171 @@ aside.function-sidebar {
       margin: 0;
 
       .contact-card {
-        background: $color-bg-light;
-        border-radius: $radius;
-        box-shadow: $shadow-sm;
-        padding: $spacer * 1.5;
-        margin-bottom: $spacer;
-        position: relative;
-        z-index: 1;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        border-bottom: 1px dashed rgba($black, 0.05);
+        padding: 0.5rem 0;
 
-        .menu-container {
-          position: relative;
-          z-index: 3;
+        &:last-child {
+          border-bottom: none;
         }
 
-        .menu-btn {
-          background: none;
-          border: none;
-          font-size: 1.2rem;
-          color: $color-text-muted;
-          cursor: pointer;
-          transition: color $transition-fast;
-
-          &:hover {
-            color: $primary;
-          }
-        }
-
-        /* 🧭 Burger Menu Dropdown (fixed for JS toggle logic) */
-        .menu-dropdown {
-          position: absolute;
-          right: 0;
-          top: 100%;
-          min-width: 160px;
-          background: $color-bg-panel;
-          border-radius: $radius;
-          border: 1px solid $color-border;
-          box-shadow: $shadow-md;
-          padding: $spacer;
-          z-index: 999;
-          display: none;
-
-          &.visible {
+        .contact-info {
+          strong {
             display: block;
+            font-size: 0.95rem;
+            color: $sidebar-heading;
           }
 
-          &.hidden {
-            display: none;
-          }
-
-          button {
-            background: none;
-            border: none;
-            padding: $spacer;
-            text-align: left;
-            width: 100%;
-            font-size: 0.9rem;
-            color: $color-text-dark;
-            border-radius: $radius;
-            transition: background $transition-fast;
-
-            &:hover {
-              background: rgba($primary, 0.08);
-            }
+          small {
+            display: block;
+            font-size: 0.8rem;
+            color: $sidebar-text;
           }
         }
       }
     }
   }
 
-  // FUNCTION DETAILS
   .function-details {
     h4 {
+      font-size: 1rem;
       font-weight: 600;
-      margin-bottom: $spacer;
+      margin-bottom: 0.75rem;
+      color: $sidebar-heading;
     }
 
-    .detail-item {
-      margin-bottom: $spacer * 1.5;
+    label {
+      display: block;
+      font-size: 0.8rem;
+      color: $sidebar-text;
+      margin-bottom: 0.25rem;
+    }
 
-      label {
-        display: block;
-        font-weight: 500;
-        font-size: 0.85rem;
-        color: $color-text-muted;
+    input,
+    select,
+    button {
+      width: 100%;
+      font-size: 0.85rem;
+      border-radius: 6px;
+      border: 1px solid rgba($black, 0.1);
+      padding: 0.4rem;
+      background-color: #fff;
+
+      &:focus {
+        border-color: $primary;
+        box-shadow: 0 0 0 2px rgba($primary, 0.15);
+        outline: none;
       }
+    }
 
-      input,
-      select,
-      button {
-        margin-top: 0.25rem;
-        width: 100%;
-        border: 1px solid $color-border;
-        border-radius: $radius;
-        padding: $spacer;
-        font-size: 0.9rem;
+    .detail-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+
+      .detail-item.half {
+        flex: 1;
       }
     }
 
     .time-modal-btn {
-      background: rgba($primary, 0.1);
-      color: $primary;
-      font-weight: 500;
+      background-color: $neutral-50;
+      border: 1px solid rgba($black, 0.1);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      color: $neutral-800;
 
       &:hover {
-        background: $primary;
-        color: #fff;
+        background-color: $neutral-100;
+      }
+    }
+  }
+
+  // =======================================================
+  // BURGER MENU
+  // =======================================================
+  .menu-container {
+    position: relative;
+
+    .menu-btn {
+      background: none;
+      border: none;
+      font-size: 1.2rem;
+      cursor: pointer;
+      color: $sidebar-text;
+      padding: 2px 6px;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+
+      &:hover {
+        background-color: rgba($sidebar-scrollbar, 0.1);
+        color: $primary;
+      }
+    }
+
+    .menu-dropdown {
+      position: absolute;
+      right: 0;
+      top: 24px;
+      background-color: #fff;
+      border: 1px solid rgba($black, 0.1);
+      border-radius: 6px;
+      box-shadow: 0 4px 8px rgba($black, 0.1);
+      min-width: 140px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+
+      button {
+        background: transparent;
+        border: none;
+        text-align: left;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.9rem;
+        cursor: pointer;
+        color: $sidebar-heading;
+        transition: background 0.2s;
+
+        &:hover {
+          background-color: rgba($sidebar-scrollbar, 0.08);
+          color: $primary;
+        }
       }
     }
   }
 }
 
-/* =========================================================
-   🧩 FUNCTION PAGE LAYOUT — Unified Sidebar + Workspace
-    ======================================================= */
-
+// ===========================================================
+// LAYOUT WRAPPER — Removes Sidebar Gap
+// ===========================================================
 .function-layout-two-col {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   justify-content: flex-start;
-  gap: 1.5rem;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+  background-color: $white;
+  height: calc(100vh - 70px);
+  overflow: hidden;
   width: 100%;
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 2rem;
 }
 
-/* SIDEBAR */
-aside.function-sidebar {
-  flex: 0 0 320px;
-  background: $color-bg-panel;
-  border-right: 1px solid $color-border;
-  border-radius: $radius;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-  padding: $spacer * 2;
-  display: flex;
-  flex-direction: column;
-  gap: $spacer * 2;
-  position: sticky;
-  top: 90px;
-  align-self: flex-start;
-  min-height: calc(100vh - 100px);
-  z-index: 2;
-}
-
-/* WORKSPACE (right-hand panel) */
 .function-workspace {
   flex: 1;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-  padding: 1.5rem 2rem;
-  min-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background-color: $white;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
 
-  .workspace-content {
-    background: #fff;
-    border: 1px solid $color-border;
-    border-radius: $radius;
-    box-shadow: $shadow-sm;
-    padding: $spacer * 2;
+  .function-body {
+    flex: 1;
+    padding: 2rem;
+    overflow-y: auto;
   }
 }
-
-
-/* =========================================================
-   🧩 FINAL — BURGER MENU DROPDOWN (Portal-safe, Stacking Safe)
-========================================================= */
-.contact-card {
-  position: relative;
-  z-index: auto !important; // Prevents local stacking traps
-}
-
-.menu-container {
-  position: static !important; // Allow absolute positioning to escape
-}
-
-.menu-dropdown {
-  position: fixed; // Moved to body
-  right: 0;
-  top: 100%;
-  min-width: 180px;
-  max-width: 220px;
-  background: #fff;
-  border: 1px solid $color-border;
-  border-radius: $radius;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
-  padding: $spacer;
-  z-index: 99999 !important;
-  display: none;
-  opacity: 0;
-  transform: translateY(-4px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
-
-  /* ✅ Critical fix: let all buttons show */
-  overflow: visible !important;
-  height: auto !important;
-  white-space: normal !important;
-}
-
-/* Visible state */
-.menu-dropdown:not(.hidden) {
-  display: block !important;
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* Inner buttons */
-.menu-dropdown button {
-  display: block;
-  width: 100%;
-  background: none;
-  border: none;
-  text-align: left;
-  padding: $spacer * 1.2;
-  border-radius: $radius;
-  color: $color-text-dark;
-  font-size: 0.9rem;
-  line-height: 1.3;
-  cursor: pointer;
-  transition: background 0.2s ease;
-
-  &:hover {
-    background: rgba($primary, 0.08);
-  }
-}
-
-/* Optional: label for “Primary Contact” */
-.menu-dropdown .menu-label {
-  display: block;
-  padding: $spacer;
-  font-size: 0.85rem;
-  color: $color-text-muted;
-  text-align: left;
-  cursor: default;
-}
-
-

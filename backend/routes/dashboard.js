@@ -1,3 +1,7 @@
+/**
+ * 📊 Dashboard Route – Fixed for UUID migration
+ * Uses functions.id_uuid instead of functions.id
+ */
 const express = require("express");
 const { pool } = require("../db");
 const router = express.Router();
@@ -40,8 +44,15 @@ router.get("/", async (req, res, next) => {
 
     // 3️⃣ --- Upcoming Functions (next 30 days) ---
     const { rows: upcoming } = await pool.query(`
-      SELECT f.id, f.event_name, fs.name AS status, f.event_date, f.event_time,
-             f.attendees, f.totals_price, r.name AS room_name
+      SELECT 
+        f.id_uuid AS id,              -- ✅ switched from f.id
+        f.event_name, 
+        fs.name AS status, 
+        f.event_date, 
+        f.event_time,
+        f.attendees, 
+        f.totals_price, 
+        r.name AS room_name
       FROM functions f
       LEFT JOIN function_statuses fs ON f.status_id = fs.id
       LEFT JOIN rooms r ON r.id = f.room_id
@@ -52,7 +63,11 @@ router.get("/", async (req, res, next) => {
 
     // 4️⃣ --- Recent Leads ---
     const { rows: leads } = await pool.query(`
-      SELECT f.id, f.event_name AS client_name, f.event_date, fs.name AS status
+      SELECT 
+        f.id_uuid AS id,              -- ✅ switched from f.id
+        f.event_name AS client_name, 
+        f.event_date, 
+        fs.name AS status
       FROM functions f
       LEFT JOIN function_statuses fs ON f.status_id = fs.id
       WHERE fs.name IN ('lead','qualified')
@@ -62,7 +77,12 @@ router.get("/", async (req, res, next) => {
 
     // 5️⃣ --- My Tasks (open) ---
     const { rows: tasks } = await pool.query(`
-      SELECT t.id, t.title, t.status, t.due_at, u.name AS assignee
+      SELECT 
+        t.id, 
+        t.title, 
+        t.status, 
+        t.due_at, 
+        u.name AS assignee
       FROM tasks t
       LEFT JOIN users u ON u.id = t.assigned_user_id
       WHERE t.status = 'open'
@@ -70,20 +90,19 @@ router.get("/", async (req, res, next) => {
       LIMIT 10
     `);
 
-res.render("pages/dashboard", {
-  title: "Dashboard",
-  active: "dashboard",
-  kpis,
-  graph,
-  upcoming,
-  leads,
-  tasks,
-  from: req.query.from || "",
-  to: req.query.to || "",
-  user: req.session.user || null
-});
-
-
+    // ✅ Render dashboard
+    res.render("pages/dashboard", {
+      title: "Dashboard",
+      active: "dashboard",
+      kpis,
+      graph,
+      upcoming,
+      leads,
+      tasks,
+      from: req.query.from || "",
+      to: req.query.to || "",
+      user: req.session.user || null
+    });
 
   } catch (err) {
     console.error("Dashboard error:", err);
@@ -92,3 +111,4 @@ res.render("pages/dashboard", {
 });
 
 module.exports = router;
+

@@ -1,65 +1,63 @@
 <!-- 🧭 LEFT COLUMN — Sidebar Partial -->
 <aside class="function-sidebar">
+  <div class="sidebar-scroll-container"> <!-- NEW WRAPPER -->
 
-  <!-- 🧩 FUNCTION META (Name + Status) -->
-  <div class="function-meta">
-    <!-- Editable Event Name -->
-    <h2 contenteditable="true" class="editable" data-field="event_name" data-id="<%= fn.id %>">
-      <%= fn.event_name %>
-    </h2>
-
-    <!-- Event Status Dropdown -->
-    <select class="form-select status-select editable" data-field="status" data-id="<%= fn.id %>">
-      <option value="lead" <%= fn.status==='lead'?'selected':'' %>>Lead</option>
-      <option value="qualified" <%= fn.status==='qualified'?'selected':'' %>>Qualified</option>
-      <option value="confirmed" <%= fn.status==='confirmed'?'selected':'' %>>Confirmed</option>
-      <option value="balance_due" <%= fn.status==='balance_due'?'selected':'' %>>Balance Due</option>
-      <option value="completed" <%= fn.status==='completed'?'selected':'' %>>Completed</option>
-    </select>
-  </div>
-
-  <!-- 👥 CONTACT BLOCK -->
-  <section class="function-contact-block">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <h4>Contacts</h4>
-      <button id="openAddPanelBtn" class="btn btn-sm btn-outline-primary">+ Add</button>
+    <!-- 🧩 FUNCTION META -->
+    <div class="function-meta">
+      <h2 contenteditable="true" class="editable" data-field="event_name" data-id="<%= fn.id_uuid %>">
+        <%= fn.event_name %>
+      </h2>
+      <select class="form-select status-select editable" data-field="status" data-id="<%= fn.id_uuid %>">
+        <option value="lead" <%= fn.status==='lead'?'selected':'' %>>Lead</option>
+        <option value="qualified" <%= fn.status==='qualified'?'selected':'' %>>Qualified</option>
+        <option value="confirmed" <%= fn.status==='confirmed'?'selected':'' %>>Confirmed</option>
+        <option value="balance_due" <%= fn.status==='balance_due'?'selected':'' %>>Balance Due</option>
+        <option value="completed" <%= fn.status==='completed'?'selected':'' %>>Completed</option>
+      </select>
     </div>
 
-    <% if (linkedContacts.length > 0) { %>
-      <ul class="contact-list">
-        <% linkedContacts.forEach(c => { %>
-          <li class="contact-card">
-            <div class="contact-info">
-              <strong><%= c.name %></strong>
-              <% if (c.is_primary) { %>
-                <span class="badge bg-success ms-1">Primary</span>
-              <% } %><br>
-              <small><%= c.email || 'No email' %></small><br>
-              <small><%= c.phone || '' %></small>
-            </div>
+    <!-- 👥 CONTACT BLOCK -->
+    <section class="function-contact-block sidebar-block">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h4>Contacts</h4>
+        <button id="openAddPanelBtn" class="btn btn-sm btn-outline-primary">+ Add</button>
+      </div>
 
-            <!-- ⋮ BURGER MENU (Actions) -->
-            <div class="menu-container">
-              <button class="menu-btn" data-id="<%= c.id %>">⋮</button>
-              <div id="menu-<%= c.id %>" class="menu-dropdown hidden">
-                <button class="edit-btn" data-id="<%= c.id %>">Edit</button>
-                <% if (!c.is_primary) { %>
-                  <button class="primary-btn" data-id="<%= c.id %>">Make Primary</button>
-                <% } %>
-                <button class="remove-btn" data-id="<%= c.id %>">Remove</button>
+      <% if (linkedContacts.length > 0) { %>
+        <ul class="contact-list">
+          <% linkedContacts.forEach(c => { %>
+            <li class="contact-card">
+              <div class="contact-info">
+                <strong><%= c.name %></strong>
+                <% if (c.is_primary) { %>
+                  <span class="badge bg-success ms-1">Primary</span>
+                <% } %><br>
+                <small><%= c.email || 'No email' %></small><br>
+                <small><%= c.phone || '' %></small>
               </div>
-            </div>
-          </li>
-        <% }) %>
-      </ul>
-    <% } else { %>
-      <p class="text-muted">No contacts linked</p>
-    <% } %>
-  </section>
 
-  <!-- 📅 FUNCTION DETAILS -->
-  <section class="function-details">
-    <h4>Function Details</h4>
+              <!-- ⋮ BURGER MENU -->
+              <div class="menu-container">
+                <button class="menu-btn fn-menu-btn" data-id="<%= c.id %>">⋮</button>
+                <div id="menu-<%= c.id %>" class="menu-dropdown fn-menu-dropdown hidden">
+                  <button class="edit-btn" data-id="<%= c.id %>">Edit</button>
+                  <% if (!c.is_primary) { %>
+                    <button class="primary-btn" data-id="<%= c.id %>">Make Primary</button>
+                  <% } %>
+                  <button class="remove-btn" data-id="<%= c.id %>">Remove</button>
+                </div>
+              </div>
+            </li>
+          <% }) %>
+        </ul>
+      <% } else { %>
+        <p class="text-muted">No contacts linked</p>
+      <% } %>
+    </section>
+
+    <!-- 📅 FUNCTION DETAILS -->
+    <section class="function-details sidebar-block">
+      <h4>Function Details</h4>
 
     <!-- Event Date -->
     <div class="detail-item">
@@ -68,7 +66,7 @@
         type="date"
         class="editable"
         data-field="event_date"
-        data-id="<%= fn.id %>"
+        data-id="<%= fn.id_uuid %>"
         value="<%= fn.event_date ? fn.event_date.toISOString().split('T')[0] : '' %>"
       >
     </div>
@@ -77,14 +75,14 @@
     <div class="detail-row">
       <div class="detail-item half">
         <label>Start Time</label>
-        <button class="btn btn-sm time-modal-btn w-100" data-field="start_time" data-id="<%= fn.id %>">
+        <button class="btn btn-sm time-modal-btn w-100" data-field="start_time" data-id="<%= fn.id_uuid %>">
           <%- fn.start_time ? fn.start_time : 'Set Time' %>
         </button>
       </div>
 
       <div class="detail-item half">
         <label>End Time</label>
-        <button class="btn btn-sm time-modal-btn w-100" data-field="end_time" data-id="<%= fn.id %>">
+        <button class="btn btn-sm time-modal-btn w-100" data-field="end_time" data-id="<%= fn.id_uuid %>">
           <%- fn.end_time ? fn.end_time : 'Set Time' %>
         </button>
       </div>
@@ -98,7 +96,7 @@
           type="number"
           class="editable w-100"
           data-field="attendees"
-          data-id="<%= fn.id %>"
+          data-id="<%= fn.id_uuid %>"
           value="<%= fn.attendees || '' %>"
         >
       </div>
@@ -109,7 +107,7 @@
           type="number"
           class="editable w-100"
           data-field="budget"
-          data-id="<%= fn.id %>"
+          data-id="<%= fn.id_uuid %>"
           value="<%= fn.budget || '' %>"
           step="0.01"
         >
@@ -124,7 +122,7 @@
           type="number"
           class="editable w-100"
           data-field="totals_cost"
-          data-id="<%= fn.id %>"
+          data-id="<%= fn.id_uuid %>"
           value="<%= fn.totals_cost || '' %>"
           step="0.01"
         >
@@ -136,7 +134,7 @@
           type="number"
           class="editable w-100"
           data-field="totals_price"
-          data-id="<%= fn.id %>"
+          data-id="<%= fn.id_uuid %>"
           value="<%= fn.totals_price || '' %>"
           step="0.01"
         >
@@ -146,7 +144,7 @@
     <!-- Room Selection -->
     <div class="detail-item">
       <label>Room / Space</label>
-      <select class="editable form-select" data-field="room_id" data-id="<%= fn.id %>">
+      <select class="editable form-select" data-field="room_id" data-id="<%= fn.id_uuid %>">
         <option value="">Select a room</option>
         <% rooms.forEach(r => { %>
           <option value="<%= r.id %>" <%= fn.room_id === r.id ? 'selected' : '' %>>
@@ -159,7 +157,7 @@
     <!-- Event Type -->
     <div class="detail-item">
       <label>Event Type</label>
-      <select class="editable form-select" data-field="event_type" data-id="<%= fn.id %>">
+      <select class="editable form-select" data-field="event_type" data-id="<%= fn.id_uuid %>">
         <option value="">Select an event type</option>
         <% eventTypes.forEach(t => { %>
           <option value="<%= t.name %>" <%= fn.event_type === t.name ? 'selected' : '' %>>
@@ -169,4 +167,5 @@
       </select>
     </div>
   </section>
+  </div> <!-- /sidebar-scroll-container -->
 </aside>

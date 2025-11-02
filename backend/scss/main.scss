@@ -2,27 +2,57 @@
 
 // 🌈 Core
 @use 'core/variables' as *;
+@use 'core/utilities';
 @use 'core/base';    // if `.hidden` lives here, keep it BEFORE modals
 @use 'core/layout';
-
-// 🕹️ Legacy Support
-@use 'legacy/legacy-imports';   // <-- move legacy here (BEFORE components)
 
 // 🧩 Components (your modern styles)
 @use 'components/header';
 @use 'components/forms';
-@use 'components/cards';
+@use 'components/cards-clean.scss';
+
+// ✅ Function Pages Layout (Sidebar + Workspace + Tabs)
+@use 'components/function-pages';
+@use 'components/sidebar'; // <-- 💥 Add this line!
+@use 'components/function-dashboard';
+@use 'components/dashboard'; 
+@use "components/menu";
+
 
 // Panels & overlay should be AFTER the place where `.hidden` is defined
 @use 'components/modals';
+@use "components/drawer";
+
 
 // Buttons LAST so variant overrides beat Bootstrap/legacy
 @use 'components/buttons';
 
 // Responsive can be last if it doesn’t redefine core utilities
 @use 'components/responsive';
+@use 'components/kpi';
+
+// 📬 Inbox Page Styles
+@use 'components/inbox';
+
+// After Bootstrap is loaded (via CDN or compiled SCSS)
+@use 'components/bootstrap-overrides';
 
 
+// ✅ Final working layout fix
 
-
-
+.function-sidebar {
+  background: #f0f4fa; // your new colour
+}
+// ==========================================================
+// 🧩 Override Bootstrap Button Colours
+// ==========================================================
+.btn-primary,
+.btn-outline-primary {
+  --bs-btn-color: #{$brand};
+  --bs-btn-border-color: #{$brand};
+  --bs-btn-hover-bg: #{$brand};
+  --bs-btn-hover-border-color: #{$brand};
+  --bs-btn-active-bg: #{$brand-dark};
+  --bs-btn-active-border-color: #{$brand-dark};
+  --bs-btn-disabled-color: #{$brand-light};
+}

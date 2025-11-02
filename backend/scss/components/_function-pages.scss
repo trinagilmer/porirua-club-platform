@@ -1,263 +1,154 @@
-@use "../core/variables" as *;
 @use "sass:color";
+@use "../core/variables" as *;
 
-/* ===========================================================
-/* 🧭 FUNCTION PAGE VISUAL SYSTEM
-/* Consistent design across Communications, Tasks, Notes, and Detail
-/* ===========================================================
+// ===========================================================
+// ✨ FUNCTION PAGES — Full Height, Flat, Seamless
+// ===========================================================
 
+// 🧱 Layout Wrapper
 .function-layout-two-col {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   justify-content: flex-start;
-  gap: 1.5rem;
-  padding: 1rem 2rem;
-  background-color: $color-bg-light;
-  min-height: calc(100vh - 80px); /* adjust if header differs
-}
+  background-color: $neutral-100;
+  height: calc(100vh - 70px); // flush below header
+  overflow: hidden;
+  padding: 0;
+  margin: 0;
+  gap: 0;
+  box-sizing: border-box;
 
-/* Sidebar */
-.function-sidebar {
-  flex: 0 0 280px;
-  background: $color-bg-panel;
-  border: 1px solid $color-border;
-  border-radius: $radius;
-  padding: 1.5rem 1.25rem 2rem;
-  box-shadow: $shadow-sm;
-  position: sticky;
-  top: 90px;
-  height: fit-content;
-  align-self: flex-start;
-
-  h2, h3 {
-    font-weight: 600;
-    color: $color-text-dark;
-    margin-bottom: $spacer * 1.5;
+  // ✅ ensures no stray spacing
+  > * {
+    margin: 0;
+    padding: 0;
   }
 
-  label {
-    font-weight: 500;
-    font-size: 0.9rem;
-    color: $color-text-muted;
-    margin-bottom: 0.25rem;
-  }
-
-  input, select, textarea {
-    width: 100%;
-    padding: 0.45rem 0.6rem;
-    border: 1px solid $color-border;
-    border-radius: 6px;
-    margin-bottom: $spacer * 1.5;
-
-    &:focus {
-      outline: none;
-      border-color: $primary;
-      box-shadow: 0 0 0 2px rgba($primary, 0.2);
-    }
-  }
-
-  button.btn {
-    border-radius: 6px;
-  }
-
-  .btn-outline-primary {
-    border-color: $primary;
-    color: $primary;
-
-    &:hover {
-      background-color: $primary;
-      color: #fff;
-    }
-  }
-}
-
-/* Main workspace */
-.function-workspace {
-  flex: 1;
-  background: $color-bg-panel;
-  border: 1px solid $color-border;
-  border-radius: $radius;
-  padding: 2rem;
-  box-shadow: $shadow-sm;
-
-  h1, h2 {
-    font-weight: 600;
-    color: $color-text-dark;
-    margin-bottom: 1rem;
-  }
-
-  .workspace-content {
-    background: #fff;
-    border-radius: $radius;
-    border: 1px solid $color-border;
-    box-shadow: $shadow-sm;
-    padding: 1.5rem 2rem;
-  }
-
-  .btn-primary,
-  .btn-success {
-    background-color: $primary;
-    border-color: $primary;
-
-    &:hover {
-      background-colour: color.adjust($primary, $lightness: -10%);
-      border-colour: color.adjust($primary, $lightness: -10%);
-    }
-  }
-}
-
-/* Tabs, headings, spacing harmony */
-.function-tabs {
-  margin-top: 0;
-  margin-bottom: 1.5rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid $color-border;
-}
-
-.function-tabs a {
-  color: $color-text-muted;
-  margin-right: 1rem;
-  padding-bottom: 0.25rem;
-  border-bottom: 2px solid transparent;
-  font-weight: 500;
-
-  &:hover,
-  &.active {
-    color: $primary;
-    border-bottom-color: $primary;
-  }
-}
-
-/* General spacing tweaks for cleaner alignment */
-.workspace-content.container {
-  max-width: 960px;
-  margin: 0 auto;
-}
-
-.function-page {
-  background: $color-bg-light;
-  min-height: 100vh;
-}
-/* =========================================================
-   🧩 FUNCTION WORKSPACE STYLING
-========================================================= */
-.function-workspace {
-  flex: 1;
-  background: #fff;
-  border-radius: 10px;
-  padding: 1.5rem;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
-  min-height: 80vh;
-}
-
-.function-body {
-  padding: 1rem 0;
-}
-/* =========================================================
-   📱 Responsive Adjustments for Two-Column Layout
-========================================================= */
-
-@media (max-width: 991px) {
-  .function-layout-two-col {
+  @media (max-width: $breakpoint-lg) {
     flex-direction: column;
-    padding: 1rem;
-
-    // spacing between sections
-    gap: 1rem;
-  }
-
-  .function-sidebar {
-    position: static; // disable sticky on mobile
-    width: 100%;
-    flex: 1 1 auto;
-    order: 2; // move below main
-    margin-top: 1rem;
-  }
-
-  .function-workspace {
-    order: 1;
-    width: 100%;
-    padding: 1rem;
-  }
-
-  .workspace-content {
-    padding: 1rem;
+    height: auto;
+    min-height: auto;
   }
 }
 
-/* 🖥 Large screens (optional tuning for wide layouts) */
-@media (min-width: 1400px) {
-  .function-layout-two-col {
-    gap: 2rem;
+// ===========================================================
+// 🧩 SIDEBAR WRAPPER — Layout positioning only
+// (All visual styles handled in _sidebar.scss)
+// ===========================================================
+.function-sidebar {
+  flex-shrink: 0;
+  width: 320px; // matches sidebar.scss
+  background: #f2f5fa;
+  border-right: 1px solid $neutral-200;
+  overflow: hidden; // sidebar manages own scroll
+  z-index: $z-sidebar;
+  box-sizing: border-box;
 
-    .function-sidebar {
-      flex: 0 0 320px;
-    }
+  // ✅ remove all gaps or offset
+  margin: 0;
+  padding: 0;
 
-    .function-workspace {
-      padding: 2rem;
-    }
+  @media (max-width: $breakpoint-lg) {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid $neutral-200;
   }
 }
-/* =========================================================
-   🧾 Function Edit Form Enhancements
-========================================================= */
 
-.page-functions,
+// ===========================================================
+// 🧩 WORKSPACE — Main content area
+// ===========================================================
 .function-workspace {
-  form.card {
-    background: #fff;
-    border-radius: var(--radius);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  flex: 1;
+  background: $white;
+  padding: 1rem 2rem 2rem 2rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 
-    input:disabled,
-    select:disabled {
-      opacity: 0.7;
-      cursor: not-allowed;
-    }
+  // ✅ ensure flush alignment to sidebar edge
+  margin: 0;
+  border-left: none; // override if bootstrap or other styles add it
 
-    .is-invalid {
-      border-color: #dc3545;
-      box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.1);
-    }
+  h1, h2, h3 {
+    font-weight: 600;
+    color: $neutral-900;
+    margin-bottom: 1.25rem;
   }
 
-  .workspace-header h1 {
-    color: var(--deep);
-    font-weight: 600;
+  p {
+    color: $neutral-700;
+  }
+
+  @media (max-width: $breakpoint-lg) {
+    padding: 1.25rem;
+    height: auto;
   }
 }
 
+// ===========================================================
+// 🧭 FUNCTION TABS — Minimal underline nav
+// ===========================================================
+.function-tabs {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  border-bottom: 1px solid $neutral-200;
+  margin-bottom: 1.5rem;
+  margin-left: 2.0rem;
+  padding-bottom: 0.5rem;
+  flex-wrap: wrap;
 
-
-.page-functions, .function-layout-two-col {
-  h1 {
-    font-size: $h1-size;
-    font-weight: 600;
-    color: $deep;
-  }
-
-  .btn-primary {
-    background-color: $primary;
-    border-color: $primary;
-    color: #fff;
+  a {
+    color: $neutral-600;
+    font-weight: 500;
+    text-decoration: none;
+    padding-bottom: 0.25rem;
+    border-bottom: 2px solid transparent;
+    transition: color $transition-fast, border-color $transition-fast;
 
     &:hover {
-      background-color: color.adjust($primary, $lightness: -8%);
-      border-color: color.adjust($primary, $lightness: -8%);
+      color: $brand-dark;
+      border-bottom-color: rgba($brand, 0.25);
+    }
+
+    &.active {
+      color: $brand;
+      border-bottom-color: $brand;
+      font-weight: 600;
     }
   }
 
-  .task-card {
-    border-left: 4px solid $primary;
-    box-shadow: $shadow-sm;
-
-    .task-card-status.bg-primary {
-      background-color: $secondary !important;
-    }
+}
+  .tabs-bar.mb-4 {
+    margin-left: 2.0rem;
   }
+// ===========================================================
+// 📬 BODY NORMALIZATION
+// ===========================================================
+.function-body {
+  max-width: 100%;
+  overflow-x: hidden;
+  flex: 1; // ensures fills height beside sidebar
+  box-sizing: border-box;
+}
 
-  .table.compact-table > :not(caption) > * > * {
-    padding: 0.4rem 0.5rem;
+// ===========================================================
+// 🧩 MESSAGE CARD BASE STYLING
+// ===========================================================
+.message-card {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  border: 1px solid $neutral-200;
+  border-radius: $radius;
+  background: $white;
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background-color: $neutral-50;
   }
 }

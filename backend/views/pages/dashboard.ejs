@@ -1,25 +1,27 @@
 <section class="page-dashboard container-fluid py-4">
   <h1 class="page-title">Club Overview</h1>
 
-  <!-- KPI Row -->
-  <section class="kpi-row">
-    <div class="kpi-card">
-      <div class="kpi-label">Confirmed+ Revenue</div>
-      <div class="kpi-value">$<%= (kpis.confirmed_price || 0).toLocaleString() %></div>
+  <!-- KPI Bar (matching Functions Dashboard) -->
+ <div class="kpi-section">
+  <div class="kpi-bar mb-4">
+    <div class="kpi">
+      <div class="label">Confirmed+ Revenue</div>
+      <div class="value">$<%= (kpis.confirmed_price || 0).toLocaleString() %></div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Confirmed+ Cost</div>
-      <div class="kpi-value">$<%= (kpis.confirmed_cost || 0).toLocaleString() %></div>
+    <div class="kpi">
+      <div class="label">Confirmed+ Cost</div>
+      <div class="value">$<%= (kpis.confirmed_cost || 0).toLocaleString() %></div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Pipeline Value</div>
-      <div class="kpi-value">$<%= (kpis.pipeline_price || 0).toLocaleString() %></div>
+    <div class="kpi">
+      <div class="label">Pipeline Value</div>
+      <div class="value">$<%= (kpis.pipeline_price || 0).toLocaleString() %></div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Pipeline Leads</div>
-      <div class="kpi-value"><%= kpis.pipeline_count || 0 %></div>
+    <div class="kpi">
+      <div class="label">Pipeline Leads</div>
+      <div class="value"><%= kpis.pipeline_count || 0 %></div>
     </div>
-  </section>
+  </div>
+  </div>
 
   <!-- Chart -->
   <section class="card dashboard-card">
@@ -58,32 +60,38 @@
     </div>
   </section>
 
+  <!-- Chart Script -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    const labels = JSON.parse('<%- JSON.stringify(graph.labels || []) %>');
-    const data = JSON.parse('<%- JSON.stringify(graph.data || []) %>');
-    const ctx = document.getElementById('revenueChart').getContext('2d');
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [{
-          label: 'Revenue',
-          data,
-          borderColor: '#6bb4de',
-          backgroundColor: 'rgba(107,180,222,0.2)',
-          tension: 0.3,
-          fill: true
-        }]
-      },
-      options: {
-        plugins: { legend: { display: false } },
-        scales: { y: { beginAtZero: true } }
-      }
-    });
+    const labels = <%- JSON.stringify(graph.labels || []) %>;
+    const data = <%- JSON.stringify(graph.data || []) %>;
+    const ctx = document.getElementById('revenueChart')?.getContext('2d');
+
+    if (ctx && labels.length > 0) {
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Revenue',
+            data,
+            borderColor: '#6bb4de',
+            backgroundColor: 'rgba(107,180,222,0.2)',
+            tension: 0.3,
+            fill: true,
+            pointRadius: 4,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    } else {
+      console.warn("Revenue Chart: no data to render.");
+    }
   </script>
 </section>
-
-
-
 
 

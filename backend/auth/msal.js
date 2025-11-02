@@ -18,5 +18,21 @@ console.log("🔑 Azure credentials loaded?", {
   tenantId: !!process.env.AZURE_TENANT_ID,
   secret: process.env.AZURE_CLIENT_SECRET ? "(set)" : "(missing)",
 });
+// 🔐 Attempt silent token acquisition
+async function getTokenSilent(account) {
+  if (!account) return null;
+  try {
+    const silentResult = await cca.acquireTokenSilent({
+      account,
+      scopes: ["https://graph.microsoft.com/.default"],
+    });
+    console.log("✅ [MSAL] Silent token acquired");
+    return silentResult;
+  } catch (err) {
+    console.warn("⚠️ [MSAL] Silent token failed:", err.message);
+    return null;
+  }
+}
 
-module.exports = { cca };
+module.exports = { cca, getTokenSilent };
+

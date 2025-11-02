@@ -1,0 +1,22 @@
+
+C:\Users\user\porirua-club-platform\backend
+Γö£ΓöÇΓöÇ 20251025_fix_uuid_relationships.sql
+Γö£ΓöÇΓöÇ app.js
+Γö£ΓöÇΓöÇ auth
+Γö£ΓöÇΓöÇ db.js
+Γö£ΓöÇΓöÇ middleware
+Γö£ΓöÇΓöÇ project-tree.txt
+Γö£ΓöÇΓöÇ public
+Γö£ΓöÇΓöÇ routes
+Γö£ΓöÇΓöÇ scss
+Γö£ΓöÇΓöÇ services
+Γö£ΓöÇΓöÇ structure.txt
+Γö£ΓöÇΓöÇ testEnv.js
+Γö£ΓöÇΓöÇ utils
+ΓööΓöÇΓöÇ views
+
+directory: 8 file: 6
+
+
+
+[2K[1G

@@ -9,6 +9,15 @@ const express = require("express");
 const router = express.Router();
 const { pool } = require("../db");
 
+// Use the settings layout for everything in this router
+router.use((req, res, next) => {
+  res.locals.layout = 'layouts/settings';
+  next();
+});
+
+// ✅ Make sure form posts are parsed (HTML forms use urlencoded)
+router.use(express.urlencoded({ extended: true, limit: "5mb" }));
+router.use(express.json({ limit: "5mb" })); // if any JSON posts too
 /* =========================================================
    🧭 BASE REDIRECT — /settings → /settings/overview
 ========================================================= */
@@ -19,8 +28,12 @@ router.get("/", (req, res) => res.redirect("/settings/overview"));
 ========================================================= */
 router.get("/overview", async (req, res) => {
   try {
-    const { rows: eventTypes } = await pool.query("SELECT COUNT(*) FROM club_event_types;");
-    const { rows: rooms } = await pool.query("SELECT COUNT(*) FROM rooms;");
+    const [eventTypesRes, roomsRes, templatesRes] = await Promise.all([
+      pool.query("SELECT COUNT(*)::int AS count FROM club_event_types;"),
+      pool.query("SELECT COUNT(*)::int AS count FROM rooms;"),
+      pool.query("SELECT COUNT(*)::int AS count FROM note_templates;"),
+      pool.query("SELECT COUNT(*)::int AS count FROM menus;")
+    ]);
 
     res.render("settings/index", {
       layout: "layouts/settings",
@@ -28,13 +41,16 @@ router.get("/overview", async (req, res) => {
       pageType: "settings",
       activeTab: "overview",
       counts: {
-        eventTypes: eventTypes[0].count || 0,
-        rooms: rooms[0].count || 0,
+        eventTypes: eventTypesRes.rows[0]?.count ?? 0,
+        rooms: roomsRes.rows[0]?.count ?? 0,
+        noteTemplates: templatesRes.rows[0]?.count ?? 0,
       },
       user: req.session.user || null,
+      flashMessage: req.flash?.("flashMessage"),
+      flashType: req.flash?.("flashType"),
     });
   } catch (err) {
-    console.error("❌ Error loading settings overview:", err);
+    console.error("❌ Settings overview error:", err);
     res.status(500).render("error", {
       layout: "layouts/main",
       title: "Error",
@@ -42,6 +58,7 @@ router.get("/overview", async (req, res) => {
     });
   }
 });
+
 
 /* =========================================================
    ⚙️ SETTINGS: EVENT TYPES
@@ -264,6 +281,144 @@ router.post("/spaces/delete", async (req, res) => {
     res.redirect("/settings/spaces");
   }
 });
+/* =========================================================
+   🧩 SETTINGS: NOTE TEMPLATES (Templates for Notes/Proposals)
+   - List/create/edit/delete templates stored in public.note_templates
+   - Uses HTML content (content) as the primary field for now
+========================================================= */
+
+// LIST
+router.get("/note-templates", async (req, res) => {
+  try {
+    const { rows: templates } = await pool.query(
+      `SELECT id, name, category, description, content
+         FROM note_templates
+        ORDER BY name ASC;`
+    );
+
+    const { rows: mergeFields } = await pool.query(
+      `SELECT key, label, description, entity, formatter
+         FROM merge_fields
+        ORDER BY entity, label;`
+    );
+
+    res.render("settings/note-templates", {
+      layout: "layouts/settings",
+      title: "Settings — Note Templates",
+      pageType: "settings",
+      activeTab: "note-templates",
+      templates,
+      mergeFields,
+      user: req.session.user || null,
+      flashMessage: req.flash("flashMessage"),
+      flashType: req.flash("flashType"),
+    });
+  } catch (err) {
+    console.error("❌ Error loading note templates:", err);
+    res.status(500).render("error", {
+      layout: "layouts/main",
+      title: "Error",
+      message: "Failed to load note templates.",
+    });
+  }
+});
+
+// ADD
+router.post("/note-templates/add", async (req, res) => {
+  try {
+    const { name, category, description, content } = req.body;
+
+    if (!name || !name.trim()) {
+      req.flash("flashMessage", "⚠️ Please provide a template name.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/note-templates");
+    }
+
+    await pool.query(
+      `INSERT INTO note_templates (name, category, description, content, created_by)
+       VALUES ($1, NULLIF($2,''), NULLIF($3,''), $4, $5);`,
+      [name.trim(), category || null, description || null, content || "", req.session.user?.id || null]
+    );
+
+    req.flash("flashMessage", "✅ Template created.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/note-templates");
+  } catch (err) {
+    console.error("❌ Error adding template:", err);
+    req.flash("flashMessage", "❌ Failed to create template.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/note-templates");
+  }
+});
+
+// EDIT
+router.post("/note-templates/edit", async (req, res) => {
+  try {
+    const { id, name, category, description, content } = req.body;
+
+    if (!id || !name || !name.trim()) {
+      req.flash("flashMessage", "⚠️ Invalid template data.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/note-templates");
+    }
+
+    await pool.query(
+      `UPDATE note_templates
+          SET name = $1,
+              category = NULLIF($2,''),
+              description = NULLIF($3,''),
+              content = $4,
+              updated_at = NOW()
+        WHERE id = $5;`,
+      [name.trim(), category || null, description || null, content || "", id]
+    );
+
+    req.flash("flashMessage", "✅ Template updated.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/note-templates");
+  } catch (err) {
+    console.error("❌ Error editing template:", err);
+    req.flash("flashMessage", "❌ Failed to update template.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/note-templates");
+  }
+});
+
+// DELETE
+router.post("/note-templates/delete", async (req, res) => {
+  try {
+    const { id } = req.body;
+
+    if (!id) {
+      req.flash("flashMessage", "⚠️ Missing template ID.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/note-templates");
+    }
+
+    await pool.query("DELETE FROM note_templates WHERE id = $1;", [id]);
+
+    req.flash("flashMessage", "🗑️ Template deleted.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/note-templates");
+  } catch (err) {
+    console.error("❌ Error deleting template:", err);
+    req.flash("flashMessage", "❌ Failed to delete template.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/note-templates");
+  }
+});
+// 🔹 Menus (✅ this is the fix)
+router.use("/menus", require("./settings/menus"));
+
+// 🔹 Menus Builder (optional extended UI)
+//router.use("/menus-builder", require("./settings/menus-builder"));
+
+// Redirect any /settings/menus-builder[...] to /settings/menus
+router.use('/menus-builder', (req, res) => {
+  return res.redirect(301, '/settings/menus');
+});
+
+
 
 module.exports = router;
 

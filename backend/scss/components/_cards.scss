@@ -2,116 +2,172 @@
 @use "../core/variables" as *;
 
 // ===========================================================
-// 🧩 FUNCTION PAGE CARDS — Tasks, Notes, Messages
+// 🃏 CARDS — Tasks, Notes, Messages (Modernized)
 // ===========================================================
 
+// ---------- Generic card shells ----------
 .task-card,
 .note-card,
 .message-card {
   background: $color-bg-panel;
   border: 1px solid $color-border;
   border-radius: $radius;
-  box-shadow: $shadow-sm;
-  padding: $spacer * 1.5;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  padding: $spacer * 1.25;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+  }
 }
 
+// ===========================================================
+// 🧮 TASK CARDS — Clean + Consistent
+// ===========================================================
 .task-card {
-  border-left: 4px solid $primary;
+  border-left: 4px solid $brand;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 
-  .task-card-status.bg-primary {
-    background-color: $secondary !important;
+  // Title
+  .task-card-title,
+  .card-title {
+    color: $brand;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+
+    a {
+      color: inherit;
+      text-decoration: none;
+
+      &:hover {
+        color: color.scale($brand, $lightness: -10%);
+      }
+    }
   }
+
+  // Description
+  .task-card-desc {
+    font-size: 0.9rem;
+    color: $color-text-muted;
+    line-height: 1.5;
+    margin-bottom: 0.5rem;
+  }
+
+  // Meta
+  .task-card-meta {
+    font-size: 0.85rem;
+    color: $color-text-muted;
+
+    strong {
+      color: $neutral-900;
+    }
+  }
+
+  // Status badge
+  .task-card-status {
+    display: inline-block;
+    background-color: $brand-soft;
+    color: $brand;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.3rem 0.6rem;
+    border-radius: 20px;
+    border: 1px solid color.scale($brand, $lightness: -10%);
+    text-transform: capitalize;
+
+    &.bg-brand {
+      background-color: $brand !important;
+      color: #fff !important;
+    }
+
+    &.bg-success {
+      background-color: color.scale($success, $lightness: 10%);
+      color: color.scale($success, $lightness: -20%);
+    }
+
+    &.bg-warning {
+      background-color: color.scale($warning, $lightness: 15%);
+      color: $neutral-900;
+    }
+
+    &.bg-danger {
+      background-color: color.scale($danger, $lightness: 5%);
+      color: #fff;
+    }
+  }
+
+  // Buttons section
+  .d-flex.justify-content-end {
+    margin-top: auto;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+
+    .btn {
+      min-width: 85px;
+      font-size: 0.8rem;
+      border-radius: 0.4rem;
+    }
+  }
+}
+
+// ===========================================================
+// 🧩 GRID LAYOUT
+// ===========================================================
+.task-cards-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1rem;
+
+  .col-md-6,
+  .col-lg-4 {
+    display: flex;
+  }
+
+  .task-card {
+    flex: 1;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+    &:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+    }
+  }
+}
+
+// ===========================================================
+// 🏷️ BADGES & NOTES
+// ===========================================================
+.badge.bg-brand {
+  background-color: $brand !important;
+  color: #fff !important;
 }
 
 .note-type-badge {
   font-size: 0.75rem;
   padding: 0.25rem 0.5rem;
   border-radius: $radius;
-  background-color: $gray-200;
-  color: $deep;
+  background-color: $neutral-100;
+  color: $neutral-900;
 }
 
-.saved-flash {
-  animation: flashHighlight 0.8s ease;
-}
-
-@keyframes flashHighlight {
-  0% {
-    background-color: $accent;
-  }
-  100% {
-    background-color: $color-bg-panel;
-  }
-}
-
-.table.compact-table > :not(caption) > * > * {
-  padding: 0.4rem 0.5rem;
-}
-
-// Utility spacing for card actions
-.card-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: $spacer;
-} 
-
-// Header styling inside cards
-.card-header {
-  font-weight: 600;
-  font-size: 1.1rem;
-  margin-bottom: $spacer;
-  color: $deep;
-}
-
-// Card meta info
-.task-card-meta,
-.note-meta {
-  font-size: 0.875rem;
-  color: $color-text-muted;
-  margin-bottom: 0.5rem;
-}
-
-// Card body text
-.task-card-desc,
 .note-body,
 .message-body {
-  font-size: 1rem;
-  color: $deep;
+  font-size: 0.95rem;
+  color: $neutral-900;
   line-height: 1.5;
-} 
-
-// ✅ Task cards — remove unwanted blue tint / link colours
-.task-card,
-.card.task-card {
-  background: $color-bg-panel;
-  border: 1px solid $color-border;
-  box-shadow: $shadow-sm;
 }
 
-// Titles and links inside task cards: neutral by default
-.task-card .card-title,
-.task-card .card-title a,
-.task-card a {
-  color: $color-text-dark !important; // neutralise default link blue
-  text-decoration: none;
-
-  &:hover {
-    color: $primary; // optional hover accent
-  }
-}
-
-// Keep brand primary only where intended
-.task-card .badge-primary,
-.task-card .text-primary,
-.task-card .link-primary {
-  color: $primary !important;
-}
-
-// If the framework injects link-style buttons, normalize them
-.task-card .btn-link {
-  color: $color-text-dark;
-
-  &:hover {
-    color: $primary;
-  }
-}
+// ===========================================================
+// ✨ INTERACTION FEEDBACK
+// =================
