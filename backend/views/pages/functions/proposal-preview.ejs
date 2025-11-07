@@ -1,6 +1,25 @@
 
 <% locals.layout = 'layouts/main'; %>
 
+<%
+  const formatPlain = (value) => {
+    return String(value || '')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\r/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  };
+  const formatTime = (value) => {
+    if (!value) return null;
+    const str = String(value);
+    return str.length >= 5 ? str.slice(0, 5) : str;
+  };
+  const startTime = formatTime(fn?.start_time);
+  const endTime = formatTime(fn?.end_time);
+%>
+
 <div class="proposal-preview container py-4">
   <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3 mb-4">
     <div>
@@ -25,12 +44,24 @@
             <dd class="col-7 text-end text-md-start"><%= fn.event_name %></dd>
             <dt class="col-5">Event Date</dt>
             <dd class="col-7 text-end text-md-start"><%= fn.event_date ? new Date(fn.event_date).toLocaleDateString() : 'TBC' %></dd>
+            <% if (fn.status) { %>
+              <dt class="col-5">Status</dt>
+              <dd class="col-7 text-end text-md-start"><%= fn.status %></dd>
+            <% } %>
             <dt class="col-5">Attendees</dt>
             <dd class="col-7 text-end text-md-start"><%= fn.attendees || 0 %></dd>
+            <dt class="col-5">Start Time</dt>
+            <dd class="col-7 text-end text-md-start"><%= startTime || '--:--' %></dd>
+            <dt class="col-5">Finish Time</dt>
+            <dd class="col-7 text-end text-md-start"><%= endTime || '--:--' %></dd>
+            <% if (fn.room_name) { %>
+              <dt class="col-5">Room</dt>
+              <dd class="col-7 text-end text-md-start"><%= fn.room_name %></dd>
+            <% } %>
           </dl>
         </div>
-        <div class="col-md-6">
-          <% if ((contacts || []).length) { %>
+        <% if ((contacts || []).length) { %>
+        <div class="col-md-6 mt-4 mt-md-0">
             <h5 class="mb-1 fw-semibold">Contacts</h5>
             <ul class="list-unstyled small mb-0 mt-3">
               <% contacts.forEach(contact => { %>
@@ -40,23 +71,46 @@
                 </li>
               <% }) %>
             </ul>
-          <% } else { %>
-            <div class="alert alert-secondary mb-0 small">No contacts selected.</div>
-          <% } %>
         </div>
+        <% } %>
       </div>
     </div>
   </section>
 
-  <section class="card shadow-sm mb-4">
-    <div class="card-header bg-light fw-semibold">Menus &amp; Pricing</div>
-    <div class="card-body">
-      <div id="previewMenuMount" class="d-flex flex-column gap-3"></div>
-      <% if (!items.length) { %>
-        <div class="alert alert-secondary mb-0">No quote items currently selected.</div>
-      <% } %>
-    </div>
-  </section>
+  <% if ((items || []).length) { %>
+    <section class="card shadow-sm mb-4">
+      <div class="card-header bg-light fw-semibold">Menus &amp; Pricing</div>
+      <div class="card-body">
+        <div id="previewMenuMount" class="d-flex flex-column gap-3"></div>
+      </div>
+    </section>
+  <% } %>
+
+  <% if (totals) { %>
+    <section class="card shadow-sm mb-4">
+      <div class="card-header bg-light fw-semibold">Financial Summary</div>
+      <div class="card-body small">
+        <dl class="row mb-0">
+          <dt class="col-sm-6">Subtotal</dt>
+          <dd class="col-sm-6 text-end text-sm-start">$<%= Number(totals.subtotal || 0).toFixed(2) %></dd>
+          <% if (Number(totals.gratuity_amount || 0) > 0) { %>
+            <dt class="col-sm-6">Gratuity (<%= Number(totals.gratuity_percent || 0).toFixed(2) %>%)</dt>
+            <dd class="col-sm-6 text-end text-sm-start">$<%= Number(totals.gratuity_amount || 0).toFixed(2) %></dd>
+          <% } %>
+          <% if (Number(totals.discount_amount || 0) > 0) { %>
+            <dt class="col-sm-6">Discount</dt>
+            <dd class="col-sm-6 text-end text-sm-start">$<%= Number(totals.discount_amount || 0).toFixed(2) %></dd>
+          <% } %>
+          <dt class="col-sm-6">Deposit</dt>
+          <dd class="col-sm-6 text-end text-sm-start">$<%= Number(totals.deposit_amount || 0).toFixed(2) %></dd>
+          <dt class="col-sm-6">Total Paid</dt>
+          <dd class="col-sm-6 text-end text-sm-start">$<%= Number(totals.total_paid || 0).toFixed(2) %></dd>
+          <dt class="col-sm-6 fw-semibold">Remaining Due</dt>
+          <dd class="col-sm-6 text-end text-sm-start fw-semibold">$<%= Number(totals.remaining_due || 0).toFixed(2) %></dd>
+        </dl>
+      </div>
+    </section>
+  <% } %>
 
   <% if ((sections || []).length) { %>
     <section class="card shadow-sm mb-4">
@@ -65,7 +119,12 @@
         <% sections.forEach((section, idx) => { %>
           <div>
             <div class="fw-semibold mb-1">Section <%= idx + 1 %></div>
-            <div class="proposal-section-text"><%- (section.content || '').replace(/\n/g, '<br>') %></div>
+            <% 
+              const sectionBody = section?.content || '';
+              const hasMarkup = /<[a-z][\s\S]*>/i.test(sectionBody);
+              const renderedSection = hasMarkup ? sectionBody : formatPlain(sectionBody).replace(/\n/g, '<br>');
+            %>
+            <div class="proposal-section-text"><%- renderedSection %></div>
           </div>
         <% }) %>
       </div>
@@ -76,7 +135,7 @@
     <section class="card shadow-sm page-break">
       <div class="card-header bg-light fw-semibold">Terms &amp; Conditions</div>
       <div class="card-body proposal-terms small">
-        <%- String(terms).replace(/\n/g, '<br>') %>
+        <%- formatPlain(terms).replace(/\n/g, '<br>') %>
       </div>
     </section>
   <% } %>
@@ -168,29 +227,46 @@
         const block = document.createElement('div');
         block.className = 'menu-block';
         block.innerHTML = `<div class="menu-title">${menu.title}</div>`;
+        const table = document.createElement('table');
+        table.className = 'table table-sm proposal-menu-table';
+        table.innerHTML = `
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th style="width: 60px;">Qty</th>
+              <th style="width: 90px;">Each</th>
+              <th style="width: 110px;" class="text-end">Total</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        `;
+        const tbody = table.querySelector('tbody');
+        menu.items.forEach((item) => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${item.name}</td>
+            <td>${item.qty}</td>
+            <td>$${Number(item.priceEach).toFixed(2)}</td>
+            <td class="text-end">$${Number(item.total).toFixed(2)}</td>
+          `;
+          tbody.appendChild(row);
+        });
         if (menu.basePrice) {
-          block.innerHTML += `<div class="menu-base">Base Price: $${Number(menu.basePrice).toFixed(2)}</div>`;
+          const tfoot = document.createElement('tfoot');
+          tfoot.innerHTML = `
+            <tr>
+              <th colspan="3" class="text-end">Base Price</th>
+              <th class="text-end">$${Number(menu.basePrice).toFixed(2)}</th>
+            </tr>
+          `;
+          table.appendChild(tfoot);
         }
-
-        if (menu.items.length) {
-          const head = document.createElement('div');
-          head.className = 'menu-row head';
-          head.innerHTML = '<div>Item</div><div>Qty</div><div>Each</div><div>Total</div>';
-          block.appendChild(head);
-          menu.items.forEach((item) => {
-            const row = document.createElement('div');
-            row.className = 'menu-row';
-            row.innerHTML = `
-              <div>${item.name}</div>
-              <div>${item.qty}</div>
-              <div>$${Number(item.priceEach).toFixed(2)}</div>
-              <div>$${Number(item.total).toFixed(2)}</div>
-            `;
-            block.appendChild(row);
-          });
-        } else {
-          block.innerHTML += '<div class="menu-empty">No optional items included.</div>';
+        if (!menu.items.length) {
+          const emptyRow = document.createElement('tr');
+          emptyRow.innerHTML = `<td colspan="4" class="text-muted fst-italic">No optional items included.</td>`;
+          tbody.appendChild(emptyRow);
         }
+        block.appendChild(table);
         body.appendChild(block);
       });
 
@@ -201,6 +277,21 @@
 </script>
 
 <style>
+  .proposal-preview {
+    font-size: 11pt;
+    line-height: 14pt;
+  }
+  .proposal-preview p,
+  .proposal-preview li,
+  .proposal-preview table,
+  .proposal-preview dl,
+  .proposal-preview td,
+  .proposal-preview th,
+  .proposal-preview .proposal-section-text,
+  .proposal-preview .proposal-terms {
+    font-size: 11pt;
+    line-height: 14pt;
+  }
   .proposal-summary-card {
     border: 1px solid #dde1e6;
     border-radius: 10px;
@@ -215,47 +306,32 @@
     padding: 12px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
   }
-  .proposal-summary-card .menu-title {
-    font-weight: 600;
-    margin-bottom: 4px;
-  }
-  .proposal-summary-card .menu-base {
-    font-size: 12px;
-    color: #6c757d;
-    margin-bottom: 6px;
-  }
-  .proposal-summary-card .menu-row {
-    display: grid;
-    grid-template-columns: 1fr 50px 70px 80px;
-    gap: 6px;
-    font-size: 13px;
-    padding: 3px 0;
-    border-bottom: 1px solid #eef1f5;
-  }
-  .proposal-summary-card .menu-row.head {
-    font-weight: 600;
-    color: #6c757d;
-    border-bottom: 1px solid #d9dee6;
-  }
-  .proposal-summary-card .menu-row:last-child {
-    border-bottom: 0;
-  }
-  .proposal-summary-card .menu-empty {
-    font-size: 12px;
-    color: #999;
+  .proposal-menu-table thead th {
+    background: #f8f9fb;
   }
   .page-break {
     page-break-before: always;
     margin-top: 32px;
   }
+  @page {
+    size: A4;
+    margin: 20mm;
+  }
   @media print {
+    body {
+      font-size: 11pt;
+      line-height: 14pt;
+    }
     .btn-toolbar {
       display: none !important;
     }
     .page-break {
       page-break-before: always;
+    }
+    .proposal-menu-table thead {
+      display: table-header-group;
     }
   }
 </style>

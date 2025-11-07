@@ -1,24 +1,39 @@
 <%
-  const builderHeading = typeof builderHeading !== 'undefined' ? builderHeading : 'Proposal Builder';
-  const builderDescription =
+  const stripHtml = (value) => {
+    return String(value || "")
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\r/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  };
+  const resolvedBuilderHeading =
+    typeof builderHeading !== 'undefined'
+      ? builderHeading
+      : 'Proposal Builder';
+  const resolvedBuilderDescription =
     typeof builderDescription !== 'undefined'
       ? builderDescription
-      : 'Choose what flows through to the customer proposal, including menus, notes, contacts, and terms.';
+      : 'Choose what flows through to the customer proposal, including notes, contacts, and terms.';
   const builderContacts = contacts || [];
-  const builderSections = (saved && saved.sections) ? saved.sections : [];
-  const builderTerms = saved && saved.terms ? saved.terms : '';
+  const builderSections = ((saved && saved.sections) ? saved.sections : []).map((section) => ({
+    content: section?.content || '',
+  }));
+  const builderTerms = stripHtml(saved && saved.terms ? saved.terms : '');
   const includeContactIds = (saved && saved.includeContactIds ? saved.includeContactIds : []).map(String);
-  const templatesList = templates || [];
+  const selectedTermIds = (saved && Array.isArray(saved.termIds) ? saved.termIds : []).map(String);
   const termsLibraryList = termsLibrary || [];
-  const builderId = typeof builderId !== 'undefined' ? builderId : 'proposalBuilder';
+  const functionNotesList = functionNotes || [];
+  const resolvedBuilderId = typeof builderId !== 'undefined' ? builderId : 'proposalBuilder';
   const proposalCount = (proposalItems || []).length;
 %>
 
-<section class="proposal-builder-card" data-proposal-builder data-function-id="<%= fn.id_uuid %>" data-proposal-id="<%= proposalId || '' %>" data-attendees="<%= Number(fn.attendees || 0) %>">
+<section class="proposal-builder-card" data-proposal-builder data-builder-id="<%= resolvedBuilderId %>" data-function-id="<%= fn.id_uuid %>" data-proposal-id="<%= proposalId || '' %>" data-attendees="<%= Number(fn.attendees || 0) %>">
   <div class="proposal-builder__intro d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
     <div>
-      <p class="proposal-builder__title mb-1"><%= builderHeading %></p>
-      <p class="proposal-builder__subtitle mb-0 text-muted"><%= builderDescription %></p>
+      <p class="proposal-builder__title mb-1"><%= resolvedBuilderHeading %></p>
+      <p class="proposal-builder__subtitle mb-0 text-muted"><%= resolvedBuilderDescription %></p>
     </div>
     <div class="btn-toolbar gap-2">
       <button type="button" class="btn btn-outline-primary btn-sm" data-role="preview-btn" <%= proposalId ? '' : 'disabled' %>>
@@ -36,29 +51,23 @@
   <div class="row g-4 mt-2 proposal-builder__grid">
     <div class="col-lg-7">
       <section class="proposal-panel mb-3">
-        <div class="proposal-panel__header">Included Menus &amp; Items</div>
-        <div class="proposal-panel__body">
-          <div class="proposal-menu-summary" data-role="menu-summary"></div>
-          <div class="alert alert-secondary mb-0 <%= proposalCount ? 'd-none' : '' %>" data-role="menu-empty">
-            No menu items selected yet. Configure or resync the quote to populate this list.
-          </div>
-        </div>
-      </section>
-
-      <section class="proposal-panel mb-3">
-        <div class="proposal-panel__header d-flex flex-column flex-md-row gap-2 justify-content-between align-items-md-center">
+        <div class="proposal-panel__header d-flex flex-column flex-xl-row gap-2 justify-content-between align-items-xl-center">
           <span>Notes &amp; Sections</span>
-          <div class="d-flex gap-2 flex-wrap">
-            <select class="form-select form-select-sm" data-role="template-picker">
-              <option value="">Insert template...</option>
-              <% templatesList.forEach(template => { %>
-                <option value="<%= template.id %>">
-                  <%= template.name %><%= template.category ? ' (' + template.category + ')' : '' %>
-                </option>
-              <% }) %>
-            </select>
-            <button type="button" class="btn btn-sm btn-outline-primary" data-role="add-template">Add</button>
-          </div>
+          <% if (functionNotesList.length) { %>
+            <div class="d-flex gap-2 flex-wrap">
+              <select class="form-select form-select-sm" data-role="note-picker">
+                <option value="">Insert function note...</option>
+                <% functionNotesList.forEach(note => { %>
+                  <option value="<%= note.id %>">
+                    <%= note.note_type ? note.note_type.charAt(0).toUpperCase() + note.note_type.slice(1) + ' ' : '' %>
+                    Note #<%= note.id %>
+                    (<%= note.created_at ? new Date(note.created_at).toLocaleDateString('en-NZ') : '' %>)
+                  </option>
+                <% }) %>
+              </select>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-role="add-note">Add Note</button>
+            </div>
+          <% } %>
         </div>
         <div class="proposal-panel__body">
           <ul class="proposal-section-list list-unstyled mb-0" data-role="sections-list">
@@ -71,7 +80,7 @@
                     <span class="proposal-section-label fw-semibold">Section <span data-role="section-index"><%= idx + 1 %></span></span>
                     <button type="button" class="btn btn-sm btn-outline-danger" data-role="remove-section">Remove</button>
                   </div>
-                  <textarea class="form-control section-content" rows="4" data-role="section-content"><%= section.content || '' %></textarea>
+                  <div class="form-control section-content" data-role="section-content" contenteditable="true"><%- section.content || '' %></div>
                 </li>
               <% }) %>
             <% } %>
@@ -83,20 +92,25 @@
         <div class="proposal-panel__header">Terms &amp; Conditions</div>
         <div class="proposal-panel__body">
           <% if (termsLibraryList.length) { %>
-            <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-              <select class="form-select form-select-sm" data-role="terms-picker">
-                <option value="">Load saved terms...</option>
-                <% termsLibraryList.forEach(term => { %>
-                  <option value="<%= term.id %>">
-                    <%= term.name %><%= term.is_default ? ' (Default)' : '' %>
-                  </option>
-                <% }) %>
-              </select>
-              <button type="button" class="btn btn-sm btn-outline-secondary" data-role="load-terms">Insert</button>
+            <div class="proposal-terms-list vstack gap-2 mb-3">
+              <% termsLibraryList.forEach(term => { %>
+                <label class="form-check small term-option">
+                  <input class="form-check-input" type="checkbox" value="<%= term.id %>" data-role="term-select" <%= selectedTermIds.includes(String(term.id)) ? 'checked' : '' %>>
+                  <span class="form-check-label">
+                    <strong><%= term.name %></strong>
+                    <span class="text-muted ms-1"><%= term.category || 'General' %></span>
+                    <% if (term.is_default) { %>
+                      <span class="badge bg-primary-subtle text-primary ms-2">Default</span>
+                    <% } %>
+                  </span>
+                </label>
+              <% }) %>
             </div>
           <% } %>
-          <textarea class="form-control" rows="5" data-role="terms-input" placeholder="Enter or paste your terms..."><%= builderTerms %></textarea>
-          <div class="form-text mt-2">Terms are always rendered on a separate page in the proposal.</div>
+          <textarea class="form-control" rows="5" data-role="terms-input" placeholder="Add custom wording..."><%= builderTerms %></textarea>
+          <div class="form-text mt-2">
+            Selected standard terms appear first, followed by any custom additions. Terms are rendered on a separate page.
+          </div>
         </div>
       </section>
     </div>
@@ -130,21 +144,6 @@
         </div>
       </section>
 
-      <section class="proposal-panel">
-        <div class="proposal-panel__header">Proposal Snapshot</div>
-        <div class="proposal-panel__body small">
-          <dl class="row mb-0">
-            <dt class="col-6">Event Date</dt>
-            <dd class="col-6 text-end"><%= fn.event_date ? new Date(fn.event_date).toLocaleDateString() : 'TBC' %></dd>
-            <dt class="col-6">Attendees</dt>
-            <dd class="col-6 text-end"><%= fn.attendees || 0 %></dd>
-            <dt class="col-6">Quote Total</dt>
-            <dd class="col-6 text-end">$<%= Number(fn.totals_price || 0).toFixed(2) %></dd>
-            <dt class="col-6">Linked Items</dt>
-            <dd class="col-6 text-end"><%= proposalCount %></dd>
-          </dl>
-        </div>
-      </section>
     </div>
   </div>
 
@@ -157,7 +156,25 @@
   </ul>
 </section>
 
+<script>
+  window.savedProposalState = Object.assign(
+    { includeItemIds: [], includeContactIds: [], sections: [], terms: '', termIds: [] },
+    <%- JSON.stringify(saved || { includeItemIds: [], includeContactIds: [], sections: [], terms: '', termIds: [] }) %>
+  );
+</script>
+
 <style>
+  .proposal-builder-card,
+  .proposal-builder-card p,
+  .proposal-builder-card li,
+  .proposal-builder-card label,
+  .proposal-builder-card .form-control,
+  .proposal-builder-card .form-select,
+  .proposal-builder-card .btn,
+  .proposal-builder-card textarea,
+  .proposal-builder-card input {
+    font-size: 12.8px;
+  }
   .proposal-builder-card {
     border: 1px solid #e3e7ef;
     border-radius: 16px;
@@ -185,63 +202,22 @@
   .proposal-panel__body {
     padding: 1rem 1.1rem 1.2rem;
   }
-  .proposal-menu-summary {
-    display: grid;
-    gap: 16px;
-  }
-  @media (min-width: 992px) {
-    .proposal-menu-summary {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-  .proposal-summary-card {
-    border: 1px solid #dde1e6;
-    border-radius: 10px;
-    overflow: hidden;
-    background: #fafbff;
-  }
-  .proposal-summary-card .hdr {
-    background: #f4f6fa;
-    padding: 8px 12px;
-    font-weight: 600;
-  }
-  .proposal-summary-card .body {
-    padding: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .proposal-summary-card .menu-title {
-    font-weight: 600;
-    margin-bottom: 4px;
-  }
-  .proposal-summary-card .menu-base {
-    font-size: 12px;
-    color: #6c757d;
-    margin-bottom: 6px;
-  }
-  .proposal-summary-card .menu-row {
-    display: grid;
-    grid-template-columns: 1fr 50px 70px 80px;
-    gap: 6px;
-    font-size: 13px;
-    padding: 3px 0;
-    border-bottom: 1px solid #eef1f5;
-  }
-  .proposal-summary-card .menu-row.head {
-    font-weight: 600;
-    color: #6c757d;
-    border-bottom: 1px solid #d9dee6;
-  }
-  .proposal-summary-card .menu-row:last-child {
-    border-bottom: 0;
-  }
-  .proposal-summary-card .menu-empty {
-    font-size: 12px;
-    color: #999;
-  }
   .proposal-section-empty {
     padding: 0.5rem;
+  }
+  .section-content {
+    min-height: 110px;
+    border: 1px solid #dfe3ec;
+    border-radius: 0.65rem;
+    padding: 0.75rem 0.85rem;
+    background: #fff;
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
+  .section-content:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.15);
   }
   .proposal-contact-option {
     padding: 0.35rem 0;
@@ -269,4 +245,5 @@
 
 <script>
   window.proposalTermsLibrary = <%- JSON.stringify(termsLibraryList || []) %>;
+  window.functionNotesLibrary = <%- JSON.stringify(functionNotesList || []) %>;
 </script>

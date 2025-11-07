@@ -7,6 +7,20 @@
     display: flex;
     flex-direction: column;
   }
+  .quote-page,
+  .quote-page p,
+  .quote-page li,
+  .quote-page table,
+  .quote-page td,
+  .quote-page th,
+  .quote-page label,
+  .quote-page input,
+  .quote-page select,
+  .quote-page button,
+  .quote-page .form-control,
+  .quote-page .form-select {
+    font-size: 12.8px;
+  }
   .quote-stage {
     display: flex;
     flex-direction: column;
@@ -122,9 +136,6 @@
       </button>
       <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#addMenuModal">
         <i class="bi bi-list-plus me-1"></i> Add Menu
-      </button>
-      <button id="resyncMenusBtn" class="btn btn-outline-warning">
-        <i class="bi bi-arrow-repeat me-1"></i> Resync Menus to Proposal
       </button>
     </div>
   </div>
@@ -332,7 +343,6 @@
   document.addEventListener('DOMContentLoaded', () => {
     const list = document.getElementById('proposalItemsList');
     const mount = document.getElementById('quoteMenuMount');
-    const resyncBtn = document.getElementById('resyncMenusBtn');
     const totalsForm = document.getElementById('totalsForm');
     const editTotalsBtn = document.getElementById('editTotalsBtn');
     const resetQuoteBtn = document.getElementById('resetQuoteBtn');
@@ -679,24 +689,6 @@
         }
       }
     });
-
-    if (resyncBtn) {
-      resyncBtn.addEventListener('click', async () => {
-        if (!confirm('Resync all menus from their current definitions?')) return;
-        resyncBtn.disabled = true;
-        try {
-          const res = await fetch(`/functions/${fnId}/quote/resync-all`, { method: 'POST' });
-          const data = await res.json();
-          if (!data.success) throw new Error(data.error || 'Failed to resync menus');
-          location.reload();
-        } catch (err) {
-          console.error(err);
-          alert(err.message || 'Resync failed.');
-        } finally {
-          resyncBtn.disabled = false;
-        }
-      });
-    }
 
     if (editTotalsBtn && totalsForm) {
       editTotalsBtn.addEventListener('click', () => {

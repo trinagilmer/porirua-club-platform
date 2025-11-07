@@ -453,7 +453,6 @@ router.post('/builder/menus/:menu_id/link', async (req, res) => {
 
     return res.status(201).json({ success: true, data: rows[0] || null });
   } catch (err) {
-    await client.query('ROLLBACK');
     console.error('POST link existing choice error:', err);
     const missingUnit =
       err.message && err.message.includes('No menu units configured');
@@ -461,8 +460,6 @@ router.post('/builder/menus/:menu_id/link', async (req, res) => {
       success: false,
       error: missingUnit ? err.message : 'Failed to link choice',
     });
-  } finally {
-    client.release();
   }
 });
 

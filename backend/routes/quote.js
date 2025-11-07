@@ -1,6 +1,8 @@
+/* eslint-disable no-useless-escape */
 const express = require("express");
 const router = express.Router();
 const { pool } = require("../db");
+const { renderNote } = require("../services/templateRenderer");
 
 // ------------------------------------------------------
 // Helpers
@@ -71,29 +73,37 @@ async function recalcTotals(client, proposalId) {
   } = await client.query(
     `SELECT gratuity_percent,
             discount_amount,
-            deposit_amount,
-            total_paid
+            deposit_amount
        FROM proposal_totals
       WHERE proposal_id = $1
       LIMIT 1`,
+    [proposalId]
+  );
+  const {
+    rows: [paymentRow],
+  } = await client.query(
+    `SELECT COALESCE(SUM(amount), 0) AS total_paid
+       FROM payments
+      WHERE proposal_id = $1`,
     [proposalId]
   );
 
   const gratuityPercent = Number(currentTotals?.gratuity_percent) || 0;
   const discountAmount = Number(currentTotals?.discount_amount) || 0;
   const depositAmount = Number(currentTotals?.deposit_amount) || 0;
-  const totalPaid = Number(currentTotals?.total_paid) || 0;
+  const totalPaid = Number(paymentRow?.total_paid) || 0;
   const gratuityAmount = (subtotal * gratuityPercent) / 100;
-  const remaining =
-    subtotal + gratuityAmount - discountAmount - depositAmount - totalPaid;
+  const finalTotal = subtotal + gratuityAmount - discountAmount;
+  const remaining = finalTotal - depositAmount - totalPaid;
 
   await client.query(
     `UPDATE proposal_totals
         SET subtotal = $1,
             gratuity_amount = $2,
-            remaining_due = $3
-      WHERE proposal_id = $4`,
-    [subtotal, gratuityAmount, remaining, proposalId]
+            total_paid = $3,
+            remaining_due = $4
+      WHERE proposal_id = $5`,
+    [subtotal, gratuityAmount, totalPaid, remaining, proposalId]
   );
 
   await client.query(
@@ -103,7 +113,7 @@ async function recalcTotals(client, proposalId) {
        FROM proposals p
       WHERE p.id = $3
         AND p.function_id = f.id_uuid`,
-    [subtotal, costTotal, proposalId]
+    [finalTotal, costTotal, proposalId]
   );
 }
 
@@ -140,6 +150,42 @@ function extractMetadata(description = "") {
     meta[match[1].toLowerCase()] = match[2];
   }
   return meta;
+}
+
+function buildNoteContext(fn, contacts = [], rooms = []) {
+  const safeFn = fn || {};
+  const primaryContact = contacts.find((contact) => contact.is_primary) || contacts[0] || null;
+  const activeRoom =
+    rooms.find((room) => String(room.id) === String(safeFn?.room_id)) ||
+    rooms.find((room) => room.id === safeFn?.room_id) ||
+    null;
+  const event = {
+    name: safeFn?.event_name || "",
+    event_name: safeFn?.event_name || "",
+    date: safeFn?.event_date || "",
+    attendees: safeFn?.attendees || 0,
+    start_time: safeFn?.start_time || "",
+    end_time: safeFn?.end_time || "",
+    type: safeFn?.event_type || "",
+    event_type: safeFn?.event_type || "",
+    budget: safeFn?.budget || 0,
+    room: activeRoom?.name || "",
+    room_id: safeFn?.room_id || activeRoom?.id || "",
+  };
+  return {
+    event,
+    function: { ...safeFn },
+    contact: primaryContact || {},
+    contacts,
+    room: activeRoom || {},
+    rooms,
+    totals: {
+      price: safeFn?.totals_price || 0,
+      cost: safeFn?.totals_cost || 0,
+      budget: safeFn?.budget || 0,
+      attendees: safeFn?.attendees || 0,
+    },
+  };
 }
 
 async function addMenuBundle(client, functionId, proposalId, menuId) {
@@ -312,16 +358,22 @@ router.get("/:functionId/quote", async (req, res) => {
 
   try {
     const { rows: fnRows } = await pool.query(
-      `SELECT id_uuid,
-              event_name,
-              event_date,
-              status,
-              attendees,
-              totals_price,
-              totals_cost,
-              budget
-         FROM functions
-        WHERE id_uuid = $1
+      `SELECT f.id_uuid,
+              f.event_name,
+              f.event_date,
+              f.status,
+              f.event_type,
+              f.attendees,
+              f.totals_price,
+              f.totals_cost,
+              f.budget,
+              f.start_time,
+              f.end_time,
+              f.room_id,
+              r.name AS room_name
+         FROM functions f
+    LEFT JOIN rooms r ON r.id = f.room_id
+        WHERE f.id_uuid = $1
         LIMIT 1`,
       [functionId]
     );
@@ -390,7 +442,7 @@ router.get("/:functionId/quote", async (req, res) => {
 
     const sessionSaved =
       (req.session.proposalBuilder && req.session.proposalBuilder[functionId]) ||
-      { includeItemIds: [], includeContactIds: [], sections: [], terms: "" };
+      { includeItemIds: [], includeContactIds: [], sections: [], terms: "", termIds: [] };
 
     const proposalBuilderSaved = {
       includeItemIds: Array.isArray(sessionSaved.includeItemIds)
@@ -405,6 +457,9 @@ router.get("/:functionId/quote", async (req, res) => {
           }))
         : [],
       terms: sessionSaved.terms || "",
+      termIds: Array.isArray(sessionSaved.termIds)
+        ? sessionSaved.termIds.map(String)
+        : [],
     };
 
     const [
@@ -416,6 +471,7 @@ router.get("/:functionId/quote", async (req, res) => {
       menusRes,
       templateRes,
       termsRes,
+      functionNotesRes,
     ] = await Promise.all([
       pool.query(
         `SELECT c.id, c.name, c.email, c.phone, fc.is_primary
@@ -440,7 +496,35 @@ router.get("/:functionId/quote", async (req, res) => {
            FROM proposal_settings
           ORDER BY COALESCE(is_default, FALSE) DESC, name ASC`
       ),
+      pool.query(
+        `SELECT id, note_type, content, rendered_html, created_at
+           FROM function_notes
+          WHERE function_id = $1
+          ORDER BY created_at DESC`,
+        [functionId]
+      ),
     ]);
+
+    if (!proposalBuilderSaved.termIds.length && termsRes.rows.length) {
+      const defaultTerm = termsRes.rows.find((term) => term.is_default) || termsRes.rows[0];
+      if (defaultTerm) {
+        proposalBuilderSaved.termIds = [String(defaultTerm.id)];
+        sessionSaved.termIds = proposalBuilderSaved.termIds;
+        req.session.proposalBuilder = req.session.proposalBuilder || {};
+        req.session.proposalBuilder[functionId] = sessionSaved;
+      }
+    }
+
+    const noteContext = buildNoteContext(fn, contactsRes.rows, roomsRes.rows);
+    const functionNotes = await Promise.all(
+      functionNotesRes.rows.map(async (note) => {
+        const rendered = await renderNote(
+          { raw_html: note.content, rendered_html: note.rendered_html },
+          noteContext
+        );
+        return { ...note, rendered_content: rendered };
+      })
+    );
 
     if (!proposalBuilderSaved.terms && termsRes.rows.length) {
       const defaultTerms =
@@ -476,6 +560,7 @@ router.get("/:functionId/quote", async (req, res) => {
       templates: templateRes.rows,
       proposalBuilderSaved,
       termsLibrary: termsRes.rows,
+      functionNotes,
     });
   } catch (err) {
     console.error("[Quote] Error loading quote page:", err);
@@ -759,59 +844,43 @@ router.post("/:proposalId/totals/update", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    const {
-      rows: [{ subtotal }],
-    } = await client.query(
-      `SELECT COALESCE(SUM(unit_price), 0) AS subtotal
-         FROM proposal_items
-        WHERE proposal_id = $1`,
-      [proposalId]
-    );
-
-    let gratuityAmount = (subtotal * (Number(gratuity_percent) || 0)) / 100;
-    let discountAmount = Number(discount_amount) || 0;
-    const depositAmount = Number(deposit_amount) || 0;
-
-    if (override_total !== null && override_total !== "") {
-      const desired = Number(override_total) || 0;
-      const neededDiscount = subtotal + gratuityAmount - desired;
-      discountAmount = Math.max(0, neededDiscount);
-    }
-
-    const totalPaid = 0;
-    const remaining =
-      subtotal + gratuityAmount - discountAmount - depositAmount - totalPaid;
-
     await client.query(
       `UPDATE proposal_totals
-          SET subtotal = $1,
-              gratuity_percent = $2,
-              gratuity_amount = $3,
-              discount_amount = $4,
-              deposit_amount = $5,
-              total_paid = $6,
-              remaining_due = $7
-        WHERE proposal_id = $8`,
+          SET gratuity_percent = $1,
+              discount_amount = $2,
+              deposit_amount = $3
+        WHERE proposal_id = $4`,
       [
-        subtotal,
-        gratuity_percent || 0,
-        gratuityAmount,
-        discountAmount,
-        depositAmount,
-        totalPaid,
-        remaining,
+        Number(gratuity_percent) || 0,
+        Number(discount_amount) || 0,
+        Number(deposit_amount) || 0,
         proposalId,
       ]
     );
 
-    await client.query(
-      `UPDATE functions f
-          SET totals_price = $1
-         FROM proposals p
-        WHERE p.id = $2
-          AND p.function_id = f.id_uuid`,
-      [subtotal, proposalId]
-    );
+    let discountValue = Number(discount_amount) || 0;
+    if (override_total !== null && override_total !== "") {
+      const {
+        rows: [{ subtotal }],
+      } = await client.query(
+        `SELECT COALESCE(SUM(unit_price), 0) AS subtotal
+           FROM proposal_items
+          WHERE proposal_id = $1`,
+        [proposalId]
+      );
+      const gratuityAmount = (subtotal * (Number(gratuity_percent) || 0)) / 100;
+      const desired = Number(override_total) || 0;
+      const neededDiscount = subtotal + gratuityAmount - desired;
+      discountValue = Math.max(0, neededDiscount);
+      await client.query(
+        `UPDATE proposal_totals
+            SET discount_amount = $1
+          WHERE proposal_id = $2`,
+        [discountValue, proposalId]
+      );
+    }
+
+    await recalcTotals(client, proposalId);
 
     await client.query("COMMIT");
     res.json({ success: true });
@@ -944,16 +1013,29 @@ router.get("/:functionId/proposal", async (req, res) => {
   const { functionId } = req.params;
   try {
     const { rows: fnRows } = await pool.query(
-      `SELECT id_uuid, event_name, event_date, attendees, totals_price
-         FROM functions
-        WHERE id_uuid = $1
+      `SELECT f.id_uuid,
+              f.event_name,
+              f.event_date,
+              f.status,
+              f.event_type,
+              f.attendees,
+              f.totals_price,
+              f.totals_cost,
+              f.budget,
+              f.start_time,
+              f.end_time,
+              f.room_id,
+              r.name AS room_name
+         FROM functions f
+    LEFT JOIN rooms r ON r.id = f.room_id
+        WHERE f.id_uuid = $1
         LIMIT 1`,
       [functionId]
     );
     const fn = fnRows[0];
     if (!fn) return res.status(404).send("Function not found");
 
-    const [proposalRes, templatesRes, termsRes] = await Promise.all([
+    const [proposalRes, templatesRes, termsRes, functionNotesRes, contactsRes, roomsRes] = await Promise.all([
       pool.query(
         `SELECT id
            FROM proposals
@@ -976,12 +1058,28 @@ router.get("/:functionId/proposal", async (req, res) => {
            FROM proposal_settings
           ORDER BY COALESCE(is_default, FALSE) DESC, name ASC`
       ),
+      pool.query(
+        `SELECT id, note_type, content, rendered_html, created_at
+           FROM function_notes
+          WHERE function_id = $1
+          ORDER BY created_at DESC`,
+        [functionId]
+      ),
+      pool.query(
+        `SELECT c.id, c.name, c.email, c.phone, fc.is_primary
+           FROM contacts c
+           JOIN function_contacts fc ON fc.contact_id = c.id
+          WHERE fc.function_id = $1
+          ORDER BY fc.is_primary DESC, c.name ASC`,
+        [functionId]
+      ),
+      pool.query("SELECT id, name, capacity FROM rooms ORDER BY name ASC"),
     ]);
 
     const proposalId = proposalRes.rows[0]?.id || null;
     const sessionSaved =
       (req.session.proposalBuilder && req.session.proposalBuilder[functionId]) ||
-      { includeItemIds: [], includeContactIds: [], sections: [], terms: "" };
+      { includeItemIds: [], includeContactIds: [], sections: [], terms: "", termIds: [] };
     const saved = {
       includeItemIds: Array.isArray(sessionSaved.includeItemIds)
         ? [...sessionSaved.includeItemIds]
@@ -995,12 +1093,30 @@ router.get("/:functionId/proposal", async (req, res) => {
           }))
         : [],
       terms: sessionSaved.terms || "",
+      termIds: Array.isArray(sessionSaved.termIds)
+        ? sessionSaved.termIds.map(String)
+        : [],
     };
-    if (!saved.terms && termsRes.rows.length) {
+    if (!saved.termIds.length && termsRes.rows.length) {
       const defaultTerms =
         termsRes.rows.find((term) => term.is_default) || termsRes.rows[0];
-      if (defaultTerms) saved.terms = defaultTerms.content || "";
+      if (defaultTerms) {
+        saved.termIds = [String(defaultTerms.id)];
+        sessionSaved.termIds = saved.termIds;
+        req.session.proposalBuilder = req.session.proposalBuilder || {};
+        req.session.proposalBuilder[functionId] = sessionSaved;
+      }
     }
+    const noteContext = buildNoteContext(fn, contactsRes.rows, roomsRes.rows);
+    const functionNotes = await Promise.all(
+      functionNotesRes.rows.map(async (note) => {
+        const rendered = await renderNote(
+          { raw_html: note.content, rendered_html: note.rendered_html },
+          noteContext
+        );
+        return { ...note, rendered_content: rendered };
+      })
+    );
 
     let proposalItems = [];
     if (proposalId) {
@@ -1029,14 +1145,34 @@ router.get("/:functionId/proposal", async (req, res) => {
       }
     }
 
-    const contactsRes = await pool.query(
-      `SELECT c.id, c.name, c.email, c.phone, fc.is_primary
-         FROM contacts c
-         JOIN function_contacts fc ON fc.contact_id = c.id
-        WHERE fc.function_id = $1
-        ORDER BY fc.is_primary DESC, c.name ASC`,
-      [functionId]
-    );
+    let totals = null;
+    if (proposalId) {
+      const { rows: totalRows } = await pool.query(
+        `SELECT subtotal,
+                gratuity_percent,
+                gratuity_amount,
+                discount_amount,
+                deposit_amount,
+                total_paid,
+                remaining_due
+           FROM proposal_totals
+          WHERE proposal_id = $1
+          LIMIT 1`,
+        [proposalId]
+      );
+      totals = totalRows[0] || null;
+    }
+    if (!totals) {
+      totals = {
+        subtotal: 0,
+        gratuity_percent: 0,
+        gratuity_amount: 0,
+        discount_amount: 0,
+        deposit_amount: 0,
+        total_paid: 0,
+        remaining_due: 0,
+      };
+    }
 
     res.locals.pageJs = [
       ...(res.locals.pageJs || []),
@@ -1054,8 +1190,11 @@ router.get("/:functionId/proposal", async (req, res) => {
       proposalItems,
       templates: templatesRes.rows,
       contacts: contactsRes.rows,
+      rooms: roomsRes.rows,
       saved,
       termsLibrary: termsRes.rows,
+      functionNotes,
+      totals,
     });
   } catch (err) {
     console.error("Error loading proposal builder:", err);
@@ -1070,6 +1209,7 @@ router.post("/:functionId/proposal/save", async (req, res) => {
     includeContactIds = [],
     sections = [],
     terms = "",
+    termIds = [],
   } = req.body || {};
 
   const cleanItems = Array.isArray(includeItemIds)
@@ -1094,12 +1234,23 @@ router.post("/:functionId/proposal/save", async (req, res) => {
         .filter((s) => s.content.length)
     : [];
 
+  const cleanTermIds = Array.isArray(termIds)
+    ? Array.from(
+        new Set(
+          termIds
+            .map((v) => String(v || "").trim())
+            .filter((v) => v.length)
+        )
+      )
+    : [];
+
   req.session.proposalBuilder = req.session.proposalBuilder || {};
   req.session.proposalBuilder[functionId] = {
     includeItemIds: cleanItems,
     includeContactIds: cleanContacts,
     sections: normalizedSections,
     terms: String(terms || ""),
+    termIds: cleanTermIds,
   };
 
   res.json({ success: true });
@@ -1109,9 +1260,22 @@ router.get("/:functionId/proposal/preview", async (req, res) => {
   const { functionId } = req.params;
   try {
     const { rows: fnRows } = await pool.query(
-      `SELECT id_uuid, event_name, event_date, attendees
-         FROM functions
-        WHERE id_uuid = $1
+      `SELECT f.id_uuid,
+              f.event_name,
+              f.event_date,
+              f.status,
+              f.event_type,
+              f.attendees,
+              f.totals_price,
+              f.totals_cost,
+              f.budget,
+              f.start_time,
+              f.end_time,
+              f.room_id,
+              r.name AS room_name
+         FROM functions f
+    LEFT JOIN rooms r ON r.id = f.room_id
+        WHERE f.id_uuid = $1
         LIMIT 1`,
       [functionId]
     );
@@ -1120,7 +1284,7 @@ router.get("/:functionId/proposal/preview", async (req, res) => {
 
     const saved =
       (req.session.proposalBuilder && req.session.proposalBuilder[functionId]) ||
-      { includeItemIds: [], includeContactIds: [], sections: [], terms: "" };
+      { includeItemIds: [], includeContactIds: [], sections: [], terms: "", termIds: [] };
 
     res.locals.pageJs = [
       ...(res.locals.pageJs || []),
@@ -1181,6 +1345,60 @@ router.get("/:functionId/proposal/preview", async (req, res) => {
       contacts = rows;
     }
 
+    const { rows: termsLibraryRows } = await pool.query(
+      `SELECT id,
+              COALESCE(NULLIF(name, ''), NULLIF(notes_template, ''), CONCAT('Terms Block #', id)) AS name,
+              COALESCE(content, terms_and_conditions, '') AS content,
+              COALESCE(is_default, FALSE) AS is_default
+         FROM proposal_settings
+        ORDER BY COALESCE(is_default, FALSE) DESC, name ASC`
+    );
+    const savedTermIds = Array.isArray(saved.termIds)
+      ? saved.termIds.map((id) => String(id || "").trim()).filter((id) => id.length)
+      : [];
+    let selectedTermIds = savedTermIds;
+    if (!selectedTermIds.length && termsLibraryRows.length) {
+      const defaultTerm = termsLibraryRows.find((term) => term.is_default) || termsLibraryRows[0];
+      if (defaultTerm) selectedTermIds = [String(defaultTerm.id)];
+    }
+    const combinedTerms = [
+      ...termsLibraryRows
+        .filter((term) => selectedTermIds.includes(String(term.id)))
+        .map((term) => term.content || ""),
+      saved.terms || "",
+    ]
+      .filter((chunk) => chunk && chunk.trim().length)
+      .join("\n\n");
+
+    let totalsData = null;
+    if (proposalId) {
+      const { rows } = await pool.query(
+        `SELECT subtotal,
+                gratuity_percent,
+                gratuity_amount,
+                discount_amount,
+                deposit_amount,
+                total_paid,
+                remaining_due
+           FROM proposal_totals
+          WHERE proposal_id = $1
+          LIMIT 1`,
+        [proposalId]
+      );
+      totalsData = rows[0] || null;
+    }
+    if (!totalsData) {
+      totalsData = {
+        subtotal: 0,
+        gratuity_percent: 0,
+        gratuity_amount: 0,
+        discount_amount: 0,
+        deposit_amount: 0,
+        total_paid: 0,
+        remaining_due: 0,
+      };
+    }
+
     res.render("pages/functions/proposal-preview", {
       layout: "layouts/main",
       title: `Proposal Preview - ${fn.event_name}`,
@@ -1190,7 +1408,8 @@ router.get("/:functionId/proposal/preview", async (req, res) => {
       items,
       contacts,
       sections: saved.sections || [],
-      terms: saved.terms || "",
+      terms: combinedTerms,
+      totals: totalsData,
     });
   } catch (err) {
     console.error("preview error:", err);
@@ -1204,15 +1423,19 @@ router.get("/:proposalId/totals", async (req, res) => {
     const {
       rows,
     } = await pool.query(
-      `SELECT subtotal,
-              gratuity_percent,
-              gratuity_amount,
-              discount_amount,
-              deposit_amount,
-              total_paid,
-              remaining_due
-         FROM proposal_totals
-        WHERE proposal_id = $1
+      `SELECT pt.subtotal,
+              pt.gratuity_percent,
+              pt.gratuity_amount,
+              pt.discount_amount,
+              pt.deposit_amount,
+              pt.total_paid,
+              pt.remaining_due,
+              f.totals_price AS function_total,
+              f.totals_cost AS function_cost
+         FROM proposal_totals pt
+    LEFT JOIN proposals p ON p.id = pt.proposal_id
+    LEFT JOIN functions f ON f.id_uuid = p.function_id
+        WHERE pt.proposal_id = $1
         LIMIT 1`,
       [proposalId]
     );

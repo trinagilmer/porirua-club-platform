@@ -657,6 +657,7 @@ document.addEventListener('DOMContentLoaded', () => {
     bulkImportBtn.disabled = false;
     if (success) {
       bulkTextarea.value = '';
+      // eslint-disable-next-line no-undef
       await refreshChoices();
     }
   });
@@ -665,6 +666,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!token) return null;
     const normalized = token.trim().toLowerCase();
     let match = null;
+    // eslint-disable-next-line no-undef
     unitLookup.forEach((unit, id) => {
       if (
         String(unit.id) === normalized ||
@@ -679,6 +681,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function findPerPersonUnit() {
     let match = null;
+    // eslint-disable-next-line no-undef
     unitLookup.forEach((unit, id) => {
       if (
         (unit.type && unit.type.toLowerCase().includes('per')) ||

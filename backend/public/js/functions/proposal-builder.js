@@ -1,23 +1,4 @@
 (() => {
-  const isQuotePage = () => Boolean(document.getElementById("quoteMenuMount"));
-
-  const parseMeta = (text = "") => {
-    const meta = {};
-    let match;
-    const regex = /\[([a-z_]+):([^\]]+)\]/gi;
-    while ((match = regex.exec(text))) {
-      meta[match[1].toLowerCase()] = match[2];
-    }
-    const qtyMatch = text.match(/ x (\d+)/i);
-    if (qtyMatch) meta.qty = Number(qtyMatch[1]);
-    if (/\[excluded:true\]/i.test(text)) meta.excluded = true;
-    return meta;
-  };
-
-  const cleanLabel = (text = "") => text.replace(/\[[^\]]+\]/g, "").replace(/\s{2,}/g, " ").trim();
-
-  const isChildRow = (text = "") => /^\s*(Choice:|Add-on:)/i.test(text);
-
   const createSectionItem = (content = "") => {
     const li = document.createElement("li");
     li.className = "proposal-section-item border rounded-3 p-3 mb-3";
@@ -36,12 +17,12 @@
     head.appendChild(removeBtn);
     li.appendChild(head);
 
-    const textarea = document.createElement("textarea");
-    textarea.className = "form-control section-content";
-    textarea.rows = 4;
-    textarea.dataset.role = "section-content";
-    textarea.value = content;
-    li.appendChild(textarea);
+    const editor = document.createElement("div");
+    editor.className = "form-control section-content";
+    editor.dataset.role = "section-content";
+    editor.contentEditable = "true";
+    editor.innerHTML = content || "";
+    li.appendChild(editor);
     return li;
   };
 
@@ -81,17 +62,29 @@
   };
 
   const collectItemIds = (builder) => {
-    const global = window.quoteActiveItemIds;
-    if (isQuotePage() && global instanceof Set && global.size) {
-      return Array.from(global);
+    if (window.quoteProposalItemIds instanceof Set && window.quoteProposalItemIds.size) {
+      return Array.from(window.quoteProposalItemIds);
     }
     if (builder._proposalItemIds instanceof Set && builder._proposalItemIds.size) {
       return Array.from(builder._proposalItemIds);
     }
-    if (global instanceof Set && global.size) {
-      return Array.from(global);
+    if (window.savedProposalState?.includeItemIds?.length) {
+      return [...window.savedProposalState.includeItemIds];
     }
     return [];
+  };
+
+  const ensureSelectionSet = (builder) => {
+    if (!(window.quoteProposalItemIds instanceof Set)) {
+      window.quoteProposalItemIds = new Set(window.savedProposalState?.includeItemIds || []);
+    }
+    if (
+      window.quoteProposalItemIds instanceof Set &&
+      window.quoteProposalItemIds.size === 0 &&
+      builder._proposalItemIds instanceof Set
+    ) {
+      builder._proposalItemIds.forEach((id) => window.quoteProposalItemIds.add(id));
+    }
   };
 
   const notify = (message, type = "info") => {
@@ -104,109 +97,19 @@
     }
   };
 
-  const buildSummary = (builder) => {
-    const summary = builder.querySelector("[data-role='menu-summary']");
+  const ingestItems = (builder) => {
     const source = builder.querySelector("[data-role='items-source']");
-    const emptyState = builder.querySelector("[data-role='menu-empty']");
-    builder._proposalItemIds = new Set();
-    if (!summary) return;
-    summary.innerHTML = "";
-
     const listItems = source ? Array.from(source.querySelectorAll("li")) : [];
+    builder._proposalItemIds = new Set();
     if (!listItems.length) {
-      if (emptyState) emptyState.classList.remove("d-none");
+      ensureSelectionSet(builder);
       return;
     }
-    if (emptyState) emptyState.classList.add("d-none");
-
-    const categories = new Map();
-    let currentMenu = null;
-
     listItems.forEach((li) => {
       const id = Number(li.dataset.id);
-      const raw = (li.textContent || "").trim();
-      const meta = parseMeta(raw);
-      const text = cleanLabel(raw);
-      const price = Number(li.dataset.price || 0);
-
-      if (!isChildRow(text)) {
-        const category = meta.category || "Uncategorised";
-        if (!categories.has(category)) categories.set(category, []);
-        currentMenu = {
-          title: text.replace(/^Menu:\s*/i, ""),
-          items: [],
-          basePrice: price,
-        };
-        categories.get(category).push(currentMenu);
-        builder._proposalItemIds.add(id);
-        return;
-      }
-
-      if (!currentMenu || meta.excluded) return;
-      builder._proposalItemIds.add(id);
-      const qty = meta.qty ? Number(meta.qty) : 1;
-      const priceEach = meta.base != null ? Number(meta.base) : qty > 0 ? price / qty : price;
-      currentMenu.items.push({
-        name: text.replace(/^(Choice:|Add-on:)\s*/i, "").replace(/\s+x\s+\d+.*/, "").trim(),
-        qty,
-        priceEach,
-        total: price,
-      });
+      if (Number.isInteger(id)) builder._proposalItemIds.add(id);
     });
-
-    if (!categories.size) {
-      summary.innerHTML = '<div class="alert alert-secondary mb-0">No items currently selected.</div>';
-      return;
-    }
-
-    categories.forEach((menus, category) => {
-      const card = document.createElement("div");
-      card.className = "proposal-summary-card";
-
-      const header = document.createElement("div");
-      header.className = "hdr";
-      header.textContent = category;
-      card.appendChild(header);
-
-      const body = document.createElement("div");
-      body.className = "body";
-      menus.forEach((menu) => {
-        const block = document.createElement("div");
-        block.className = "menu-block";
-        block.innerHTML = `<div class="menu-title">${menu.title}</div>`;
-        if (menu.basePrice) {
-          block.innerHTML += `<div class="menu-base">Base Price: $${Number(menu.basePrice).toFixed(2)}</div>`;
-        }
-
-        if (menu.items.length) {
-          const headRow = document.createElement("div");
-          headRow.className = "menu-row head";
-          headRow.innerHTML = "<div>Item</div><div>Qty</div><div>Each</div><div>Total</div>";
-          block.appendChild(headRow);
-          menu.items.forEach((item) => {
-            const row = document.createElement("div");
-            row.className = "menu-row";
-            row.innerHTML = `
-              <div>${item.name}</div>
-              <div>${item.qty}</div>
-              <div>$${Number(item.priceEach).toFixed(2)}</div>
-              <div>$${Number(item.total).toFixed(2)}</div>
-            `;
-            block.appendChild(row);
-          });
-        } else {
-          const empty = document.createElement("div");
-          empty.className = "menu-empty";
-          empty.textContent = "No visible choices for this menu.";
-          block.appendChild(empty);
-        }
-
-        body.appendChild(block);
-      });
-
-      card.appendChild(body);
-      summary.appendChild(card);
-    });
+    ensureSelectionSet(builder);
   };
 
   const initBuilder = (builder) => {
@@ -214,22 +117,34 @@
     const functionId = builder.dataset.functionId;
     const proposalId = builder.dataset.proposalId ? Number(builder.dataset.proposalId) : null;
     const sectionsList = builder.querySelector("[data-role='sections-list']");
-    const templatePicker = builder.querySelector("[data-role='template-picker']");
-    const addTemplateBtn = builder.querySelector("[data-role='add-template']");
+    const notePicker = builder.querySelector("[data-role='note-picker']");
+    const addNoteBtn = builder.querySelector("[data-role='add-note']");
     const includeContactInputs = builder.querySelectorAll("[data-role='include-contact']");
-    const sectionsEmpty = builder.querySelector("[data-role='sections-empty']");
+    const termCheckboxes = builder.querySelectorAll("[data-role='term-select']");
     const termsInput = builder.querySelector("[data-role='terms-input']");
     const previewBtn = builder.querySelector("[data-role='preview-btn']");
     const printBtn = builder.querySelector("[data-role='print-btn']");
     const saveBtn = builder.querySelector("[data-role='save-btn']");
-    const termsPicker = builder.querySelector("[data-role='terms-picker']");
-    const loadTermsBtn = builder.querySelector("[data-role='load-terms']");
+    const noteLibrary = window.functionNotesLibrary || [];
+    const noteMap = new Map(noteLibrary.map((note) => [String(note.id), note]));
 
     if (sectionsList && !sectionsList.querySelector("[data-role='section-index']")) {
       ensureEmptySection(sectionsList);
     }
 
-    buildSummary(builder);
+    ingestItems(builder);
+
+    const syncTermIds = () => {
+      const ids = Array.from(termCheckboxes || [])
+        .filter((checkbox) => checkbox.checked)
+        .map((checkbox) => checkbox.value);
+      window.savedProposalState = window.savedProposalState || {};
+      window.savedProposalState.termIds = ids;
+    };
+    termCheckboxes.forEach((checkbox) => {
+      checkbox.addEventListener("change", syncTermIds);
+    });
+    syncTermIds();
 
     sectionsList?.addEventListener("click", (event) => {
       const trigger = event.target.closest("[data-role='remove-section']");
@@ -243,23 +158,19 @@
       }
     });
 
-    addTemplateBtn?.addEventListener("click", async () => {
-      const templateId = templatePicker?.value;
-      if (!templateId) return;
-      addTemplateBtn.disabled = true;
-      try {
-        const res = await fetch(`/settings/note-templates/api/${templateId}`);
-        const payload = await res.json();
-        if (!payload.success) throw new Error(payload.error || "Failed to load template");
-        if (sectionsEmpty) sectionsEmpty.remove();
-        appendSection(sectionsList, payload.data?.content || "");
-        templatePicker.value = "";
-      } catch (err) {
-        console.error(err);
-        notify(err.message || "Failed to insert template.", "danger");
-      } finally {
-        addTemplateBtn.disabled = false;
+    addNoteBtn?.addEventListener("click", () => {
+      if (!notePicker || !sectionsList) return;
+      const noteId = notePicker.value;
+      if (!noteId) return;
+      const note = noteMap.get(String(noteId));
+      if (!note) {
+        notify("Unable to load the selected note.", "warning");
+        return;
       }
+      hideEmptySection(sectionsList);
+      const noteBody = note.rendered_content || note.rendered_html || note.content || "";
+      appendSection(sectionsList, noteBody);
+      notePicker.value = "";
     });
 
     previewBtn?.addEventListener("click", () => {
@@ -277,14 +188,16 @@
       const includeContacts = Array.from(includeContactInputs || [])
         .filter((input) => input.checked)
         .map((input) => input.value);
-      const sections = Array.from(builder.querySelectorAll("[data-role='section-content']")).map((textarea) => ({
-        content: textarea.value,
+      const sections = Array.from(builder.querySelectorAll("[data-role='section-content']")).map((editor) => ({
+        content: editor.innerHTML,
       }));
+      const currentTermIds = Array.from(window.savedProposalState?.termIds || []);
       const payload = {
         includeItemIds: collectItemIds(builder),
         includeContactIds: includeContacts,
         sections,
         terms: termsInput?.value || "",
+        termIds: currentTermIds,
       };
 
       saveBtn.disabled = true;
@@ -296,6 +209,7 @@
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error || "Save failed.");
+        window.savedProposalState = payload;
         notify("Proposal settings saved.", "success");
       } catch (err) {
         console.error(err);
@@ -305,18 +219,7 @@
       }
     });
 
-    loadTermsBtn?.addEventListener("click", () => {
-      if (!termsPicker || !termsInput) return;
-      const id = Number(termsPicker.value);
-      if (!id) return;
-      const library = window.proposalTermsLibrary || [];
-      const term = library.find((entry) => Number(entry.id) === id);
-      if (!term) {
-        notify("Unable to load the selected terms.", "warning");
-        return;
-      }
-      termsInput.value = term.content || "";
-    });
+    // Standard terms are combined server-side based on the selected checkboxes.
   };
 
   document.addEventListener("DOMContentLoaded", () => {

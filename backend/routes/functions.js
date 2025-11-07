@@ -29,6 +29,7 @@ function normalizeRecipients(v) {
  * 🔐 getAppAccessToken()
  * Acquires an application-only Graph token (client credential flow)
  */
+// eslint-disable-next-line no-unused-vars
 async function getAppAccessToken() {
   try {
     const tokenResponse = await cca.acquireTokenByClientCredential({
@@ -484,7 +485,7 @@ router.post("/:id/edit", async (req, res) => {
 /* =========================================================
    🧭 FUNCTION DETAIL VIEW — Full (Sidebar + Timeline, UUID Safe, Clean Version)
 ========================================================= */
-router.get("/:id", async (req, res, next) => {
+router.get("/:id", async (req, res) => {
   try {
     const functionId = req.params.id.trim(); // UUID, trimmed for safety
     const activeTab = req.query.tab || "overview";
@@ -864,11 +865,12 @@ router.post("/:id/update-field", async (req, res) => {
     ["status", "status"],
     ["event_name", "event_name"],
     ["event_type", "event_type"],
+    ["attendees", "attendees"],
     ["budget", "budget"],
     ["totals_price", "totals_price"],
     ["totals_cost", "totals_cost"],
     ["notes", "notes"],
-    ["room_id", "room_id"] // integer column — handle separately
+    ["room_id", "room_id"] // integer column - handle separately
   ]);
 
   const column = allowed.get(field);

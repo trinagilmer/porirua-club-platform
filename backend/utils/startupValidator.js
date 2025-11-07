@@ -4,9 +4,6 @@
  * Run automatically from app.js before the server starts.
  */
 
-const fs = require("fs");
-const path = require("path");
-
 // --- 1️⃣ Required environment variables ---
 const requiredEnvVars = [
   "AZURE_CLIENT_ID",
@@ -56,7 +53,7 @@ function checkModules() {
     try {
       require.resolve(mod);
       console.log(`✅  ${mod}`);
-    } catch (err) {
+    } catch {
       console.log(`❌  ${mod} not installed`);
     }
   });
