@@ -1,0 +1,261 @@
+
+<% locals.layout = 'layouts/main'; %>
+
+<div class="proposal-preview container py-4">
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3 mb-4">
+    <div>
+      <h1 class="h4 mb-1">Proposal Preview</h1>
+      <div class="text-muted small">Prepared for <strong><%= fn.event_name %></strong>.</div>
+    </div>
+    <div class="btn-toolbar gap-2">
+      <button class="btn btn-outline-secondary" onclick="window.print()">
+        <i class="bi bi-printer me-1"></i> Print / PDF
+      </button>
+    </div>
+  </div>
+
+  <section class="card shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6">
+          <h5 class="mb-1 fw-semibold">Function Information</h5>
+          <div class="text-muted small">Reference: <%= fn.id_uuid %></div>
+          <dl class="row mt-3 mb-0 small">
+            <dt class="col-5">Event Name</dt>
+            <dd class="col-7 text-end text-md-start"><%= fn.event_name %></dd>
+            <dt class="col-5">Event Date</dt>
+            <dd class="col-7 text-end text-md-start"><%= fn.event_date ? new Date(fn.event_date).toLocaleDateString() : 'TBC' %></dd>
+            <dt class="col-5">Attendees</dt>
+            <dd class="col-7 text-end text-md-start"><%= fn.attendees || 0 %></dd>
+          </dl>
+        </div>
+        <div class="col-md-6">
+          <% if ((contacts || []).length) { %>
+            <h5 class="mb-1 fw-semibold">Contacts</h5>
+            <ul class="list-unstyled small mb-0 mt-3">
+              <% contacts.forEach(contact => { %>
+                <li class="mb-2">
+                  <strong><%= contact.name %></strong><br>
+                  <span class="text-muted"><%= contact.email || 'no email' %><%= contact.phone ? ' • ' + contact.phone : '' %></span>
+                </li>
+              <% }) %>
+            </ul>
+          <% } else { %>
+            <div class="alert alert-secondary mb-0 small">No contacts selected.</div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card shadow-sm mb-4">
+    <div class="card-header bg-light fw-semibold">Menus &amp; Pricing</div>
+    <div class="card-body">
+      <div id="previewMenuMount" class="d-flex flex-column gap-3"></div>
+      <% if (!items.length) { %>
+        <div class="alert alert-secondary mb-0">No quote items currently selected.</div>
+      <% } %>
+    </div>
+  </section>
+
+  <% if ((sections || []).length) { %>
+    <section class="card shadow-sm mb-4">
+      <div class="card-header bg-light fw-semibold">Additional Notes</div>
+      <div class="card-body vstack gap-3">
+        <% sections.forEach((section, idx) => { %>
+          <div>
+            <div class="fw-semibold mb-1">Section <%= idx + 1 %></div>
+            <div class="proposal-section-text"><%- (section.content || '').replace(/\n/g, '<br>') %></div>
+          </div>
+        <% }) %>
+      </div>
+    </section>
+  <% } %>
+
+  <% if (terms) { %>
+    <section class="card shadow-sm page-break">
+      <div class="card-header bg-light fw-semibold">Terms &amp; Conditions</div>
+      <div class="card-body proposal-terms small">
+        <%- String(terms).replace(/\n/g, '<br>') %>
+      </div>
+    </section>
+  <% } %>
+</div>
+
+<ul id="previewItemsSource" class="d-none">
+  <% (items || []).forEach(item => { %>
+    <li data-id="<%= item.id %>" data-price="<%= Number(item.unit_price || 0).toFixed(2) %>">
+      <%- String(item.description || '').replace(/\r\n|\r|\n/g, ' ') %>
+    </li>
+  <% }) %>
+</ul>
+
+<script>
+  window.previewContext = {
+    proposalId: <%= proposalId ? Number(proposalId) : 'null' %>
+  };
+</script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const source = document.getElementById('previewItemsSource');
+    const mount = document.getElementById('previewMenuMount');
+    if (!source || !mount) return;
+
+    const parseMeta = (text) => {
+      const meta = {};
+      let match;
+      const regex = /\[([a-z_]+):([^\]]+)\]/gi;
+      while ((match = regex.exec(text))) meta[match[1].toLowerCase()] = match[2];
+      const qtyMatch = text.match(/ x (\d+)/i);
+      if (qtyMatch) meta.qty = Number(qtyMatch[1]);
+      if (/\[excluded:true\]/i.test(text)) meta.excluded = true;
+      return meta;
+    };
+
+    const cleanLabel = (text) => text.replace(/\[[^\]]+\]/g, '').replace(/\s{2,}/g, ' ').trim();
+    const isChild = (text) => /^\s*(Choice:|Add-on:)/i.test(text);
+
+    const categories = new Map();
+    let currentMenu = null;
+
+    source.querySelectorAll('li').forEach((li) => {
+      const id = Number(li.dataset.id);
+      const raw = (li.textContent || '').trim();
+      const meta = parseMeta(raw);
+      const text = cleanLabel(raw);
+      const price = Number(li.dataset.price || 0);
+
+      if (!isChild(text)) {
+        const category = meta.category || 'Uncategorised';
+        if (!categories.has(category)) categories.set(category, []);
+        currentMenu = {
+          title: text.replace(/^Menu:\s*/i, ''),
+          basePrice: price,
+          items: [],
+        };
+        categories.get(category).push(currentMenu);
+        return;
+      }
+
+      if (!currentMenu || meta.excluded) return;
+      const qty = meta.qty ? Number(meta.qty) : 1;
+      const priceEach = meta.base != null ? Number(meta.base) : qty > 0 ? price / qty : price;
+      currentMenu.items.push({
+        name: text.replace(/^(Choice:|Add-on:)\s*/i, '').replace(/\s+x\s+\d+.*/, '').trim(),
+        qty,
+        priceEach,
+        total: price,
+      });
+    });
+
+    if (!categories.size) {
+      mount.innerHTML = '<div class="alert alert-secondary mb-0">No menu content included.</div>';
+      return;
+    }
+
+    categories.forEach((menus, category) => {
+      const card = document.createElement('div');
+      card.className = 'proposal-summary-card';
+      const header = document.createElement('div');
+      header.className = 'hdr';
+      header.textContent = category;
+      card.appendChild(header);
+
+      const body = document.createElement('div');
+      body.className = 'body';
+      menus.forEach((menu) => {
+        const block = document.createElement('div');
+        block.className = 'menu-block';
+        block.innerHTML = `<div class="menu-title">${menu.title}</div>`;
+        if (menu.basePrice) {
+          block.innerHTML += `<div class="menu-base">Base Price: $${Number(menu.basePrice).toFixed(2)}</div>`;
+        }
+
+        if (menu.items.length) {
+          const head = document.createElement('div');
+          head.className = 'menu-row head';
+          head.innerHTML = '<div>Item</div><div>Qty</div><div>Each</div><div>Total</div>';
+          block.appendChild(head);
+          menu.items.forEach((item) => {
+            const row = document.createElement('div');
+            row.className = 'menu-row';
+            row.innerHTML = `
+              <div>${item.name}</div>
+              <div>${item.qty}</div>
+              <div>$${Number(item.priceEach).toFixed(2)}</div>
+              <div>$${Number(item.total).toFixed(2)}</div>
+            `;
+            block.appendChild(row);
+          });
+        } else {
+          block.innerHTML += '<div class="menu-empty">No optional items included.</div>';
+        }
+        body.appendChild(block);
+      });
+
+      card.appendChild(body);
+      mount.appendChild(card);
+    });
+  });
+</script>
+
+<style>
+  .proposal-summary-card {
+    border: 1px solid #dde1e6;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .proposal-summary-card .hdr {
+    background: #f4f6fa;
+    padding: 8px 12px;
+    font-weight: 600;
+  }
+  .proposal-summary-card .body {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .proposal-summary-card .menu-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .proposal-summary-card .menu-base {
+    font-size: 12px;
+    color: #6c757d;
+    margin-bottom: 6px;
+  }
+  .proposal-summary-card .menu-row {
+    display: grid;
+    grid-template-columns: 1fr 50px 70px 80px;
+    gap: 6px;
+    font-size: 13px;
+    padding: 3px 0;
+    border-bottom: 1px solid #eef1f5;
+  }
+  .proposal-summary-card .menu-row.head {
+    font-weight: 600;
+    color: #6c757d;
+    border-bottom: 1px solid #d9dee6;
+  }
+  .proposal-summary-card .menu-row:last-child {
+    border-bottom: 0;
+  }
+  .proposal-summary-card .menu-empty {
+    font-size: 12px;
+    color: #999;
+  }
+  .page-break {
+    page-break-before: always;
+    margin-top: 32px;
+  }
+  @media print {
+    .btn-toolbar {
+      display: none !important;
+    }
+    .page-break {
+      page-break-before: always;
+    }
+  }
+</style>

@@ -143,14 +143,21 @@ router.post('/choices', (_req, res) => {
 
 router.post('/options', async (req, res) => {
   try {
-    const { choice_id, name, price, unit_id, enable_guest_quantity } = req.body || {};
+    const { choice_id, name, price, cost, unit_id, enable_guest_quantity } = req.body || {};
     if (!choice_id) return fail(res, 'choice_id is required', 400);
 
     const { rows } = await pool.query(
-      `INSERT INTO public.menu_options (choice_id, name, price, unit_id, enable_guest_quantity)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO public.menu_options (choice_id, name, price, cost, unit_id, enable_guest_quantity)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [choice_id, name ?? null, (price === '' ? null : price), unit_id ?? null, enable_guest_quantity ?? false]
+      [
+        choice_id,
+        name ?? null,
+        price === '' ? null : price,
+        cost === '' ? null : cost,
+        unit_id ?? null,
+        enable_guest_quantity ?? false,
+      ]
     );
     return ok(res, rows, 201);
   } catch (err) {
@@ -216,31 +223,42 @@ router.get('/builder/menus/:menu_id/choices', async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT
-         menu_id,
-         choice_id,
-         choice_name,
-         option_id,
-         option_name,
-         option_price,
-         unit_name,
-         limit_count,
-         enable_quantity
-       FROM public.vw_menu_choices_flat
-       WHERE menu_id = $1
-       ORDER BY choice_name ASC`,
+         l.menu_id,
+         c.id AS choice_id,
+         c.name AS choice_name,
+         o.id AS option_id,
+         o.name AS option_name,
+         o.price AS option_price,
+         o.cost  AS option_cost,
+         o.unit_id,
+         u.name AS unit_name,
+         u.type AS unit_type
+       FROM public.menu_choice_links l
+       JOIN public.menu_choices c ON c.id = l.choice_id
+  LEFT JOIN LATERAL (
+         SELECT opt.*
+           FROM public.menu_options opt
+          WHERE opt.choice_id = c.id
+          ORDER BY opt.id ASC
+          LIMIT 1
+       ) o ON true
+  LEFT JOIN public.menu_units u ON u.id = o.unit_id
+      WHERE l.menu_id = $1
+      ORDER BY c.name ASC`,
       [menu_id]
     );
 
-    const data = rows.map(r => ({
+    const data = rows.map((r) => ({
       menuId: r.menu_id,
-      id: r.choice_id,
-      name: r.choice_name,
-      optionId: r.option_id,
-      optionName: r.option_name,
-      price: r.option_price !== null ? Number(r.option_price) : null,
-      unit: r.unit_name || null,
-      limitCount: r.limit_count,
-      enableQuantity: r.enable_quantity
+      choice_id: r.choice_id,
+      choice_name: r.choice_name,
+      option_id: r.option_id,
+      option_name: r.option_name,
+      option_price: r.option_price,
+      option_cost: r.option_cost,
+      unit_id: r.unit_id,
+      unit_name: r.unit_name,
+      unit_type: r.unit_type,
     }));
 
     return ok(res, data);
@@ -263,32 +281,49 @@ router.post('/builder/menus/:menu_id/choices', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Invalid menu_id' });
   }
 
-  const { name, price = null, unit_id = null, option_name } = req.body || {};
+  const { name, price = null, cost = null, unit_id = null, option_name } = req.body || {};
   if (!name || typeof name !== 'string') {
     return res.status(400).json({ success: false, error: 'Choice name is required' });
   }
 
   const normPrice = (price === '' || price === undefined) ? null : Number(price);
+  const normCost = (cost === '' || cost === undefined) ? null : Number(cost);
   const optName = (option_name && String(option_name).trim()) || name || 'Default';
+  let baseUnitId =
+    unit_id !== undefined && unit_id !== null && unit_id !== ''
+      ? Number(unit_id)
+      : null;
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
+    if (!Number.isFinite(baseUnitId)) {
+      const {
+        rows: [fallbackUnit],
+      } = await client.query(
+        'SELECT id FROM public.menu_units ORDER BY id ASC LIMIT 1'
+      );
+      if (!fallbackUnit) {
+        throw new Error('No menu units configured. Add units before creating choices.');
+      }
+      baseUnitId = fallbackUnit.id;
+    }
+
     // 1) choice
     const choiceIns = await client.query(
-      `INSERT INTO public.menu_choices (name)
-       VALUES ($1)
+      `INSERT INTO public.menu_choices (name, unit_id)
+       VALUES ($1, $2)
        RETURNING id`,
-      [name]
+      [name, baseUnitId]
     );
     const choiceId = choiceIns.rows[0].id;
 
     // 2) default option (name is NOT NULL in schema)
     await client.query(
-      `INSERT INTO public.menu_options (choice_id, name, price, unit_id)
-       VALUES ($1, $2, $3, $4)`,
-      [choiceId, optName, normPrice, unit_id || null]
+      `INSERT INTO public.menu_options (choice_id, name, price, cost, unit_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [choiceId, optName, normPrice, normCost, baseUnitId]
     );
 
     // 3) link (idempotent)
@@ -302,12 +337,27 @@ router.post('/builder/menus/:menu_id/choices', async (req, res) => {
     // 4) fetch flat row
     const flat = await client.query(
       `SELECT
-         menu_id, choice_id, choice_name,
-         option_id, option_name, option_price, unit_name,
-         limit_count, enable_quantity
-       FROM public.vw_menu_choices_flat
-       WHERE menu_id = $1 AND choice_id = $2
-       LIMIT 1`,
+         l.menu_id,
+         c.id AS choice_id,
+         c.name AS choice_name,
+         o.id AS option_id,
+         o.name AS option_name,
+         o.price AS option_price,
+         o.cost  AS option_cost,
+         u.name AS unit_name,
+         u.type AS unit_type
+       FROM public.menu_choice_links l
+       JOIN public.menu_choices c ON c.id = l.choice_id
+  LEFT JOIN LATERAL (
+         SELECT opt.*
+           FROM public.menu_options opt
+          WHERE opt.choice_id = c.id
+          ORDER BY opt.id ASC
+          LIMIT 1
+       ) o ON true
+  LEFT JOIN public.menu_units u ON u.id = o.unit_id
+      WHERE l.menu_id = $1 AND l.choice_id = $2
+      LIMIT 1`,
       [menu_id, choiceId]
     );
 
@@ -317,21 +367,26 @@ router.post('/builder/menus/:menu_id/choices', async (req, res) => {
     return res.status(201).json({
       success: true,
       data: {
-        menuId: r.menu_id ?? menu_id,
-        id: r.choice_id ?? choiceId,
-        name: r.choice_name ?? name,
-        optionId: r.option_id ?? null,
-        optionName: r.option_name ?? optName,
-        price: r.option_price != null ? Number(r.option_price) : normPrice,
-        unit: r.unit_name || null,
-        limitCount: r.limit_count ?? null,
-        enableQuantity: r.enable_quantity ?? false
-      }
-    });
+          menuId: r.menu_id ?? menu_id,
+          id: r.choice_id ?? choiceId,
+          name: r.choice_name ?? name,
+          optionId: r.option_id ?? null,
+          optionName: r.option_name ?? optName,
+          price: r.option_price != null ? Number(r.option_price) : normPrice,
+          cost: r.option_cost != null ? Number(r.option_cost) : normCost,
+          unit: r.unit_name || null,
+          unitId: r.unit_id ?? null
+        }
+      });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('POST builder choice error:', err);
-    return res.status(500).json({ success: false, error: 'Failed to create choice' });
+    const missingUnit =
+      err.message && err.message.includes('No menu units configured');
+    return res.status(missingUnit ? 400 : 500).json({
+      success: false,
+      error: missingUnit ? err.message : 'Failed to create choice',
+    });
   } finally {
     client.release();
   }
@@ -371,18 +426,43 @@ router.post('/builder/menus/:menu_id/link', async (req, res) => {
     );
 
     const { rows } = await pool.query(
-      `SELECT menu_id, choice_id, choice_name, option_id, option_name, option_price, unit_name,
-              limit_count, enable_quantity
-         FROM public.vw_menu_choices_flat
-        WHERE menu_id = $1 AND choice_id = $2
-        LIMIT 1`,
+      `SELECT
+         l.menu_id,
+         c.id AS choice_id,
+         c.name AS choice_name,
+         o.id AS option_id,
+         o.name AS option_name,
+         o.price AS option_price,
+         o.cost  AS option_cost,
+         u.name AS unit_name,
+         o.unit_id
+        FROM public.menu_choice_links l
+        JOIN public.menu_choices c ON c.id = l.choice_id
+   LEFT JOIN LATERAL (
+         SELECT opt.*
+           FROM public.menu_options opt
+          WHERE opt.choice_id = c.id
+          ORDER BY opt.id ASC
+          LIMIT 1
+       ) o ON true
+   LEFT JOIN public.menu_units u ON u.id = o.unit_id
+       WHERE l.menu_id = $1 AND l.choice_id = $2
+       LIMIT 1`,
       [menu_id, choice_id]
     );
 
     return res.status(201).json({ success: true, data: rows[0] || null });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('POST link existing choice error:', err);
-    return res.status(500).json({ success: false, error: 'Failed to link choice' });
+    const missingUnit =
+      err.message && err.message.includes('No menu units configured');
+    return res.status(missingUnit ? 400 : 500).json({
+      success: false,
+      error: missingUnit ? err.message : 'Failed to link choice',
+    });
+  } finally {
+    client.release();
   }
 });
 
@@ -417,6 +497,7 @@ router.get('/builder/choices/search', async (req, res) => {
              mo.id  AS option_id,
              mo.name AS option_name,
              mo.price AS option_price,
+             mo.cost AS option_cost,
              mu.name AS unit_name
         FROM public.menu_choices mc
    LEFT JOIN LATERAL (

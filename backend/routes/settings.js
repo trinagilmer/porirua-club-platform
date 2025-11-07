@@ -55,6 +55,8 @@ router.get("/overview", async (req, res) => {
       layout: "layouts/main",
       title: "Error",
       message: "Failed to load settings overview.",
+      error: err.message,
+      stack: err.stack,
     });
   }
 });
@@ -83,6 +85,8 @@ router.get("/event-types", async (req, res) => {
       layout: "layouts/main",
       title: "Error",
       message: "Failed to load event types.",
+      error: err.message,
+      stack: err.stack,
     });
   }
 });
@@ -108,6 +112,8 @@ router.get("/spaces", async (req, res) => {
       layout: "layouts/main",
       title: "Error",
       message: "Failed to load rooms.",
+      error: err.message,
+      stack: err.stack,
     });
   }
 });
@@ -319,6 +325,8 @@ router.get("/note-templates", async (req, res) => {
       layout: "layouts/main",
       title: "Error",
       message: "Failed to load note templates.",
+      error: err.message,
+      stack: err.stack,
     });
   }
 });
@@ -405,6 +413,31 @@ router.post("/note-templates/delete", async (req, res) => {
     req.flash("flashMessage", "❌ Failed to delete template.");
     req.flash("flashType", "error");
     res.redirect("/settings/note-templates");
+  }
+});
+
+router.get("/note-templates/api/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ success: false, error: "Invalid template id." });
+  }
+  try {
+    const {
+      rows,
+    } = await pool.query(
+      `SELECT id, name, category, description, content
+         FROM note_templates
+        WHERE id = $1
+        LIMIT 1`,
+      [id]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ success: false, error: "Template not found." });
+    }
+    res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    console.error("Error loading note template:", err);
+    res.status(500).json({ success: false, error: "Failed to load template." });
   }
 });
 // 🔹 Menus (✅ this is the fix)
