@@ -197,192 +197,134 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function createChoiceCard(choice) {
-    const card = document.createElement('div');
-    card.className = 'card shadow-sm choice-card';
-    card.dataset.choiceId = choice.id;
+    const hasOptions = choice.options && choice.options.length;
+    const primary = hasOptions ? choice.options[0] : {};
+    const row = document.createElement('div');
+    row.className = 'choice-row';
+    row.dataset.choiceId = choice.id;
+
+    const header = document.createElement('button');
+    header.type = 'button';
+    header.className = 'choice-row-header';
+    header.innerHTML = `
+      <div class="d-flex flex-column align-items-start">
+        <span>${escapeHtml(choice.name || '')}</span>
+        <span class="text-muted small">
+          ${choice.menus && choice.menus.length ? `${choice.menus.length} menu${choice.menus.length === 1 ? '' : 's'}` : 'Not linked'}
+        </span>
+      </div>
+      <span class="d-flex align-items-center gap-2">
+        ${primary && primary.price != null ? `<span class="choice-pill">$${Number(primary.price).toFixed(2)}</span>` : ''}
+        <span class="chevron bi bi-chevron-right"></span>
+      </span>
+    `;
+    row.appendChild(header);
 
     const body = document.createElement('div');
-    body.className = 'card-body';
+    body.className = 'choice-row-body';
 
-    const metaBlock = document.createElement('div');
-    metaBlock.className =
-      'd-flex flex-column gap-2 mb-3';
-
-    const catRow = document.createElement('div');
-    catRow.className = 'd-flex flex-wrap align-items-center gap-2';
-    const catLabel = document.createElement('span');
-    catLabel.className = 'small text-uppercase text-muted fw-semibold';
-    catLabel.textContent = 'Categories';
-    catRow.appendChild(catLabel);
+    const metadata = document.createElement('div');
+    metadata.className = 'choice-metadata';
     const catList =
       choice.categories && choice.categories.length
         ? choice.categories
         : [{ id: null, name: 'Unassigned' }];
     catList.forEach((cat) => {
-      const badge = document.createElement('span');
-      badge.className = 'badge bg-light text-dark';
-      badge.textContent = cat && cat.name ? cat.name : 'Unassigned';
-      catRow.appendChild(badge);
+      const pill = document.createElement('span');
+      pill.className = 'choice-pill';
+      pill.textContent = cat?.name || 'Unassigned';
+      metadata.appendChild(pill);
     });
-    metaBlock.appendChild(catRow);
-
-    const menuRow = document.createElement('div');
-    menuRow.className = 'd-flex flex-wrap align-items-center gap-2';
-    const menuLabel = document.createElement('span');
-    menuLabel.className = 'small text-uppercase text-muted fw-semibold';
-    menuLabel.textContent = 'Linked menus';
-    menuRow.appendChild(menuLabel);
     if (choice.menus && choice.menus.length) {
-      choice.menus.forEach((menu) => {
-        const badge = document.createElement('span');
-        badge.className =
-          'badge bg-secondary-subtle text-secondary-emphasis';
-        badge.textContent = menu.name || `Menu #${menu.id}`;
-        menuRow.appendChild(badge);
+      choice.menus.slice(0, 3).forEach((menu) => {
+        const pill = document.createElement('span');
+        pill.className = 'choice-pill';
+        pill.textContent = menu.name || `Menu #${menu.id}`;
+        metadata.appendChild(pill);
       });
-    } else {
-      const none = document.createElement('span');
-      none.className = 'small text-muted';
-      none.textContent = 'Not linked to any menus';
-      menuRow.appendChild(none);
+      if (choice.menus.length > 3) {
+        const pill = document.createElement('span');
+        pill.className = 'choice-pill';
+        pill.textContent = `+${choice.menus.length - 3}`;
+        metadata.appendChild(pill);
+      }
     }
-    metaBlock.appendChild(menuRow);
+    body.appendChild(metadata);
 
-    body.appendChild(metaBlock);
-
-    const nameGroup = document.createElement('div');
-    nameGroup.className = 'mb-3';
-    const nameLabel = document.createElement('label');
-    nameLabel.className = 'form-label small text-uppercase text-muted';
-    nameLabel.textContent = 'Choice name';
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
-    nameInput.className = 'form-control form-control-sm choice-name';
+    nameInput.className = 'form-control form-control-sm choice-name mb-2';
     nameInput.value = choice.name || '';
-    nameGroup.appendChild(nameLabel);
-    nameGroup.appendChild(nameInput);
-    body.appendChild(nameGroup);
+    body.appendChild(nameInput);
 
     const priceRow = document.createElement('div');
-    priceRow.className = 'row g-2 mb-3';
+    priceRow.className = 'row g-2';
 
     const priceCol = document.createElement('div');
-    priceCol.className = 'col-lg-4 col-sm-6';
-    const priceLabel = document.createElement('label');
-    priceLabel.className = 'form-label small text-uppercase text-muted';
-    priceLabel.textContent = 'Base price';
+    priceCol.className = 'col-6 col-md-4';
     const priceInput = document.createElement('input');
     priceInput.type = 'number';
     priceInput.step = '0.01';
     priceInput.className = 'form-control form-control-sm choice-price';
-    if (
-      choice.options &&
-      choice.options.length &&
-      choice.options[0].price != null
-    ) {
-      priceInput.value = Number(choice.options[0].price).toFixed(2);
-    } else {
-      priceInput.value = '';
-    }
-    priceCol.appendChild(priceLabel);
+    priceInput.placeholder = 'Price';
+    priceInput.value =
+      primary && primary.price != null ? Number(primary.price).toFixed(2) : '';
     priceCol.appendChild(priceInput);
     priceRow.appendChild(priceCol);
 
     const costCol = document.createElement('div');
-    costCol.className = 'col-lg-4 col-sm-6';
-    const costLabel = document.createElement('label');
-    costLabel.className = 'form-label small text-uppercase text-muted';
-    costLabel.textContent = 'Cost';
+    costCol.className = 'col-6 col-md-4';
     const costInput = document.createElement('input');
     costInput.type = 'number';
     costInput.step = '0.01';
     costInput.className = 'form-control form-control-sm choice-cost';
-    if (
-      choice.options &&
-      choice.options.length &&
-      choice.options[0].cost != null
-    ) {
-      costInput.value = Number(choice.options[0].cost).toFixed(2);
-    } else {
-      costInput.value = '';
-    }
-    costCol.appendChild(costLabel);
+    costInput.placeholder = 'Cost';
+    costInput.value =
+      primary && primary.cost != null ? Number(primary.cost).toFixed(2) : '';
     costCol.appendChild(costInput);
     priceRow.appendChild(costCol);
 
     const unitCol = document.createElement('div');
-    unitCol.className = 'col-lg-4 col-sm-6';
-    const unitLabel = document.createElement('label');
-    unitLabel.className = 'form-label small text-uppercase text-muted';
-    unitLabel.textContent = 'Qty type';
+    unitCol.className = 'col-12 col-md-4';
     const unitSelect = document.createElement('select');
     unitSelect.className = 'form-select form-select-sm choice-unit';
     const unitId =
-      choice.options &&
-      choice.options.length &&
-      choice.options[0].unit_id != null
-        ? choice.options[0].unit_id
-        : null;
+      primary && primary.unit_id != null ? primary.unit_id : null;
     unitSelect.innerHTML = buildUnitOptions(unitId);
-    unitCol.appendChild(unitLabel);
     unitCol.appendChild(unitSelect);
     priceRow.appendChild(unitCol);
 
     body.appendChild(priceRow);
 
+    const descInput = document.createElement('textarea');
+    descInput.className = 'form-control form-control-sm choice-description mt-2';
+    descInput.rows = 2;
+    descInput.placeholder = 'Optional description...';
+    descInput.value = choice.description || '';
+    body.appendChild(descInput);
+
     const actions = document.createElement('div');
-    actions.className = 'd-flex justify-content-end gap-2 mb-3';
+    actions.className = 'choice-actions';
     const saveBtn = document.createElement('button');
     saveBtn.type = 'button';
-    saveBtn.className = 'btn btn-outline-primary choice-save';
+    saveBtn.className = 'btn btn-sm btn-outline-primary choice-save';
     saveBtn.textContent = 'Save';
     const deleteBtn = document.createElement('button');
     deleteBtn.type = 'button';
-    deleteBtn.className = 'btn btn-outline-danger choice-delete';
+    deleteBtn.className = 'btn btn-sm btn-outline-danger choice-delete';
     deleteBtn.textContent = 'Delete';
     actions.appendChild(saveBtn);
     actions.appendChild(deleteBtn);
     body.appendChild(actions);
 
-    const descGroup = document.createElement('div');
-    descGroup.className = 'mb-0';
-    const descHeader = document.createElement('div');
-    descHeader.className =
-      'd-flex justify-content-between align-items-center';
-    const descLabel = document.createElement('span');
-    descLabel.className = 'small text-uppercase text-muted fw-semibold';
-    descLabel.textContent = 'Description';
-    const descToggle = document.createElement('button');
-    descToggle.type = 'button';
-    descToggle.className = 'btn btn-sm btn-link px-0';
-    const descInput = document.createElement('textarea');
-    descInput.className =
-      'form-control form-control-sm choice-description mt-2';
-    descInput.rows = 2;
-    descInput.placeholder = 'Optional description shown to staff...';
-    descInput.value = choice.description || '';
-    const initiallyHidden = !(choice.description || '').trim().length;
-    descToggle.textContent = initiallyHidden
-      ? 'Add description'
-      : 'Hide description';
-    if (initiallyHidden) {
-      descInput.classList.add('d-none');
-    }
-    descToggle.addEventListener('click', () => {
-      const hidden = descInput.classList.toggle('d-none');
-      descToggle.textContent = hidden ? 'Add description' : 'Hide description';
-      if (!hidden) descInput.focus();
-    });
-    descHeader.appendChild(descLabel);
-    descHeader.appendChild(descToggle);
-    descGroup.appendChild(descHeader);
-    descGroup.appendChild(descInput);
-    body.appendChild(descGroup);
+    row.appendChild(body);
 
-    card.appendChild(body);
+    header.addEventListener('click', () => {
+      row.classList.toggle('open');
+    });
 
     saveBtn.addEventListener('click', async () => {
-      await handleChoiceSave(choice.id, card, {
+      await handleChoiceSave(choice.id, row, {
         nameInput,
         priceInput,
         unitSelect,
@@ -397,7 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
       await handleChoiceDelete(choice.id);
     });
 
-    return card;
+    return row;
   }
 
   async function handleChoiceSave(choiceId, card, refs) {
@@ -633,3 +575,117 @@ document.addEventListener('DOMContentLoaded', () => {
   updateCategorySelect();
   renderChoices();
 });
+  const bulkToggleBtn = document.getElementById('toggleBulkPanel');
+  const bulkPanel = document.getElementById('bulkPanel');
+  const bulkCloseBtn = document.getElementById('bulkPanelClose');
+  const bulkTextarea = document.getElementById('bulkTextarea');
+  const bulkImportBtn = document.getElementById('bulkImportBtn');
+  const bulkStatus = document.getElementById('bulkImportStatus');
+  function toggleBulkPanel(show) {
+    if (!bulkPanel) return;
+    const shouldShow =
+      typeof show === 'boolean' ? show : !bulkPanel.classList.contains('show');
+    bulkPanel.classList.toggle('show', shouldShow);
+  }
+
+  bulkToggleBtn?.addEventListener('click', () => toggleBulkPanel());
+  bulkCloseBtn?.addEventListener('click', () => toggleBulkPanel(false));
+
+  bulkImportBtn?.addEventListener('click', async () => {
+    if (!bulkTextarea) return;
+    const text = bulkTextarea.value.trim();
+    if (!text) {
+      alert('Paste some lines to import.');
+      return;
+    }
+    bulkImportBtn.disabled = true;
+    bulkStatus.textContent = 'Importing...';
+    const lines = text.split(/\r?\n/).filter((line) => line.trim().length);
+    let success = 0;
+    let failed = 0;
+
+    for (const rawLine of lines) {
+      const parts = rawLine.split('|').map((part) => part.trim());
+      const [name, optionLabel, priceText, costText, unitToken] = parts;
+      if (!name) {
+        failed++;
+        continue;
+      }
+      const resolvedUnit =
+        resolveUnitId(unitToken) ??
+        (optionLabel && optionLabel.toLowerCase().includes('pp')
+          ? findPerPersonUnit()
+          : null);
+      const payload = {
+        name,
+        description: null,
+        options: [
+          {
+            name: optionLabel || name,
+            price:
+              priceText && !Number.isNaN(Number(priceText))
+                ? Number(priceText)
+                : null,
+            cost:
+              costText && !Number.isNaN(Number(costText))
+                ? Number(costText)
+                : null,
+            unit_id: resolvedUnit,
+          },
+        ],
+      };
+      try {
+        const res = await fetch('/settings/menus/choices/api', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const dataResp = await res.json();
+        if (!dataResp.success) {
+          throw new Error(dataResp.error || 'Failed to create choice.');
+        }
+        success++;
+      } catch (err) {
+        console.error('Bulk import line failed:', rawLine, err);
+        failed++;
+      }
+    }
+
+    bulkStatus.textContent = `Imported ${success} choice(s)${
+      failed ? `, ${failed} failed.` : '.'
+    }`;
+    bulkImportBtn.disabled = false;
+    if (success) {
+      bulkTextarea.value = '';
+      await refreshChoices();
+    }
+  });
+
+  function resolveUnitId(token) {
+    if (!token) return null;
+    const normalized = token.trim().toLowerCase();
+    let match = null;
+    unitLookup.forEach((unit, id) => {
+      if (
+        String(unit.id) === normalized ||
+        unit.name.toLowerCase() === normalized ||
+        (unit.type && unit.type.toLowerCase() === normalized)
+      ) {
+        match = Number(id);
+      }
+    });
+    return match;
+  }
+
+  function findPerPersonUnit() {
+    let match = null;
+    unitLookup.forEach((unit, id) => {
+      if (
+        (unit.type && unit.type.toLowerCase().includes('per')) ||
+        (unit.name && unit.name.toLowerCase().includes('pp'))
+      ) {
+        match = Number(id);
+      }
+    });
+    return match;
+  }

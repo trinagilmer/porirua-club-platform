@@ -1,4 +1,106 @@
-<main class="container-fluid">
+<style>
+  :root {
+    --choice-border: #e3e7ef;
+    --choice-accent: #0d6efd;
+  }
+  .choice-page h1 {
+    font-weight: 600;
+  }
+  .choice-card {
+    border: 1px solid var(--choice-border);
+    border-radius: 10px;
+    background: #fff;
+  }
+  .bulk-panel {
+    border: 1px solid var(--choice-border);
+    border-radius: 10px;
+    padding: 1rem;
+    background: #fafbff;
+    display: none;
+  }
+  .bulk-panel.show {
+    display: block;
+  }
+  .bulk-panel textarea {
+    font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+  .category-block {
+    border-bottom: 1px solid #dfe3ec;
+    padding-bottom: 1rem;
+  }
+  .category-block:last-child {
+    border-bottom: 0;
+  }
+  .choice-row {
+    border: 1px solid var(--choice-border);
+    border-radius: 10px;
+    margin-bottom: 0.75rem;
+    background: #fff;
+  }
+  .choice-row-header {
+    width: 100%;
+    padding: 0.85rem 1rem;
+    background: transparent;
+    border: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #1f2a37;
+  }
+  .choice-row-header:focus {
+    outline: none;
+  }
+  .choice-row-header .chevron {
+    transition: transform 0.2s ease;
+  }
+  .choice-row.open .chevron {
+    transform: rotate(90deg);
+  }
+  .choice-row-body {
+    display: none;
+    padding: 0 1rem 1rem;
+    font-size: 0.9rem;
+  }
+  .choice-row.open .choice-row-body {
+    display: block;
+  }
+  .choice-metadata {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 0.75rem;
+  }
+  .choice-pill {
+    border: 1px solid var(--choice-border);
+    border-radius: 999px;
+    padding: 0.1rem 0.65rem;
+    font-size: 0.8rem;
+    color: #4b5563;
+    background: #f4f6fb;
+  }
+  .choice-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+  .choices-sidebar .card {
+    border: 1px solid var(--choice-border);
+    box-shadow: none !important;
+  }
+  @media (max-width: 768px) {
+    .choice-row-header {
+      font-size: 0.95rem;
+    }
+    .bulk-panel textarea {
+      min-height: 140px;
+    }
+  }
+</style>
+
+<main class="container-fluid choice-page">
   <div class="row g-4">
     <div class="col-lg-8">
       <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
@@ -14,17 +116,36 @@
               <option value="<%= cat.id %>"><%= cat.name %></option>
             <% }) %>
           </select>
-          <a href="/settings/menus/bulk" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-upload me-1"></i> Bulk Upload
-          </a>
+          <button class="btn btn-outline-secondary btn-sm" id="toggleBulkPanel">
+            <i class="bi bi-upload me-1"></i> Bulk Import
+          </button>
+        </div>
+      </div>
+      <div id="bulkPanel" class="bulk-panel mb-4">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <strong>Quick Paste Import</strong>
+            <p class="text-muted small mb-1">Format: <code>Name | Option Label | Price | Cost | Unit</code>. One choice per line.</p>
+          </div>
+          <button class="btn btn-sm btn-outline-secondary" id="bulkPanelClose">
+            Close
+          </button>
+        </div>
+        <textarea id="bulkTextarea" class="form-control mb-2" rows="4" placeholder="Starters | Garlic Bread | 8.50 | 3.10 | each
+Dessert Trio | Chocolate Mousse | 12.00 | 4.00 | pp"></textarea>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div class="text-muted small" id="bulkImportStatus"></div>
+          <button class="btn btn-sm btn-primary" id="bulkImportBtn">
+            Import Choices
+          </button>
         </div>
       </div>
       <div id="choicesContainer" class="vstack gap-4"></div>
     </div>
 
-    <aside class="col-lg-4 d-flex flex-column gap-4">
-      <div class="card shadow-sm">
-        <div class="card-header bg-primary text-white">
+    <aside class="col-lg-4 d-flex flex-column gap-4 choices-sidebar">
+      <div class="card">
+        <div class="card-header bg-white border-bottom fw-semibold">
           <h5 class="mb-0">Create Choice</h5>
         </div>
         <div class="card-body">
@@ -65,7 +186,7 @@
           </form>
         </div>
       </div>
-      <div class="card shadow-sm">
+      <div class="card">
         <div class="card-body small text-muted">
           <p class="fw-semibold mb-1">Tips</p>
           <ul class="ps-3 mb-0">

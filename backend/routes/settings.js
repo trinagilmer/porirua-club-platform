@@ -441,6 +441,7 @@ router.get("/note-templates/api/:id", async (req, res) => {
   }
 });
 // 🔹 Menus (✅ this is the fix)
+router.use("/proposal-terms", require("./settings/proposal-terms"));
 router.use("/menus", require("./settings/menus"));
 
 // 🔹 Menus Builder (optional extended UI)

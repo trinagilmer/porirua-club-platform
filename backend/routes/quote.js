@@ -388,26 +388,72 @@ router.get("/:functionId/quote", async (req, res) => {
       };
     }
 
-    const [contactsRes, roomsRes, eventTypesRes, categoriesRes, unitsRes, menusRes] =
-      await Promise.all([
-        pool.query(
-          `SELECT c.id, c.name, c.email, c.phone, fc.is_primary
-             FROM contacts c
-             JOIN function_contacts fc ON fc.contact_id = c.id
-            WHERE fc.function_id = $1
-            ORDER BY fc.is_primary DESC, c.name ASC`,
-          [functionId]
-        ),
-        pool.query("SELECT id, name, capacity FROM rooms ORDER BY name ASC"),
-        pool.query("SELECT name FROM club_event_types ORDER BY name ASC"),
-        pool.query("SELECT id, name FROM menu_categories ORDER BY name ASC"),
-        pool.query("SELECT id, name, type FROM menu_units ORDER BY id ASC"),
-        pool.query("SELECT id, category_id, name, description, price FROM menus ORDER BY name ASC"),
-      ]);
+    const sessionSaved =
+      (req.session.proposalBuilder && req.session.proposalBuilder[functionId]) ||
+      { includeItemIds: [], includeContactIds: [], sections: [], terms: "" };
+
+    const proposalBuilderSaved = {
+      includeItemIds: Array.isArray(sessionSaved.includeItemIds)
+        ? [...sessionSaved.includeItemIds]
+        : [],
+      includeContactIds: Array.isArray(sessionSaved.includeContactIds)
+        ? [...sessionSaved.includeContactIds]
+        : [],
+      sections: Array.isArray(sessionSaved.sections)
+        ? sessionSaved.sections.map((section) => ({
+            content: section?.content || "",
+          }))
+        : [],
+      terms: sessionSaved.terms || "",
+    };
+
+    const [
+      contactsRes,
+      roomsRes,
+      eventTypesRes,
+      categoriesRes,
+      unitsRes,
+      menusRes,
+      templateRes,
+      termsRes,
+    ] = await Promise.all([
+      pool.query(
+        `SELECT c.id, c.name, c.email, c.phone, fc.is_primary
+           FROM contacts c
+           JOIN function_contacts fc ON fc.contact_id = c.id
+          WHERE fc.function_id = $1
+          ORDER BY fc.is_primary DESC, c.name ASC`,
+        [functionId]
+      ),
+      pool.query("SELECT id, name, capacity FROM rooms ORDER BY name ASC"),
+      pool.query("SELECT name FROM club_event_types ORDER BY name ASC"),
+      pool.query("SELECT id, name FROM menu_categories ORDER BY name ASC"),
+      pool.query("SELECT id, name, type FROM menu_units ORDER BY id ASC"),
+      pool.query("SELECT id, category_id, name, description, price FROM menus ORDER BY name ASC"),
+      pool.query("SELECT id, name, category FROM note_templates ORDER BY name ASC"),
+      pool.query(
+        `SELECT id,
+                COALESCE(NULLIF(name, ''), NULLIF(notes_template, ''), CONCAT('Terms Block #', id)) AS name,
+                NULLIF(category, '') AS category,
+                COALESCE(content, terms_and_conditions, '') AS content,
+                COALESCE(is_default, FALSE) AS is_default
+           FROM proposal_settings
+          ORDER BY COALESCE(is_default, FALSE) DESC, name ASC`
+      ),
+    ]);
+
+    if (!proposalBuilderSaved.terms && termsRes.rows.length) {
+      const defaultTerms =
+        termsRes.rows.find((term) => term.is_default) || termsRes.rows[0];
+      if (defaultTerms) {
+        proposalBuilderSaved.terms = defaultTerms.content || "";
+      }
+    }
 
     res.locals.pageJs = [
       ...(res.locals.pageJs || []),
       "/js/settings/menuDrawer.js",
+      "/js/functions/proposal-builder.js",
     ];
 
     res.render("pages/functions/quote", {
@@ -427,6 +473,9 @@ router.get("/:functionId/quote", async (req, res) => {
       categories: categoriesRes.rows,
       units: unitsRes.rows,
       menus: menusRes.rows,
+      templates: templateRes.rows,
+      proposalBuilderSaved,
+      termsLibrary: termsRes.rows,
     });
   } catch (err) {
     console.error("[Quote] Error loading quote page:", err);
@@ -904,7 +953,7 @@ router.get("/:functionId/proposal", async (req, res) => {
     const fn = fnRows[0];
     if (!fn) return res.status(404).send("Function not found");
 
-    const [proposalRes, templatesRes] = await Promise.all([
+    const [proposalRes, templatesRes, termsRes] = await Promise.all([
       pool.query(
         `SELECT id
            FROM proposals
@@ -918,12 +967,40 @@ router.get("/:functionId/proposal", async (req, res) => {
            FROM note_templates
           ORDER BY name ASC`
       ),
+      pool.query(
+        `SELECT id,
+                COALESCE(NULLIF(name, ''), NULLIF(notes_template, ''), CONCAT('Terms Block #', id)) AS name,
+                NULLIF(category, '') AS category,
+                COALESCE(content, terms_and_conditions, '') AS content,
+                COALESCE(is_default, FALSE) AS is_default
+           FROM proposal_settings
+          ORDER BY COALESCE(is_default, FALSE) DESC, name ASC`
+      ),
     ]);
 
     const proposalId = proposalRes.rows[0]?.id || null;
-    const saved =
+    const sessionSaved =
       (req.session.proposalBuilder && req.session.proposalBuilder[functionId]) ||
       { includeItemIds: [], includeContactIds: [], sections: [], terms: "" };
+    const saved = {
+      includeItemIds: Array.isArray(sessionSaved.includeItemIds)
+        ? [...sessionSaved.includeItemIds]
+        : [],
+      includeContactIds: Array.isArray(sessionSaved.includeContactIds)
+        ? [...sessionSaved.includeContactIds]
+        : [],
+      sections: Array.isArray(sessionSaved.sections)
+        ? sessionSaved.sections.map((section) => ({
+            content: section?.content || "",
+          }))
+        : [],
+      terms: sessionSaved.terms || "",
+    };
+    if (!saved.terms && termsRes.rows.length) {
+      const defaultTerms =
+        termsRes.rows.find((term) => term.is_default) || termsRes.rows[0];
+      if (defaultTerms) saved.terms = defaultTerms.content || "";
+    }
 
     let proposalItems = [];
     if (proposalId) {
@@ -961,6 +1038,11 @@ router.get("/:functionId/proposal", async (req, res) => {
       [functionId]
     );
 
+    res.locals.pageJs = [
+      ...(res.locals.pageJs || []),
+      "/js/functions/proposal-builder.js",
+    ];
+
     res.render("pages/functions/proposal", {
       layout: "layouts/main",
       title: `Proposal Builder - ${fn.event_name}`,
@@ -973,6 +1055,7 @@ router.get("/:functionId/proposal", async (req, res) => {
       templates: templatesRes.rows,
       contacts: contactsRes.rows,
       saved,
+      termsLibrary: termsRes.rows,
     });
   } catch (err) {
     console.error("Error loading proposal builder:", err);

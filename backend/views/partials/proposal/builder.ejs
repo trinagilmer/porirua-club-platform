@@ -1,0 +1,272 @@
+<%
+  const builderHeading = typeof builderHeading !== 'undefined' ? builderHeading : 'Proposal Builder';
+  const builderDescription =
+    typeof builderDescription !== 'undefined'
+      ? builderDescription
+      : 'Choose what flows through to the customer proposal, including menus, notes, contacts, and terms.';
+  const builderContacts = contacts || [];
+  const builderSections = (saved && saved.sections) ? saved.sections : [];
+  const builderTerms = saved && saved.terms ? saved.terms : '';
+  const includeContactIds = (saved && saved.includeContactIds ? saved.includeContactIds : []).map(String);
+  const templatesList = templates || [];
+  const termsLibraryList = termsLibrary || [];
+  const builderId = typeof builderId !== 'undefined' ? builderId : 'proposalBuilder';
+  const proposalCount = (proposalItems || []).length;
+%>
+
+<section class="proposal-builder-card" data-proposal-builder data-function-id="<%= fn.id_uuid %>" data-proposal-id="<%= proposalId || '' %>" data-attendees="<%= Number(fn.attendees || 0) %>">
+  <div class="proposal-builder__intro d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+    <div>
+      <p class="proposal-builder__title mb-1"><%= builderHeading %></p>
+      <p class="proposal-builder__subtitle mb-0 text-muted"><%= builderDescription %></p>
+    </div>
+    <div class="btn-toolbar gap-2">
+      <button type="button" class="btn btn-outline-primary btn-sm" data-role="preview-btn" <%= proposalId ? '' : 'disabled' %>>
+        <i class="bi bi-eye me-1"></i> Preview
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-role="print-btn" <%= proposalId ? '' : 'disabled' %>>
+        <i class="bi bi-printer me-1"></i> Print
+      </button>
+      <button type="button" class="btn btn-success btn-sm" data-role="save-btn">
+        <i class="bi bi-save me-1"></i> Save
+      </button>
+    </div>
+  </div>
+
+  <div class="row g-4 mt-2 proposal-builder__grid">
+    <div class="col-lg-7">
+      <section class="proposal-panel mb-3">
+        <div class="proposal-panel__header">Included Menus &amp; Items</div>
+        <div class="proposal-panel__body">
+          <div class="proposal-menu-summary" data-role="menu-summary"></div>
+          <div class="alert alert-secondary mb-0 <%= proposalCount ? 'd-none' : '' %>" data-role="menu-empty">
+            No menu items selected yet. Configure or resync the quote to populate this list.
+          </div>
+        </div>
+      </section>
+
+      <section class="proposal-panel mb-3">
+        <div class="proposal-panel__header d-flex flex-column flex-md-row gap-2 justify-content-between align-items-md-center">
+          <span>Notes &amp; Sections</span>
+          <div class="d-flex gap-2 flex-wrap">
+            <select class="form-select form-select-sm" data-role="template-picker">
+              <option value="">Insert template...</option>
+              <% templatesList.forEach(template => { %>
+                <option value="<%= template.id %>">
+                  <%= template.name %><%= template.category ? ' (' + template.category + ')' : '' %>
+                </option>
+              <% }) %>
+            </select>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-role="add-template">Add</button>
+          </div>
+        </div>
+        <div class="proposal-panel__body">
+          <ul class="proposal-section-list list-unstyled mb-0" data-role="sections-list">
+            <% if (!builderSections.length) { %>
+              <li class="proposal-section-empty text-muted fst-italic" data-role="sections-empty">No sections yet.</li>
+            <% } else { %>
+              <% builderSections.forEach((section, idx) => { %>
+                <li class="proposal-section-item border rounded-3 p-3 mb-3">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="proposal-section-label fw-semibold">Section <span data-role="section-index"><%= idx + 1 %></span></span>
+                    <button type="button" class="btn btn-sm btn-outline-danger" data-role="remove-section">Remove</button>
+                  </div>
+                  <textarea class="form-control section-content" rows="4" data-role="section-content"><%= section.content || '' %></textarea>
+                </li>
+              <% }) %>
+            <% } %>
+          </ul>
+        </div>
+      </section>
+
+      <section class="proposal-panel">
+        <div class="proposal-panel__header">Terms &amp; Conditions</div>
+        <div class="proposal-panel__body">
+          <% if (termsLibraryList.length) { %>
+            <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+              <select class="form-select form-select-sm" data-role="terms-picker">
+                <option value="">Load saved terms...</option>
+                <% termsLibraryList.forEach(term => { %>
+                  <option value="<%= term.id %>">
+                    <%= term.name %><%= term.is_default ? ' (Default)' : '' %>
+                  </option>
+                <% }) %>
+              </select>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-role="load-terms">Insert</button>
+            </div>
+          <% } %>
+          <textarea class="form-control" rows="5" data-role="terms-input" placeholder="Enter or paste your terms..."><%= builderTerms %></textarea>
+          <div class="form-text mt-2">Terms are always rendered on a separate page in the proposal.</div>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-lg-5">
+      <section class="proposal-panel mb-3">
+        <div class="proposal-panel__header">Contacts Included</div>
+        <div class="proposal-panel__body">
+          <% if (!builderContacts.length) { %>
+            <div class="alert alert-secondary mb-0">No contacts linked to this function yet.</div>
+          <% } else { %>
+            <div class="proposal-contact-list vstack gap-2">
+              <% builderContacts.forEach(contact => { %>
+                <label class="form-check proposal-contact-option">
+                  <input class="form-check-input" type="checkbox" value="<%= contact.id %>" data-role="include-contact"
+                    <%= includeContactIds.includes(String(contact.id)) ? 'checked' : '' %>>
+                  <span class="form-check-label">
+                    <strong><%= contact.name %></strong>
+                    <span class="text-muted small ms-1">
+                      <%= contact.email || 'no email' %>
+                      <%= contact.phone ? '&bull; ' + contact.phone : '' %>
+                    </span>
+                    <% if (contact.is_primary) { %>
+                      <span class="badge bg-primary-subtle text-primary ms-2">Primary</span>
+                    <% } %>
+                  </span>
+                </label>
+              <% }) %>
+            </div>
+          <% } %>
+        </div>
+      </section>
+
+      <section class="proposal-panel">
+        <div class="proposal-panel__header">Proposal Snapshot</div>
+        <div class="proposal-panel__body small">
+          <dl class="row mb-0">
+            <dt class="col-6">Event Date</dt>
+            <dd class="col-6 text-end"><%= fn.event_date ? new Date(fn.event_date).toLocaleDateString() : 'TBC' %></dd>
+            <dt class="col-6">Attendees</dt>
+            <dd class="col-6 text-end"><%= fn.attendees || 0 %></dd>
+            <dt class="col-6">Quote Total</dt>
+            <dd class="col-6 text-end">$<%= Number(fn.totals_price || 0).toFixed(2) %></dd>
+            <dt class="col-6">Linked Items</dt>
+            <dd class="col-6 text-end"><%= proposalCount %></dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <ul class="d-none" data-role="items-source">
+    <% (proposalItems || []).forEach(item => { %>
+      <li data-id="<%= item.id %>" data-price="<%= Number(item.unit_price || 0).toFixed(2) %>">
+        <%- String(item.description || '').replace(/\r\n|\r|\n/g, ' ') %>
+      </li>
+    <% }) %>
+  </ul>
+</section>
+
+<style>
+  .proposal-builder-card {
+    border: 1px solid #e3e7ef;
+    border-radius: 16px;
+    background: #fff;
+    padding: 1.5rem;
+  }
+  .proposal-builder__title {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+  .proposal-builder__subtitle {
+    font-size: 0.875rem;
+  }
+  .proposal-panel {
+    border: 1px solid #e9edf5;
+    border-radius: 14px;
+    background: #fff;
+  }
+  .proposal-panel__header {
+    padding: 0.85rem 1.1rem;
+    border-bottom: 1px solid #eef1f6;
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  .proposal-panel__body {
+    padding: 1rem 1.1rem 1.2rem;
+  }
+  .proposal-menu-summary {
+    display: grid;
+    gap: 16px;
+  }
+  @media (min-width: 992px) {
+    .proposal-menu-summary {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .proposal-summary-card {
+    border: 1px solid #dde1e6;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #fafbff;
+  }
+  .proposal-summary-card .hdr {
+    background: #f4f6fa;
+    padding: 8px 12px;
+    font-weight: 600;
+  }
+  .proposal-summary-card .body {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .proposal-summary-card .menu-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .proposal-summary-card .menu-base {
+    font-size: 12px;
+    color: #6c757d;
+    margin-bottom: 6px;
+  }
+  .proposal-summary-card .menu-row {
+    display: grid;
+    grid-template-columns: 1fr 50px 70px 80px;
+    gap: 6px;
+    font-size: 13px;
+    padding: 3px 0;
+    border-bottom: 1px solid #eef1f5;
+  }
+  .proposal-summary-card .menu-row.head {
+    font-weight: 600;
+    color: #6c757d;
+    border-bottom: 1px solid #d9dee6;
+  }
+  .proposal-summary-card .menu-row:last-child {
+    border-bottom: 0;
+  }
+  .proposal-summary-card .menu-empty {
+    font-size: 12px;
+    color: #999;
+  }
+  .proposal-section-empty {
+    padding: 0.5rem;
+  }
+  .proposal-contact-option {
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #f0f2f8;
+  }
+  .proposal-contact-option:last-child {
+    border-bottom: 0;
+  }
+  @media (max-width: 768px) {
+    .proposal-builder-card {
+      padding: 1.25rem;
+    }
+    .proposal-panel__body {
+      padding: 0.9rem;
+    }
+    .proposal-builder__intro .btn-toolbar {
+      width: 100%;
+      flex-wrap: wrap;
+    }
+    .proposal-builder__intro .btn {
+      flex: 1;
+    }
+  }
+</style>
+
+<script>
+  window.proposalTermsLibrary = <%- JSON.stringify(termsLibraryList || []) %>;
+</script>

@@ -9,6 +9,8 @@
     "build-scss": "npx sass backend/scss/main.scss backend/public/css/main.css --no-source-map --style=compressed",
     "dev-scss": "npx sass backend/scss/main.scss backend/public/css/main.css --no-source-map --style=expanded --watch",
     "dev-all": "npx concurrently \"npm run dev-scss\" \"npm run dev\"",
+    "lint": "eslint . --ext .js --ignore-pattern public/**",
+    "lint:fix": "eslint . --ext .js --ignore-pattern public/** --fix",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -47,8 +49,12 @@
     "pg": "^8.16.3"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.1",
     "concurrently": "^9.1.0",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0",
     "nodemon": "^3.1.10",
-    "sass": "^1.93.2"
+    "sass": "^1.93.2",
+    "typescript-eslint": "^8.46.3"
   }
 }

@@ -1,5 +1,115 @@
 <% locals.layout = 'layouts/main'; %>
 
+<style>
+.quote-page {
+    background: #f7f8fb;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .quote-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    flex: 1;
+  }
+  .quote-card {
+    border: 1px solid #e0e4ee;
+    border-radius: 16px;
+    background: #fff;
+    padding: 1.5rem;
+    width: 100%;
+  }
+  #quoteMenuMount {
+    flex: 1;
+    min-height: 320px;
+  }
+  .quote-card.thin {
+    padding: 1rem;
+  }
+  .quote-menu {
+    border: 1px solid #e0e4ee;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+  }
+  .quote-menu__header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #eef1f7;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .quote-menu__body {
+    overflow: visible;
+  }
+  .quote-menu__table {
+    width: 100%;
+  }
+  .quote-menu .line-total {
+    font-weight: 600;
+    color: #111928;
+  }
+  .quote-totals {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .quote-totals dl {
+    margin: 0;
+  }
+  .quote-totals dt {
+    font-weight: 500;
+  }
+  .quote-actions .btn {
+    min-width: 160px;
+  }
+  .proposal-builder-wrapper {
+    margin-top: 1.5rem;
+  }
+  .proposal-builder-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .proposal-builder-toggle .btn {
+    min-width: 140px;
+  }
+  @media (max-width: 992px) {
+    .quote-totals {
+      flex-direction: column;
+    }
+  }
+  @media (max-width: 768px) {
+    .quote-page {
+      padding: 1rem;
+    }
+    .quote-stage {
+      gap: 0.75rem;
+    }
+    .quote-card {
+      border-radius: 12px;
+      padding: 1rem;
+    }
+    .quote-menu__header {
+      gap: 0.5rem;
+    }
+    .quote-menu__table {
+      width: 100%;
+    }
+    .quote-actions {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .quote-actions .btn {
+      width: 100%;
+    }
+  }
+</style>
+
 <div class="function-body py-4 px-4 quote-page">
   <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3 mb-4">
     <div>
@@ -19,70 +129,66 @@
     </div>
   </div>
 
-  <div class="row g-4">
-    <div class="col-lg-8">
+  <div class="quote-stage">
+    <section class="quote-card flex-grow-1 d-flex flex-column">
       <div id="quoteMenuMount" class="d-flex flex-column gap-3"></div>
       <% if (!proposals.length) { %>
-        <div class="alert alert-secondary">No quotes created yet. Start by adding a menu.</div>
+        <div class="alert alert-secondary mt-3 mb-0">No quotes created yet. Start by adding a menu.</div>
       <% } %>
-    </div>
-    <div class="col-lg-4">
-      <div class="card shadow-sm mb-3">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <span class="fw-semibold">Quote Totals</span>
-          <div class="d-flex gap-2">
-            <button id="saveQuoteBtn" class="btn btn-sm btn-outline-secondary">
-              Save
-            </button>
-            <button id="resetQuoteBtn" class="btn btn-sm btn-outline-danger">
-              Reset
-            </button>
-            <button id="editTotalsBtn" class="btn btn-sm btn-outline-primary" <%= proposals.length ? '' : 'disabled' %>>
-              Edit
-            </button>
-          </div>
-        </div>
-        <div class="card-body small">
-          <dl class="row mb-0">
-            <dt class="col-6">Subtotal</dt>
-            <dd class="col-6 text-end" id="quoteSubtotal">$<%= Number(totals.subtotal || 0).toFixed(2) %></dd>
-            <dt class="col-6">Gratuity (<span id="quoteGratuityPercent"><%= Number(totals.gratuity_percent || 0).toFixed(2) %></span>%)</dt>
-            <dd class="col-6 text-end" id="quoteGratuity">$<%= Number(totals.gratuity_amount || 0).toFixed(2) %></dd>
-            <dt class="col-6">Discount</dt>
-            <dd class="col-6 text-end" id="quoteDiscount">$<%= Number(totals.discount_amount || 0).toFixed(2) %></dd>
-            <dt class="col-6">Deposit</dt>
-            <dd class="col-6 text-end" id="quoteDeposit">$<%= Number(totals.deposit_amount || 0).toFixed(2) %></dd>
-            <dt class="col-6">Total Paid</dt>
-            <dd class="col-6 text-end" id="quotePaid">$<%= Number(totals.total_paid || 0).toFixed(2) %></dd>
-            <dt class="col-6 fw-semibold">Remaining Due</dt>
-            <dd class="col-6 text-end fw-semibold" id="quoteRemaining">$<%= Number(totals.remaining_due || 0).toFixed(2) %></dd>
-          </dl>
-        </div>
-      </div>
+    </section>
 
-      <div class="card shadow-sm">
-        <div class="card-header fw-semibold">Function Snapshot</div>
-        <div class="card-body small">
-          <div class="d-flex justify-content-between">
-            <span>Status</span>
-            <span class="fw-semibold text-capitalize"><%= fn.status %></span>
-          </div>
-          <div class="d-flex justify-content-between">
-            <span>Event Date</span>
-            <span><%= fn.event_date ? new Date(fn.event_date).toLocaleDateString() : 'TBC' %></span>
-          </div>
-          <div class="d-flex justify-content-between">
-            <span>Attendees</span>
-            <span><%= fn.attendees || 0 %></span>
-          </div>
-          <div class="d-flex justify-content-between">
-            <span>Budget</span>
-            <span>$<%= Number(fn.budget || 0).toFixed(2) %></span>
+    <section class="quote-totals">
+      <div class="quote-card thin">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <span class="fw-semibold">Quote Totals</span>
+          <div class="quote-actions d-flex gap-2 flex-wrap">
+            <button id="saveQuoteBtn" class="btn btn-sm btn-outline-secondary">Save</button>
+            <button id="resetQuoteBtn" class="btn btn-sm btn-outline-danger">Reset</button>
+            <button id="editTotalsBtn" class="btn btn-sm btn-outline-primary" <%= proposals.length ? '' : 'disabled' %>>Edit</button>
           </div>
         </div>
+        <dl class="row gy-2 gx-0 small">
+          <dt class="col-6">Subtotal</dt>
+          <dd class="col-6 text-end" id="quoteSubtotal">$<%= Number(totals.subtotal || 0).toFixed(2) %></dd>
+          <dt class="col-6">Gratuity (<span id="quoteGratuityPercent"><%= Number(totals.gratuity_percent || 0).toFixed(2) %></span>%)</dt>
+          <dd class="col-6 text-end" id="quoteGratuity">$<%= Number(totals.gratuity_amount || 0).toFixed(2) %></dd>
+          <dt class="col-6">Discount</dt>
+          <dd class="col-6 text-end" id="quoteDiscount">$<%= Number(totals.discount_amount || 0).toFixed(2) %></dd>
+          <dt class="col-6">Deposit</dt>
+          <dd class="col-6 text-end" id="quoteDeposit">$<%= Number(totals.deposit_amount || 0).toFixed(2) %></dd>
+          <dt class="col-6">Total Paid</dt>
+          <dd class="col-6 text-end" id="quotePaid">$<%= Number(totals.total_paid || 0).toFixed(2) %></dd>
+          <dt class="col-6 fw-semibold">Remaining Due</dt>
+          <dd class="col-6 text-end fw-semibold" id="quoteRemaining">$<%= Number(totals.remaining_due || 0).toFixed(2) %></dd>
+        </dl>
       </div>
-    </div>
+    </section>
   </div>
+
+  <section class="quote-card proposal-builder-wrapper" id="proposalBuilderCard">
+    <div class="proposal-builder-toggle">
+      <div>
+        <p class="fw-semibold mb-1">Proposal Builder</p>
+        <p class="text-muted small mb-0">Open the builder to choose which menus, notes, contacts, and terms flow through to the customer proposal.</p>
+      </div>
+      <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#quoteProposalBuilderCollapse" aria-expanded="false" aria-controls="quoteProposalBuilderCollapse">
+        <i class="bi bi-layout-text-window-reverse me-1"></i> Toggle Builder
+      </button>
+    </div>
+    <div class="collapse mt-3" id="quoteProposalBuilderCollapse">
+      <%- include('../../partials/proposal/builder', {
+        fn,
+        proposalId: proposals[0]?.id || null,
+        proposalItems,
+        templates,
+        contacts: linkedContacts || [],
+        saved: proposalBuilderSaved,
+        termsLibrary,
+        builderHeading: 'Proposal Builder',
+        builderDescription: 'Choose exactly what reaches the proposal before you preview or print it.'
+      }) %>
+    </div>
+  </section>
 
   <ul id="proposalItemsList" class="d-none">
     <% (proposalItems || []).forEach(item => { %>
