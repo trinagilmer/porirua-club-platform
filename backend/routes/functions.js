@@ -386,7 +386,7 @@ router.get("/:id/edit", async (req, res, next) => {
     if (!fn) return res.status(404).send("Function not found");
 
     // 2️⃣ Load related data concurrently
-    const [linkedContactsRes, roomsRes, eventTypesRes] = await Promise.all([
+    const [linkedContactsRes, roomsRes, eventTypesRes, usersRes] = await Promise.all([
       pool.query(`
         SELECT c.id, c.name, c.email, c.phone, fc.is_primary
         FROM contacts c
@@ -396,7 +396,8 @@ router.get("/:id/edit", async (req, res, next) => {
         [functionId]
       ),
       pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`),
-      pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`)
+      pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`),
+      pool.query(`SELECT id, name FROM users ORDER BY name ASC;`)
     ]);
 
     // 3️⃣ Render edit page
@@ -408,6 +409,7 @@ router.get("/:id/edit", async (req, res, next) => {
       linkedContacts: linkedContactsRes.rows,
       rooms: roomsRes.rows,
       eventTypes: eventTypesRes.rows,
+      users: usersRes.rows,
       activeTab: "edit"
     });
 
@@ -433,7 +435,8 @@ router.post("/:id/edit", async (req, res) => {
     totals_cost,
     room_id,
     event_type,
-    status
+    status,
+    owner_id
   } = req.body;
 
   try {
@@ -448,27 +451,29 @@ router.post("/:id/edit", async (req, res) => {
         attendees    = $6,
         budget       = $7,
         totals_price = $8,
-        totals_cost  = $9,
-        room_id      = $10,
-        event_type   = $11,
-        status       = $12,
-        updated_at   = NOW()
-      WHERE id_uuid = $13;`,
-      [
-        event_name,
-        event_date || null,
-        event_time || null,
-        start_time || null,
-        end_time || null,
-        attendees || null,
-        budget || null,
-        totals_price || 0,
-        totals_cost || 0,
-        room_id || null,
-        event_type || null,
-        status,
-        functionId
-      ]
+      totals_cost  = $9,
+      room_id      = $10,
+      event_type   = $11,
+      status       = $12,
+      owner_id     = $13,
+      updated_at   = NOW()
+    WHERE id_uuid = $14;`,
+    [
+      event_name,
+      event_date || null,
+      event_time || null,
+      start_time || null,
+      end_time || null,
+      attendees || null,
+      budget || null,
+      totals_price || 0,
+      totals_cost || 0,
+      room_id || null,
+      event_type || null,
+      status,
+      owner_id || null,
+      functionId
+    ]
     );
 
     console.log(`✅ Function updated successfully (UUID: ${functionId}, Name: ${event_name})`);
@@ -518,7 +523,8 @@ router.get("/:id", async (req, res) => {
       tasksRes,
       messagesRes,
       roomsRes,
-      eventTypesRes
+      eventTypesRes,
+      usersRes
     ] = await Promise.all([
       // Contacts
       pool.query(
@@ -592,7 +598,8 @@ router.get("/:id", async (req, res) => {
 
       // Static lookup data
       pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`),
-      pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`)
+      pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`),
+      pool.query(`SELECT id, name FROM users ORDER BY name ASC;`)
     ]);
 
     // 3️⃣ Build combined timeline entries
@@ -610,21 +617,22 @@ router.get("/:id", async (req, res) => {
     }, {});
 
     // 4️⃣ Render function detail view
-res.render("pages/functions/overview", {
-  layout: 'layouts/main',  // ✅ use main layout again
-  title: fn.event_name,
-  active: "functions",
-  user: req.session.user || null,
-  pageType: 'function-detail',
-  fn,
-  linkedContacts: linkedContactsRes.rows,
-  notes: notesRes.rows,
-  tasks: tasksRes.rows,
-  grouped,
-  activeTab,
-  rooms: roomsRes.rows,
-  eventTypes: eventTypesRes.rows
-});
+    res.render("pages/functions/overview", {
+      layout: 'layouts/main',  // ✅ use main layout again
+      title: fn.event_name,
+      active: "functions",
+      user: req.session.user || null,
+      pageType: 'function-detail',
+      fn,
+      linkedContacts: linkedContactsRes.rows,
+      notes: notesRes.rows,
+      tasks: tasksRes.rows,
+      grouped,
+      activeTab,
+      rooms: roomsRes.rows,
+      eventTypes: eventTypesRes.rows,
+      users: usersRes.rows
+    });
 
   } catch (err) {
     console.error("❌ [Function DETAIL] Error loading function detail:", err);

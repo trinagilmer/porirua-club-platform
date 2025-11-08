@@ -600,40 +600,43 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     bulkImportBtn.disabled = true;
     bulkStatus.textContent = 'Importing...';
-    const lines = text.split(/\r?\n/).filter((line) => line.trim().length);
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.replace(/,/g, '|'))
+      .filter((line) => line.trim().length);
     let success = 0;
     let failed = 0;
 
     for (const rawLine of lines) {
       const parts = rawLine.split('|').map((part) => part.trim());
-      const [name, optionLabel, priceText, costText, unitToken] = parts;
+      const [name, description, priceText, costText, unitToken] = parts;
       if (!name) {
         failed++;
         continue;
       }
       const resolvedUnit =
         resolveUnitId(unitToken) ??
-        (optionLabel && optionLabel.toLowerCase().includes('pp')
+        ((description || name).toLowerCase().includes('pp')
           ? findPerPersonUnit()
           : null);
-      const payload = {
-        name,
-        description: null,
-        options: [
-          {
-            name: optionLabel || name,
-            price:
-              priceText && !Number.isNaN(Number(priceText))
-                ? Number(priceText)
-                : null,
-            cost:
-              costText && !Number.isNaN(Number(costText))
-                ? Number(costText)
-                : null,
-            unit_id: resolvedUnit,
-          },
-        ],
-      };
+        const payload = {
+          name,
+          description: description || null,
+          options: [
+            {
+              name,
+              price:
+                priceText && !Number.isNaN(Number(priceText))
+                  ? Number(priceText)
+                  : null,
+              cost:
+                costText && !Number.isNaN(Number(costText))
+                  ? Number(costText)
+                  : null,
+              unit_id: resolvedUnit,
+            },
+          ],
+        };
       try {
         const res = await fetch('/settings/menus/choices/api', {
           method: 'POST',

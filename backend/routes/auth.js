@@ -182,7 +182,7 @@ router.get("/graph/callback", async (req, res) => {
     console.log(`📨 Shared mailbox configured: ${req.session.sharedMailbox}`);
 
     // ✅ Redirect back to original page (or inbox as fallback)
-    const nextUrl = req.session.next || "/inbox";
+    const nextUrl = req.session.next || "/dashboard";
     delete req.session.next;
     res.redirect(nextUrl);
   } catch (error) {

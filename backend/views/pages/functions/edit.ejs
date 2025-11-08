@@ -81,6 +81,16 @@
               <% }) %>
             </select>
           </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Function Owner</label>
+            <select name="owner_id" class="form-select">
+              <option value="">Unassigned</option>
+              <% (users || []).forEach(u => { %>
+                <option value="<%= u.id %>" <%= fn.owner_id === u.id ? 'selected' : '' %>><%= u.name %></option>
+              <% }) %>
+            </select>
+          </div>
         </div>
 
         <div class="mt-4 d-flex justify-content-end gap-2">
