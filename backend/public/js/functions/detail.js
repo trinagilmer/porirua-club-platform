@@ -111,20 +111,32 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!body.name) return showToast("⚠️ Name required");
 
     try {
-      const res = await fetch(`/api/contacts/link/${fnUUID}`, {
+      const createRes = await fetch(`/api/contacts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
-      if (data.success) {
+      const createData = await createRes.json();
+      if (!createRes.ok || !createData.success || !createData.id) {
+        throw new Error(createData.message || "Failed to create contact");
+      }
+
+      const linkRes = await fetch(`/api/contacts/link/${fnUUID}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact_id: createData.id }),
+      });
+      const linkData = await linkRes.json();
+      if (linkData.success) {
         showToast("✅ Contact added & linked");
         closePanel();
         setTimeout(() => location.reload(), 400);
-      } else showToast(data.message || "❌ Failed to add contact");
+      } else {
+        throw new Error(linkData.message || "Failed to link contact");
+      }
     } catch (err) {
-      console.error("❌ Create contact error:", err);
-      showToast("❌ Error creating contact");
+      console.error("⚠️ Create contact error:", err);
+      showToast("⚠️ Error creating contact");
     }
   });
 

@@ -194,7 +194,12 @@ Catering | Cinnamon pinwheel | | 0.15 | 2.50 | PP"></textarea>
                 <div class="form-text">Friendly labels like PP / Each.</div>
               </div>
             </div>
-            <div>
+            <div class="choice-description-toggle">
+              <button type="button" class="btn btn-link btn-sm px-0" id="toggleCreateDescription">
+                <i class="bi bi-chat-square-text me-1"></i> Add description
+              </button>
+            </div>
+            <div id="createChoiceDescriptionWrap" class="d-none">
               <label class="form-label small text-uppercase text-muted">Description</label>
               <textarea name="choice_description" id="createChoiceDescription" rows="3" class="form-control" placeholder="Optional notes for staff..."></textarea>
             </div>

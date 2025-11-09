@@ -68,7 +68,7 @@
         class="editable"
         data-field="event_date"
         data-id="<%= fn.id_uuid %>"
-        value="<%= fn.event_date ? fn.event_date.toISOString().split('T')[0] : '' %>"
+        value="<%= fn.event_date ? new Date(fn.event_date).toISOString().split('T')[0] : '' %>"
       >
     </div>
 

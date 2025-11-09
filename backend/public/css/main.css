@@ -1083,6 +1083,14 @@ textarea {
   display: block;
   color: #4B5563;
 }
+.proposal-header__details {
+  margin-top: 0.5rem;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  color: #4B5563;
+}
 
 .proposal-logo--primary {
   max-height: 64px;
@@ -1104,14 +1112,22 @@ textarea {
 .proposal-summary__list {
   margin: 0;
 }
+.proposal-summary__list > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
 .proposal-summary__list dt {
   font-size: 0.8rem;
   text-transform: uppercase;
   color: #6B7280;
 }
 .proposal-summary__list dd {
-  margin-bottom: 0.7rem;
+  margin: 0;
   font-weight: 600;
+  text-align: right;
 }
 
 .proposal-contact-list {

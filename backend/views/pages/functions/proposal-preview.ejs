@@ -71,6 +71,13 @@
           <% if (primaryContact.phone) { %><span><%= primaryContact.phone %></span><% } %>
         </div>
       <% } %>
+      <div class="proposal-header__details">
+        <div><strong>Event:</strong> <%= eventDate %></div>
+        <div><strong>Time:</strong> <%= startTime || '--:--' %> – <%= endTime || '--:--' %></div>
+        <% if (fn.room_name) { %>
+          <div><strong>Location:</strong> <%= fn.room_name %></div>
+        <% } %>
+      </div>
     </div>
     <div class="proposal-header__logos">
       <img src="/img/EASTWOOD-LOGO-small.png" alt="Eastwood" class="proposal-logo proposal-logo--secondary">
@@ -131,6 +138,13 @@
     <% } %>
   </section>
 
+  <section class="proposal-table-card card shadow-sm mb-4">
+    <div class="card-header bg-light fw-semibold">Menus &amp; Pricing</div>
+    <div class="card-body">
+      <div id="proposalPricing"></div>
+    </div>
+  </section>
+
   <section class="proposal-run-sheet card shadow-sm mb-4">
     <div class="card-body">
       <h5 class="proposal-run-sheet__title">Function Run Sheet</h5>
@@ -139,13 +153,6 @@
         <li>Guest arrival: <strong><%= startTime || '--:--' %></strong></li>
         <li>Event concludes: <strong><%= endTime || '--:--' %></strong></li>
       </ul>
-    </div>
-  </section>
-
-  <section class="proposal-table-card card shadow-sm mb-4">
-    <div class="card-header bg-light fw-semibold">Menus &amp; Pricing</div>
-    <div class="card-body">
-      <div id="proposalPricing"></div>
     </div>
   </section>
 

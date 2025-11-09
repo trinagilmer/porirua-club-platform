@@ -665,6 +665,15 @@
     display: block;
     color: $neutral-600;
   }
+
+  &__details {
+    margin-top: 0.5rem;
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+    color: $neutral-600;
+  }
 }
 
 .proposal-logo {
@@ -690,14 +699,22 @@
 
 .proposal-summary__list {
   margin: 0;
+  > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+  }
   dt {
     font-size: 0.8rem;
     text-transform: uppercase;
     color: $neutral-500;
   }
   dd {
-    margin-bottom: 0.7rem;
+    margin: 0;
     font-weight: 600;
+    text-align: right;
   }
 }
 
