@@ -65,8 +65,25 @@
         <!-- 👤 User -->
         <div class="d-flex align-items-center header-right">
           <% if (user) { %>
-            <div class="user-circle ms-2" title="<%= user.name || '' %>">
-              <%= user.name ? user.name.charAt(0).toUpperCase() : '?' %>
+            <div class="dropdown">
+              <button
+                class="btn btn-outline-light header-user-avatar p-0"
+                type="button"
+                id="userMenuBtn"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+                title="<%= user.name || 'User' %>"
+              >
+                <%= user.name ? user.name.charAt(0).toUpperCase() : '?' %>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end text-sm" aria-labelledby="userMenuBtn">
+                <li><a class="dropdown-item" href="/settings/users">View Profile</a></li>
+                <li><a class="dropdown-item" href="/auth/logout">Log out</a></li>
+                <% if (user.role && ['admin','owner'].includes(user.role.toLowerCase())) { %>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item" href="/settings/users">User management</a></li>
+                <% } %>
+              </ul>
             </div>
           <% } else { %>
             <a href="/login" class="btn btn-outline-light btn-sm">Login</a>

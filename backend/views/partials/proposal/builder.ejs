@@ -1,0 +1,169 @@
+<%
+  const stripHtml = (value) => {
+    return String(value || "")
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\r/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  };
+  const resolvedBuilderHeading =
+    typeof builderHeading !== 'undefined'
+      ? builderHeading
+      : 'Proposal Builder';
+  const resolvedBuilderDescription =
+    typeof builderDescription !== 'undefined'
+      ? builderDescription
+      : 'Choose what flows through to the customer proposal, including notes, contacts, and terms.';
+  const builderContacts = contacts || [];
+  const builderSections = ((saved && saved.sections) ? saved.sections : []).map((section) => ({
+    content: section?.content || '',
+  }));
+  const builderTerms = stripHtml(saved && saved.terms ? saved.terms : '');
+  const includeContactIds = (saved && saved.includeContactIds ? saved.includeContactIds : []).map(String);
+  const selectedTermIds = (saved && Array.isArray(saved.termIds) ? saved.termIds : []).map(String);
+  const termsLibraryList = termsLibrary || [];
+  const functionNotesList = functionNotes || [];
+  const resolvedBuilderId = typeof builderId !== 'undefined' ? builderId : 'proposalBuilder';
+  const proposalCount = (proposalItems || []).length;
+%>
+
+<section class="proposal-builder-card" data-proposal-builder data-builder-id="<%= resolvedBuilderId %>" data-function-id="<%= fn.id_uuid %>" data-proposal-id="<%= proposalId || '' %>" data-attendees="<%= Number(fn.attendees || 0) %>">
+  <div class="proposal-builder__intro d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+    <div>
+      <p class="proposal-builder__title mb-1"><%= resolvedBuilderHeading %></p>
+      <p class="proposal-builder__subtitle mb-0 text-muted"><%= resolvedBuilderDescription %></p>
+    </div>
+    <div class="btn-toolbar gap-2">
+      <button type="button" class="btn btn-outline-primary btn-sm" data-role="preview-btn" <%= proposalId ? '' : 'disabled' %>>
+        <i class="bi bi-eye me-1"></i> Preview
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-role="print-btn" <%= proposalId ? '' : 'disabled' %>>
+        <i class="bi bi-printer me-1"></i> Print
+      </button>
+      <button type="button" class="btn btn-success btn-sm" data-role="save-btn">
+        <i class="bi bi-save me-1"></i> Save
+      </button>
+    </div>
+  </div>
+
+  <div class="row g-4 mt-2 proposal-builder__grid">
+    <div class="col-lg-7">
+      <section class="proposal-panel mb-3">
+        <div class="proposal-panel__header d-flex flex-column flex-xl-row gap-2 justify-content-between align-items-xl-center">
+          <span>Notes &amp; Sections</span>
+          <% if (functionNotesList.length) { %>
+            <div class="d-flex gap-2 flex-wrap">
+              <select class="form-select form-select-sm" data-role="note-picker">
+                <option value="">Insert function note...</option>
+                <% functionNotesList.forEach(note => { %>
+                  <option value="<%= note.id %>">
+                    <%= note.note_type ? note.note_type.charAt(0).toUpperCase() + note.note_type.slice(1) + ' ' : '' %>
+                    Note #<%= note.id %>
+                    (<%= note.created_at ? new Date(note.created_at).toLocaleDateString('en-NZ') : '' %>)
+                  </option>
+                <% }) %>
+              </select>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-role="add-note">Add Note</button>
+            </div>
+          <% } %>
+        </div>
+        <div class="proposal-panel__body">
+          <ul class="proposal-section-list list-unstyled mb-0" data-role="sections-list">
+            <% if (!builderSections.length) { %>
+              <li class="proposal-section-empty text-muted fst-italic" data-role="sections-empty">No sections yet.</li>
+            <% } else { %>
+              <% builderSections.forEach((section, idx) => { %>
+                <li class="proposal-section-item border rounded-3 p-3 mb-3">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="proposal-section-label fw-semibold">Section <span data-role="section-index"><%= idx + 1 %></span></span>
+                    <button type="button" class="btn btn-sm btn-outline-danger" data-role="remove-section">Remove</button>
+                  </div>
+                  <div class="form-control section-content" data-role="section-content" contenteditable="true"><%- section.content || '' %></div>
+                </li>
+              <% }) %>
+            <% } %>
+          </ul>
+        </div>
+      </section>
+
+      <section class="proposal-panel">
+        <div class="proposal-panel__header">Terms &amp; Conditions</div>
+        <div class="proposal-panel__body">
+          <% if (termsLibraryList.length) { %>
+            <div class="proposal-terms-list vstack gap-2 mb-3">
+              <% termsLibraryList.forEach(term => { %>
+                <label class="form-check small term-option">
+                  <input class="form-check-input" type="checkbox" value="<%= term.id %>" data-role="term-select" <%= selectedTermIds.includes(String(term.id)) ? 'checked' : '' %>>
+                  <span class="form-check-label">
+                    <strong><%= term.name %></strong>
+                    <span class="text-muted ms-1"><%= term.category || 'General' %></span>
+                    <% if (term.is_default) { %>
+                      <span class="badge bg-primary-subtle text-primary ms-2">Default</span>
+                    <% } %>
+                  </span>
+                </label>
+              <% }) %>
+            </div>
+          <% } %>
+          <textarea class="form-control" rows="5" data-role="terms-input" placeholder="Add custom wording..."><%= builderTerms %></textarea>
+          <div class="form-text mt-2">
+            Selected standard terms appear first, followed by any custom additions. Terms are rendered on a separate page.
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-lg-5">
+      <section class="proposal-panel mb-3">
+        <div class="proposal-panel__header">Contacts Included</div>
+        <div class="proposal-panel__body">
+          <% if (!builderContacts.length) { %>
+            <div class="alert alert-secondary mb-0">No contacts linked to this function yet.</div>
+          <% } else { %>
+            <div class="proposal-contact-list vstack gap-2">
+              <% builderContacts.forEach(contact => { %>
+                <label class="form-check proposal-contact-option">
+                  <input class="form-check-input" type="checkbox" value="<%= contact.id %>" data-role="include-contact"
+                    <%= includeContactIds.includes(String(contact.id)) ? 'checked' : '' %>>
+                  <span class="form-check-label">
+                    <strong><%= contact.name %></strong>
+                    <span class="text-muted small ms-1">
+                      <%= contact.email || 'no email' %>
+                      <%= contact.phone ? '&bull; ' + contact.phone : '' %>
+                    </span>
+                    <% if (contact.is_primary) { %>
+                      <span class="badge bg-primary-subtle text-primary ms-2">Primary</span>
+                    <% } %>
+                  </span>
+                </label>
+              <% }) %>
+            </div>
+          <% } %>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <ul class="d-none" data-role="items-source">
+    <% (proposalItems || []).forEach(item => { %>
+      <li data-id="<%= item.id %>" data-price="<%= Number(item.unit_price || 0).toFixed(2) %>">
+        <%- String(item.description || '').replace(/\r\n|\r|\n/g, ' ') %>
+      </li>
+    <% }) %>
+  </ul>
+</section>
+
+<script>
+  window.savedProposalState = Object.assign(
+    { includeItemIds: [], includeContactIds: [], sections: [], terms: '', termIds: [] },
+    <%- JSON.stringify(saved || { includeItemIds: [], includeContactIds: [], sections: [], terms: '', termIds: [] }) %>
+  );
+</script>
+
+<script>
+  window.proposalTermsLibrary = <%- JSON.stringify(termsLibraryList || []) %>;
+  window.functionNotesLibrary = <%- JSON.stringify(functionNotesList || []) %>;
+</script>

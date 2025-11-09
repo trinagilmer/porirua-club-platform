@@ -1,88 +1,203 @@
-// backend/routes/settings/menus.js
+﻿// backend/routes/settings/menus.js
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../../db');
 
+router.use('/units', require('./menu-units'));
+router.use('/choices', require('./menu-choices'));
+router.use('/addons', require('./menu-addons'));
+router.use('/categories', require('./menu-categories'));
+
 // ======================================================
-// 🔹 Render the Menus Page (menus + linked choices only)
+// Main Menus Page
 // ======================================================
 router.get('/', async (req, res) => {
   try {
-    // Fetch menus, categories, and units only
     const [categoriesRes, menusRes, unitsRes] = await Promise.all([
-      pool.query('SELECT * FROM menu_categories ORDER BY name'),
-      pool.query('SELECT * FROM menus ORDER BY id ASC'),
-      pool.query('SELECT * FROM menu_units ORDER BY id ASC')
+      pool.query('SELECT id, name FROM menu_categories ORDER BY name ASC'),
+      pool.query('SELECT * FROM menus ORDER BY name ASC'),
+      pool.query('SELECT * FROM menu_units ORDER BY name ASC'),
     ]);
 
-    const categories = categoriesRes.rows;
-    const menus = menusRes.rows;
-    const units = unitsRes.rows;
-
-    // ✅ Inject only relevant JS files for this page
-    res.locals.pageJs = [
-      '/js/settings/menus.js',
-      '/js/settings/menuDrawer.js'
-    ];
+    res.locals.pageJs = ['/js/settings/menus.js', '/js/settings/menuDrawer.js'];
 
     res.render('settings/menus', {
       layout: 'layouts/settings',
-      title: 'Settings — Menus',
+      title: 'Settings - Menus',
       pageType: 'settings',
       activeTab: 'menus',
-      categories,
-      menus,
-      units,
-      user: req.session.user || null
+      categories: categoriesRes.rows,
+      menus: menusRes.rows,
+      units: unitsRes.rows,
+      user: req.session.user || null,
     });
   } catch (err) {
-    console.error('❌ Error loading menus page:', err);
+    console.error('⚠️  Error loading menus page:', err);
     res.status(500).send('Error loading menus');
   }
 });
 
+// Lightweight API for frontend (quote builder / modals)
+router.get('/api', async (_req, res) => {
+  try {
+    const [categoriesRes, menusRes] = await Promise.all([
+      pool.query('SELECT id, name FROM menu_categories ORDER BY name ASC'),
+      pool.query(
+        `SELECT id, category_id, name, description, price
+           FROM menus
+          ORDER BY name ASC`
+      ),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        categories: categoriesRes.rows,
+        menus: menusRes.rows,
+      },
+    });
+  } catch (err) {
+    console.error('⚠️  Error loading menus API:', err);
+    res.status(500).json({ success: false, error: 'Failed to load menus.' });
+  }
+});
+
+router.get('/api/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ success: false, error: 'Invalid menu id.' });
+  }
+  try {
+    const {
+      rows,
+    } = await pool.query(
+      `SELECT m.*,
+              c.name AS category_name
+         FROM menus m
+    LEFT JOIN menu_categories c ON c.id = m.category_id
+        WHERE m.id = $1
+        LIMIT 1`,
+      [id]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ success: false, error: 'Menu not found.' });
+    }
+    res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    console.error('⚠️  Error loading menu record:', err);
+    res.status(500).json({ success: false, error: 'Failed to load menu.' });
+  }
+});
 
 // ======================================================
-// 🧱 CREATE CATEGORY
+// Create category
 // ======================================================
 router.post('/menu-category', async (req, res) => {
   try {
     const { name } = req.body;
-    await pool.query('INSERT INTO menu_categories (name) VALUES ($1)', [name]);
+    if (!name || !name.trim()) {
+      return res.status(400).send('Name required');
+    }
+    await pool.query('INSERT INTO menu_categories (name) VALUES ($1)', [name.trim()]);
     res.sendStatus(200);
   } catch (err) {
-    console.error('❌ Error adding category:', err);
+    console.error('⚠️  Error adding category:', err);
     res.status(500).send('Error adding category');
   }
 });
 
 // ======================================================
-// 🧾 CREATE MENU
+// Create menu
 // ======================================================
 router.post('/menu', async (req, res) => {
   try {
-    const { category_id, name, description, price } = req.body;
-    await pool.query(
+    const { category_id, name, description, price } = req.body || {};
+    const categoryId = Number(category_id);
+    const priceValue =
+      price !== undefined && price !== null && price !== ''
+        ? Number(price)
+        : null;
+
+    if (!Number.isInteger(categoryId) || categoryId <= 0 || !name?.trim()) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Missing required fields' });
+    }
+
+    const {
+      rows,
+    } = await pool.query(
       `INSERT INTO menus (category_id, name, description, price)
-       VALUES ($1, $2, $3, $4)`,
-      [category_id, name, description, price]
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, category_id, name, description, price`,
+      [categoryId, name.trim(), description || null, priceValue]
     );
-    res.sendStatus(200);
+    res.status(201).json({ success: true, data: rows[0] });
   } catch (err) {
-    console.error('❌ Error adding menu:', err);
-    res.status(500).send('Error adding menu');
+    console.error('??  Error adding menu:', err);
+    res.status(500).json({ success: false, error: 'Error adding menu' });
   }
 });
 
 // ======================================================
-// ❌ DELETE MENU
+// Update existing menu
+// ======================================================
+router.patch('/menu/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  const { category_id, name, description, price } = req.body || {};
+  const categoryId = Number(category_id);
+  const priceValue =
+    price !== undefined && price !== null && price !== ''
+      ? Number(price)
+      : null;
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ success: false, error: 'Invalid menu id' });
+  }
+  if (!Number.isInteger(categoryId) || categoryId <= 0 || !name?.trim()) {
+    return res
+      .status(400)
+      .json({ success: false, error: 'Missing required fields' });
+  }
+
+  try {
+    const {
+      rows,
+    } = await pool.query(
+      `UPDATE menus
+          SET category_id = $1,
+              name = $2,
+              description = $3,
+              price = $4
+        WHERE id = $5
+        RETURNING id, category_id, name, description, price`,
+      [categoryId, name.trim(), description || null, priceValue, id]
+    );
+
+    if (!rows.length) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Menu not found' });
+    }
+
+    res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    console.error('??  Error updating menu:', err);
+    res.status(500).json({ success: false, error: 'Error updating menu' });
+  }
+});
+
+// ======================================================
+// Delete menu
 // ======================================================
 router.delete('/menu/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM menus WHERE id = $1', [req.params.id]);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).send('Invalid id');
+    await pool.query('DELETE FROM menus WHERE id = $1', [id]);
     res.sendStatus(200);
   } catch (err) {
-    console.error('❌ Error deleting menu:', err);
+    console.error('⚠️  Error deleting menu:', err);
     res.status(500).send('Error deleting menu');
   }
 });

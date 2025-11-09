@@ -34,6 +34,7 @@ const SHARED_MAILBOX = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
 const SENDER_EMAIL = "events@poriruaclub.co.nz";
 
 /* Utility: Deduplicate messages by ID */
+// eslint-disable-next-line no-unused-vars
 function dedupeMessages(messages) {
   const seen = new Set();
   return messages.filter((m) => {

@@ -84,18 +84,20 @@
     <aside class="settings-sidebar border-end p-4 bg-light" style="width: 250px;">
       <h5 class="mb-3 text-uppercase text-muted fw-bold">Settings</h5>
       <nav class="nav flex-column gap-1">
-        <a href="/settings/overview" class="nav-link <%= activeTab === 'overview' ? 'active fw-semibold' : '' %>">Overview</a>
-        <a href="/settings/event-types" class="nav-link <%= activeTab === 'event-types' ? 'active fw-semibold' : '' %>">Event Types</a>
-        <a href="/settings/spaces" class="nav-link <%= activeTab === 'spaces' ? 'active fw-semibold' : '' %>">Rooms / Spaces</a>
+      <a href="/settings/overview" class="nav-link <%= activeTab === 'overview' ? 'active fw-semibold' : '' %>">Overview</a>
+      <a href="/settings/event-types" class="nav-link <%= activeTab === 'event-types' ? 'active fw-semibold' : '' %>">Event Types</a>
+      <a href="/settings/spaces" class="nav-link <%= activeTab === 'spaces' ? 'active fw-semibold' : '' %>">Rooms / Spaces</a>
         <a href="/settings/note-templates" class="nav-link <%= activeTab === 'note-templates' ? 'active fw-semibold' : '' %>">Note Templates</a>
+        <a href="/settings/proposal-terms" class="nav-link <%= activeTab === 'proposal-terms' ? 'active fw-semibold' : '' %>">Proposal Terms</a>
+        <a href="/settings/users" class="nav-link <%= activeTab === 'users' ? 'active fw-semibold' : '' %>">Users</a>
 <!-- Menus Group -->
 <div class="nav-item">
   <button
     class="btn w-100 text-start nav-link d-flex justify-content-between align-items-center
-      <%= ['menus', 'menu-categories', 'menu-bulk'].includes(activeTab) ? 'active fw-semibold' : '' %>"
+      <%= ['menus', 'menu-categories', 'menu-choices', 'menu-units'].includes(activeTab) ? 'active fw-semibold' : '' %>"
     data-bs-toggle="collapse"
     data-bs-target="#submenu-menus"
-    aria-expanded="<%= ['menus', 'menu-categories', 'menu-bulk'].includes(activeTab) ? 'true' : 'false' %>"
+    aria-expanded="<%= ['menus', 'menu-categories', 'menu-choices', 'menu-units'].includes(activeTab) ? 'true' : 'false' %>"
     aria-controls="submenu-menus"
   >
     Menus
@@ -104,7 +106,7 @@
     </span>
   </button>
 
-  <div class="collapse <%= ['menus', 'menu-categories', 'menu-bulk'].includes(activeTab) ? 'show' : '' %>" id="submenu-menus">
+  <div class="collapse <%= ['menus', 'menu-categories', 'menu-choices', 'menu-units'].includes(activeTab) ? 'show' : '' %>" id="submenu-menus">
     <nav class="nav flex-column ms-3 mt-1">
       <a href="/settings/menus" class="nav-link <%= activeTab === 'menus' ? 'active fw-semibold' : '' %>">
         Manage Menus
@@ -112,8 +114,11 @@
       <a href="/settings/menus/categories" class="nav-link <%= activeTab === 'menu-categories' ? 'active fw-semibold' : '' %>">
         Sales Categories
       </a>
-      <a href="/settings/menus/bulk" class="nav-link <%= activeTab === 'menu-bulk' ? 'active fw-semibold' : '' %>">
-        Bulk Upload
+      <a href="/settings/menus/choices" class="nav-link <%= activeTab === 'menu-choices' ? 'active fw-semibold' : '' %>">
+        Menu Choices
+      </a>
+      <a href="/settings/menus/units" class="nav-link <%= activeTab === 'menu-units' ? 'active fw-semibold' : '' %>">
+        Sales Units
       </a>
     </nav>
   </div>

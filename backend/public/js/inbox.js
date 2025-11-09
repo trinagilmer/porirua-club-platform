@@ -99,7 +99,7 @@ document.querySelectorAll(".message-card").forEach((card) => {
      ✅ Optional form feedback
   --------------------------------------------------------- */
   document.querySelectorAll("form").forEach((form) => {
-    form.addEventListener("submit", (e) => {
+    form.addEventListener("submit", () => {
       const btn = form.querySelector("button[type='submit']");
       if (btn) {
         const oldText = btn.textContent;

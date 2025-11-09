@@ -83,7 +83,7 @@ function replaceTokens(html, data, extraFormatters = {}) {
  * - If you have `raw_html` from the editor, use that directly.
  * - If you later store TipTap JSON and want server-side HTML, add a JSON->HTML step here.
  */
-async function renderNote({ raw_html, rendered_html, content_json }, data, extraFormatters = {}) {
+async function renderNote({ raw_html, rendered_html }, data, extraFormatters = {}) {
   const sourceHtml = raw_html || rendered_html || "";
   const merged = replaceTokens(sourceHtml, data, extraFormatters);
   return merged;

@@ -1,39 +1,272 @@
 <% locals.layout = 'layouts/main'; %>
 
+<%
+  const contacts = linkedContacts || [];
+  const primaryContact = contacts.find((c) => c.is_primary) || contacts[0] || {};
+  const secondaryContacts = contacts.filter((c) => c !== primaryContact);
+  const fieldAudit = typeof overviewAudit !== "undefined" ? overviewAudit : {};
+  const notesList = typeof overviewNotes !== "undefined" ? overviewNotes : [];
+  const menuSummary = typeof overviewMenus !== "undefined" ? overviewMenus : [];
+  const financialTotals = typeof totals !== "undefined" ? totals : {};
+  const communicationsFeed =
+    typeof communications !== "undefined"
+      ? communications
+      : grouped
+      ? Object.values(grouped).flat()
+      : [];
 
-    <!-- 🔹 Body -->
-    <div class="function-body py-4 px-4">
-    
-      <% if (grouped && Object.keys(grouped).length > 0) { %>
-        <% Object.keys(grouped).forEach(date => { %>
-          <div class="timeline-day mb-4">
-            <h5 class="fw-normal text-secondary mb-3"><%= date %></h5>
-            <div class="timeline-items d-flex flex-column gap-3">
-              <% grouped[date].forEach(entry => { %>
-                <div class="timeline-entry border rounded-3 p-3 shadow-sm"
-                     style="background-color: #fafafa;">
-                  <div class="entry-header d-flex justify-content-between align-items-center mb-1">
-                    <strong class="fw-medium"><%= entry.subject || entry.note_type || entry.title || '(No subject)' %></strong>
-                    <small class="text-muted">
-                      <%= new Date(entry.entry_date || entry.created_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' }) %>
-                    </small>
-                  </div>
-                  <div class="entry-body text-secondary">
-                    <%= entry.body || '(no content)' %>
-                  </div>
-                </div>
-              <% }) %>
-            </div>
-          </div>
-        <% }) %>
+  const nzDate = (value) => {
+    if (!value) return "—";
+    return new Date(value).toLocaleDateString("en-NZ");
+  };
+  const nzTime = (value) => {
+    if (!value) return "--:--";
+    return new Date(value).toLocaleTimeString("en-NZ", { hour: "2-digit", minute: "2-digit" });
+  };
+  const formatUpdated = (audit) => {
+    if (!audit) return "—";
+    const stamp = audit.updated_at || audit.date || audit.timestamp;
+    const initials = audit.initials || audit.updated_by || audit.user || "";
+    if (!stamp && !initials) return "—";
+    const formatted = stamp ? new Date(stamp).toLocaleDateString("en-NZ") : "—";
+    return `${formatted} ${initials}`.trim();
+  };
+%>
+
+<div class="function-body function-overview py-4 px-4">
+  <% const canManage = user && ['admin','owner'].includes((user.role || '').toLowerCase()); %>
+  <% if (canManage) { %>
+    <div class="overview-actions d-flex flex-wrap gap-2 mb-3">
+      <button class="btn btn-outline-secondary btn-sm" data-action="archive-function">
+        <i class="bi bi-archive me-1"></i> Archive Function
+      </button>
+      <button class="btn btn-outline-danger btn-sm" data-action="delete-function">
+        <i class="bi bi-trash me-1"></i> Delete Function
+      </button>
+    </div>
+  <% } %>
+  <!-- Snapshot -->
+  <section class="overview-card overview-snapshot">
+    <div class="overview-card__header">
+      <div>
+        <p class="overview-card__title mb-1">Function Snapshot</p>
+        <p class="overview-card__subtitle mb-0">Key details at a glance</p>
+      </div>
+      <div class="btn-group">
+        <a href="/functions/<%= fn.id_uuid %>/edit" class="btn btn-sm btn-outline-primary">Edit function</a>
+      </div>
+    </div>
+    <div class="snapshot-grid">
+      <div class="snapshot-row">
+        <div class="snapshot-label">Primary Contact</div>
+        <div class="snapshot-value">
+          <% if (primaryContact && primaryContact.name) { %>
+            <strong><%= primaryContact.name %></strong><br>
+            <span class="text-muted small"><%= primaryContact.email || 'no email' %> • <%= primaryContact.phone || 'no phone' %></span>
+          <% } else { %>
+            <span class="text-muted">Not assigned</span>
+          <% } %>
+        </div>
+        <div class="snapshot-updated"><%= formatUpdated(fieldAudit.primary_contact) %></div>
+      </div>
+      <div class="snapshot-row">
+        <div class="snapshot-label">Additional Contacts</div>
+        <div class="snapshot-value">
+          <% if (secondaryContacts.length) { %>
+            <%= secondaryContacts.map((c) => c.name).join(', ') %>
+          <% } else { %>
+            <span class="text-muted">None linked</span>
+          <% } %>
+        </div>
+        <div class="snapshot-updated"><%= formatUpdated(fieldAudit.contacts) %></div>
+      </div>
+      <div class="snapshot-row">
+        <div class="snapshot-label">Attendees</div>
+        <div class="snapshot-value"><%= fn.attendees || 0 %></div>
+        <div class="snapshot-updated"><%= formatUpdated(fieldAudit.attendees) %></div>
+      </div>
+      <div class="snapshot-row">
+        <div class="snapshot-label">Event Date</div>
+        <div class="snapshot-value"><%= nzDate(fn.event_date) %></div>
+        <div class="snapshot-updated"><%= formatUpdated(fieldAudit.event_date) %></div>
+      </div>
+      <div class="snapshot-row">
+        <div class="snapshot-label">Start Time</div>
+        <div class="snapshot-value"><%= fn.start_time ? fn.start_time.slice(0,5) : '--:--' %></div>
+        <div class="snapshot-updated"><%= formatUpdated(fieldAudit.start_time) %></div>
+      </div>
+      <div class="snapshot-row">
+        <div class="snapshot-label">End Time</div>
+        <div class="snapshot-value"><%= fn.end_time ? fn.end_time.slice(0,5) : '--:--' %></div>
+        <div class="snapshot-updated"><%= formatUpdated(fieldAudit.end_time) %></div>
+      </div>
+      <div class="snapshot-row">
+        <div class="snapshot-label">Room / Space</div>
+        <div class="snapshot-value"><%= fn.room_name || 'Unassigned' %></div>
+        <div class="snapshot-updated"><%= formatUpdated(fieldAudit.room_id) %></div>
+      </div>
+      <div class="snapshot-row">
+        <div class="snapshot-label">Status</div>
+        <div class="snapshot-value"><span class="badge bg-light text-dark text-uppercase tracking-wide"><%= fn.status || 'lead' %></span></div>
+        <div class="snapshot-updated"><%= formatUpdated(fieldAudit.status) %></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Notes & Calls -->
+  <section class="overview-card overview-notes">
+    <div class="overview-card__header">
+      <div>
+        <p class="overview-card__title mb-1">Notes &amp; Calls</p>
+        <p class="overview-card__subtitle mb-0">Operational detail and logged conversations</p>
+      </div>
+      <div class="btn-group gap-2">
+        <button class="btn btn-sm btn-outline-secondary" data-action="add-note" data-function="<%= fn.id_uuid %>">Add note</button>
+        <button class="btn btn-sm btn-outline-primary" data-action="log-call" data-function="<%= fn.id_uuid %>">Log call</button>
+      </div>
+    </div>
+    <div class="notes-list">
+      <% if (!notesList.length) { %>
+        <div class="empty-state">No notes logged yet.</div>
       <% } else { %>
-        <p class="text-secondary">No recent communications, notes, or tasks yet.</p>
+        <% notesList.forEach((note) => { %>
+          <article class="note-card" data-note-id="<%= note.id %>">
+            <div class="note-card__head">
+              <div>
+                <span class="note-card__type">
+                  <i class="bi <%= note.type === 'call' ? 'bi-telephone' : 'bi-journal-text' %> me-1"></i>
+                  <%= note.title || note.note_type || 'Untitled' %>
+                </span>
+                <% if (note.contact_name) { %>
+                  <span class="badge bg-light text-dark ms-2"><%= note.contact_name %></span>
+                <% } %>
+              </div>
+              <a href="/functions/<%= fn.id_uuid %>/notes/<%= note.id %>" class="btn btn-link btn-sm p-0">Open</a>
+            </div>
+              <p class="note-card__preview mb-2"><%= (note.preview || note.content || '').substring(0, 140) %><%= (note.preview || note.content || '').length > 140 ? '…' : '' %></p>
+            <div class="note-card__meta">
+              <span>Updated <%= nzDate(note.updated_at || note.created_at) %> <%= note.updated_by || note.created_by_initials || '' %></span>
+            </div>
+          </article>
+        <% }) %>
       <% } %>
     </div>
   </section>
-</main>
 
-<!-- 🧱 Shared Modals -->
+  <!-- Menu Overview -->
+  <section class="overview-card overview-menus">
+    <div class="overview-card__header">
+      <div>
+        <p class="overview-card__title mb-1">Menus &amp; Choices</p>
+        <p class="overview-card__subtitle mb-0">Items currently priced on the quote</p>
+      </div>
+      <a href="/functions/<%= fn.id_uuid %>/quote" class="btn btn-sm btn-outline-primary">Open quote</a>
+    </div>
+    <div class="menu-list">
+      <% if (!menuSummary.length) { %>
+        <div class="empty-state">No menus attached to this quote.</div>
+      <% } else { %>
+        <% menuSummary.forEach((menu) => { %>
+          <article class="menu-row" data-menu-id="<%= menu.id %>">
+            <div class="menu-row__body">
+              <div>
+                <p class="menu-row__title mb-1"><%= menu.name %></p>
+                <p class="menu-row__meta mb-0 text-muted"><%= menu.category || 'Uncategorised' %> · Qty <%= menu.qty || 0 %> · <%= menu.unit || 'each' %></p>
+              </div>
+              <div class="menu-row__totals text-end">
+                <div class="fw-semibold">$<%= Number(menu.total_price || 0).toFixed(2) %></div>
+                <small class="text-muted">Cost $<%= Number(menu.total_cost || 0).toFixed(2) %></small>
+              </div>
+            </div>
+            <div class="menu-row__actions">
+              <span class="text-muted small">Updated <%= formatUpdated(menu.audit) %></span>
+              <div class="btn-group gap-2">
+                <button class="btn btn-sm btn-outline-secondary" data-action="view-menu" data-menu-id="<%= menu.id %>">View</button>
+                <button class="btn btn-sm btn-outline-primary" data-action="edit-menu" data-menu-id="<%= menu.id %>">Edit</button>
+              </div>
+            </div>
+          </article>
+        <% }) %>
+      <% } %>
+    </div>
+  </section>
+
+  <!-- Financial summary -->
+  <section class="overview-card overview-financial">
+    <div class="overview-card__header">
+      <div>
+        <p class="overview-card__title mb-1">Financial Summary</p>
+        <p class="overview-card__subtitle mb-0">Totals reflected from the live quote</p>
+      </div>
+      <a href="/functions/<%= fn.id_uuid %>/quote#totals" class="btn btn-sm btn-outline-secondary">Adjust totals</a>
+    </div>
+    <div class="financial-grid">
+      <div class="financial-item">
+        <span>Subtotal</span>
+        <strong>$<%= Number(financialTotals.subtotal || 0).toFixed(2) %></strong>
+      </div>
+      <% if (Number(financialTotals.gratuity_amount || 0) > 0) { %>
+        <div class="financial-item">
+          <span>Gratuity (<%= Number(financialTotals.gratuity_percent || 0).toFixed(2) %>%)</span>
+          <strong>$<%= Number(financialTotals.gratuity_amount || 0).toFixed(2) %></strong>
+        </div>
+      <% } %>
+      <% if (Number(financialTotals.discount_amount || 0) > 0) { %>
+        <div class="financial-item">
+          <span>Discounts</span>
+          <strong>$<%= Number(financialTotals.discount_amount || 0).toFixed(2) %></strong>
+        </div>
+      <% } %>
+      <div class="financial-item">
+        <span>Deposit</span>
+        <strong>$<%= Number(financialTotals.deposit_amount || 0).toFixed(2) %></strong>
+      </div>
+      <div class="financial-item">
+        <span>Total Paid</span>
+        <strong>$<%= Number(financialTotals.total_paid || 0).toFixed(2) %></strong>
+      </div>
+      <div class="financial-item">
+        <span>Remaining Due</span>
+        <strong class="text-danger">$<%= Number(financialTotals.remaining_due || 0).toFixed(2) %></strong>
+      </div>
+    </div>
+  </section>
+
+  <!-- Communications -->
+  <section class="overview-card overview-communications">
+    <div class="overview-card__header">
+      <div>
+        <p class="overview-card__title mb-1">Recent Communications</p>
+        <p class="overview-card__subtitle mb-0">Emails, proposals, and surveys</p>
+      </div>
+      <a href="/functions/<%= fn.id_uuid %>/communications" class="btn btn-sm btn-outline-secondary">View all</a>
+    </div>
+    <div class="comms-feed">
+      <% if (!communicationsFeed.length) { %>
+        <div class="empty-state">No communications recorded.</div>
+      <% } else { %>
+        <% communicationsFeed.slice(0, 6).forEach((entry) => { %>
+          <article class="comms-entry">
+            <div class="comms-entry__icon">
+              <i class="bi <%= entry.type === 'proposal' ? 'bi-file-earmark-text' : entry.type === 'email' ? 'bi-envelope' : entry.type === 'survey' ? 'bi-clipboard-check' : 'bi-chat-left' %>"></i>
+            </div>
+            <div class="comms-entry__body">
+              <p class="mb-0 fw-semibold"><%= entry.subject || entry.title || entry.type || 'Update' %></p>
+              <small class="text-muted"><%= entry.preview || entry.summary || entry.note || '' %></small>
+            </div>
+            <div class="comms-entry__meta text-end">
+              <span class="d-block"><%= nzDate(entry.entry_date || entry.created_at) %></span>
+              <small class="text-muted"><%= nzTime(entry.entry_date || entry.created_at) %></small>
+              <a href="<%= entry.link || '#' %>" class="btn btn-link btn-sm p-0 mt-1">Open</a>
+            </div>
+          </article>
+        <% }) %>
+      <% } %>
+    </div>
+  </section>
+</div>
+
+<!-- Shared Modals -->
 <%- include('../../partials/functions/modals', {
   fn,
   linkedContacts: linkedContacts || [],
@@ -41,21 +274,58 @@
   eventTypes: eventTypes || []
 }) %>
 
-<!-- 🧠 JS Context -->
 <script>
   window.fnContext = {
     id: "<%= fn.id_uuid %>",
     name: "<%= fn.event_name %>",
     status: "<%= fn.status %>",
-    eventDate: "<%= fn.event_date ? fn.event_date.toISOString().split('T')[0] : '' %>"
+    eventDate: "<%= fn.event_date ? fn.event_date.toISOString().split('T')[0] : '' %>",
+    canManage: <%= canManage ? 'true' : 'false' %>
   };
 </script>
 
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const fnId = "<%= fn.id_uuid %>";
+    const fnName = <%- JSON.stringify(fn.event_name || '') %>;
+    const canManage = window.fnContext?.canManage === true || window.fnContext?.canManage === 'true';
+    const archiveBtn = document.querySelector('[data-action="archive-function"]');
+    const deleteBtn = document.querySelector('[data-action="delete-function"]');
+
+    if (!canManage) return;
+
+    const handleRequest = async (url, options, successMessage) => {
+      try {
+        const res = await fetch(url, options);
+        const payload = await res.json();
+        if (!payload.success) throw new Error(payload.error || 'Action failed');
+        if (successMessage) {
+          alert(successMessage);
+        }
+        window.location.href = '/functions';
+      } catch (err) {
+        console.error(err);
+        alert(err.message || 'Something went wrong');
+      }
+    };
+
+    archiveBtn?.addEventListener('click', () => {
+      if (!fnId) return;
+      if (!confirm('Archive this function? You can restore it later by editing the status.')) return;
+      handleRequest(`/functions/${fnId}/archive`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }, 'Function archived.');
+    });
+
+    deleteBtn?.addEventListener('click', () => {
+      if (!fnId) return;
+      const confirmText = prompt(`Type the function name (${fnName || 'function'}) to permanently delete it:`);
+      if ((confirmText || '').trim() !== (fnName || '').trim()) {
+        alert('Name did not match. Deletion cancelled.');
+        return;
+      }
+      if (!confirm('This will permanently delete the function and related data. Continue?')) return;
+      handleRequest(`/functions/${fnId}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } }, 'Function deleted.');
+    });
+  });
+</script>
+
 <script src="/js/functions/detail.js" defer></script>
-
-
-
-
-
-
-

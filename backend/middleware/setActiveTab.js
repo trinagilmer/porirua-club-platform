@@ -1,3 +1,4 @@
+/* eslint-disable no-useless-escape */
 // backend/middleware/setActiveTab.js
 module.exports = function setActiveTab(req, res, next) {
   res.locals.activeTab = '';

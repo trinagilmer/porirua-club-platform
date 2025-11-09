@@ -1,4 +1,5 @@
 const express = require("express");
+const { randomUUID } = require("crypto");
 const { pool } = require("../db");
 const router = express.Router();
 const { sendMail: graphSendMail } = require("../services/graphService");
@@ -29,6 +30,7 @@ function normalizeRecipients(v) {
  * 🔐 getAppAccessToken()
  * Acquires an application-only Graph token (client credential flow)
  */
+// eslint-disable-next-line no-unused-vars
 async function getAppAccessToken() {
   try {
     const tokenResponse = await cca.acquireTokenByClientCredential({
@@ -72,6 +74,33 @@ async function getGraphAccessToken(req, res) {
 
 
 router.use(express.json());
+
+const FUNCTION_STATUSES = [
+  "lead",
+  "qualified",
+  "confirmed",
+  "balance_due",
+  "completed",
+];
+
+function parseNullableNumber(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+async function loadFunctionFormLookups() {
+  const [roomsRes, eventTypesRes, usersRes] = await Promise.all([
+    pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`),
+    pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`),
+    pool.query(`SELECT id, name FROM users ORDER BY name ASC;`),
+  ]);
+  return {
+    rooms: roomsRes.rows,
+    eventTypes: eventTypesRes.rows,
+    users: usersRes.rows,
+  };
+}
 
 /* =========================================================
    🧭 1. FUNCTIONS DASHBOARD (UUID-Ready, Clean Version)
@@ -230,6 +259,126 @@ router.get("/:id/communications", async (req, res, next) => {
   }
 });
 
+// =========================================================
+// ?? FUNCTION CREATE - GET/POST
+// =========================================================
+
+router.get("/new", async (req, res, next) => {
+  try {
+    const lookups = await loadFunctionFormLookups();
+    res.render("pages/functions/new", {
+      layout: "layouts/main",
+      title: "Create Function",
+      user: req.session.user || null,
+      rooms: lookups.rooms,
+      eventTypes: lookups.eventTypes,
+      users: lookups.users,
+      statuses: FUNCTION_STATUSES,
+      formValues: {},
+      formError: null,
+    });
+  } catch (err) {
+    console.error("❌ Error loading new function form:", err);
+    next(err);
+  }
+});
+
+router.post("/new", async (req, res) => {
+  const {
+    event_name,
+    event_date,
+    event_time,
+    start_time,
+    end_time,
+    attendees,
+    budget,
+    totals_price,
+    totals_cost,
+    room_id,
+    event_type,
+    status,
+    owner_id,
+  } = req.body || {};
+
+  const trimmedName = (event_name || "").trim();
+  if (!trimmedName) {
+    return renderCreateError(res, req, "Event name is required.", req.body || {});
+  }
+
+  const newFunctionId = randomUUID();
+  const statusValue = (status || "lead").trim() || "lead";
+
+  try {
+    await pool.query(
+      `
+      INSERT INTO functions (
+        id_uuid,
+        event_name,
+        status,
+        event_date,
+        event_time,
+        start_time,
+        end_time,
+        attendees,
+        budget,
+        totals_price,
+        totals_cost,
+        room_id,
+        event_type,
+        owner_id,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW(),NOW()
+      );
+      `,
+      [
+        newFunctionId,
+        trimmedName,
+        statusValue,
+        event_date || null,
+        event_time || null,
+        start_time || null,
+        end_time || null,
+        parseNullableNumber(attendees),
+        parseNullableNumber(budget),
+        parseNullableNumber(totals_price),
+        parseNullableNumber(totals_cost),
+        room_id ? Number(room_id) : null,
+        event_type || null,
+        owner_id ? Number(owner_id) : null,
+      ]
+    );
+
+    console.log(`✅ Function created (UUID: ${newFunctionId}, Name: ${trimmedName})`);
+    return res.redirect(`/functions/${newFunctionId}`);
+  } catch (err) {
+    console.error("❌ Error creating function:", err);
+    return renderCreateError(
+      res,
+      req,
+      "Failed to create function. Please try again.",
+      req.body || {}
+    );
+  }
+});
+
+async function renderCreateError(res, req, message, formValues) {
+  const lookups = await loadFunctionFormLookups();
+  return res.status(400).render("pages/functions/new", {
+    layout: "layouts/main",
+    title: "Create Function",
+    user: req.session.user || null,
+    rooms: lookups.rooms,
+    eventTypes: lookups.eventTypes,
+    users: lookups.users,
+    statuses: FUNCTION_STATUSES,
+    formValues,
+    formError: message,
+  });
+}
+
 
 // 📄 Single communication message detail
 router.get("/:id/communications/:messageId", async (req, res, next) => {
@@ -385,7 +534,7 @@ router.get("/:id/edit", async (req, res, next) => {
     if (!fn) return res.status(404).send("Function not found");
 
     // 2️⃣ Load related data concurrently
-    const [linkedContactsRes, roomsRes, eventTypesRes] = await Promise.all([
+    const [linkedContactsRes, roomsRes, eventTypesRes, usersRes] = await Promise.all([
       pool.query(`
         SELECT c.id, c.name, c.email, c.phone, fc.is_primary
         FROM contacts c
@@ -395,7 +544,8 @@ router.get("/:id/edit", async (req, res, next) => {
         [functionId]
       ),
       pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`),
-      pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`)
+      pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`),
+      pool.query(`SELECT id, name FROM users ORDER BY name ASC;`)
     ]);
 
     // 3️⃣ Render edit page
@@ -407,6 +557,7 @@ router.get("/:id/edit", async (req, res, next) => {
       linkedContacts: linkedContactsRes.rows,
       rooms: roomsRes.rows,
       eventTypes: eventTypesRes.rows,
+      users: usersRes.rows,
       activeTab: "edit"
     });
 
@@ -432,7 +583,8 @@ router.post("/:id/edit", async (req, res) => {
     totals_cost,
     room_id,
     event_type,
-    status
+    status,
+    owner_id
   } = req.body;
 
   try {
@@ -447,27 +599,29 @@ router.post("/:id/edit", async (req, res) => {
         attendees    = $6,
         budget       = $7,
         totals_price = $8,
-        totals_cost  = $9,
-        room_id      = $10,
-        event_type   = $11,
-        status       = $12,
-        updated_at   = NOW()
-      WHERE id_uuid = $13;`,
-      [
-        event_name,
-        event_date || null,
-        event_time || null,
-        start_time || null,
-        end_time || null,
-        attendees || null,
-        budget || null,
-        totals_price || 0,
-        totals_cost || 0,
-        room_id || null,
-        event_type || null,
-        status,
-        functionId
-      ]
+      totals_cost  = $9,
+      room_id      = $10,
+      event_type   = $11,
+      status       = $12,
+      owner_id     = $13,
+      updated_at   = NOW()
+    WHERE id_uuid = $14;`,
+    [
+      event_name,
+      event_date || null,
+      event_time || null,
+      start_time || null,
+      end_time || null,
+      attendees || null,
+      budget || null,
+      totals_price || 0,
+      totals_cost || 0,
+      room_id || null,
+      event_type || null,
+      status,
+      owner_id || null,
+      functionId
+    ]
     );
 
     console.log(`✅ Function updated successfully (UUID: ${functionId}, Name: ${event_name})`);
@@ -484,7 +638,7 @@ router.post("/:id/edit", async (req, res) => {
 /* =========================================================
    🧭 FUNCTION DETAIL VIEW — Full (Sidebar + Timeline, UUID Safe, Clean Version)
 ========================================================= */
-router.get("/:id", async (req, res, next) => {
+router.get("/:id", async (req, res) => {
   try {
     const functionId = req.params.id.trim(); // UUID, trimmed for safety
     const activeTab = req.query.tab || "overview";
@@ -517,7 +671,8 @@ router.get("/:id", async (req, res, next) => {
       tasksRes,
       messagesRes,
       roomsRes,
-      eventTypesRes
+      eventTypesRes,
+      usersRes
     ] = await Promise.all([
       // Contacts
       pool.query(
@@ -591,7 +746,8 @@ router.get("/:id", async (req, res, next) => {
 
       // Static lookup data
       pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`),
-      pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`)
+      pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`),
+      pool.query(`SELECT id, name FROM users ORDER BY name ASC;`)
     ]);
 
     // 3️⃣ Build combined timeline entries
@@ -609,21 +765,22 @@ router.get("/:id", async (req, res, next) => {
     }, {});
 
     // 4️⃣ Render function detail view
-res.render("pages/functions/overview", {
-  layout: 'layouts/main',  // ✅ use main layout again
-  title: fn.event_name,
-  active: "functions",
-  user: req.session.user || null,
-  pageType: 'function-detail',
-  fn,
-  linkedContacts: linkedContactsRes.rows,
-  notes: notesRes.rows,
-  tasks: tasksRes.rows,
-  grouped,
-  activeTab,
-  rooms: roomsRes.rows,
-  eventTypes: eventTypesRes.rows
-});
+    res.render("pages/functions/overview", {
+      layout: 'layouts/main',  // ✅ use main layout again
+      title: fn.event_name,
+      active: "functions",
+      user: req.session.user || null,
+      pageType: 'function-detail',
+      fn,
+      linkedContacts: linkedContactsRes.rows,
+      notes: notesRes.rows,
+      tasks: tasksRes.rows,
+      grouped,
+      activeTab,
+      rooms: roomsRes.rows,
+      eventTypes: eventTypesRes.rows,
+      users: usersRes.rows
+    });
 
   } catch (err) {
     console.error("❌ [Function DETAIL] Error loading function detail:", err);
@@ -864,11 +1021,12 @@ router.post("/:id/update-field", async (req, res) => {
     ["status", "status"],
     ["event_name", "event_name"],
     ["event_type", "event_type"],
+    ["attendees", "attendees"],
     ["budget", "budget"],
     ["totals_price", "totals_price"],
     ["totals_cost", "totals_cost"],
     ["notes", "notes"],
-    ["room_id", "room_id"] // integer column — handle separately
+    ["room_id", "room_id"] // integer column - handle separately
   ]);
 
   const column = allowed.get(field);

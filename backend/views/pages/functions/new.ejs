@@ -1,0 +1,115 @@
+<!-- pages/functions/new.ejs -->
+<% locals.layout = 'layouts/main'; %>
+
+<div class="function-body py-4 px-4">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h1 class="page-title mb-0">Create Function</h1>
+    <a href="/functions" class="btn btn-outline-secondary">Back to Dashboard</a>
+  </div>
+
+  <% if (formError) { %>
+    <div class="alert alert-danger"><%= formError %></div>
+  <% } %>
+
+  <% const v = formValues || {}; %>
+
+  <form method="POST" action="/functions/new" class="card p-4 shadow-sm">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Event Name</label>
+        <input type="text" name="event_name" class="form-control" value="<%= v.event_name || '' %>" required />
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label">Date</label>
+        <input type="date" name="event_date" class="form-control"
+               value="<%= v.event_date || '' %>" />
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label">Event Time</label>
+        <input type="time" name="event_time" class="form-control" value="<%= v.event_time || '' %>" />
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Start Time</label>
+        <input type="time" name="start_time" class="form-control" value="<%= v.start_time || '' %>" />
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">End Time</label>
+        <input type="time" name="end_time" class="form-control" value="<%= v.end_time || '' %>" />
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Attendees</label>
+        <input type="number" name="attendees" class="form-control" value="<%= v.attendees || '' %>" />
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Budget ($)</label>
+        <input type="number" step="0.01" name="budget" class="form-control" value="<%= v.budget || '' %>" />
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Total Price ($)</label>
+        <input type="number" step="0.01" name="totals_price" class="form-control" value="<%= v.totals_price || '' %>" />
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Total Cost ($)</label>
+        <input type="number" step="0.01" name="totals_cost" class="form-control" value="<%= v.totals_cost || '' %>" />
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">Room / Space</label>
+        <select name="room_id" class="form-select">
+          <option value="">Select a room</option>
+          <% (rooms || []).forEach(r => { %>
+            <option value="<%= r.id %>" <%= String(v.room_id || '') === String(r.id) ? 'selected' : '' %>>
+              <%= r.name %><% if (r.capacity) { %> (<%= r.capacity %> ppl)<% } %>
+            </option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">Event Type</label>
+        <select name="event_type" class="form-select">
+          <option value="">Select type</option>
+          <% (eventTypes || []).forEach(t => { %>
+            <option value="<%= t.name %>" <%= v.event_type === t.name ? 'selected' : '' %>><%= t.name %></option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Status</label>
+        <select name="status" class="form-select">
+          <% (statuses || []).forEach(st => { %>
+            <option value="<%= st %>" <%= (v.status || 'lead') === st ? 'selected' : '' %>>
+              <%= st.replace('_',' ') %>
+            </option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Owner</label>
+        <select name="owner_id" class="form-select">
+          <option value="">Unassigned</option>
+          <% (users || []).forEach(u => { %>
+            <option value="<%= u.id %>" <%= String(v.owner_id || '') === String(u.id) ? 'selected' : '' %>>
+              <%= u.name %>
+            </option>
+          <% }) %>
+        </select>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mt-4">
+      <a href="/functions" class="btn btn-outline-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary">Create Function</button>
+    </div>
+  </form>
+</div>

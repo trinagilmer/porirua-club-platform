@@ -1,0 +1,29 @@
+<main class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="fw-bold text-primary mb-0">Sales Units</h1>
+  </div>
+
+  <div class="card p-3 mb-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-6">
+        <input type="text" id="newUnitName" class="form-control" placeholder="New unit name">
+      </div>
+      <div class="col-md-4">
+        <select id="newUnitType" class="form-select">
+          <option value="quantity">Quantity</option>
+          <option value="per_person">Per Person</option>
+          <option value="time">Time</option>
+          <option value="weight">Weight</option>
+          <option value="volume">Volume</option>
+          <option value="fixed">Fixed</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button id="addUnitBtn" class="btn btn-primary w-100">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <ul id="unitList" class="list-group"></ul>
+</main>
+

@@ -93,6 +93,45 @@
             + Create New Choice
           </button>
         </div>
+        <div class="mt-3 border rounded-3 p-3 bg-light" id="bulkChoiceCard">
+          <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-2">
+            <div>
+              <strong>Bulk Add Choices</strong>
+              <div class="text-muted small">
+                Format: <code>Category | Choice | Description | Cost | Price | Unit</code>. Category can be blank to use the menu's category.
+              </div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="bulkChoiceClearBtn">Clear</button>
+          </div>
+          <textarea
+            id="bulkChoiceTextarea"
+            class="form-control form-control-sm mb-2"
+            rows="4"
+            placeholder="Catering | Wrap (basic) | | 0.59 | 3.00 | PP&#10;| Cinnamon pinwheel | | 0.15 | 2.50 | PP"
+          ></textarea>
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <small class="text-muted">Units accept PP, each, etc. Currency symbols are optional.</small>
+            <button type="button" class="btn btn-sm btn-primary" id="bulkChoiceAddBtn">Create &amp; Link</button>
+          </div>
+          <div class="small mt-2 text-muted" id="bulkChoiceStatus"></div>
+        </div>
+      </div>
+
+      <!-- ?? Add-ons -->
+      <div class="mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <label class="form-label fw-semibold mb-0">Add-ons</label>
+          <button
+            type="button"
+            id="addAddonBtn"
+            class="btn btn-sm btn-outline-primary"
+          >
+            + Add Add-on
+          </button>
+        </div>
+        <ul id="addonList" class="list-group small">
+          <!-- JS will populate add-ons here -->
+        </ul>
       </div>
 
       <!-- 🔹 Save -->
@@ -120,23 +159,20 @@
           <input type="text" class="form-control" id="choiceName" required placeholder="e.g., Beef Main">
         </div>
 
-        <!-- Default Option Name (pre-fills from Choice) -->
-        <div class="mb-3">
-          <label for="optionName" class="form-label">Default option name</label>
-          <input type="text" class="form-control" id="optionName" placeholder="e.g., Beef Sirloin">
-          <div class="form-text">If left blank, we’ll use the choice name.</div>
-        </div>
-
         <!-- Price + Unit -->
         <div class="row g-3">
-          <div class="col-6">
+          <div class="col-lg-4 col-sm-6">
             <label for="optionPrice" class="form-label">Price</label>
             <input type="number" step="0.01" class="form-control" id="optionPrice" placeholder="e.g., 28.00">
           </div>
-          <div class="col-6">
+          <div class="col-lg-4 col-sm-6">
+            <label for="optionCost" class="form-label">Cost</label>
+            <input type="number" step="0.01" class="form-control" id="optionCost" placeholder="e.g., 15.00">
+          </div>
+          <div class="col-lg-4 col-sm-6">
             <label for="optionUnit" class="form-label">Unit</label>
             <select id="optionUnit" class="form-select">
-              <option value="">— none —</option>
+              <option value="">- none -</option>
               <!-- options populated by JS -->
             </select>
           </div>
@@ -172,7 +208,33 @@
 
         <!-- Results -->
         <div id="linkResults" class="list-group border rounded" style="max-height: 340px; overflow: auto;">
-          <div class="list-group-item text-muted fst-italic">Start typing to find choices…</div>
+          <div class="list-group-item text-muted fst-italic">Start typing to find choices.</div>
+        </div>
+
+        <div class="mt-4 pt-3 border-top" id="categoryChoiceSection">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <strong>Browse <span id="categoryChoiceLabel">this category</span></strong>
+              <div class="text-muted small">Select multiple choices to link at once.</div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="categoryChoiceRefresh">
+              Refresh
+            </button>
+          </div>
+          <div class="form-check form-check-sm mb-2">
+            <input class="form-check-input" type="checkbox" id="categoryChoiceSelectAll" disabled>
+            <label class="form-check-label" for="categoryChoiceSelectAll">
+              Select all
+            </label>
+          </div>
+          <div id="categoryChoiceList" class="list-group border rounded small" style="max-height: 260px; overflow: auto;">
+            <div class="list-group-item text-muted fst-italic">Load category choices to start.</div>
+          </div>
+          <div class="d-flex justify-content-between align-items-center gap-2 mt-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="categoryChoiceClear">Clear Selected</button>
+            <button type="button" class="btn btn-sm btn-primary" id="categoryBulkLinkBtn" disabled>Link Selected</button>
+          </div>
+          <div id="categoryChoiceStatus" class="small mt-2 text-muted"></div>
         </div>
       </div>
 
@@ -183,7 +245,52 @@
   </div>
 </div>
 
+<!-- ?? Add-on Modal -->
+<div class="modal fade" id="addonModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" id="addonForm">
+      <div class="modal-header">
+        <h5 class="modal-title" id="addonModalTitle">Add Add-on</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
 
+      <div class="modal-body">
+        <input type="hidden" id="addonId">
+        <div class="mb-3">
+          <label for="addonName" class="form-label">Add-on name</label>
+          <input type="text" class="form-control" id="addonName" placeholder="e.g., Beverage Package" required>
+        </div>
 
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label for="addonPrice" class="form-label">Price</label>
+            <input type="number" step="0.01" class="form-control" id="addonPrice" placeholder="e.g., 12.50">
+          </div>
+          <div class="col-md-6">
+            <label for="addonUnit" class="form-label">Qty type</label>
+            <select id="addonUnit" class="form-select">
+              <option value="">No unit</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-check form-switch my-3">
+          <input class="form-check-input" type="checkbox" role="switch" id="addonEnableQty">
+          <label class="form-check-label" for="addonEnableQty">Allow manual quantity</label>
+        </div>
+
+        <div class="mb-0">
+          <label for="addonDefaultQty" class="form-label">Default quantity</label>
+          <input type="number" step="1" min="1" class="form-control" id="addonDefaultQty" placeholder="Defaults to 1" disabled>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Add-on</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 

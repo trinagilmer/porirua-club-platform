@@ -3,7 +3,7 @@
    Shared logic for all Settings subpages
 ========================================================= */
 
-import { showToast, openModal, closeModal } from "./_shared.js";
+import { showToast } from "./_shared.js";
 
 console.log("⚙️ Settings Index JS loaded");
 

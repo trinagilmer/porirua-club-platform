@@ -28,7 +28,7 @@ export async function testSupabaseConnection() {
   }
 
   try {
-    const { data, error } = await supabase.from("_auth").select("id").limit(1);
+    const { error } = await supabase.from("_auth").select("id").limit(1);
     if (error && !error.message.includes("permission")) {
       console.error("❌ Supabase connection failed:", error.message);
     } else {

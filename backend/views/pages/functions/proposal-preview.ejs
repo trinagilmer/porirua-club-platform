@@ -1,0 +1,373 @@
+<% locals.layout = 'layouts/main'; %>
+
+<%
+  const formatPlain = (value) => {
+    return String(value || '')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\r/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  };
+  const formatTime = (value) => {
+    if (!value) return null;
+    const str = String(value);
+    return str.length >= 5 ? str.slice(0, 5) : str;
+  };
+  const startTime = formatTime(fn?.start_time);
+  const endTime = formatTime(fn?.end_time);
+  const primaryContact =
+    (contacts || []).find((contact) => contact.is_primary) ||
+    (contacts || [])[0] ||
+    null;
+  const printedDate = new Date().toLocaleDateString('en-NZ', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  const eventDate = fn?.event_date
+    ? new Date(fn.event_date).toLocaleDateString('en-NZ', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    : 'TBC';
+  const safeTotals = totals || {
+    subtotal: 0,
+    gratuity_percent: 0,
+    gratuity_amount: 0,
+    discount_amount: 0,
+    deposit_amount: 0,
+    total_paid: 0,
+    remaining_due: 0,
+  };
+  const subtotal = Number(safeTotals.subtotal || 0);
+  const gratuityAmount = Number(safeTotals.gratuity_amount || 0);
+  const gratuityPercent = Number(safeTotals.gratuity_percent || 0);
+  const discountAmount = Number(safeTotals.discount_amount || 0);
+  const depositAmount = Number(safeTotals.deposit_amount || 0);
+  const totalPaid = Number(safeTotals.total_paid || 0);
+  const remainingDue = Number(safeTotals.remaining_due || 0);
+  const finalTotal = subtotal + gratuityAmount - discountAmount;
+  const gstPortion = finalTotal > 0 ? finalTotal - finalTotal / 1.15 : 0;
+  const currency = (val) => `$${(Number(val) || 0).toFixed(2)}`;
+%>
+
+<div class="proposal-print container py-4">
+  <header class="proposal-header card shadow-sm mb-4">
+    <div class="proposal-header__logos">
+      <img src="/img/logo.png" alt="Porirua Club" class="proposal-logo proposal-logo--primary">
+    </div>
+    <div class="proposal-header__meta">
+      <div class="proposal-header__date"><%= printedDate %></div>
+      <div class="proposal-header__title">
+        Proposal for <strong><%= fn.event_name %></strong>
+      </div>
+      <% if (primaryContact) { %>
+        <div class="proposal-header__contact">
+          Attn: <strong><%= primaryContact.name %></strong><br>
+          <% if (primaryContact.email) { %><span><%= primaryContact.email %></span><% } %>
+          <% if (primaryContact.phone) { %><span><%= primaryContact.phone %></span><% } %>
+        </div>
+      <% } %>
+    </div>
+    <div class="proposal-header__logos">
+      <img src="/img/EASTWOOD-LOGO-small.png" alt="Eastwood" class="proposal-logo proposal-logo--secondary">
+    </div>
+  </header>
+
+  <section class="proposal-summary-grid mb-4">
+    <div class="proposal-summary-card card shadow-sm">
+      <div class="card-body">
+        <h5 class="proposal-summary__title">Function Details</h5>
+        <dl class="proposal-summary__list">
+          <div>
+            <dt>Event Name</dt>
+            <dd><%= fn.event_name %></dd>
+          </div>
+          <div>
+            <dt>Event Date</dt>
+            <dd><%= eventDate %></dd>
+          </div>
+          <div>
+            <dt>Attendees</dt>
+            <dd><%= fn.attendees || 0 %></dd>
+          </div>
+          <div>
+            <dt>Start / Finish</dt>
+            <dd><%= startTime || '--:--' %> – <%= endTime || '--:--' %></dd>
+          </div>
+          <% if (fn.room_name) { %>
+            <div>
+              <dt>Room</dt>
+              <dd><%= fn.room_name %></dd>
+            </div>
+          <% } %>
+          <% if (fn.status) { %>
+            <div>
+              <dt>Status</dt>
+              <dd><%= fn.status %></dd>
+            </div>
+          <% } %>
+        </dl>
+      </div>
+    </div>
+    <% if ((contacts || []).length) { %>
+      <div class="proposal-summary-card card shadow-sm">
+        <div class="card-body">
+          <h5 class="proposal-summary__title">Contacts</h5>
+          <ul class="proposal-contact-list">
+            <% contacts.forEach((contact) => { %>
+              <li>
+                <strong><%= contact.name %></strong><br>
+                <span><%= contact.email || '—' %></span>
+                <% if (contact.phone) { %><span><%= contact.phone %></span><% } %>
+              </li>
+            <% }) %>
+          </ul>
+        </div>
+      </div>
+    <% } %>
+  </section>
+
+  <section class="proposal-run-sheet card shadow-sm mb-4">
+    <div class="card-body">
+      <h5 class="proposal-run-sheet__title">Function Run Sheet</h5>
+      <ul class="proposal-run-sheet__list">
+        <li>Set up in <strong><%= fn.room_name || 'TBC' %></strong> from <strong><%= startTime || '--:--' %></strong></li>
+        <li>Guest arrival: <strong><%= startTime || '--:--' %></strong></li>
+        <li>Event concludes: <strong><%= endTime || '--:--' %></strong></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="proposal-table-card card shadow-sm mb-4">
+    <div class="card-header bg-light fw-semibold">Menus &amp; Pricing</div>
+    <div class="card-body">
+      <div id="proposalPricing"></div>
+    </div>
+  </section>
+
+  <section class="proposal-financial card shadow-sm mb-4">
+    <div class="card-header bg-light fw-semibold">Financial Summary</div>
+    <div class="card-body">
+      <table class="proposal-financial__table">
+        <tbody>
+          <tr>
+            <td>Subtotal</td>
+            <td class="text-end"><%= currency(subtotal) %></td>
+          </tr>
+          <% if (gratuityAmount > 0) { %>
+            <tr>
+              <td>Gratuity (<%= gratuityPercent.toFixed(2) %>%)</td>
+              <td class="text-end"><%= currency(gratuityAmount) %></td>
+            </tr>
+          <% } %>
+          <% if (discountAmount > 0) { %>
+            <tr>
+              <td>Discount</td>
+              <td class="text-end">-<%= currency(discountAmount) %></td>
+            </tr>
+          <% } %>
+          <tr class="proposal-financial__highlight">
+            <td>Total (incl. GST)</td>
+            <td class="text-end"><%= currency(finalTotal) %></td>
+          </tr>
+          <tr>
+            <td>GST (included)</td>
+            <td class="text-end"><%= currency(gstPortion) %></td>
+          </tr>
+          <tr>
+            <td>Deposit Paid</td>
+            <td class="text-end">-<%= currency(depositAmount) %></td>
+          </tr>
+          <tr>
+            <td>Payments</td>
+            <td class="text-end">-<%= currency(totalPaid) %></td>
+          </tr>
+          <tr class="proposal-financial__total-due">
+            <td>Total Owing</td>
+            <td class="text-end"><%= currency(remainingDue) %></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <% if ((sections || []).length) { %>
+    <section class="proposal-notes card shadow-sm mb-4">
+      <div class="card-header bg-light fw-semibold">Additional Notes</div>
+      <div class="card-body vstack gap-3">
+        <% sections.forEach((section, idx) => { %>
+          <div>
+            <div class="fw-semibold mb-1">Section <%= idx + 1 %></div>
+            <% 
+              const sectionBody = section?.content || '';
+              const hasMarkup = /<[a-z][\s\S]*>/i.test(sectionBody);
+              const renderedSection = hasMarkup ? sectionBody : formatPlain(sectionBody).replace(/\n/g, '<br>');
+            %>
+            <div class="proposal-section-text"><%- renderedSection %></div>
+          </div>
+        <% }) %>
+      </div>
+    </section>
+  <% } %>
+
+  <% if (terms) { %>
+    <section class="proposal-terms card shadow-sm page-break">
+      <div class="card-header bg-light fw-semibold">Terms &amp; Conditions</div>
+      <div class="card-body proposal-terms__body small">
+        <%- formatPlain(terms).replace(/\n/g, '<br>') %>
+      </div>
+    </section>
+  <% } %>
+</div>
+
+<ul id="previewItemsSource" class="d-none">
+  <% (items || []).forEach(item => { %>
+    <li data-id="<%= item.id %>" data-price="<%= Number(item.unit_price || 0).toFixed(2) %>">
+      <%- String(item.description || '').replace(/\r\n|\r|\n/g, ' ') %>
+    </li>
+  <% }) %>
+</ul>
+
+<script>
+  window.previewContext = {
+    proposalId: <%= proposalId ? Number(proposalId) : 'null' %>
+  };
+</script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const source = document.getElementById('previewItemsSource');
+    const pricingMount = document.getElementById('proposalPricing');
+    if (!source || !pricingMount) return;
+
+    const parseMeta = (text) => {
+      const meta = {};
+      let match;
+      const regex = /\[([a-z_]+):([^\]]+)\]/gi;
+      while ((match = regex.exec(text))) meta[match[1].toLowerCase()] = match[2];
+      const qtyMatch = text.match(/ x (\d+)/i);
+      if (qtyMatch) meta.qty = Number(qtyMatch[1]);
+      if (/\[excluded:true\]/i.test(text)) meta.excluded = true;
+      return meta;
+    };
+
+    const cleanLabel = (text) => text.replace(/\[[^\]]+\]/g, '').replace(/\s{2,}/g, ' ').trim();
+    const isChild = (text) => /^\s*(Choice:|Add-on:)/i.test(text);
+    const formatCurrency = (value) => `$${(Number(value) || 0).toFixed(2)}`;
+
+    function buildModel() {
+      const categories = new Map();
+      let currentMenu = null;
+
+      source.querySelectorAll('li').forEach((li) => {
+        const id = Number(li.dataset.id);
+        const rawText = (li.textContent || '').trim();
+        const meta = parseMeta(rawText);
+        const price = Number(li.dataset.price || 0);
+        const text = cleanLabel(rawText);
+        const isAddon = /^\s*Add-on:/i.test(rawText);
+
+        if (!isChild(text)) {
+          const categoryName = meta.category || 'Uncategorised';
+          if (!categories.has(categoryName)) categories.set(categoryName, []);
+          currentMenu = {
+            title: text.replace(/^Menu:\s*/i, '').trim(),
+            basePrice: price,
+            items: [],
+          };
+          categories.get(categoryName).push(currentMenu);
+          return;
+        }
+
+        if (!currentMenu || meta.excluded) return;
+        const unitType = meta.unit_type || '';
+        const qty = meta.qty
+          ? Number(meta.qty)
+          : unitType === 'per_person'
+          ? Number(window.fnContext?.attendees || 0) || 1
+          : 1;
+        const priceEach = qty > 0 ? price / qty : price;
+        const item = {
+          id,
+          name: text.replace(/^(Choice:|Add-on:)\s*/i, '').replace(/\s+x\s+\d+.*/, '').trim(),
+          price,
+          priceEach,
+          qty,
+          isAddon,
+        };
+        currentMenu.items.push(item);
+      });
+
+      return categories;
+    }
+
+    function render() {
+      const categories = buildModel();
+      pricingMount.innerHTML = '';
+      if (!categories.size) {
+        pricingMount.innerHTML = '<p class="text-muted mb-0 small">No menu items have been added.</p>';
+        return;
+      }
+
+      categories.forEach((menus, categoryName) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'proposal-category';
+        wrapper.innerHTML = `<h5 class="proposal-category__title">${categoryName}</h5>`;
+
+        const table = document.createElement('table');
+        table.className = 'proposal-table__grid';
+        table.innerHTML = `
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th style="width: 80px;">Qty</th>
+              <th style="width: 140px;">Price Each</th>
+              <th style="width: 140px;">Total</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        `;
+        const tbody = table.querySelector('tbody');
+
+        menus.forEach((menu) => {
+          const menuRow = document.createElement('tr');
+          menuRow.className = 'proposal-table__menu';
+          menuRow.innerHTML = `<td colspan="4">${menu.title}</td>`;
+          tbody.appendChild(menuRow);
+
+          if (Number(menu.basePrice || 0) > 0) {
+            const baseRow = document.createElement('tr');
+            baseRow.innerHTML = `
+              <td>${menu.title} Package</td>
+              <td>1</td>
+              <td>${formatCurrency(menu.basePrice)}</td>
+              <td>${formatCurrency(menu.basePrice)}</td>
+            `;
+            tbody.appendChild(baseRow);
+          }
+
+          menu.items.forEach((item) => {
+            const row = document.createElement('tr');
+            const label = item.isAddon ? `${item.name} (Add-on)` : item.name;
+            row.innerHTML = `
+              <td>${label}</td>
+              <td>${item.qty || 1}</td>
+              <td>${formatCurrency(item.priceEach)}</td>
+              <td>${formatCurrency(item.price)}</td>
+            `;
+            tbody.appendChild(row);
+          });
+        });
+
+        wrapper.appendChild(table);
+        pricingMount.appendChild(wrapper);
+      });
+    }
+
+    render();
+  });
+</script>

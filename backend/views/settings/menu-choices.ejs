@@ -1,0 +1,228 @@
+<style>
+  :root {
+    --choice-border: #e3e7ef;
+    --choice-accent: #0d6efd;
+  }
+  .choice-page h1 {
+    font-weight: 600;
+  }
+  .choice-card {
+    border: 1px solid var(--choice-border);
+    border-radius: 10px;
+    background: #fff;
+  }
+  .bulk-panel {
+    border: 1px solid var(--choice-border);
+    border-radius: 10px;
+    padding: 1rem;
+    background: #fafbff;
+    display: none;
+  }
+  .bulk-panel.show {
+    display: block;
+  }
+  .bulk-panel textarea {
+    font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+  .category-block {
+    border-bottom: 1px solid #dfe3ec;
+    padding-bottom: 1rem;
+  }
+  .category-block:last-child {
+    border-bottom: 0;
+  }
+  .choice-row {
+    border: 1px solid var(--choice-border);
+    border-radius: 10px;
+    margin-bottom: 0.4rem;
+    background: #fff;
+  }
+  .choice-row-header {
+    width: 100%;
+    padding: 0.6rem 0.85rem;
+    background: transparent;
+    border: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1f2a37;
+  }
+  .choice-row-header:focus {
+    outline: none;
+  }
+  .choice-row-header .chevron {
+    transition: transform 0.2s ease;
+  }
+  .choice-row.open .chevron {
+    transform: rotate(90deg);
+  }
+  .choice-row-body {
+    display: none;
+    padding: 0 0.85rem 0.75rem;
+    font-size: 0.88rem;
+  }
+  .choice-row.open .choice-row-body {
+    display: block;
+  }
+  .choice-metadata {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-bottom: 0.5rem;
+  }
+  .choice-pill {
+    border: 1px solid var(--choice-border);
+    border-radius: 999px;
+    padding: 0.05rem 0.5rem;
+    font-size: 0.75rem;
+    color: #4b5563;
+    background: #f4f6fb;
+  }
+  .choice-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+  }
+  .choices-sidebar .card {
+    border: 1px solid var(--choice-border);
+    box-shadow: none !important;
+  }
+  @media (max-width: 768px) {
+    .choice-row-header {
+      font-size: 0.95rem;
+    }
+    .bulk-panel textarea {
+      min-height: 140px;
+    }
+  }
+</style>
+
+<main class="container-fluid choice-page">
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+        <div>
+          <h1 class="fw-bold text-primary mb-1">Menu Choices</h1>
+          <div class="text-muted small">Maintain reusable choices grouped by sales category.</div>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <select id="choiceCategoryFilter" class="form-select form-select-sm" style="min-width: 200px;">
+            <option value="all">All categories</option>
+            <option value="unassigned">Unassigned</option>
+            <% (categories || []).forEach(cat => { %>
+              <option value="<%= cat.id %>"><%= cat.name %></option>
+            <% }) %>
+          </select>
+          <button class="btn btn-outline-secondary btn-sm" id="toggleBulkPanel">
+            <i class="bi bi-upload me-1"></i> Bulk Import
+          </button>
+        </div>
+      </div>
+      <div id="bulkPanel" class="bulk-panel mb-4">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <strong>Quick Paste Import</strong>
+            <p class="text-muted small mb-1">
+              Format: <code>Category | Choice | Description | Cost | Price | Unit</code>. One choice per line.
+              <span class="badge bg-info text-white ms-2" title="COGS % = (Cost / Price) × 100">
+                COGS formula
+              </span>
+            </p>
+          </div>
+          <button class="btn btn-sm btn-outline-secondary" id="bulkPanelClose">
+            Close
+          </button>
+        </div>
+        <textarea id="bulkTextarea" class="form-control mb-2" rows="4" placeholder="Catering | Wrap (basic) | | 0.59 | 3.00 | PP
+Catering | Cinnamon pinwheel | | 0.15 | 2.50 | PP"></textarea>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div class="text-muted small" id="bulkImportStatus"></div>
+          <button class="btn btn-sm btn-primary" id="bulkImportBtn">
+            Import Choices
+          </button>
+        </div>
+      </div>
+      <div id="choicesContainer" class="vstack gap-4"></div>
+    </div>
+
+    <aside class="col-lg-4 d-flex flex-column gap-4 choices-sidebar">
+      <div class="card">
+        <div class="card-header bg-white border-bottom fw-semibold">
+          <h5 class="mb-0">Create Choice</h5>
+        </div>
+        <div class="card-body">
+          <form id="createChoiceForm" class="vstack gap-3">
+            <div>
+              <label class="form-label small text-uppercase text-muted">Sales Category</label>
+              <select name="choice_category" id="createChoiceCategory" class="form-select" data-required="true">
+                <option value="">Unassigned</option>
+                <% (categories || []).forEach(cat => { %>
+                  <option value="<%= cat.id %>"><%= cat.name %></option>
+                <% }) %>
+              </select>
+              <div class="form-text">e.g. Catering</div>
+            </div>
+            <div>
+              <label class="form-label small text-uppercase text-muted">Choice Name</label>
+              <input type="text" name="choice_name" id="createChoiceName" class="form-control" placeholder="e.g. Wrap (basic)" required>
+            </div>
+            <div>
+              <label class="form-label small text-uppercase text-muted">Option Label</label>
+              <input type="text" name="option_label" id="createChoiceOptionName" class="form-control" placeholder="Defaults to choice name">
+              <div class="form-text">Shown on quotes/proposals; auto-filled from the choice name.</div>
+            </div>
+            <div class="row g-2">
+              <div class="col-md-4">
+                <label class="form-label small text-uppercase text-muted">Price</label>
+                <input type="number" step="0.01" name="option_price" id="createChoiceOptionPrice" class="form-control" placeholder="e.g. 24.50">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small text-uppercase text-muted">Cost</label>
+                <input type="number" step="0.01" name="option_cost" id="createChoiceOptionCost" class="form-control" placeholder="e.g. 12.00">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small text-uppercase text-muted">Qty Type</label>
+                <select name="option_unit" id="createChoiceOptionUnit" class="form-select">
+                  <option value="">No unit</option>
+                  <% (units || []).forEach(u => { %>
+                    <option value="<%= u.id %>"><%= u.name %> (<%= u.type %>)</option>
+                  <% }) %>
+                </select>
+                <div class="form-text">Friendly labels like PP / Each.</div>
+              </div>
+            </div>
+            <div>
+              <label class="form-label small text-uppercase text-muted">Description</label>
+              <textarea name="choice_description" id="createChoiceDescription" rows="3" class="form-control" placeholder="Optional notes for staff..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-success w-100">Create Choice</button>
+          </form>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-body small text-muted">
+          <p class="fw-semibold mb-1">Tips</p>
+          <ul class="ps-3 mb-0">
+            <li>Choices can be linked to many menus within the same sales category.</li>
+            <li>Each choice can have multiple options with their own pricing and units.</li>
+            <li>Need to add lots at once? Use the bulk upload tool.</li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<!-- Templates -->
+<script>
+  window.menuChoiceData = {
+    choices: <%- JSON.stringify(choices || []) %>,
+    categories: <%- JSON.stringify(categories || []) %>,
+    units: <%- JSON.stringify(units || []) %>
+  };
+</script>
+
+

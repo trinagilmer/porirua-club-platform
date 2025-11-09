@@ -9,6 +9,39 @@ const express = require("express");
 const router = express.Router();
 const { pool } = require("../db");
 
+async function logPromotionAttempt({ userId, requestedRole, ipAddress, succeeded, message }) {
+  try {
+    await pool.query(
+      `INSERT INTO admin_promotions (user_id, requested_role, ip_address, succeeded, message)
+       VALUES ($1, $2, $3, $4, $5);`,
+      [userId, (requestedRole || "admin").toLowerCase(), ipAddress || null, Boolean(succeeded), message || null]
+    );
+  } catch (err) {
+    console.error("Failed to log admin promotion:", err);
+  }
+}
+
+function isPrivileged(req) {
+  const role = (req.session?.user?.role || "").toLowerCase();
+  const master = process.env.ADMIN_SECRET || process.env.BUILD_ADMIN_SECRET;
+  const headerSecret = req.headers["x-admin-secret"];
+  const bodySecret =
+    req.body?.admin_secret ||
+    req.body?.adminSecret ||
+    req.query?.admin_secret ||
+    req.query?.adminSecret;
+  if (role && ["admin", "owner"].includes(role)) return true;
+  if (master && (headerSecret === master || bodySecret === master)) return true;
+  return false;
+}
+
+function ensurePrivileged(req, res, next) {
+  if (isPrivileged(req)) return next();
+  req.flash("flashMessage", "?? Admin access required.");
+  req.flash("flashType", "warning");
+  res.redirect("/settings");
+}
+
 // Use the settings layout for everything in this router
 router.use((req, res, next) => {
   res.locals.layout = 'layouts/settings';
@@ -55,7 +88,171 @@ router.get("/overview", async (req, res) => {
       layout: "layouts/main",
       title: "Error",
       message: "Failed to load settings overview.",
+      error: err.message,
+      stack: err.stack,
     });
+  }
+});
+
+/* =========================================================
+   ?? SETTINGS: USERS
+ ========================================================= */
+router.get("/users", async (req, res) => {
+  try {
+    const { rows: users } = await pool.query(
+      `SELECT id, name, email, role, created_at
+         FROM users
+        ORDER BY name ASC;`
+    );
+
+    const secretConfigured = Boolean(process.env.ADMIN_SECRET || process.env.BUILD_ADMIN_SECRET);
+    res.render("settings/users", {
+      layout: "layouts/settings",
+      title: "Settings - User Management",
+      pageType: "settings",
+      activeTab: "users",
+      users,
+      user: req.session.user || null,
+      canManage: isPrivileged(req),
+      canSelfPromote:
+        !isPrivileged(req) && secretConfigured,
+      secretConfigured,
+    });
+  } catch (err) {
+    console.error("? Error loading users:", err);
+    res.status(500).render("error", {
+      layout: "layouts/main",
+      title: "Error",
+      message: "Failed to load users.",
+      error: err.message,
+      stack: err.stack,
+    });
+  }
+});
+
+router.post("/users/add", ensurePrivileged, async (req, res) => {
+  try {
+    const { name, email, role = "staff" } = req.body;
+    if (!name?.trim() || !email?.trim()) {
+      req.flash("flashMessage", "?? Name and email are required.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/users");
+    }
+    await pool.query(
+      `INSERT INTO users (name, email, role)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name, role = EXCLUDED.role;`,
+      [name.trim(), email.trim().toLowerCase(), (role || "staff").toLowerCase()]
+    );
+    req.flash("flashMessage", "? User stored.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/users");
+  } catch (err) {
+    console.error("? Error creating user:", err);
+    req.flash("flashMessage", "? Failed to create user.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/users");
+  }
+});
+
+router.post("/users/edit", ensurePrivileged, async (req, res) => {
+  try {
+    const { id, name, email, role } = req.body;
+    if (!id) return res.redirect("/settings/users");
+    await pool.query(
+      `UPDATE users
+          SET name = $1,
+              email = $2,
+              role = $3,
+              updated_at = NOW()
+        WHERE id = $4;`,
+      [(name || "").trim(), (email || "").trim().toLowerCase(), (role || "staff").toLowerCase(), id]
+    );
+    req.flash("flashMessage", "? User updated.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/users");
+  } catch (err) {
+    console.error("? Error updating user:", err);
+    req.flash("flashMessage", "? Failed to update user.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/users");
+  }
+});
+
+router.post("/users/delete", ensurePrivileged, async (req, res) => {
+  try {
+    const { id } = req.body;
+    if (!id) {
+      req.flash("flashMessage", "?? Missing user id.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/users");
+    }
+    await pool.query(`UPDATE functions SET owner_id = NULL WHERE owner_id = $1;`, [id]);
+    await pool.query(`UPDATE tasks SET assigned_user_id = NULL WHERE assigned_user_id = $1;`, [id]);
+    await pool.query(`DELETE FROM admin_promotions WHERE user_id = $1;`, [id]);
+    await pool.query("DELETE FROM users WHERE id = $1;", [id]);
+    req.flash("flashMessage", "?? User removed.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/users");
+  } catch (err) {
+    console.error("? Error deleting user:", err);
+    req.flash("flashMessage", "? Failed to delete user.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/users");
+  }
+});
+
+router.post("/users/promote", async (req, res) => {
+  if (!req.session?.user) {
+    req.flash("flashMessage", "?? You must be logged in.");
+    req.flash("flashType", "warning");
+    return res.redirect("/settings");
+  }
+  const { secret, role = "admin" } = req.body;
+  const master = process.env.ADMIN_SECRET || process.env.BUILD_ADMIN_SECRET;
+  if (!master || secret !== master) {
+    req.flash("flashMessage", "?? Invalid promotion code.");
+    req.flash("flashType", "danger");
+    logPromotionAttempt({
+      userId: req.session.user.id,
+      requestedRole: role,
+      ipAddress: req.ip || req.headers["x-forwarded-for"]?.split?.(",")?.[0]?.trim(),
+      succeeded: false,
+      message: "Invalid admin code"
+    });
+    return res.redirect("/settings/users");
+  }
+  try {
+    await pool.query(
+      `UPDATE users
+          SET role = $1,
+              updated_at = NOW()
+        WHERE id = $2`,
+      [role.toLowerCase(), req.session.user.id]
+    );
+    req.session.user.role = role.toLowerCase();
+    logPromotionAttempt({
+      userId: req.session.user.id,
+      requestedRole: role,
+      ipAddress: req.ip || req.headers["x-forwarded-for"]?.split?.(",")?.[0]?.trim(),
+      succeeded: true,
+      message: "Promotion granted"
+    });
+    req.flash("flashMessage", "? You are now an admin.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/users");
+  } catch (err) {
+    logPromotionAttempt({
+      userId: req.session.user.id,
+      requestedRole: role,
+      ipAddress: req.ip || req.headers["x-forwarded-for"]?.split?.(",")?.[0]?.trim(),
+      succeeded: false,
+      message: err.message
+    });
+    console.error("? Error promoting user:", err);
+    req.flash("flashMessage", "? Failed to change role.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/users");
   }
 });
 
@@ -83,6 +280,8 @@ router.get("/event-types", async (req, res) => {
       layout: "layouts/main",
       title: "Error",
       message: "Failed to load event types.",
+      error: err.message,
+      stack: err.stack,
     });
   }
 });
@@ -108,6 +307,8 @@ router.get("/spaces", async (req, res) => {
       layout: "layouts/main",
       title: "Error",
       message: "Failed to load rooms.",
+      error: err.message,
+      stack: err.stack,
     });
   }
 });
@@ -319,6 +520,8 @@ router.get("/note-templates", async (req, res) => {
       layout: "layouts/main",
       title: "Error",
       message: "Failed to load note templates.",
+      error: err.message,
+      stack: err.stack,
     });
   }
 });
@@ -407,7 +610,33 @@ router.post("/note-templates/delete", async (req, res) => {
     res.redirect("/settings/note-templates");
   }
 });
+
+router.get("/note-templates/api/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ success: false, error: "Invalid template id." });
+  }
+  try {
+    const {
+      rows,
+    } = await pool.query(
+      `SELECT id, name, category, description, content
+         FROM note_templates
+        WHERE id = $1
+        LIMIT 1`,
+      [id]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ success: false, error: "Template not found." });
+    }
+    res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    console.error("Error loading note template:", err);
+    res.status(500).json({ success: false, error: "Failed to load template." });
+  }
+});
 // 🔹 Menus (✅ this is the fix)
+router.use("/proposal-terms", require("./settings/proposal-terms"));
 router.use("/menus", require("./settings/menus"));
 
 // 🔹 Menus Builder (optional extended UI)

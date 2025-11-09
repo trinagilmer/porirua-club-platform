@@ -152,3 +152,639 @@
     background-color: $neutral-50;
   }
 }
+
+.header-user-avatar {
+  background: $brand;
+  color: $white;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid $white;
+  box-shadow: 0 4px 14px rgba(31, 41, 55, 0.2);
+  cursor: pointer;
+}
+
+// ===========================================================
+// ?? QUOTE PAGE
+// ===========================================================
+.quote-page {
+  background: #f7f8fb;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+
+  &, p, li, table, td, th, label, input, select, button, .form-control, .form-select {
+    font-size: 12.8px;
+  }
+
+  @media (max-width: 768px) {
+    padding: 1rem;
+  }
+}
+
+.quote-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  flex: 1;
+
+  @media (max-width: 768px) {
+    gap: 0.75rem;
+  }
+}
+
+.quote-card {
+  border: 1px solid #e0e4ee;
+  border-radius: 16px;
+  background: $white;
+  padding: 1.5rem;
+  width: 100%;
+
+  &.thin {
+    padding: 1rem;
+  }
+
+  @media (max-width: 768px) {
+    border-radius: 12px;
+    padding: 1rem;
+  }
+}
+
+#quoteMenuMount {
+  flex: 1;
+  min-height: 320px;
+}
+
+.quote-menu {
+  border: 1px solid #e0e4ee;
+  border-radius: 12px;
+  overflow: hidden;
+  background: $white;
+
+  &__header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #eef1f7;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  &__body {
+    overflow: visible;
+  }
+
+  &__table {
+    width: 100%;
+  }
+
+  .line-total {
+    font-weight: 600;
+    color: #111928;
+  }
+}
+
+.quote-totals {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+
+  dl {
+    margin: 0;
+
+    dt {
+      font-weight: 500;
+    }
+  }
+
+  @media (max-width: 992px) {
+    flex-direction: column;
+  }
+}
+
+.quote-actions {
+  .btn {
+    min-width: 160px;
+  }
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    width: 100%;
+
+    .btn {
+      width: 100%;
+    }
+  }
+}
+
+.proposal-builder-wrapper {
+  margin-top: 1.5rem;
+}
+
+.proposal-builder-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+
+  .btn {
+    min-width: 140px;
+  }
+}
+
+// ===========================================================
+// ?? PROPOSAL BUILDER CARD
+// ===========================================================
+.proposal-builder-card {
+  border: 1px solid #e3e7ef;
+  border-radius: 16px;
+  background: $white;
+  padding: 1.5rem;
+
+  &, p, li, label, .form-control, .form-select, .btn, textarea, input {
+    font-size: 12.8px;
+  }
+
+  @media (max-width: 768px) {
+    padding: 1.25rem;
+  }
+}
+
+.proposal-builder__title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.proposal-builder__subtitle {
+  font-size: 0.875rem;
+}
+
+.proposal-panel {
+  border: 1px solid #e9edf5;
+  border-radius: 14px;
+  background: $white;
+
+  &__header {
+    padding: 0.85rem 1.1rem;
+    border-bottom: 1px solid #eef1f6;
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  &__body {
+    padding: 1rem 1.1rem 1.2rem;
+
+    @media (max-width: 768px) {
+      padding: 0.9rem;
+    }
+  }
+}
+
+.proposal-section-empty {
+  padding: 0.5rem;
+}
+
+.proposal-contact-option {
+  padding: 0.35rem 0;
+  border-bottom: 1px solid #f0f2f8;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+
+.proposal-terms-list .term-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.section-content {
+  min-height: 110px;
+  border: 1px solid #dfe3ec;
+  border-radius: 0.65rem;
+  padding: 0.75rem 0.85rem;
+  background: $white;
+  white-space: normal;
+  overflow-wrap: break-word;
+
+  &:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 1px rgba(#2563eb, 0.15);
+  }
+}
+
+// ===========================================================
+// ?? OVERVIEW / DASHBOARD CARDS
+// ===========================================================
+.function-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+
+  @media (max-width: 768px) {
+    padding-left: 0;
+    padding-right: 0;
+    gap: 1rem;
+  }
+}
+
+.overview-card {
+  border: 1px solid #e5e8f0;
+  border-radius: 18px;
+  background: $white;
+  padding: 1.5rem;
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+
+  &__title {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  &__subtitle {
+    font-size: 0.85rem;
+    color: $neutral-600;
+  }
+
+  @media (max-width: 768px) {
+    padding: 1.25rem;
+
+    &__header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+}
+
+.overview-snapshot .snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.snapshot-row {
+  background: #f8f9ff;
+  border: 1px solid #edf0f7;
+  border-radius: 12px;
+  padding: 0.85rem;
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 0.8fr;
+  gap: 0.75rem;
+  align-items: center;
+
+  @media (max-width: 992px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.snapshot-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: $neutral-500;
+}
+
+.snapshot-value {
+  font-weight: 600;
+  color: $neutral-900;
+}
+
+.snapshot-updated {
+  font-size: 0.75rem;
+  color: $neutral-500;
+  text-align: right;
+
+  @media (max-width: 992px) {
+    text-align: left;
+  }
+}
+
+.notes-list,
+.menu-list,
+.comms-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.empty-state {
+  padding: 1rem;
+  border: 1px dashed #d4d9e5;
+  border-radius: 12px;
+  text-align: center;
+  color: $neutral-500;
+  font-size: 0.9rem;
+}
+
+.note-card {
+  border: 1px solid #ebeff6;
+  border-radius: 14px;
+  padding: 1rem;
+  background: #fbfcff;
+
+  &__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.65rem;
+  }
+
+  &__type {
+    font-weight: 600;
+  }
+
+  &__preview {
+    color: $neutral-700;
+    font-size: 0.9rem;
+  }
+
+  &__meta {
+    font-size: 0.8rem;
+    color: $neutral-500;
+  }
+}
+
+.menu-row {
+  border: 1px solid #ebeff6;
+  border-radius: 14px;
+  padding: 1rem;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+
+  &__body {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  &__title {
+    font-weight: 600;
+  }
+
+  &__meta {
+    font-size: 0.85rem;
+  }
+
+  &__totals {
+    min-width: 140px;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+}
+
+.financial-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+
+  .financial-item {
+    border: 1px solid #edf0f7;
+    border-radius: 12px;
+    padding: 0.9rem;
+    background: #fcfdff;
+
+    span {
+      display: block;
+      font-size: 0.8rem;
+      color: $neutral-600;
+      margin-bottom: 0.25rem;
+    }
+
+    strong {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+  }
+}
+
+.comms-entry {
+  border: 1px solid #ebeff6;
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+
+  &__icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: #f1f4ff;
+    display: grid;
+    place-items: center;
+    font-size: 1rem;
+    color: $brand;
+  }
+
+  &__body {
+    p {
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    small {
+      color: $neutral-600;
+    }
+  }
+
+  &__meta {
+    font-size: 0.8rem;
+    color: $neutral-600;
+  }
+
+  @media (max-width: 768px) {
+    grid-template-columns: auto 1fr;
+    .comms-entry__meta {
+      grid-column: 2 / -1;
+      text-align: left;
+    }
+  }
+}
+.overview-actions {
+  .btn {
+    min-width: 160px;
+  }
+}
+
+.proposal-print {
+  color: $neutral-900;
+  font-size: 0.95rem;
+
+  .card {
+    border: 1px solid $neutral-200;
+  }
+}
+
+.proposal-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  padding: 1.5rem;
+
+  &__meta {
+    text-align: center;
+  }
+
+  &__title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+
+  &__date {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.85rem;
+    color: $neutral-600;
+  }
+
+  &__contact span {
+    display: block;
+    color: $neutral-600;
+  }
+}
+
+.proposal-logo {
+  &--primary {
+    max-height: 64px;
+  }
+  &--secondary {
+    max-height: 58px;
+  }
+}
+
+.proposal-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+}
+
+.proposal-summary-card {
+  .card-body {
+    padding: 1.25rem;
+  }
+}
+
+.proposal-summary__list {
+  margin: 0;
+  dt {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: $neutral-500;
+  }
+  dd {
+    margin-bottom: 0.7rem;
+    font-weight: 600;
+  }
+}
+
+.proposal-contact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  li {
+    margin-bottom: 0.75rem;
+    span {
+      display: block;
+      color: $neutral-600;
+    }
+  }
+}
+
+.proposal-run-sheet__list {
+  margin: 0;
+  padding-left: 1.25rem;
+  li {
+    margin-bottom: 0.35rem;
+  }
+}
+
+.proposal-table__grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+
+  th,
+  td {
+    border: 1px solid $neutral-200;
+    padding: 0.6rem 0.75rem;
+  }
+
+  thead th {
+    background: $neutral-100;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    color: $neutral-600;
+  }
+}
+
+.proposal-table__menu td {
+  background: $neutral-50;
+  font-weight: 600;
+}
+
+.proposal-category {
+  &:not(:last-child) {
+    margin-bottom: 1.5rem;
+  }
+  &__title {
+    margin-bottom: 0.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+}
+
+.proposal-financial__table {
+  width: 100%;
+  td {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid $neutral-100;
+  }
+  .proposal-financial__highlight td {
+    font-weight: 600;
+  }
+  .proposal-financial__total-due td {
+    font-weight: 700;
+    font-size: 1.05rem;
+  }
+}
+
+.proposal-terms__body {
+  white-space: pre-line;
+}
+
+@media print {
+  .proposal-print {
+    padding: 0;
+  }
+  .proposal-table__grid {
+    page-break-inside: avoid;
+  }
+  .proposal-terms {
+    page-break-before: always;
+  }
+}

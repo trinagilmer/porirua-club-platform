@@ -42,7 +42,6 @@ router.post('/', async (req, res) => {
 
   // Optional: update proposal_totals.total_paid & remaining_due
   if (result.data && result.data.length > 0) {
-    const newPayment = result.data[0];
 
     // Fetch existing totals
     const totals = await supabase
