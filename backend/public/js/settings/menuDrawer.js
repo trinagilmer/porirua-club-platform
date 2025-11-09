@@ -19,6 +19,18 @@ document.addEventListener("DOMContentLoaded", () => {
   const choiceList = document.getElementById("choiceList");
   const addonList = document.getElementById("addonList");
   const addAddonBtn = document.getElementById("addAddonBtn");
+  const categoryChoiceSection = document.getElementById("categoryChoiceSection");
+  const categoryChoiceLabel = document.getElementById("categoryChoiceLabel");
+  const categoryChoiceList = document.getElementById("categoryChoiceList");
+  const categoryChoiceRefreshBtn = document.getElementById("categoryChoiceRefresh");
+  const categoryChoiceSelectAll = document.getElementById("categoryChoiceSelectAll");
+  const categoryChoiceClearBtn = document.getElementById("categoryChoiceClear");
+  const categoryChoiceStatus = document.getElementById("categoryChoiceStatus");
+  const categoryBulkLinkBtn = document.getElementById("categoryBulkLinkBtn");
+  const bulkChoiceTextarea = document.getElementById("bulkChoiceTextarea");
+  const bulkChoiceAddBtn = document.getElementById("bulkChoiceAddBtn");
+  const bulkChoiceClearBtn = document.getElementById("bulkChoiceClearBtn");
+  const bulkChoiceStatus = document.getElementById("bulkChoiceStatus");
 
   const drawerInstance =
     drawerEl && window.bootstrap?.Offcanvas
@@ -48,6 +60,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const addonUnitSelect = document.getElementById("addonUnit");
   const addonEnableQty = document.getElementById("addonEnableQty");
   const addonDefaultQty = document.getElementById("addonDefaultQty");
+  const menuCategories =
+    (window.menuBuilderData && window.menuBuilderData.categories) || [];
 
   if (!drawerEl || !form || !choiceList) {
     console.warn("⚠️ Menu drawer elements not found.");
@@ -87,6 +101,12 @@ document.addEventListener("DOMContentLoaded", () => {
   let addonModalMode = "create";
   let editingAddonId = null;
   let editingAddonStaged = false;
+  let currentMenuCategoryId = null;
+  let currentMenuCategoryName = "";
+  let categoryChoiceRows = [];
+  const categoryChoiceSelection = new Set();
+  let categoryChoicesLoading = false;
+  let bulkChoiceInFlight = false;
 
   // --------------------------
   // Helpers
@@ -120,6 +140,83 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   populateUnits();
   renderAddonList();
+  const formCategoryField = form?.querySelector('[name="category_id"]');
+  formCategoryField?.addEventListener("change", (event) => {
+    setCurrentMenuCategory(event.target.value || null);
+  });
+
+  function getCategoryNameById(categoryId) {
+    if (!Number.isFinite(categoryId)) return "";
+    const match = menuCategories.find(
+      (cat) => Number(cat.id) === Number(categoryId)
+    );
+    return match ? match.name : "";
+  }
+
+  function setCurrentMenuCategory(categoryId) {
+    if (categoryId === undefined || categoryId === null || categoryId === "") {
+      currentMenuCategoryId = null;
+      currentMenuCategoryName = "";
+    } else {
+      const numeric = Number(categoryId);
+      if (Number.isFinite(numeric) && numeric > 0) {
+        currentMenuCategoryId = numeric;
+        currentMenuCategoryName = getCategoryNameById(numeric) || "";
+      } else {
+        currentMenuCategoryId = null;
+        currentMenuCategoryName = "";
+      }
+    }
+    updateCategoryChoiceLabel();
+  }
+
+  function updateCategoryChoiceLabel() {
+    if (!categoryChoiceLabel) return;
+    if (!editMenuId) {
+      categoryChoiceLabel.textContent = "this menu";
+      return;
+    }
+    categoryChoiceLabel.textContent =
+      currentMenuCategoryName || "this category";
+  }
+
+  function setCategoryChoiceStatus(message = "", tone = "muted") {
+    if (!categoryChoiceStatus) return;
+    const baseClass = "small mt-2";
+    categoryChoiceStatus.className = `${baseClass} text-${tone}`;
+    categoryChoiceStatus.textContent = message;
+  }
+
+  function setBulkChoiceAvailability(enabled) {
+    const disabled = !enabled;
+    if (bulkChoiceTextarea) {
+      bulkChoiceTextarea.disabled = disabled;
+      if (disabled) bulkChoiceTextarea.value = "";
+    }
+    if (bulkChoiceAddBtn) bulkChoiceAddBtn.disabled = disabled;
+    if (bulkChoiceClearBtn) bulkChoiceClearBtn.disabled = disabled;
+    setBulkChoiceStatus(
+      disabled ? "Save the menu before bulk adding choices." : "",
+      "muted"
+    );
+  }
+
+  function setBulkChoiceStatus(message = "", tone = "muted") {
+    if (!bulkChoiceStatus) return;
+    const base = "small mt-2";
+    const toneClass = tone ? `text-${tone}` : "text-muted";
+    bulkChoiceStatus.className = `${base} ${toneClass}`;
+    bulkChoiceStatus.textContent = message;
+  }
+
+  function resetCategoryChoiceState() {
+    categoryChoiceRows = [];
+    categoryChoiceSelection.clear();
+    renderCategoryChoiceList("Load category choices to start.");
+    setCategoryChoiceStatus("");
+    if (categoryBulkLinkBtn) categoryBulkLinkBtn.disabled = true;
+    updateCategoryChoiceSelectAllState();
+  }
 
   function badge(text, cls = "text-bg-secondary") {
     return `<span class="badge ${cls} ms-2">${text}</span>`;
@@ -210,6 +307,7 @@ document.addEventListener("DOMContentLoaded", () => {
           ? String(menu.category_id)
           : "";
       categoryField.value = value;
+      setCurrentMenuCategory(value);
     }
     if (priceField) {
       priceField.value =
@@ -227,6 +325,7 @@ document.addEventListener("DOMContentLoaded", () => {
     window.__stagedAddons = stagedAddons;
     renderChoiceList();
     renderAddonList();
+    resetCategoryChoiceState();
   }
 
   function openMenuForCreate({ categoryId = null } = {}) {
@@ -237,7 +336,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (categoryId != null) {
       const categoryField = form?.querySelector('[name="category_id"]');
       if (categoryField) categoryField.value = String(categoryId);
+      setCurrentMenuCategory(categoryId);
+    } else {
+      setCurrentMenuCategory(null);
     }
+    setBulkChoiceAvailability(false);
     openDrawerInstance();
   }
 
@@ -251,6 +354,9 @@ document.addEventListener("DOMContentLoaded", () => {
     editMenuId = menuId;
     form?.reset();
     applyMenuFormValues(menu);
+    setCurrentMenuCategory(menu.category_id ?? null);
+    resetCategoryChoiceState();
+    setBulkChoiceAvailability(true);
     stagedChoices = [];
     window.__stagedChoices = stagedChoices;
     await reloadLinkedChoices();
@@ -476,6 +582,218 @@ function normalizeAddon(addon = {}) {
     });
   }
 
+  function renderCategoryChoiceList(messageOverride = null) {
+    if (!categoryChoiceList) return;
+    categoryChoiceList.innerHTML = "";
+
+    if (!editMenuId) {
+      categoryChoiceList.innerHTML =
+        '<div class="list-group-item text-muted fst-italic">Save the menu before linking multiple choices.</div>';
+      if (categoryBulkLinkBtn) categoryBulkLinkBtn.disabled = true;
+      updateCategoryChoiceSelectAllState();
+      return;
+    }
+
+    if (messageOverride) {
+      categoryChoiceList.innerHTML = `<div class="list-group-item text-muted fst-italic">${messageOverride}</div>`;
+      if (categoryBulkLinkBtn) categoryBulkLinkBtn.disabled = true;
+      updateCategoryChoiceSelectAllState();
+      return;
+    }
+
+    if (!categoryChoiceRows.length) {
+      categoryChoiceList.innerHTML =
+        '<div class="list-group-item text-muted fst-italic">No additional choices available for this category.</div>';
+      if (categoryBulkLinkBtn) categoryBulkLinkBtn.disabled = true;
+      updateCategoryChoiceSelectAllState();
+      return;
+    }
+
+    categoryChoiceRows.forEach((row) => {
+      const wrapper = document.createElement("label");
+      wrapper.className =
+        "list-group-item list-group-item-action d-flex align-items-center gap-3";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.className = "form-check-input flex-shrink-0 category-choice-checkbox";
+      checkbox.value = row.choice_id;
+      checkbox.checked = categoryChoiceSelection.has(row.choice_id);
+      checkbox.dataset.choiceId = row.choice_id;
+      wrapper.appendChild(checkbox);
+
+      const body = document.createElement("div");
+      body.className = "flex-grow-1";
+      const title = document.createElement("div");
+      title.className = "fw-semibold";
+      title.textContent = row.choice_name || `Choice #${row.choice_id || ""}`;
+      body.appendChild(title);
+      const meta = document.createElement("div");
+      meta.className = "text-muted small";
+      const bits = [];
+      if (row.option_price != null) {
+        bits.push(`Price $${Number(row.option_price).toFixed(2)}`);
+      }
+      if (row.option_cost != null) {
+        bits.push(`Cost $${Number(row.option_cost).toFixed(2)}`);
+      }
+      if (row.option_cogs_percent != null) {
+        bits.push(`COGS ${Number(row.option_cogs_percent).toFixed(1)}%`);
+      }
+      if (row.unit_name) {
+        bits.push(row.unit_name);
+      }
+      meta.textContent = bits.length ? bits.join(" • ") : "No pricing yet.";
+      body.appendChild(meta);
+      wrapper.appendChild(body);
+      categoryChoiceList.appendChild(wrapper);
+    });
+
+    updateCategoryChoiceSelectAllState();
+    if (categoryBulkLinkBtn) {
+      categoryBulkLinkBtn.disabled = categoryChoiceSelection.size === 0;
+    }
+  }
+
+  function updateCategoryChoiceSelectAllState() {
+    if (!categoryChoiceSelectAll) return;
+    const total = categoryChoiceRows.length;
+    const selected = categoryChoiceSelection.size;
+    categoryChoiceSelectAll.indeterminate = false;
+
+    if (!total) {
+      categoryChoiceSelectAll.checked = false;
+      categoryChoiceSelectAll.disabled = true;
+      return;
+    }
+
+    categoryChoiceSelectAll.disabled = false;
+    categoryChoiceSelectAll.checked = selected === total;
+    categoryChoiceSelectAll.indeterminate =
+      selected > 0 && selected < total;
+  }
+
+  async function loadCategoryChoices(forceReload = false) {
+    if (!categoryChoiceList || !editMenuId) {
+      renderCategoryChoiceList("Save the menu before linking choices.");
+      return;
+    }
+    if (categoryChoicesLoading && !forceReload) return;
+    categoryChoicesLoading = true;
+    categoryChoiceSelection.clear();
+    renderCategoryChoiceList("Loading choices...");
+    setCategoryChoiceStatus("");
+    if (categoryBulkLinkBtn) categoryBulkLinkBtn.disabled = true;
+    try {
+      const res = await fetch(
+        `/menus/builder/choices/unlinked?menu_id=${editMenuId}`
+      );
+      const payload = await res.json();
+      if (!payload.success) {
+        throw new Error(payload.error || "Failed to load choices.");
+      }
+      categoryChoiceRows = Array.isArray(payload.data) ? payload.data : [];
+      if (!categoryChoiceRows.length) {
+        renderCategoryChoiceList(
+          "No additional choices available for this category."
+        );
+        setCategoryChoiceStatus(
+          "All available choices are already linked to this menu.",
+          "muted"
+        );
+      } else {
+        renderCategoryChoiceList();
+        setCategoryChoiceStatus(
+          `Showing ${categoryChoiceRows.length} unlinked choice${
+            categoryChoiceRows.length === 1 ? "" : "s"
+          }.`,
+          "muted"
+        );
+      }
+    } catch (err) {
+      console.error("loadCategoryChoices error:", err);
+      renderCategoryChoiceList("Failed to load choices.");
+      setCategoryChoiceStatus(
+        err.message || "Error loading choices.",
+        "danger"
+      );
+    } finally {
+      categoryChoicesLoading = false;
+      updateCategoryChoiceSelectAllState();
+    }
+  }
+
+  function normalizeBulkChoiceLine(line) {
+    if (!line) return [];
+    let parts = line.split(/\t|\|/).map((part) => part.trim());
+    if (parts.length <= 1) {
+      parts = line.split(/,/).map((part) => part.trim());
+    }
+    if (parts.length <= 1) {
+      parts = line.split(/\s{2,}/).map((part) => part.trim());
+    }
+    while (parts.length < 6) {
+      parts.push("");
+    }
+    return parts.slice(0, 6);
+  }
+
+  function parseCurrencyValue(value) {
+    if (!value) return null;
+    const cleaned = value.replace(/[^\d.-]/g, "");
+    if (!cleaned) return null;
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+  }
+
+  function resolveBulkUnitId(token) {
+    if (!token) return null;
+    const normalized = token.trim().toLowerCase();
+    if (!normalized) return null;
+    if (["pp", "p/p", "per person", "per-person", "per attendee"].includes(normalized)) {
+      return findPerPersonUnitId();
+    }
+    let match = null;
+    unitLookup.forEach((unit) => {
+      if (
+        String(unit.id) === normalized ||
+        (unit.name && unit.name.toLowerCase() === normalized) ||
+        (unit.type && unit.type.toLowerCase() === normalized)
+      ) {
+        match = Number(unit.id);
+      }
+    });
+    return match;
+  }
+
+  function findPerPersonUnitId() {
+    let match = null;
+    unitLookup.forEach((unit) => {
+      const type = (unit.type || "").toLowerCase();
+      const name = (unit.name || "").toLowerCase();
+      if (type.includes("per") || name.includes("pp")) {
+        match = Number(unit.id);
+      }
+    });
+    return match;
+  }
+
+  function resolveCategoryIdByToken(token) {
+    if (!token) return null;
+    const normalized = token.trim().toLowerCase();
+    if (!normalized) return null;
+    const numeric = Number(normalized);
+    if (Number.isInteger(numeric) && numeric > 0) {
+      const exists = menuCategories.some(
+        (cat) => Number(cat.id) === Number(numeric)
+      );
+      if (exists) return numeric;
+    }
+    const match = menuCategories.find(
+      (cat) => cat.name && cat.name.toLowerCase() === normalized
+    );
+    return match ? Number(match.id) : null;
+  }
+
   function toggleAddonQtyState(enabled) {
     if (!addonEnableQty || !addonDefaultQty) return;
     addonEnableQty.checked = enabled;
@@ -538,6 +856,10 @@ function normalizeAddon(addon = {}) {
     editingChoiceDescription = "";
     renderChoiceList();
     renderAddonList();
+    setCurrentMenuCategory(null);
+    resetCategoryChoiceState();
+    setBulkChoiceAvailability(false);
+    setBulkChoiceStatus("", "muted");
   }
 
   function debounce(fn, ms = 300) {
@@ -588,7 +910,7 @@ function normalizeAddon(addon = {}) {
     if (!createChoiceModal) return alert("Modal not available.");
     // reset modal fields
     choiceNameInput.value = "";
-    optionNameInput.value = "";
+    if (optionNameInput) optionNameInput.value = "";
     optionPriceInput.value = "";
     optionUnitSelect.value = "";
     if (optionCostInput) optionCostInput.value = "";
@@ -599,11 +921,6 @@ function normalizeAddon(addon = {}) {
     editingChoiceDescription = "";
     createChoiceModal.show();
     setTimeout(() => choiceNameInput?.focus(), 150);
-  });
-
-  // UX nicety: keep option name synced to choice name if blank
-  choiceNameInput?.addEventListener("input", () => {
-    if (!optionNameInput.value) optionNameInput.value = choiceNameInput.value;
   });
 
   addonList?.addEventListener("click", async (event) => {
@@ -674,10 +991,10 @@ function normalizeAddon(addon = {}) {
     editingChoiceLocalId = null;
     editingChoiceOptionId = null;
     editingChoiceDescription = "";
+    if (optionNameInput) optionNameInput.value = "";
     if (optionUnitSelect) optionUnitSelect.value = "";
     if (optionCostInput) optionCostInput.value = "";
     if (optionPriceInput) optionPriceInput.value = "";
-    if (optionNameInput) optionNameInput.value = "";
     if (choiceNameInput) choiceNameInput.value = "";
   });
 
@@ -697,7 +1014,10 @@ function normalizeAddon(addon = {}) {
       return;
     }
 
-    const optionLabel = (optionNameInput?.value || "").trim() || name;
+    const optionLabel =
+      optionNameInput && optionNameInput.value.trim()
+        ? optionNameInput.value.trim()
+        : name;
     const price =
       optionPriceInput?.value === "" || optionPriceInput?.value == null
         ? null
@@ -1032,9 +1352,15 @@ function normalizeAddon(addon = {}) {
     if (!linkChoiceModal) return alert("Modal not available.");
     // reset UI
     linkSearchInput.value = "";
-    linkResultsEl.innerHTML = '<div class="list-group-item text-muted fst-italic">Start typing to find choices…</div>';
+    linkResultsEl.innerHTML = '<div class="list-group-item text-muted fst-italic">Start typing to find choices.</div>';
     linkChoiceModal.show();
     setTimeout(() => linkSearchInput?.focus(), 150);
+    updateCategoryChoiceLabel();
+    if (!categoryChoiceRows.length) {
+      loadCategoryChoices();
+    } else {
+      renderCategoryChoiceList();
+    }
   });
 
   function renderLinkResults(rows = []) {
@@ -1118,6 +1444,251 @@ function normalizeAddon(addon = {}) {
       rowBtn.classList.remove("disabled");
     }
   });
+
+  categoryChoiceRefreshBtn?.addEventListener("click", () =>
+    loadCategoryChoices(true)
+  );
+
+  categoryChoiceClearBtn?.addEventListener("click", () => {
+    categoryChoiceSelection.clear();
+    renderCategoryChoiceList();
+    if (categoryBulkLinkBtn) categoryBulkLinkBtn.disabled = true;
+    setCategoryChoiceStatus("Selection cleared.", "muted");
+  });
+
+  categoryChoiceSelectAll?.addEventListener("change", (event) => {
+    if (!categoryChoiceRows.length) return;
+    const shouldSelect = Boolean(event.target.checked);
+    categoryChoiceRows.forEach((row) => {
+      if (shouldSelect) {
+        categoryChoiceSelection.add(row.choice_id);
+      } else {
+        categoryChoiceSelection.delete(row.choice_id);
+      }
+    });
+    renderCategoryChoiceList();
+  });
+
+  categoryChoiceList?.addEventListener("change", (event) => {
+    const checkbox = event.target.closest(".category-choice-checkbox");
+    if (!checkbox) return;
+    const choiceId = Number(checkbox.dataset.choiceId || checkbox.value);
+    if (!Number.isInteger(choiceId) || choiceId <= 0) return;
+    if (checkbox.checked) {
+      categoryChoiceSelection.add(choiceId);
+    } else {
+      categoryChoiceSelection.delete(choiceId);
+    }
+    if (categoryBulkLinkBtn) {
+      categoryBulkLinkBtn.disabled = categoryChoiceSelection.size === 0;
+    }
+    updateCategoryChoiceSelectAllState();
+  });
+
+  categoryBulkLinkBtn?.addEventListener("click", async () => {
+    if (!editMenuId || !categoryChoiceSelection.size) return;
+    const choiceIds = Array.from(categoryChoiceSelection);
+    categoryBulkLinkBtn.disabled = true;
+    setCategoryChoiceStatus("Linking selected choices...", "muted");
+    try {
+      const res = await fetch(
+        `/menus/builder/menus/${editMenuId}/link/bulk`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ choice_ids: choiceIds }),
+        }
+      );
+      const payload = await res.json();
+      if (!payload.success) {
+        throw new Error(payload.error || "Failed to link choices.");
+      }
+      const linked = Array.isArray(payload.data)
+        ? payload.data.map((item) => normalizeLinkedChoice(item))
+        : [];
+      categoryChoiceSelection.clear();
+      if (linked.length) {
+        linked.forEach((choice) => {
+          linkedChoices = linkedChoices.filter(
+            (existing) => existing.choice_id !== choice.choice_id
+          );
+          linkedChoices.push(choice);
+        });
+        renderChoiceList();
+        await reloadLinkedChoices();
+        await loadCategoryChoices(true);
+        setCategoryChoiceStatus(
+          `Linked ${linked.length} choice${
+            linked.length === 1 ? "" : "s"
+          } to this menu.`,
+          "success"
+        );
+      } else {
+        await loadCategoryChoices(true);
+        setCategoryChoiceStatus(
+          "No new choices were linked (they may already be attached).",
+          "warning"
+        );
+      }
+    } catch (err) {
+      console.error("? Bulk link error:", err);
+      setCategoryChoiceStatus(
+        err.message || "Failed to link choices.",
+        "danger"
+      );
+    } finally {
+      categoryBulkLinkBtn.disabled = categoryChoiceSelection.size === 0;
+    }
+  });
+
+  async function handleBulkChoiceImport() {
+    if (!editMenuId) {
+      alert("Save the menu before bulk adding choices.");
+      return;
+    }
+    if (!bulkChoiceTextarea) return;
+    if (bulkChoiceInFlight) return;
+
+    const text = (bulkChoiceTextarea.value || "").trim();
+    if (!text) {
+      alert("Paste one or more lines to import.");
+      bulkChoiceTextarea.focus();
+      return;
+    }
+
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length);
+    if (!lines.length) {
+      alert("Nothing to import. Check the format and try again.");
+      return;
+    }
+
+    bulkChoiceInFlight = true;
+    if (bulkChoiceAddBtn) bulkChoiceAddBtn.disabled = true;
+    setBulkChoiceStatus("Creating choices...", "muted");
+
+    const createdChoiceIds = [];
+    const errors = [];
+    let created = 0;
+    let failed = 0;
+
+    for (let idx = 0; idx < lines.length; idx += 1) {
+      const rawLine = lines[idx];
+      const parts = normalizeBulkChoiceLine(rawLine);
+      if (!parts.length) continue;
+      let [categoryToken, name, description, costText, priceText, unitToken] =
+        parts;
+      name = (name || "").trim();
+      description = (description || "").trim();
+      if (!name) {
+        failed += 1;
+        errors.push(`Line ${idx + 1}: Missing choice name.`);
+        continue;
+      }
+      let categoryId = resolveCategoryIdByToken(categoryToken);
+      if (!categoryId && currentMenuCategoryId) {
+        categoryId = currentMenuCategoryId;
+      }
+      if (!categoryId) {
+        failed += 1;
+        errors.push(
+          `Line ${idx + 1}: No category specified and menu category is unset.`
+        );
+        continue;
+      }
+      const cost = parseCurrencyValue(costText);
+      const price = parseCurrencyValue(priceText);
+      let unitId = resolveBulkUnitId(unitToken);
+      if (!unitId) {
+        const haystack = `${unitToken || ""} ${name} ${description}`.toLowerCase();
+        if (haystack.includes("pp") || haystack.includes("per person")) {
+          unitId = findPerPersonUnitId();
+        }
+      }
+
+      const payload = {
+        name,
+        description: description || null,
+        category_id: categoryId,
+        options: [
+          {
+            name,
+            price,
+            cost,
+            unit_id: unitId,
+          },
+        ],
+      };
+
+      try {
+        const res = await fetch("/settings/menus/choices/api", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success || !data.data?.id) {
+          throw new Error(data.error || "Failed to create choice.");
+        }
+        createdChoiceIds.push(data.data.id);
+        created += 1;
+      } catch (err) {
+        failed += 1;
+        errors.push(
+          `Line ${idx + 1}: ${err.message || "Failed to create choice."}`
+        );
+      }
+    }
+
+    let linked = 0;
+    if (createdChoiceIds.length) {
+      try {
+        const res = await fetch(
+          `/menus/builder/menus/${editMenuId}/link/bulk`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ choice_ids: createdChoiceIds }),
+          }
+        );
+        const payload = await res.json();
+        if (!payload.success) {
+          throw new Error(payload.error || "Failed to link choices.");
+        }
+        linked = Array.isArray(payload.data) ? payload.data.length : 0;
+        await reloadLinkedChoices();
+        await loadCategoryChoices(true);
+      } catch (err) {
+        errors.push(err.message || "Failed to link new choices.");
+      }
+    }
+
+    if (createdChoiceIds.length && bulkChoiceTextarea) {
+      bulkChoiceTextarea.value = "";
+    }
+
+    const summary = [];
+    if (created) summary.push(`${created} created`);
+    if (linked) summary.push(`${linked} linked`);
+    if (failed) summary.push(`${failed} failed`);
+    const tone = failed ? "warning" : created ? "success" : "muted";
+    setBulkChoiceStatus(summary.join(" • ") || "No rows processed.", tone);
+    if (errors.length) {
+      console.warn("Bulk choice import issues:", errors);
+    }
+
+    bulkChoiceInFlight = false;
+    if (bulkChoiceAddBtn) bulkChoiceAddBtn.disabled = false;
+  }
+
+  bulkChoiceClearBtn?.addEventListener("click", () => {
+    if (bulkChoiceTextarea) bulkChoiceTextarea.value = "";
+    setBulkChoiceStatus("Cleared.", "muted");
+  });
+
+  bulkChoiceAddBtn?.addEventListener("click", handleBulkChoiceImport);
 
   // --------------------------
   // Remove Linked Choice (no reload; drawer stays open)

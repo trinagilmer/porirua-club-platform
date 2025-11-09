@@ -1051,6 +1051,152 @@ textarea {
   min-width: 160px;
 }
 
+.proposal-print {
+  color: #111827;
+  font-size: 0.95rem;
+}
+.proposal-print .card {
+  border: 1px solid #E5E7EB;
+}
+
+.proposal-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  padding: 1.5rem;
+}
+.proposal-header__meta {
+  text-align: center;
+}
+.proposal-header__title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+.proposal-header__date {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.85rem;
+  color: #4B5563;
+}
+.proposal-header__contact span {
+  display: block;
+  color: #4B5563;
+}
+
+.proposal-logo--primary {
+  max-height: 64px;
+}
+.proposal-logo--secondary {
+  max-height: 58px;
+}
+
+.proposal-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+}
+
+.proposal-summary-card .card-body {
+  padding: 1.25rem;
+}
+
+.proposal-summary__list {
+  margin: 0;
+}
+.proposal-summary__list dt {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  color: #6B7280;
+}
+.proposal-summary__list dd {
+  margin-bottom: 0.7rem;
+  font-weight: 600;
+}
+
+.proposal-contact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.proposal-contact-list li {
+  margin-bottom: 0.75rem;
+}
+.proposal-contact-list li span {
+  display: block;
+  color: #4B5563;
+}
+
+.proposal-run-sheet__list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+.proposal-run-sheet__list li {
+  margin-bottom: 0.35rem;
+}
+
+.proposal-table__grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.proposal-table__grid th,
+.proposal-table__grid td {
+  border: 1px solid #E5E7EB;
+  padding: 0.6rem 0.75rem;
+}
+.proposal-table__grid thead th {
+  background: #F3F4F6;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: #4B5563;
+}
+
+.proposal-table__menu td {
+  background: #F9FAFB;
+  font-weight: 600;
+}
+
+.proposal-category:not(:last-child) {
+  margin-bottom: 1.5rem;
+}
+.proposal-category__title {
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.proposal-financial__table {
+  width: 100%;
+}
+.proposal-financial__table td {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #F3F4F6;
+}
+.proposal-financial__table .proposal-financial__highlight td {
+  font-weight: 600;
+}
+.proposal-financial__table .proposal-financial__total-due td {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.proposal-terms__body {
+  white-space: pre-line;
+}
+
+@media print {
+  .proposal-print {
+    padding: 0;
+  }
+  .proposal-table__grid {
+    page-break-inside: avoid;
+  }
+  .proposal-terms {
+    page-break-before: always;
+  }
+}
 .function-sidebar {
   display: flex;
   flex-direction: column;

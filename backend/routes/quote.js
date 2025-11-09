@@ -277,9 +277,8 @@ async function addMenuBundle(client, functionId, proposalId, menuId) {
     }
     const total = basePrice * qty;
     const totalCost = baseCost * qty;
-    let description = `Choice: ${choice.choice_name}${
-      choice.option_name ? ` (${choice.option_name})` : ""
-    }`;
+    const optionLabel = choice.option_name || choice.choice_name;
+    let description = `Choice: ${optionLabel || choice.choice_name}`;
     if (qty > 1) description += ` x ${qty}`;
     if (choice.unit_name) description += ` ${choice.unit_name}`;
     description = includeMetadata(description, "base", basePrice);

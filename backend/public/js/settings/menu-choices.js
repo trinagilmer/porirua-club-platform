@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const filterSelect = document.getElementById('choiceCategoryFilter');
   const createChoiceForm = document.getElementById('createChoiceForm');
   const createChoiceName = document.getElementById('createChoiceName');
+  const createChoiceCategory = document.getElementById('createChoiceCategory');
   const createOptionName = document.getElementById('createChoiceOptionName');
   const createOptionPrice = document.getElementById('createChoiceOptionPrice');
   const createOptionCost = document.getElementById('createChoiceOptionCost');
@@ -23,11 +24,24 @@ document.addEventListener('DOMContentLoaded', () => {
     : [];
 
   let unitLookup = buildUnitLookup();
+  let categoryLookup = buildCategoryLookup();
 
   function buildUnitLookup() {
     const map = new Map();
     units.forEach((u) => {
       map.set(String(u.id), u);
+    });
+    return map;
+  }
+
+  function buildCategoryLookup() {
+    const map = new Map();
+    categories.forEach((cat) => {
+      if (!cat) return;
+      map.set(String(cat.id), cat);
+      if (cat.name) {
+        map.set(cat.name.trim().toLowerCase(), cat);
+      }
     });
     return map;
   }
@@ -47,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return [];
     };
 
-    return {
+    const base = {
       id: choice.id,
       name: choice.name || '',
       description: choice.description || '',
@@ -55,6 +69,32 @@ document.addEventListener('DOMContentLoaded', () => {
       categories: parseArray(choice.categories),
       menus: parseArray(choice.menus),
     };
+
+    const resolvedCategory =
+      choice.category && typeof choice.category === 'object'
+        ? {
+            id:
+              choice.category.id ??
+              choice.category_id ??
+              choice.category?.category_id ??
+              null,
+            name:
+              choice.category.name ||
+              choice.category_name ||
+              choice.category?.label ||
+              'Unassigned',
+          }
+        : choice.category_id
+        ? {
+            id: choice.category_id,
+            name:
+              choice.category_name ||
+              categoryLookup.get(String(choice.category_id))?.name ||
+              'Unassigned',
+          }
+        : null;
+
+    return { ...base, category: resolvedCategory };
   }
 
   function escapeHtml(str) {
@@ -81,6 +121,25 @@ document.addEventListener('DOMContentLoaded', () => {
     return opts.join('');
   }
 
+  function buildCategoryOptions(selectedId = null, includeBlank = true) {
+    const opts = [];
+    if (includeBlank) {
+      opts.push('<option value="">Unassigned</option>');
+    }
+    categories.forEach((cat) => {
+      const sel =
+        selectedId !== null && String(cat.id) === String(selectedId)
+          ? ' selected'
+          : '';
+      opts.push(
+        `<option value="${escapeHtml(cat.id)}"${sel}>${escapeHtml(
+          cat.name
+        )}</option>`
+      );
+    });
+    return opts.join('');
+  }
+
   function updateCategorySelect() {
     if (!filterSelect) return;
     const current = filterSelect.value || 'all';
@@ -100,6 +159,28 @@ document.addEventListener('DOMContentLoaded', () => {
     ) {
       filterSelect.value = current;
     }
+    updateCreateCategoryOptions();
+  }
+
+  function updateCreateCategoryOptions() {
+    if (!createChoiceCategory) return;
+    const current = createChoiceCategory.value || '';
+    const options = [
+      '<option value="">Unassigned</option>',
+      ...categories.map(
+        (cat) =>
+          `<option value="${escapeHtml(cat.id)}">${escapeHtml(cat.name)}</option>`
+      ),
+    ];
+    createChoiceCategory.innerHTML = options.join('');
+    if (
+      current &&
+      categories.some((cat) => String(cat.id) === String(current))
+    ) {
+      createChoiceCategory.value = current;
+    } else {
+      createChoiceCategory.value = '';
+    }
   }
 
   function renderChoices() {
@@ -109,9 +190,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const groups = new Map();
 
     choices.forEach((choice) => {
-      const catList =
+      const primaryCategory =
+        choice.category && choice.category.id !== undefined
+          ? choice.category
+          : null;
+      const fallbackCategories =
         choice.categories && choice.categories.length
-          ? choice.categories
+          ? choice.categories.filter(
+              (cat) => cat && (cat.id !== undefined || cat.name)
+            )
+          : [];
+      const catList =
+        primaryCategory && primaryCategory.id !== undefined
+          ? [primaryCategory]
+          : fallbackCategories.length
+          ? fallbackCategories
           : [{ id: null, name: 'Unassigned' }];
 
       const matchesFilter =
@@ -225,16 +318,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const metadata = document.createElement('div');
     metadata.className = 'choice-metadata';
-    const catList =
-      choice.categories && choice.categories.length
-        ? choice.categories
-        : [{ id: null, name: 'Unassigned' }];
-    catList.forEach((cat) => {
-      const pill = document.createElement('span');
-      pill.className = 'choice-pill';
-      pill.textContent = cat?.name || 'Unassigned';
-      metadata.appendChild(pill);
-    });
+    const categoryPill = document.createElement('span');
+    categoryPill.className = 'choice-pill';
+    categoryPill.textContent = choice.category?.name || 'Unassigned';
+    metadata.appendChild(categoryPill);
+    if (primary && primary.cogs_percent != null) {
+      const cogsPill = document.createElement('span');
+      cogsPill.className = 'choice-pill';
+      cogsPill.title = 'COGS % = (Cost / Price) × 100';
+      cogsPill.textContent = `COGS ${Number(primary.cogs_percent).toFixed(1)}%`;
+      metadata.appendChild(cogsPill);
+    }
     if (choice.menus && choice.menus.length) {
       choice.menus.slice(0, 3).forEach((menu) => {
         const pill = document.createElement('span');
@@ -251,11 +345,46 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     body.appendChild(metadata);
 
+    const categoryGroup = document.createElement('div');
+    categoryGroup.className = 'mb-2';
+    const categoryLabel = document.createElement('label');
+    categoryLabel.className =
+      'form-label small text-uppercase text-muted mb-1';
+    categoryLabel.textContent = 'Sales Category';
+    categoryGroup.appendChild(categoryLabel);
+    const categorySelect = document.createElement('select');
+    categorySelect.className = 'form-select form-select-sm choice-category';
+    categorySelect.innerHTML = buildCategoryOptions(
+      choice.category?.id ?? null
+    );
+    categoryGroup.appendChild(categorySelect);
+    const categoryHelp = document.createElement('div');
+    categoryHelp.className = 'form-text';
+    categoryHelp.textContent = 'e.g. Catering';
+    categoryGroup.appendChild(categoryHelp);
+    body.appendChild(categoryGroup);
+
+    categorySelect.addEventListener('change', () => {
+      const selectedId = categorySelect.value;
+      const matched =
+        categoryLookup.get(selectedId) ||
+        categoryLookup.get(selectedId?.trim()?.toLowerCase());
+      categoryPill.textContent = matched?.name || 'Unassigned';
+    });
+
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
     nameInput.className = 'form-control form-control-sm choice-name mb-2';
     nameInput.value = choice.name || '';
     body.appendChild(nameInput);
+
+    const labelInput = document.createElement('input');
+    labelInput.type = 'text';
+    labelInput.className = 'form-control form-control-sm choice-label mb-2';
+    labelInput.placeholder = 'Option label';
+    labelInput.value =
+      primary && primary.name ? primary.name : choice.name || '';
+    body.appendChild(labelInput);
 
     const priceRow = document.createElement('div');
     priceRow.className = 'row g-2';
@@ -325,7 +454,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     saveBtn.addEventListener('click', async () => {
       await handleChoiceSave(choice.id, row, {
+        categorySelect,
         nameInput,
+        labelInput,
         priceInput,
         unitSelect,
         costInput,
@@ -343,13 +474,27 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function handleChoiceSave(choiceId, card, refs) {
-    const { nameInput, priceInput, costInput, unitSelect, descInput, saveButton, deleteButton } = refs;
+    const {
+      categorySelect,
+      nameInput,
+      labelInput,
+      priceInput,
+      costInput,
+      unitSelect,
+      descInput,
+      saveButton,
+      deleteButton,
+    } = refs;
     const name = nameInput.value.trim();
     if (!name) {
       alert('Please provide a choice name.');
       nameInput.focus();
       return;
     }
+    const optionLabel =
+      labelInput && labelInput.value.trim()
+        ? labelInput.value.trim()
+        : name;
 
     const price =
       priceInput.value === '' ? null : Number(priceInput.value);
@@ -369,6 +514,15 @@ document.addEventListener('DOMContentLoaded', () => {
       unitSelect.value !== '' ? Number(unitSelect.value) : null;
     const description =
       (descInput.classList.contains('d-none') ? '' : descInput.value || '').trim();
+    let categoryId = null;
+    if (categorySelect && categorySelect.value !== '') {
+      categoryId = Number(categorySelect.value);
+      if (!Number.isInteger(categoryId) || categoryId <= 0) {
+        alert('Select a valid sales category.');
+        categorySelect.focus();
+        return;
+      }
+    }
 
     saveButton.disabled = true;
     deleteButton.disabled = true;
@@ -377,7 +531,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch(`/settings/menus/choices/api/${choiceId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description }),
+        body: JSON.stringify({ name, description, category_id: categoryId }),
       });
       const data = await res.json();
       if (!data.success) {
@@ -390,7 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
           ? choiceRecord.options[0]
           : null;
       const optionPayload = {
-        name: primaryOption?.name || name,
+        name: optionLabel,
         price,
         cost,
         unit_id: unitId,
@@ -427,7 +581,15 @@ document.addEventListener('DOMContentLoaded', () => {
       if (choiceRecord) {
         choiceRecord.name = name;
         choiceRecord.description = description;
+        choiceRecord.category =
+          categoryId && categoryLookup.get(String(categoryId))
+            ? {
+                id: categoryId,
+                name: categoryLookup.get(String(categoryId)).name,
+              }
+            : null;
         if (choiceRecord.options && choiceRecord.options.length) {
+          choiceRecord.options[0].name = optionLabel;
           choiceRecord.options[0].price = price;
           choiceRecord.options[0].cost = cost;
           choiceRecord.options[0].unit_id = unitId;
@@ -479,6 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
         freshChoices = result.choices || [];
         if (result.categories) {
           categories = result.categories;
+          categoryLookup = buildCategoryLookup();
         }
         if (result.units) {
           units = result.units;
@@ -497,6 +660,7 @@ document.addEventListener('DOMContentLoaded', () => {
   filterSelect?.addEventListener('change', renderChoices);
 
   createChoiceName?.addEventListener('input', () => {
+    if (!createOptionName) return;
     if (!createOptionName.value) {
       createOptionName.value = createChoiceName.value;
     }
@@ -510,6 +674,18 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     const optionLabel = (createOptionName?.value || '').trim() || name;
+    const categoryId = createChoiceCategory?.value
+      ? Number(createChoiceCategory.value)
+      : null;
+    if (
+      createChoiceCategory &&
+      createChoiceCategory.hasAttribute('data-required') &&
+      !categoryId
+    ) {
+      alert('Select a sales category for this choice.');
+      createChoiceCategory.focus();
+      return;
+    }
     const price =
       createOptionPrice?.value === '' || createOptionPrice?.value == null
         ? null
@@ -537,6 +713,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const payload = {
       name,
       description,
+      category_id: categoryId,
       options: [
           {
             name: optionLabel,
@@ -574,7 +751,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   updateCategorySelect();
   renderChoices();
-});
+
   const bulkToggleBtn = document.getElementById('toggleBulkPanel');
   const bulkPanel = document.getElementById('bulkPanel');
   const bulkCloseBtn = document.getElementById('bulkPanelClose');
@@ -602,17 +779,35 @@ document.addEventListener('DOMContentLoaded', () => {
     bulkStatus.textContent = 'Importing...';
     const lines = text
       .split(/\r?\n/)
-      .map((line) => line.replace(/,/g, '|'))
-      .filter((line) => line.trim().length);
+      .map((line) => line.trim())
+      .filter((line) => line.length);
     let success = 0;
     let failed = 0;
 
     for (const rawLine of lines) {
-      const parts = rawLine.split('|').map((part) => part.trim());
-      const [name, description, priceText, costText, unitToken] = parts;
+      const normalizedParts = normalizeBulkLine(rawLine);
+      while (normalizedParts.length < 6) {
+        normalizedParts.push('');
+      }
+      let [categoryToken, name, description, costText, priceText, unitToken] =
+        normalizedParts;
+      let categoryId = resolveCategoryId(categoryToken);
+      if (!categoryId && name === '' && categoryToken) {
+        name = categoryToken;
+        categoryToken = '';
+      }
       if (!name) {
         failed++;
         continue;
+      }
+      const priceValue = parseCurrencyValue(priceText);
+      const costValue = parseCurrencyValue(costText);
+      if (categoryToken && !categoryId) {
+        console.warn(
+          'Unknown category for bulk import line:',
+          categoryToken,
+          rawLine
+        );
       }
       const resolvedUnit =
         resolveUnitId(unitToken) ??
@@ -622,17 +817,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const payload = {
           name,
           description: description || null,
+          category_id: categoryId,
           options: [
             {
               name,
-              price:
-                priceText && !Number.isNaN(Number(priceText))
-                  ? Number(priceText)
-                  : null,
-              cost:
-                costText && !Number.isNaN(Number(costText))
-                  ? Number(costText)
-                  : null,
+              price: priceValue,
+              cost: costValue,
               unit_id: resolvedUnit,
             },
           ],
@@ -668,6 +858,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function resolveUnitId(token) {
     if (!token) return null;
     const normalized = token.trim().toLowerCase();
+    if (!normalized) return null;
+    if (['pp', 'p/p', 'per person', 'per-person'].includes(normalized)) {
+      return findPerPersonUnit();
+    }
     let match = null;
     // eslint-disable-next-line no-undef
     unitLookup.forEach((unit, id) => {
@@ -695,3 +889,36 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     return match;
   }
+
+  function resolveCategoryId(token) {
+    if (!token) return null;
+    const normalized = token.trim().toLowerCase();
+    if (!normalized) return null;
+    if (normalized === 'unassigned') return null;
+    const direct = categoryLookup.get(normalized);
+    if (direct) return Number(direct.id);
+    const byId = categoryLookup.get(String(Number(normalized)));
+    if (byId) return Number(byId.id);
+    return null;
+  }
+
+  function parseCurrencyValue(value) {
+    if (!value) return null;
+    const cleaned = value.replace(/[^\d.-]/g, '');
+    if (!cleaned) return null;
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+  }
+
+  function normalizeBulkLine(line) {
+    if (!line) return [];
+    let parts = line.split(/\t|\|/).map((part) => part.trim());
+    if (parts.length <= 1) {
+      parts = line.split(/,/).map((part) => part.trim());
+    }
+    if (parts.length <= 1) {
+      parts = line.split(/\s{2,}/).map((part) => part.trim());
+    }
+    return parts.filter((part, idx) => part !== '' || idx < 6);
+  }
+});

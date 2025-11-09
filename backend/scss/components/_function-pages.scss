@@ -628,3 +628,163 @@
     min-width: 160px;
   }
 }
+
+.proposal-print {
+  color: $neutral-900;
+  font-size: 0.95rem;
+
+  .card {
+    border: 1px solid $neutral-200;
+  }
+}
+
+.proposal-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  padding: 1.5rem;
+
+  &__meta {
+    text-align: center;
+  }
+
+  &__title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+
+  &__date {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.85rem;
+    color: $neutral-600;
+  }
+
+  &__contact span {
+    display: block;
+    color: $neutral-600;
+  }
+}
+
+.proposal-logo {
+  &--primary {
+    max-height: 64px;
+  }
+  &--secondary {
+    max-height: 58px;
+  }
+}
+
+.proposal-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+}
+
+.proposal-summary-card {
+  .card-body {
+    padding: 1.25rem;
+  }
+}
+
+.proposal-summary__list {
+  margin: 0;
+  dt {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: $neutral-500;
+  }
+  dd {
+    margin-bottom: 0.7rem;
+    font-weight: 600;
+  }
+}
+
+.proposal-contact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  li {
+    margin-bottom: 0.75rem;
+    span {
+      display: block;
+      color: $neutral-600;
+    }
+  }
+}
+
+.proposal-run-sheet__list {
+  margin: 0;
+  padding-left: 1.25rem;
+  li {
+    margin-bottom: 0.35rem;
+  }
+}
+
+.proposal-table__grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+
+  th,
+  td {
+    border: 1px solid $neutral-200;
+    padding: 0.6rem 0.75rem;
+  }
+
+  thead th {
+    background: $neutral-100;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    color: $neutral-600;
+  }
+}
+
+.proposal-table__menu td {
+  background: $neutral-50;
+  font-weight: 600;
+}
+
+.proposal-category {
+  &:not(:last-child) {
+    margin-bottom: 1.5rem;
+  }
+  &__title {
+    margin-bottom: 0.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+}
+
+.proposal-financial__table {
+  width: 100%;
+  td {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid $neutral-100;
+  }
+  .proposal-financial__highlight td {
+    font-weight: 600;
+  }
+  .proposal-financial__total-due td {
+    font-weight: 700;
+    font-size: 1.05rem;
+  }
+}
+
+.proposal-terms__body {
+  white-space: pre-line;
+}
+
+@media print {
+  .proposal-print {
+    padding: 0;
+  }
+  .proposal-table__grid {
+    page-break-inside: avoid;
+  }
+  .proposal-terms {
+    page-break-before: always;
+  }
+}

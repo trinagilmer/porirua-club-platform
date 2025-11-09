@@ -1,4 +1,5 @@
 const express = require("express");
+const { randomUUID } = require("crypto");
 const { pool } = require("../db");
 const router = express.Router();
 const { sendMail: graphSendMail } = require("../services/graphService");
@@ -73,6 +74,33 @@ async function getGraphAccessToken(req, res) {
 
 
 router.use(express.json());
+
+const FUNCTION_STATUSES = [
+  "lead",
+  "qualified",
+  "confirmed",
+  "balance_due",
+  "completed",
+];
+
+function parseNullableNumber(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+async function loadFunctionFormLookups() {
+  const [roomsRes, eventTypesRes, usersRes] = await Promise.all([
+    pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`),
+    pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`),
+    pool.query(`SELECT id, name FROM users ORDER BY name ASC;`),
+  ]);
+  return {
+    rooms: roomsRes.rows,
+    eventTypes: eventTypesRes.rows,
+    users: usersRes.rows,
+  };
+}
 
 /* =========================================================
    🧭 1. FUNCTIONS DASHBOARD (UUID-Ready, Clean Version)
@@ -230,6 +258,126 @@ router.get("/:id/communications", async (req, res, next) => {
     next(err);
   }
 });
+
+// =========================================================
+// ?? FUNCTION CREATE - GET/POST
+// =========================================================
+
+router.get("/new", async (req, res, next) => {
+  try {
+    const lookups = await loadFunctionFormLookups();
+    res.render("pages/functions/new", {
+      layout: "layouts/main",
+      title: "Create Function",
+      user: req.session.user || null,
+      rooms: lookups.rooms,
+      eventTypes: lookups.eventTypes,
+      users: lookups.users,
+      statuses: FUNCTION_STATUSES,
+      formValues: {},
+      formError: null,
+    });
+  } catch (err) {
+    console.error("❌ Error loading new function form:", err);
+    next(err);
+  }
+});
+
+router.post("/new", async (req, res) => {
+  const {
+    event_name,
+    event_date,
+    event_time,
+    start_time,
+    end_time,
+    attendees,
+    budget,
+    totals_price,
+    totals_cost,
+    room_id,
+    event_type,
+    status,
+    owner_id,
+  } = req.body || {};
+
+  const trimmedName = (event_name || "").trim();
+  if (!trimmedName) {
+    return renderCreateError(res, req, "Event name is required.", req.body || {});
+  }
+
+  const newFunctionId = randomUUID();
+  const statusValue = (status || "lead").trim() || "lead";
+
+  try {
+    await pool.query(
+      `
+      INSERT INTO functions (
+        id_uuid,
+        event_name,
+        status,
+        event_date,
+        event_time,
+        start_time,
+        end_time,
+        attendees,
+        budget,
+        totals_price,
+        totals_cost,
+        room_id,
+        event_type,
+        owner_id,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW(),NOW()
+      );
+      `,
+      [
+        newFunctionId,
+        trimmedName,
+        statusValue,
+        event_date || null,
+        event_time || null,
+        start_time || null,
+        end_time || null,
+        parseNullableNumber(attendees),
+        parseNullableNumber(budget),
+        parseNullableNumber(totals_price),
+        parseNullableNumber(totals_cost),
+        room_id ? Number(room_id) : null,
+        event_type || null,
+        owner_id ? Number(owner_id) : null,
+      ]
+    );
+
+    console.log(`✅ Function created (UUID: ${newFunctionId}, Name: ${trimmedName})`);
+    return res.redirect(`/functions/${newFunctionId}`);
+  } catch (err) {
+    console.error("❌ Error creating function:", err);
+    return renderCreateError(
+      res,
+      req,
+      "Failed to create function. Please try again.",
+      req.body || {}
+    );
+  }
+});
+
+async function renderCreateError(res, req, message, formValues) {
+  const lookups = await loadFunctionFormLookups();
+  return res.status(400).render("pages/functions/new", {
+    layout: "layouts/main",
+    title: "Create Function",
+    user: req.session.user || null,
+    rooms: lookups.rooms,
+    eventTypes: lookups.eventTypes,
+    users: lookups.users,
+    statuses: FUNCTION_STATUSES,
+    formValues,
+    formError: message,
+  });
+}
 
 
 // 📄 Single communication message detail

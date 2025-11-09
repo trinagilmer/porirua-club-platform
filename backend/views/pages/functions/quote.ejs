@@ -304,7 +304,11 @@
 
         if (!currentMenu) return;
         const unitType = meta.unit_type || '';
-        const qty = meta.qty ? Number(meta.qty) : unitType === 'per_person' ? attendees : 1;
+        const qty = meta.qty
+          ? Number(meta.qty)
+          : unitType === 'per_person'
+          ? attendees
+          : 1;
         const priceEach =
           meta.base != null ? Number(meta.base) : qty > 0 ? price / qty : price;
         const rawCost =
@@ -400,6 +404,9 @@
                 <button class="btn btn-outline-secondary menu-edit" data-menu-id="${
                   menu.menuId || ''
                 }">Edit</button>
+                <button class="btn btn-outline-primary menu-resync" data-menu-id="${
+                  menu.menuId || ''
+                }">Resync</button>
                 <button class="btn btn-outline-danger menu-remove" data-menu-id="${
                   menu.menuId || ''
                 }">Remove</button>
@@ -432,14 +439,14 @@
             const row = document.createElement('tr');
             row.dataset.id = item.id;
             const includeChecked = !item.excluded && item.price > 0;
-            const qtyValue = item.qty > 0 ? item.qty : '';
+            const qtyValue = item.qty > 0 ? item.qty : item.unitType === 'per_person' ? attendees : 1;
             row.innerHTML = `
               <td class="text-center">
                 <input class="form-check-input include-toggle" type="checkbox" ${includeChecked ? 'checked' : ''}>
               </td>
               <td>${item.name}</td>
               <td>
-                <input type="number" class="form-control form-control-sm qty-input" min="1" value="${qtyValue}" placeholder="${item.unitType === 'per_person' ? attendees : ''}">
+                <input type="number" class="form-control form-control-sm qty-input" min="1" value="${qtyValue}">
               </td>
               <td>
                 <input type="number" class="form-control form-control-sm price-input" step="0.01" min="0" value="${(item.priceEach || 0).toFixed(2)}">
@@ -543,6 +550,29 @@
         } catch (err) {
           console.error(err);
           alert(err.message || 'Failed to remove menu');
+        }
+        return;
+      }
+
+      const resyncBtn = event.target.closest('.menu-resync');
+      if (resyncBtn) {
+        const menuId = resyncBtn.dataset.menuId;
+        if (!menuId) return;
+        resyncBtn.disabled = true;
+        try {
+          const res = await fetch(`/functions/${fnId}/quote/resync-menu`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ menu_id: menuId }),
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || 'Failed to resync menu');
+          location.reload();
+        } catch (err) {
+          console.error(err);
+          alert(err.message || 'Failed to resync menu');
+        } finally {
+          resyncBtn.disabled = false;
         }
         return;
       }

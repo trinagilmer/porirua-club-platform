@@ -1,4 +1,3 @@
-
 <% locals.layout = 'layouts/main'; %>
 
 <%
@@ -18,102 +17,186 @@
   };
   const startTime = formatTime(fn?.start_time);
   const endTime = formatTime(fn?.end_time);
+  const primaryContact =
+    (contacts || []).find((contact) => contact.is_primary) ||
+    (contacts || [])[0] ||
+    null;
+  const printedDate = new Date().toLocaleDateString('en-NZ', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  const eventDate = fn?.event_date
+    ? new Date(fn.event_date).toLocaleDateString('en-NZ', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    : 'TBC';
+  const safeTotals = totals || {
+    subtotal: 0,
+    gratuity_percent: 0,
+    gratuity_amount: 0,
+    discount_amount: 0,
+    deposit_amount: 0,
+    total_paid: 0,
+    remaining_due: 0,
+  };
+  const subtotal = Number(safeTotals.subtotal || 0);
+  const gratuityAmount = Number(safeTotals.gratuity_amount || 0);
+  const gratuityPercent = Number(safeTotals.gratuity_percent || 0);
+  const discountAmount = Number(safeTotals.discount_amount || 0);
+  const depositAmount = Number(safeTotals.deposit_amount || 0);
+  const totalPaid = Number(safeTotals.total_paid || 0);
+  const remainingDue = Number(safeTotals.remaining_due || 0);
+  const finalTotal = subtotal + gratuityAmount - discountAmount;
+  const gstPortion = finalTotal > 0 ? finalTotal - finalTotal / 1.15 : 0;
+  const currency = (val) => `$${(Number(val) || 0).toFixed(2)}`;
 %>
 
-<div class="proposal-preview container py-4">
-  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3 mb-4">
-    <div>
-      <h1 class="h4 mb-1">Proposal Preview</h1>
-      <div class="text-muted small">Prepared for <strong><%= fn.event_name %></strong>.</div>
+<div class="proposal-print container py-4">
+  <header class="proposal-header card shadow-sm mb-4">
+    <div class="proposal-header__logos">
+      <img src="/img/logo.png" alt="Porirua Club" class="proposal-logo proposal-logo--primary">
     </div>
-    <div class="btn-toolbar gap-2">
-      <button class="btn btn-outline-secondary" onclick="window.print()">
-        <i class="bi bi-printer me-1"></i> Print / PDF
-      </button>
-    </div>
-  </div>
-
-  <section class="card shadow-sm mb-4">
-    <div class="card-body">
-      <div class="row">
-        <div class="col-md-6">
-          <h5 class="mb-1 fw-semibold">Function Information</h5>
-          <div class="text-muted small">Reference: <%= fn.id_uuid %></div>
-          <dl class="row mt-3 mb-0 small">
-            <dt class="col-5">Event Name</dt>
-            <dd class="col-7 text-end text-md-start"><%= fn.event_name %></dd>
-            <dt class="col-5">Event Date</dt>
-            <dd class="col-7 text-end text-md-start"><%= fn.event_date ? new Date(fn.event_date).toLocaleDateString() : 'TBC' %></dd>
-            <% if (fn.status) { %>
-              <dt class="col-5">Status</dt>
-              <dd class="col-7 text-end text-md-start"><%= fn.status %></dd>
-            <% } %>
-            <dt class="col-5">Attendees</dt>
-            <dd class="col-7 text-end text-md-start"><%= fn.attendees || 0 %></dd>
-            <dt class="col-5">Start Time</dt>
-            <dd class="col-7 text-end text-md-start"><%= startTime || '--:--' %></dd>
-            <dt class="col-5">Finish Time</dt>
-            <dd class="col-7 text-end text-md-start"><%= endTime || '--:--' %></dd>
-            <% if (fn.room_name) { %>
-              <dt class="col-5">Room</dt>
-              <dd class="col-7 text-end text-md-start"><%= fn.room_name %></dd>
-            <% } %>
-          </dl>
-        </div>
-        <% if ((contacts || []).length) { %>
-        <div class="col-md-6 mt-4 mt-md-0">
-            <h5 class="mb-1 fw-semibold">Contacts</h5>
-            <ul class="list-unstyled small mb-0 mt-3">
-              <% contacts.forEach(contact => { %>
-                <li class="mb-2">
-                  <strong><%= contact.name %></strong><br>
-                  <span class="text-muted"><%= contact.email || 'no email' %><%= contact.phone ? ' • ' + contact.phone : '' %></span>
-                </li>
-              <% }) %>
-            </ul>
-        </div>
-        <% } %>
+    <div class="proposal-header__meta">
+      <div class="proposal-header__date"><%= printedDate %></div>
+      <div class="proposal-header__title">
+        Proposal for <strong><%= fn.event_name %></strong>
       </div>
+      <% if (primaryContact) { %>
+        <div class="proposal-header__contact">
+          Attn: <strong><%= primaryContact.name %></strong><br>
+          <% if (primaryContact.email) { %><span><%= primaryContact.email %></span><% } %>
+          <% if (primaryContact.phone) { %><span><%= primaryContact.phone %></span><% } %>
+        </div>
+      <% } %>
+    </div>
+    <div class="proposal-header__logos">
+      <img src="/img/EASTWOOD-LOGO-small.png" alt="Eastwood" class="proposal-logo proposal-logo--secondary">
+    </div>
+  </header>
+
+  <section class="proposal-summary-grid mb-4">
+    <div class="proposal-summary-card card shadow-sm">
+      <div class="card-body">
+        <h5 class="proposal-summary__title">Function Details</h5>
+        <dl class="proposal-summary__list">
+          <div>
+            <dt>Event Name</dt>
+            <dd><%= fn.event_name %></dd>
+          </div>
+          <div>
+            <dt>Event Date</dt>
+            <dd><%= eventDate %></dd>
+          </div>
+          <div>
+            <dt>Attendees</dt>
+            <dd><%= fn.attendees || 0 %></dd>
+          </div>
+          <div>
+            <dt>Start / Finish</dt>
+            <dd><%= startTime || '--:--' %> – <%= endTime || '--:--' %></dd>
+          </div>
+          <% if (fn.room_name) { %>
+            <div>
+              <dt>Room</dt>
+              <dd><%= fn.room_name %></dd>
+            </div>
+          <% } %>
+          <% if (fn.status) { %>
+            <div>
+              <dt>Status</dt>
+              <dd><%= fn.status %></dd>
+            </div>
+          <% } %>
+        </dl>
+      </div>
+    </div>
+    <% if ((contacts || []).length) { %>
+      <div class="proposal-summary-card card shadow-sm">
+        <div class="card-body">
+          <h5 class="proposal-summary__title">Contacts</h5>
+          <ul class="proposal-contact-list">
+            <% contacts.forEach((contact) => { %>
+              <li>
+                <strong><%= contact.name %></strong><br>
+                <span><%= contact.email || '—' %></span>
+                <% if (contact.phone) { %><span><%= contact.phone %></span><% } %>
+              </li>
+            <% }) %>
+          </ul>
+        </div>
+      </div>
+    <% } %>
+  </section>
+
+  <section class="proposal-run-sheet card shadow-sm mb-4">
+    <div class="card-body">
+      <h5 class="proposal-run-sheet__title">Function Run Sheet</h5>
+      <ul class="proposal-run-sheet__list">
+        <li>Set up in <strong><%= fn.room_name || 'TBC' %></strong> from <strong><%= startTime || '--:--' %></strong></li>
+        <li>Guest arrival: <strong><%= startTime || '--:--' %></strong></li>
+        <li>Event concludes: <strong><%= endTime || '--:--' %></strong></li>
+      </ul>
     </div>
   </section>
 
-  <% if ((items || []).length) { %>
-    <section class="card shadow-sm mb-4">
-      <div class="card-header bg-light fw-semibold">Menus &amp; Pricing</div>
-      <div class="card-body">
-        <div id="previewMenuMount" class="d-flex flex-column gap-3"></div>
-      </div>
-    </section>
-  <% } %>
+  <section class="proposal-table-card card shadow-sm mb-4">
+    <div class="card-header bg-light fw-semibold">Menus &amp; Pricing</div>
+    <div class="card-body">
+      <div id="proposalPricing"></div>
+    </div>
+  </section>
 
-  <% if (totals) { %>
-    <section class="card shadow-sm mb-4">
-      <div class="card-header bg-light fw-semibold">Financial Summary</div>
-      <div class="card-body small">
-        <dl class="row mb-0">
-          <dt class="col-sm-6">Subtotal</dt>
-          <dd class="col-sm-6 text-end text-sm-start">$<%= Number(totals.subtotal || 0).toFixed(2) %></dd>
-          <% if (Number(totals.gratuity_amount || 0) > 0) { %>
-            <dt class="col-sm-6">Gratuity (<%= Number(totals.gratuity_percent || 0).toFixed(2) %>%)</dt>
-            <dd class="col-sm-6 text-end text-sm-start">$<%= Number(totals.gratuity_amount || 0).toFixed(2) %></dd>
+  <section class="proposal-financial card shadow-sm mb-4">
+    <div class="card-header bg-light fw-semibold">Financial Summary</div>
+    <div class="card-body">
+      <table class="proposal-financial__table">
+        <tbody>
+          <tr>
+            <td>Subtotal</td>
+            <td class="text-end"><%= currency(subtotal) %></td>
+          </tr>
+          <% if (gratuityAmount > 0) { %>
+            <tr>
+              <td>Gratuity (<%= gratuityPercent.toFixed(2) %>%)</td>
+              <td class="text-end"><%= currency(gratuityAmount) %></td>
+            </tr>
           <% } %>
-          <% if (Number(totals.discount_amount || 0) > 0) { %>
-            <dt class="col-sm-6">Discount</dt>
-            <dd class="col-sm-6 text-end text-sm-start">$<%= Number(totals.discount_amount || 0).toFixed(2) %></dd>
+          <% if (discountAmount > 0) { %>
+            <tr>
+              <td>Discount</td>
+              <td class="text-end">-<%= currency(discountAmount) %></td>
+            </tr>
           <% } %>
-          <dt class="col-sm-6">Deposit</dt>
-          <dd class="col-sm-6 text-end text-sm-start">$<%= Number(totals.deposit_amount || 0).toFixed(2) %></dd>
-          <dt class="col-sm-6">Total Paid</dt>
-          <dd class="col-sm-6 text-end text-sm-start">$<%= Number(totals.total_paid || 0).toFixed(2) %></dd>
-          <dt class="col-sm-6 fw-semibold">Remaining Due</dt>
-          <dd class="col-sm-6 text-end text-sm-start fw-semibold">$<%= Number(totals.remaining_due || 0).toFixed(2) %></dd>
-        </dl>
-      </div>
-    </section>
-  <% } %>
+          <tr class="proposal-financial__highlight">
+            <td>Total (incl. GST)</td>
+            <td class="text-end"><%= currency(finalTotal) %></td>
+          </tr>
+          <tr>
+            <td>GST (included)</td>
+            <td class="text-end"><%= currency(gstPortion) %></td>
+          </tr>
+          <tr>
+            <td>Deposit Paid</td>
+            <td class="text-end">-<%= currency(depositAmount) %></td>
+          </tr>
+          <tr>
+            <td>Payments</td>
+            <td class="text-end">-<%= currency(totalPaid) %></td>
+          </tr>
+          <tr class="proposal-financial__total-due">
+            <td>Total Owing</td>
+            <td class="text-end"><%= currency(remainingDue) %></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
 
   <% if ((sections || []).length) { %>
-    <section class="card shadow-sm mb-4">
+    <section class="proposal-notes card shadow-sm mb-4">
       <div class="card-header bg-light fw-semibold">Additional Notes</div>
       <div class="card-body vstack gap-3">
         <% sections.forEach((section, idx) => { %>
@@ -132,9 +215,9 @@
   <% } %>
 
   <% if (terms) { %>
-    <section class="card shadow-sm page-break">
+    <section class="proposal-terms card shadow-sm page-break">
       <div class="card-header bg-light fw-semibold">Terms &amp; Conditions</div>
-      <div class="card-body proposal-terms small">
+      <div class="card-body proposal-terms__body small">
         <%- formatPlain(terms).replace(/\n/g, '<br>') %>
       </div>
     </section>
@@ -158,8 +241,8 @@
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const source = document.getElementById('previewItemsSource');
-    const mount = document.getElementById('previewMenuMount');
-    if (!source || !mount) return;
+    const pricingMount = document.getElementById('proposalPricing');
+    if (!source || !pricingMount) return;
 
     const parseMeta = (text) => {
       const meta = {};
@@ -174,164 +257,117 @@
 
     const cleanLabel = (text) => text.replace(/\[[^\]]+\]/g, '').replace(/\s{2,}/g, ' ').trim();
     const isChild = (text) => /^\s*(Choice:|Add-on:)/i.test(text);
+    const formatCurrency = (value) => `$${(Number(value) || 0).toFixed(2)}`;
 
-    const categories = new Map();
-    let currentMenu = null;
+    function buildModel() {
+      const categories = new Map();
+      let currentMenu = null;
 
-    source.querySelectorAll('li').forEach((li) => {
-      const id = Number(li.dataset.id);
-      const raw = (li.textContent || '').trim();
-      const meta = parseMeta(raw);
-      const text = cleanLabel(raw);
-      const price = Number(li.dataset.price || 0);
+      source.querySelectorAll('li').forEach((li) => {
+        const id = Number(li.dataset.id);
+        const rawText = (li.textContent || '').trim();
+        const meta = parseMeta(rawText);
+        const price = Number(li.dataset.price || 0);
+        const text = cleanLabel(rawText);
+        const isAddon = /^\s*Add-on:/i.test(rawText);
 
-      if (!isChild(text)) {
-        const category = meta.category || 'Uncategorised';
-        if (!categories.has(category)) categories.set(category, []);
-        currentMenu = {
-          title: text.replace(/^Menu:\s*/i, ''),
-          basePrice: price,
-          items: [],
+        if (!isChild(text)) {
+          const categoryName = meta.category || 'Uncategorised';
+          if (!categories.has(categoryName)) categories.set(categoryName, []);
+          currentMenu = {
+            title: text.replace(/^Menu:\s*/i, '').trim(),
+            basePrice: price,
+            items: [],
+          };
+          categories.get(categoryName).push(currentMenu);
+          return;
+        }
+
+        if (!currentMenu || meta.excluded) return;
+        const unitType = meta.unit_type || '';
+        const qty = meta.qty
+          ? Number(meta.qty)
+          : unitType === 'per_person'
+          ? Number(window.fnContext?.attendees || 0) || 1
+          : 1;
+        const priceEach = qty > 0 ? price / qty : price;
+        const item = {
+          id,
+          name: text.replace(/^(Choice:|Add-on:)\s*/i, '').replace(/\s+x\s+\d+.*/, '').trim(),
+          price,
+          priceEach,
+          qty,
+          isAddon,
         };
-        categories.get(category).push(currentMenu);
+        currentMenu.items.push(item);
+      });
+
+      return categories;
+    }
+
+    function render() {
+      const categories = buildModel();
+      pricingMount.innerHTML = '';
+      if (!categories.size) {
+        pricingMount.innerHTML = '<p class="text-muted mb-0 small">No menu items have been added.</p>';
         return;
       }
 
-      if (!currentMenu || meta.excluded) return;
-      const qty = meta.qty ? Number(meta.qty) : 1;
-      const priceEach = meta.base != null ? Number(meta.base) : qty > 0 ? price / qty : price;
-      currentMenu.items.push({
-        name: text.replace(/^(Choice:|Add-on:)\s*/i, '').replace(/\s+x\s+\d+.*/, '').trim(),
-        qty,
-        priceEach,
-        total: price,
-      });
-    });
+      categories.forEach((menus, categoryName) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'proposal-category';
+        wrapper.innerHTML = `<h5 class="proposal-category__title">${categoryName}</h5>`;
 
-    if (!categories.size) {
-      mount.innerHTML = '<div class="alert alert-secondary mb-0">No menu content included.</div>';
-      return;
-    }
-
-    categories.forEach((menus, category) => {
-      const card = document.createElement('div');
-      card.className = 'proposal-summary-card';
-      const header = document.createElement('div');
-      header.className = 'hdr';
-      header.textContent = category;
-      card.appendChild(header);
-
-      const body = document.createElement('div');
-      body.className = 'body';
-      menus.forEach((menu) => {
-        const block = document.createElement('div');
-        block.className = 'menu-block';
-        block.innerHTML = `<div class="menu-title">${menu.title}</div>`;
         const table = document.createElement('table');
-        table.className = 'table table-sm proposal-menu-table';
+        table.className = 'proposal-table__grid';
         table.innerHTML = `
           <thead>
             <tr>
               <th>Item</th>
-              <th style="width: 60px;">Qty</th>
-              <th style="width: 90px;">Each</th>
-              <th style="width: 110px;" class="text-end">Total</th>
+              <th style="width: 80px;">Qty</th>
+              <th style="width: 140px;">Price Each</th>
+              <th style="width: 140px;">Total</th>
             </tr>
           </thead>
           <tbody></tbody>
         `;
         const tbody = table.querySelector('tbody');
-        menu.items.forEach((item) => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td>${item.name}</td>
-            <td>${item.qty}</td>
-            <td>$${Number(item.priceEach).toFixed(2)}</td>
-            <td class="text-end">$${Number(item.total).toFixed(2)}</td>
-          `;
-          tbody.appendChild(row);
-        });
-        if (menu.basePrice) {
-          const tfoot = document.createElement('tfoot');
-          tfoot.innerHTML = `
-            <tr>
-              <th colspan="3" class="text-end">Base Price</th>
-              <th class="text-end">$${Number(menu.basePrice).toFixed(2)}</th>
-            </tr>
-          `;
-          table.appendChild(tfoot);
-        }
-        if (!menu.items.length) {
-          const emptyRow = document.createElement('tr');
-          emptyRow.innerHTML = `<td colspan="4" class="text-muted fst-italic">No optional items included.</td>`;
-          tbody.appendChild(emptyRow);
-        }
-        block.appendChild(table);
-        body.appendChild(block);
-      });
 
-      card.appendChild(body);
-      mount.appendChild(card);
-    });
+        menus.forEach((menu) => {
+          const menuRow = document.createElement('tr');
+          menuRow.className = 'proposal-table__menu';
+          menuRow.innerHTML = `<td colspan="4">${menu.title}</td>`;
+          tbody.appendChild(menuRow);
+
+          if (Number(menu.basePrice || 0) > 0) {
+            const baseRow = document.createElement('tr');
+            baseRow.innerHTML = `
+              <td>${menu.title} Package</td>
+              <td>1</td>
+              <td>${formatCurrency(menu.basePrice)}</td>
+              <td>${formatCurrency(menu.basePrice)}</td>
+            `;
+            tbody.appendChild(baseRow);
+          }
+
+          menu.items.forEach((item) => {
+            const row = document.createElement('tr');
+            const label = item.isAddon ? `${item.name} (Add-on)` : item.name;
+            row.innerHTML = `
+              <td>${label}</td>
+              <td>${item.qty || 1}</td>
+              <td>${formatCurrency(item.priceEach)}</td>
+              <td>${formatCurrency(item.price)}</td>
+            `;
+            tbody.appendChild(row);
+          });
+        });
+
+        wrapper.appendChild(table);
+        pricingMount.appendChild(wrapper);
+      });
+    }
+
+    render();
   });
 </script>
-
-<style>
-  .proposal-preview {
-    font-size: 11pt;
-    line-height: 14pt;
-  }
-  .proposal-preview p,
-  .proposal-preview li,
-  .proposal-preview table,
-  .proposal-preview dl,
-  .proposal-preview td,
-  .proposal-preview th,
-  .proposal-preview .proposal-section-text,
-  .proposal-preview .proposal-terms {
-    font-size: 11pt;
-    line-height: 14pt;
-  }
-  .proposal-summary-card {
-    border: 1px solid #dde1e6;
-    border-radius: 10px;
-    overflow: hidden;
-  }
-  .proposal-summary-card .hdr {
-    background: #f4f6fa;
-    padding: 8px 12px;
-    font-weight: 600;
-  }
-  .proposal-summary-card .body {
-    padding: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-  .proposal-menu-table thead th {
-    background: #f8f9fb;
-  }
-  .page-break {
-    page-break-before: always;
-    margin-top: 32px;
-  }
-  @page {
-    size: A4;
-    margin: 20mm;
-  }
-  @media print {
-    body {
-      font-size: 11pt;
-      line-height: 14pt;
-    }
-    .btn-toolbar {
-      display: none !important;
-    }
-    .page-break {
-      page-break-before: always;
-    }
-    .proposal-menu-table thead {
-      display: table-header-group;
-    }
-  }
-</style>

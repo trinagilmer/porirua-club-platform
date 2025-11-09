@@ -34,18 +34,18 @@
   .choice-row {
     border: 1px solid var(--choice-border);
     border-radius: 10px;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.4rem;
     background: #fff;
   }
   .choice-row-header {
     width: 100%;
-    padding: 0.85rem 1rem;
+    padding: 0.6rem 0.85rem;
     background: transparent;
     border: none;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     font-weight: 600;
     color: #1f2a37;
   }
@@ -60,8 +60,8 @@
   }
   .choice-row-body {
     display: none;
-    padding: 0 1rem 1rem;
-    font-size: 0.9rem;
+    padding: 0 0.85rem 0.75rem;
+    font-size: 0.88rem;
   }
   .choice-row.open .choice-row-body {
     display: block;
@@ -69,22 +69,22 @@
   .choice-metadata {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
-    margin-bottom: 0.75rem;
+    gap: 0.25rem;
+    margin-bottom: 0.5rem;
   }
   .choice-pill {
     border: 1px solid var(--choice-border);
     border-radius: 999px;
-    padding: 0.1rem 0.65rem;
-    font-size: 0.8rem;
+    padding: 0.05rem 0.5rem;
+    font-size: 0.75rem;
     color: #4b5563;
     background: #f4f6fb;
   }
   .choice-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 0.5rem;
-    margin-top: 0.75rem;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
   }
   .choices-sidebar .card {
     border: 1px solid var(--choice-border);
@@ -126,7 +126,7 @@
           <div>
             <strong>Quick Paste Import</strong>
             <p class="text-muted small mb-1">
-              Format: <code>Name | Description | Price | Cost | Unit</code>. One choice per line.
+              Format: <code>Category | Choice | Description | Cost | Price | Unit</code>. One choice per line.
               <span class="badge bg-info text-white ms-2" title="COGS % = (Cost / Price) × 100">
                 COGS formula
               </span>
@@ -136,8 +136,8 @@
             Close
           </button>
         </div>
-        <textarea id="bulkTextarea" class="form-control mb-2" rows="4" placeholder="Starters | Garlic Bread | 8.50 | 3.10 | each
-Dessert Trio | Chocolate Mousse | 12.00 | 4.00 | pp"></textarea>
+        <textarea id="bulkTextarea" class="form-control mb-2" rows="4" placeholder="Catering | Wrap (basic) | | 0.59 | 3.00 | PP
+Catering | Cinnamon pinwheel | | 0.15 | 2.50 | PP"></textarea>
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
           <div class="text-muted small" id="bulkImportStatus"></div>
           <button class="btn btn-sm btn-primary" id="bulkImportBtn">
@@ -156,13 +156,23 @@ Dessert Trio | Chocolate Mousse | 12.00 | 4.00 | pp"></textarea>
         <div class="card-body">
           <form id="createChoiceForm" class="vstack gap-3">
             <div>
-              <label class="form-label small text-uppercase text-muted">Choice Name</label>
-              <input type="text" name="choice_name" id="createChoiceName" class="form-control" placeholder="e.g. Main Course" required>
+              <label class="form-label small text-uppercase text-muted">Sales Category</label>
+              <select name="choice_category" id="createChoiceCategory" class="form-select" data-required="true">
+                <option value="">Unassigned</option>
+                <% (categories || []).forEach(cat => { %>
+                  <option value="<%= cat.id %>"><%= cat.name %></option>
+                <% }) %>
+              </select>
+              <div class="form-text">e.g. Catering</div>
             </div>
             <div>
-              <label class="form-label small text-uppercase text-muted">Default Option Label</label>
-              <input type="text" name="option_name" id="createChoiceOptionName" class="form-control" placeholder="Defaults to choice name">
-              <div class="form-text">This will be the first option shown in quotes.</div>
+              <label class="form-label small text-uppercase text-muted">Choice Name</label>
+              <input type="text" name="choice_name" id="createChoiceName" class="form-control" placeholder="e.g. Wrap (basic)" required>
+            </div>
+            <div>
+              <label class="form-label small text-uppercase text-muted">Option Label</label>
+              <input type="text" name="option_label" id="createChoiceOptionName" class="form-control" placeholder="Defaults to choice name">
+              <div class="form-text">Shown on quotes/proposals; auto-filled from the choice name.</div>
             </div>
             <div class="row g-2">
               <div class="col-md-4">
@@ -181,6 +191,7 @@ Dessert Trio | Chocolate Mousse | 12.00 | 4.00 | pp"></textarea>
                     <option value="<%= u.id %>"><%= u.name %> (<%= u.type %>)</option>
                   <% }) %>
                 </select>
+                <div class="form-text">Friendly labels like PP / Each.</div>
               </div>
             </div>
             <div>
@@ -213,3 +224,5 @@ Dessert Trio | Chocolate Mousse | 12.00 | 4.00 | pp"></textarea>
     units: <%- JSON.stringify(units || []) %>
   };
 </script>
+
+

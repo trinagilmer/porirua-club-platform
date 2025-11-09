@@ -463,6 +463,164 @@ router.post('/builder/menus/:menu_id/link', async (req, res) => {
   }
 });
 
+// GET /menus/builder/choices/unlinked?menu_id=123
+router.get('/builder/choices/unlinked', async (req, res) => {
+  const menu_id = Number(req.query.menu_id || 0);
+  if (!Number.isInteger(menu_id) || menu_id <= 0) {
+    return res
+      .status(400)
+      .json({ success: false, error: 'Invalid menu id provided.' });
+  }
+
+  try {
+    const {
+      rows: menuRows,
+    } = await pool.query('SELECT id, category_id FROM menus WHERE id = $1', [
+      menu_id,
+    ]);
+    if (!menuRows.length) {
+      return res
+        .status(404)
+        .json({ success: false, error: 'Menu not found.' });
+    }
+
+    const menuRow = menuRows[0];
+    const params = [menu_id];
+    let categoryFilter = '';
+    if (menuRow.category_id) {
+      params.push(menuRow.category_id);
+      categoryFilter = ` AND mc.category_id = $${params.length}`;
+    }
+
+    const { rows } = await pool.query(
+      `
+      SELECT
+        mc.id AS choice_id,
+        mc.name AS choice_name,
+        mc.category_id,
+        cat.name AS category_name,
+        mo.id AS option_id,
+        mo.name AS option_name,
+        mo.price AS option_price,
+        mo.cost AS option_cost,
+        mo.cogs_percent AS option_cogs_percent,
+        mu.name AS unit_name,
+        mu.type AS unit_type
+      FROM public.menu_choices mc
+      LEFT JOIN public.menu_categories cat ON cat.id = mc.category_id
+      LEFT JOIN LATERAL (
+        SELECT o.id, o.name, o.price, o.cost, o.cogs_percent, o.unit_id
+          FROM public.menu_options o
+         WHERE o.choice_id = mc.id
+         ORDER BY o.id ASC
+         LIMIT 1
+      ) mo ON true
+      LEFT JOIN public.menu_units mu ON mu.id = mo.unit_id
+      WHERE NOT EXISTS (
+        SELECT 1
+          FROM public.menu_choice_links l
+         WHERE l.choice_id = mc.id
+           AND l.menu_id = $1
+      )
+      ${categoryFilter}
+      ORDER BY LOWER(mc.name)
+      LIMIT 200
+      `,
+      params
+    );
+
+    return res.json({
+      success: true,
+      data: rows,
+      meta: {
+        menu_id,
+        category_id: menuRow.category_id,
+      },
+    });
+  } catch (err) {
+    console.error('GET unlinked choices error:', err);
+    return res
+      .status(500)
+      .json({ success: false, error: 'Failed to load unlinked choices.' });
+  }
+});
+
+// POST /menus/builder/menus/:menu_id/link/bulk
+router.post('/builder/menus/:menu_id/link/bulk', async (req, res) => {
+  const menu_id = Number(req.params.menu_id);
+  const choice_ids = Array.isArray(req.body?.choice_ids)
+    ? req.body.choice_ids
+        .map((id) => Number(id))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    : [];
+
+  if (!Number.isInteger(menu_id) || menu_id <= 0) {
+    return res.status(400).json({ success: false, error: 'Invalid menu id.' });
+  }
+  if (!choice_ids.length) {
+    return res
+      .status(400)
+      .json({ success: false, error: 'No choice ids were provided.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const uniqueChoiceIds = [...new Set(choice_ids)];
+    const linkedRows = [];
+
+    for (const choiceId of uniqueChoiceIds) {
+      await client.query(
+        `INSERT INTO public.menu_choice_links (menu_id, choice_id)
+         VALUES ($1, $2)
+         ON CONFLICT (menu_id, choice_id) DO NOTHING`,
+        [menu_id, choiceId]
+      );
+
+      const { rows } = await client.query(
+        `SELECT
+           l.menu_id,
+           c.id AS choice_id,
+           c.name AS choice_name,
+           o.id AS option_id,
+           o.name AS option_name,
+           o.price AS option_price,
+           o.cost  AS option_cost,
+           o.cogs_percent AS option_cogs_percent,
+           u.name AS unit_name,
+           o.unit_id
+         FROM public.menu_choice_links l
+         JOIN public.menu_choices c ON c.id = l.choice_id
+    LEFT JOIN LATERAL (
+           SELECT opt.*
+             FROM public.menu_options opt
+            WHERE opt.choice_id = c.id
+            ORDER BY opt.id ASC
+            LIMIT 1
+         ) o ON true
+    LEFT JOIN public.menu_units u ON u.id = o.unit_id
+        WHERE l.menu_id = $1 AND l.choice_id = $2
+        LIMIT 1`,
+        [menu_id, choiceId]
+      );
+      if (rows[0]) {
+        linkedRows.push(rows[0]);
+      }
+    }
+
+    await client.query('COMMIT');
+    return res.json({ success: true, data: linkedRows });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('POST bulk link choices error:', err);
+    return res
+      .status(500)
+      .json({ success: false, error: 'Failed to link choices.' });
+  } finally {
+    client.release();
+  }
+});
+
 // GET /menus/builder/choices/search?q=...&menu_id=123   (simple search; excludes already linked)
 router.get('/builder/choices/search', async (req, res) => {
   const q = String(req.query.q || '').trim();
@@ -495,10 +653,11 @@ router.get('/builder/choices/search', async (req, res) => {
              mo.name AS option_name,
              mo.price AS option_price,
              mo.cost AS option_cost,
+             mo.cogs_percent AS option_cogs_percent,
              mu.name AS unit_name
         FROM public.menu_choices mc
    LEFT JOIN LATERAL (
-             SELECT o.id, o.name, o.price, o.unit_id
+             SELECT o.id, o.name, o.price, o.cost, o.cogs_percent, o.unit_id
                FROM public.menu_options o
               WHERE o.choice_id = mc.id
               ORDER BY o.id ASC
