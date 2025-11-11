@@ -125,6 +125,8 @@
     const previewBtn = builder.querySelector("[data-role='preview-btn']");
     const printBtn = builder.querySelector("[data-role='print-btn']");
     const saveBtn = builder.querySelector("[data-role='save-btn']");
+    const statusSelect = builder.querySelector("[data-role='proposal-status']");
+    const statusSaveBtn = builder.querySelector("[data-role='proposal-status-save']");
     const noteLibrary = window.functionNotesLibrary || [];
     const noteMap = new Map(noteLibrary.map((note) => [String(note.id), note]));
 
@@ -140,6 +142,7 @@
         .map((checkbox) => checkbox.value);
       window.savedProposalState = window.savedProposalState || {};
       window.savedProposalState.termIds = ids;
+      window.savedProposalState.termIdsExplicit = true;
     };
     termCheckboxes.forEach((checkbox) => {
       checkbox.addEventListener("change", syncTermIds);
@@ -216,6 +219,31 @@
         notify(err.message || "Failed to save proposal.", "danger");
       } finally {
         saveBtn.disabled = false;
+      }
+    });
+
+    statusSaveBtn?.addEventListener("click", async () => {
+      if (!statusSelect || !proposalId) {
+        notify("No proposal available to update.", "warning");
+        return;
+      }
+      const nextStatus = statusSelect.value;
+      if (!nextStatus) return;
+      statusSaveBtn.disabled = true;
+      try {
+        const res = await fetch(`/functions/${functionId}/proposal/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: nextStatus }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "Failed to update status.");
+        notify(`Proposal status updated to ${nextStatus}.`, "success");
+      } catch (err) {
+        console.error(err);
+        notify(err.message || "Failed to update proposal status.", "danger");
+      } finally {
+        statusSaveBtn.disabled = false;
       }
     });
 

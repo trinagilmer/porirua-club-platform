@@ -12,13 +12,13 @@ router.get("/", async (req, res, next) => {
     // 1️⃣ --- KPIs ---
     const { rows: kpiRows } = await pool.query(`
       SELECT
-        COALESCE(SUM(CASE WHEN fs.name IN ('confirmed','balance_due','completed')
+        COALESCE(SUM(CASE WHEN COALESCE(f.status, fs.name) IN ('confirmed','balance_due','completed')
                           THEN f.totals_price ELSE 0 END),0) AS confirmed_price,
-        COALESCE(SUM(CASE WHEN fs.name IN ('confirmed','balance_due','completed')
+        COALESCE(SUM(CASE WHEN COALESCE(f.status, fs.name) IN ('confirmed','balance_due','completed')
                           THEN f.totals_cost ELSE 0 END),0) AS confirmed_cost,
-        COALESCE(SUM(CASE WHEN fs.name IN ('lead','qualified')
+        COALESCE(SUM(CASE WHEN COALESCE(f.status, fs.name) IN ('lead','qualified')
                           THEN f.totals_price ELSE 0 END),0) AS pipeline_price,
-        COUNT(*) FILTER (WHERE fs.name IN ('lead','qualified')) AS pipeline_count
+        COUNT(*) FILTER (WHERE COALESCE(f.status, fs.name) IN ('lead','qualified')) AS pipeline_count
       FROM functions f
       LEFT JOIN function_statuses fs ON f.status_id = fs.id
     `);
@@ -31,7 +31,7 @@ router.get("/", async (req, res, next) => {
              SUM(totals_price) AS revenue
       FROM functions f
       LEFT JOIN function_statuses fs ON f.status_id = fs.id
-      WHERE fs.name IN ('confirmed','balance_due','completed')
+      WHERE COALESCE(f.status, fs.name) IN ('confirmed','balance_due','completed')
         AND event_date >= (CURRENT_DATE - INTERVAL '12 months')
       GROUP BY ym
       ORDER BY ym ASC
@@ -47,7 +47,7 @@ router.get("/", async (req, res, next) => {
       SELECT 
         f.id_uuid AS id,              -- ✅ switched from f.id
         f.event_name, 
-        fs.name AS status, 
+        COALESCE(f.status, fs.name) AS status, 
         f.event_date, 
         f.event_time,
         f.attendees, 
@@ -70,7 +70,7 @@ router.get("/", async (req, res, next) => {
         fs.name AS status
       FROM functions f
       LEFT JOIN function_statuses fs ON f.status_id = fs.id
-      WHERE fs.name IN ('lead','qualified')
+      WHERE COALESCE(f.status, fs.name) IN ('lead','qualified')
       ORDER BY f.created_at DESC
       LIMIT 10
     `);

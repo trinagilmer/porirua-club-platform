@@ -106,6 +106,11 @@ button {
   border-color: #6BB4DE !important;
 }
 
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
 html,
 body {
   height: 100%;
@@ -675,6 +680,57 @@ textarea {
   min-height: 320px;
 }
 
+.quote-info-grid .quote-info-card {
+  border: 1px solid #e0e4ee;
+  border-radius: 16px;
+  background: #fff;
+  padding: 1.25rem 1.5rem;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.quote-info-grid .quote-info-title {
+  font-weight: 600;
+  color: #111927;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+}
+.quote-info-grid .quote-info-table th {
+  width: 32%;
+  color: #6b7280;
+  font-weight: 500;
+  text-transform: none;
+}
+.quote-info-grid .quote-info-table td {
+  color: #111927;
+  font-weight: 600;
+}
+.quote-info-grid .quote-info-table .badge {
+  letter-spacing: 0.05em;
+}
+
+.quote-table {
+  width: 100%;
+}
+.quote-table td,
+.quote-table th {
+  vertical-align: middle;
+}
+.quote-table caption.quote-menu-caption {
+  caption-side: top;
+  padding: 0;
+  margin-bottom: 0.5rem;
+}
+.quote-table caption.quote-menu-caption > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .quote-menu {
   border: 1px solid #e0e4ee;
   border-radius: 12px;
@@ -826,28 +882,28 @@ textarea {
 .function-overview {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 @media (max-width: 768px) {
   .function-overview {
     padding-left: 0;
     padding-right: 0;
-    gap: 1rem;
+    gap: 0.75rem;
   }
 }
 
 .overview-card {
   border: 1px solid #e5e8f0;
-  border-radius: 18px;
+  border-radius: 14px;
   background: #ffffff;
-  padding: 1.5rem;
+  padding: 1.25rem;
 }
 .overview-card__header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.85rem;
 }
 .overview-card__title {
   font-size: 1rem;
@@ -859,7 +915,7 @@ textarea {
 }
 @media (max-width: 768px) {
   .overview-card {
-    padding: 1.25rem;
+    padding: 1rem;
   }
   .overview-card__header {
     flex-direction: column;
@@ -869,8 +925,13 @@ textarea {
 
 .overview-snapshot .snapshot-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1rem;
+}
+@media (min-width: 1024px) {
+  .overview-snapshot .snapshot-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .snapshot-row {
@@ -1061,42 +1122,77 @@ textarea {
 
 .proposal-header {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: minmax(90px, auto) minmax(0, 1fr) minmax(90px, auto);
   align-items: center;
-  padding: 1.5rem;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+}
+.proposal-header__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.proposal-header__logo img {
+  display: block;
+  max-height: 36px;
+  width: auto;
+  object-fit: contain;
 }
 .proposal-header__meta {
   text-align: center;
 }
 .proposal-header__title {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.15rem;
 }
 .proposal-header__date {
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   color: #4B5563;
+  margin-bottom: 0.05rem;
+}
+.proposal-header__contact {
+  line-height: 1.5;
 }
 .proposal-header__contact span {
   display: block;
   color: #4B5563;
+  font-size: 0.75rem;
 }
-.proposal-header__details {
-  margin-top: 0.5rem;
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-  font-size: 0.85rem;
-  color: #4B5563;
+.proposal-header__issued {
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6B7280;
+  margin-top: 0.1rem;
+}
+@media (max-width: 768px) {
+  .proposal-header {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+  .proposal-header__logo {
+    justify-content: center;
+  }
 }
 
 .proposal-logo--primary {
-  max-height: 64px;
+  max-height: 36px;
+  max-width: 90px;
 }
 .proposal-logo--secondary {
-  max-height: 58px;
+  max-height: 36px;
+  max-width: 110px;
+}
+
+.letter-tight {
+  letter-spacing: 0.08em;
+}
+
+.proposal-catering-card {
+  page-break-before: always;
 }
 
 .proposal-summary-grid {
@@ -1106,7 +1202,13 @@ textarea {
 }
 
 .proposal-summary-card .card-body {
-  padding: 1.25rem;
+  padding: 0.625rem;
+}
+
+.proposal-summary__title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
 }
 
 .proposal-summary__list {
@@ -1120,14 +1222,19 @@ textarea {
   margin-bottom: 0.5rem;
 }
 .proposal-summary__list dt {
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  color: #6B7280;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #374151;
+  text-transform: none;
 }
 .proposal-summary__list dd {
   margin: 0;
-  font-weight: 600;
+  font-weight: 400;
   text-align: right;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #4B5563;
 }
 
 .proposal-contact-list {
@@ -1136,19 +1243,63 @@ textarea {
   padding: 0;
 }
 .proposal-contact-list li {
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
 }
 .proposal-contact-list li span {
   display: block;
   color: #4B5563;
+  font-size: 0.8rem;
+}
+
+.proposal-table-card,
+.proposal-section,
+.proposal-flat {
+  margin-bottom: 1.25rem;
+}
+
+.run-sheet-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+}
+.run-sheet-summary__group {
+  display: flex;
+  flex-direction: column;
+}
+@media print {
+  .run-sheet-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.proposal-content-rail {
+  margin-left: 20px;
+  margin-right: 20px;
+}
+
+.proposal-table-card,
+.proposal-flat {
+  border: 1px solid #e0e4ee;
+  border-radius: 12px;
+  background: #fff;
+  padding: 1.25rem 1.5rem;
 }
 
 .proposal-run-sheet__list {
   margin: 0;
-  padding-left: 1.25rem;
+  padding-left: 1rem;
+  list-style-position: inside;
 }
 .proposal-run-sheet__list li {
   margin-bottom: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.proposal-run-sheet__title,
+.proposal-financial__title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
 }
 
 .proposal-table__grid {
@@ -1159,7 +1310,7 @@ textarea {
 .proposal-table__grid th,
 .proposal-table__grid td {
   border: 1px solid #E5E7EB;
-  padding: 0.6rem 0.75rem;
+  padding: 0.45rem 0.6rem;
 }
 .proposal-table__grid thead th {
   background: #F3F4F6;
@@ -1167,6 +1318,27 @@ textarea {
   font-size: 0.75rem;
   letter-spacing: 0.08em;
   color: #4B5563;
+}
+.proposal-table__grid .proposal-cell--item {
+  width: auto;
+}
+.proposal-table__grid .proposal-cell--qty {
+  width: 70px;
+  text-align: center;
+}
+.proposal-table__grid .proposal-cell--price,
+.proposal-table__grid .proposal-cell--total {
+  width: 115px;
+  text-align: right;
+  padding-left: 10px;
+  padding-right: 5px;
+}
+.proposal-table__grid thead .proposal-cell--qty {
+  text-align: center;
+}
+.proposal-table__grid thead .proposal-cell--price,
+.proposal-table__grid thead .proposal-cell--total {
+  text-align: right;
 }
 
 .proposal-table__menu td {
@@ -1177,6 +1349,9 @@ textarea {
 .proposal-category:not(:last-child) {
   margin-bottom: 1.5rem;
 }
+.proposal-category {
+  page-break-inside: avoid;
+}
 .proposal-category__title {
   margin-bottom: 0.75rem;
   font-size: 1rem;
@@ -1186,9 +1361,12 @@ textarea {
 .proposal-financial__table {
   width: 100%;
 }
-.proposal-financial__table td {
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #F3F4F6;
+.proposal-financial__table td:first-child {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #4B5563;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 .proposal-financial__table .proposal-financial__highlight td {
   font-weight: 600;
@@ -1198,10 +1376,49 @@ textarea {
   font-size: 1.05rem;
 }
 
-.proposal-terms__body {
-  white-space: pre-line;
+.proposal-financial h5 {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.proposal-financial .proposal-financial__table {
+  margin: 0;
+}
+.proposal-financial .proposal-financial__table td:first-child {
+  font-weight: 500;
 }
 
+.proposal-terms__body {
+  line-height: 1.3;
+}
+.proposal-terms__body p {
+  margin: 0 0 0.3rem;
+}
+.proposal-terms__body p:last-child {
+  margin-bottom: 0;
+}
+.proposal-terms__body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.5rem;
+}
+.proposal-terms__body table th,
+.proposal-terms__body table td {
+  border: 1px solid #d8dde8;
+  padding: 0.3rem 0.45rem;
+  text-align: left;
+  vertical-align: top;
+  font-size: 0.9rem;
+}
+.proposal-terms__body table th {
+  background: #f5f7fb;
+  font-weight: 600;
+}
+
+@media screen {
+  .proposal-terms__body {
+    margin: 2em;
+  }
+}
 @media print {
   .proposal-print {
     padding: 0;
@@ -1209,8 +1426,50 @@ textarea {
   .proposal-table__grid {
     page-break-inside: avoid;
   }
+  .proposal-catering-card {
+    page-break-before: always;
+  }
+  .proposal-header {
+    grid-template-columns: minmax(70px, auto) minmax(0, 1fr) minmax(70px, auto);
+  }
+  .proposal-header__logo img {
+    max-height: 30px;
+  }
   .proposal-terms {
     page-break-before: always;
+  }
+  .proposal-print .card {
+    box-shadow: none !important;
+    border-color: #E5E7EB;
+  }
+  .proposal-print .card-header,
+  .proposal-print .card-body {
+    padding: 0.625rem !important;
+    background: #fff !important;
+  }
+  .proposal-table-card.card {
+    border: none;
+  }
+  .proposal-table-card .card-body {
+    padding: 0 !important;
+  }
+  .proposal-table__grid thead th {
+    background: #fff;
+  }
+  .proposal-category {
+    page-break-inside: avoid;
+  }
+  .proposal-terms__body {
+    margin: 2em;
+  }
+  .proposal-terms {
+    page: terms-page;
+    margin: 0;
+  }
+}
+@media print {
+  @page terms-page {
+    margin: 2cm;
   }
 }
 .function-sidebar {
@@ -1774,6 +2033,178 @@ textarea {
   background: #f8f9fa;
 }
 
+.calendar-page .page-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.calendar-controls,
+.calendar-wrapper {
+  border-radius: 0.75rem;
+}
+
+.calendar-view-label {
+  font-size: 0.9rem;
+  color: #475569;
+  font-weight: 500;
+}
+
+.calendar-print-title {
+  display: none;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 3mm;
+}
+
+.calendar-room-toggle .calendar-room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+.calendar-room-toggle .calendar-room-btn.active {
+  background-color: #6BB4DE;
+  border-color: #6BB4DE;
+  color: #fff;
+  box-shadow: none;
+}
+
+#functionCalendar {
+  min-height: 600px;
+}
+
+.calendar-shell .fc {
+  --fc-border-color: #e5e7eb;
+  --fc-event-bg-color: #6bb4de;
+  --fc-event-border-color: #6bb4de;
+  --fc-page-bg-color: #fff;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.calendar-shell .fc-event {
+  border-radius: 0.5rem;
+  padding: 2px 6px;
+  font-weight: 500;
+}
+
+.calendar-event-card {
+  background-color: #fff !important;
+  color: #0f172a !important;
+  border: 1px solid #dbe1ea !important;
+  border-left: 4px solid var(--calendar-event-accent, #6bb4de) !important;
+  border-radius: 10px !important;
+  padding: 6px 8px !important;
+  white-space: normal !important;
+  line-height: 1.2;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+.calendar-event-card .fc-event-time {
+  display: block;
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+.calendar-event-card .fc-event-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #0f172a;
+  white-space: normal;
+}
+
+@media print {
+  body {
+    background: #fff !important;
+  }
+  .main-header,
+  .calendar-controls,
+  .calendar-room-toggle,
+  #calendarPrintBtn,
+  .nav-links,
+  .overview-toolbar {
+    display: none !important;
+  }
+  .calendar-page {
+    padding: 7mm !important;
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 14mm);
+  }
+  .calendar-page .page-title {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 1.5mm;
+  }
+  .calendar-page .calendar-print-title {
+    display: block;
+    page-break-after: avoid !important;
+    margin-bottom: 3mm;
+    font-size: 14px;
+  }
+  .calendar-wrapper {
+    box-shadow: none !important;
+    border: none !important;
+    flex: 1;
+    min-height: calc(100vh - 20mm);
+    display: flex;
+    flex-direction: column;
+  }
+  .calendar-page .card {
+    border: none;
+  }
+  .calendar-shell .fc-toolbar,
+  .calendar-shell .fc-header-toolbar {
+    display: none !important;
+  }
+  #functionCalendar {
+    min-height: auto;
+    margin-top: 0 !important;
+    page-break-inside: avoid !important;
+    font-size: 0.6rem;
+    width: 100% !important;
+    flex: 1;
+  }
+  #functionCalendar .fc-view-harness,
+  #functionCalendar .fc-scrollgrid,
+  #functionCalendar .fc-daygrid,
+  #functionCalendar .fc-timegrid-body {
+    min-height: auto !important;
+    page-break-inside: avoid !important;
+    width: 100% !important;
+  }
+  .calendar-shell .fc-daygrid,
+  .calendar-shell .fc-scrollgrid {
+    table-layout: fixed !important;
+  }
+  .calendar-shell .fc-daygrid-day {
+    display: flex;
+    flex-direction: column;
+  }
+  .calendar-shell .fc-daygrid-day-frame,
+  .calendar-shell .fc-daygrid-day-top {
+    padding: 1px !important;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .calendar-shell .fc-daygrid-day-number {
+    font-size: 0.6rem !important;
+  }
+  #functionCalendar .fc-timegrid-slot {
+    height: 1.1rem !important;
+  }
+  .calendar-shell .fc-daygrid-event {
+    font-size: 0.6rem !important;
+    padding: 1px 1.5px !important;
+    margin: 0 0 1px 0 !important;
+  }
+  .calendar-shell .fc-timegrid-now-indicator-line,
+  .calendar-shell .fc-timegrid-now-indicator-arrow,
+  .calendar-shell .fc-now-indicator {
+    display: none !important;
+  }
+}
 #contactOverlay,
 .modal-overlay {
   position: fixed;

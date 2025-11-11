@@ -9,6 +9,9 @@ const express = require("express");
 const router = express.Router();
 const { pool } = require("../db");
 
+const CALENDAR_SLOT_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
+const DEFAULT_CALENDAR_SLOT = 30;
+
 async function logPromotionAttempt({ userId, requestedRole, ipAddress, succeeded, message }) {
   try {
     await pool.query(
@@ -651,3 +654,51 @@ router.use('/menus-builder', (req, res) => {
 
 module.exports = router;
 
+router.get("/calendar", ensurePrivileged, async (req, res) => {
+  try {
+    const {
+      rows,
+    } = await pool.query(`SELECT day_slot_minutes FROM calendar_settings LIMIT 1`);
+    const daySlotMinutes = rows[0]?.day_slot_minutes || DEFAULT_CALENDAR_SLOT;
+    res.render("settings/calendar", {
+      layout: "layouts/settings",
+      title: "Settings - Calendar Options",
+      pageType: "settings",
+      activeTab: "calendar-settings",
+      daySlotMinutes,
+      slotOptions: CALENDAR_SLOT_OPTIONS,
+    });
+  } catch (err) {
+    console.error("[Settings] Calendar options failed:", err);
+    req.flash("flashMessage", "Failed to load calendar settings.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/overview");
+  }
+});
+
+router.post("/calendar", ensurePrivileged, async (req, res) => {
+  try {
+    const input = Number(req.body?.day_slot_minutes);
+    const minutes = CALENDAR_SLOT_OPTIONS.includes(input) ? input : null;
+    if (!minutes) {
+      req.flash("flashMessage", "Please choose a valid slot interval.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/calendar");
+    }
+    await pool.query(
+      `INSERT INTO calendar_settings (id, day_slot_minutes, created_at, updated_at)
+       VALUES (1, $1, NOW(), NOW())
+       ON CONFLICT (id)
+       DO UPDATE SET day_slot_minutes = EXCLUDED.day_slot_minutes, updated_at = NOW();`,
+      [minutes]
+    );
+    req.flash("flashMessage", "Calendar settings updated.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/calendar");
+  } catch (err) {
+    console.error("[Settings] Calendar update failed:", err);
+    req.flash("flashMessage", "Failed to update calendar settings.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/calendar");
+  }
+});

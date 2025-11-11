@@ -1,12 +1,5 @@
 (() => {
-  const formatTimestamp = (value) => {
-    if (!value) return "";
-    try {
-      return new Date(value).toLocaleString();
-    } catch {
-      return "";
-    }
-  };
+  const editorId = "termContentEditor";
 
   const notify = (message, type = "info") => {
     if (window.toast) {
@@ -18,14 +11,54 @@
     }
   };
 
-  document.addEventListener("DOMContentLoaded", () => {
+  const initTinyEditor = (initialHtml = "") =>
+    new Promise((resolve) => {
+      if (!window.tinymce) {
+        console.warn("TinyMCE not available; using plain textarea.");
+        resolve(false);
+        return;
+      }
+
+      window.tinymce.remove(`#${editorId}`);
+      window.tinymce.init({
+        selector: `#${editorId}`,
+        height: 320,
+        menubar: false,
+        plugins: "lists link table paste",
+        toolbar:
+          "undo redo | blocks | bold italic underline | bullist numlist | link table | removeformat",
+        paste_data_images: true,
+        table_default_attributes: { border: "1" },
+        setup(editor) {
+          editor.on("init", () => {
+            editor.setContent(initialHtml || "");
+            resolve(true);
+          });
+          editor.on("change keyup", () => {
+            const hiddenInput = document.getElementById("termContent");
+            if (hiddenInput) hiddenInput.value = editor.getContent();
+          });
+        },
+      });
+    });
+
+  const setEditorContent = (html = "") => {
+    const hiddenInput = document.getElementById("termContent");
+    const textarea = document.getElementById(editorId);
+    if (hiddenInput) hiddenInput.value = html || "";
+    if (textarea) textarea.value = html || "";
+    const instance = window.tinymce?.get(editorId);
+    if (instance) instance.setContent(html || "");
+  };
+
+  document.addEventListener("DOMContentLoaded", async () => {
     const terms = window.proposalTermsData || [];
     const listEl = document.getElementById("termsList");
     const form = document.getElementById("termForm");
     const idInput = document.getElementById("termId");
     const nameInput = document.getElementById("termName");
     const categoryInput = document.getElementById("termCategory");
-    const contentInput = document.getElementById("termContent");
+    const hiddenContent = document.getElementById("termContent");
     const defaultInput = document.getElementById("termDefault");
     const deleteBtn = document.getElementById("termDeleteBtn");
     const resetBtn = document.getElementById("termResetBtn");
@@ -38,11 +71,13 @@
       listEl?.querySelectorAll(".list-group-item").forEach((btn) => btn.classList.remove("active"));
     };
 
+    await initTinyEditor(hiddenContent?.value || "");
+
     const resetForm = () => {
       idInput.value = "";
       nameInput.value = "";
       categoryInput.value = "";
-      contentInput.value = "";
+      setEditorContent("");
       defaultInput.checked = false;
       deleteBtn.disabled = true;
       titleEl.textContent = "Create Terms Block";
@@ -55,11 +90,13 @@
       idInput.value = term.id;
       nameInput.value = term.name || "";
       categoryInput.value = term.category || "";
-      contentInput.value = term.content || "";
+      setEditorContent(term.content || "");
       defaultInput.checked = Boolean(term.is_default);
       deleteBtn.disabled = false;
       titleEl.textContent = `Editing: ${term.name}`;
-      updatedEl.textContent = term.updated_at ? `Updated ${formatTimestamp(term.updated_at)}` : "";
+      updatedEl.textContent = term.updated_at
+        ? `Updated ${new Date(term.updated_at).toLocaleString()}`
+        : "";
     };
 
     listEl?.addEventListener("click", (event) => {
@@ -101,10 +138,14 @@
         notify("Please provide a name for the terms block.", "warning");
         return;
       }
+      const currentContent =
+        window.tinymce?.get(editorId)?.getContent() || document.getElementById(editorId)?.value || "";
+      hiddenContent.value = currentContent;
+
       const payload = {
         name: nameInput.value,
         category: categoryInput.value,
-        content: contentInput.value,
+        content: hiddenContent.value,
         is_default: defaultInput.checked,
       };
       const id = idInput.value;

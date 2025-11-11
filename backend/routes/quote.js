@@ -4,6 +4,8 @@ const router = express.Router();
 const { pool } = require("../db");
 const { renderNote } = require("../services/templateRenderer");
 
+const PROPOSAL_STATUSES = ["draft", "sent", "approved", "declined"];
+
 // ------------------------------------------------------
 // Helpers
 // ------------------------------------------------------
@@ -47,7 +49,7 @@ async function ensureActiveProposal(client, functionId, contactId = null) {
   return proposal.id;
 }
 
-async function recalcTotals(client, proposalId) {
+async function recalcTotals(client, proposalId, userId = null) {
   const {
     rows: itemRows,
   } = await client.query(
@@ -101,19 +103,23 @@ async function recalcTotals(client, proposalId) {
         SET subtotal = $1,
             gratuity_amount = $2,
             total_paid = $3,
-            remaining_due = $4
-      WHERE proposal_id = $5`,
-    [subtotal, gratuityAmount, totalPaid, remaining, proposalId]
+            remaining_due = $4,
+            updated_at = NOW(),
+            updated_by = COALESCE($5, updated_by)
+      WHERE proposal_id = $6`,
+    [subtotal, gratuityAmount, totalPaid, remaining, userId, proposalId]
   );
 
   await client.query(
     `UPDATE functions f
         SET totals_price = $1,
-            totals_cost = $2
+            totals_cost = $2,
+            updated_at = NOW(),
+            updated_by = COALESCE($4, f.updated_by)
        FROM proposals p
       WHERE p.id = $3
         AND p.function_id = f.id_uuid`,
-    [finalTotal, costTotal, proposalId]
+    [finalTotal, costTotal, proposalId, userId]
   );
 }
 
@@ -188,7 +194,20 @@ function buildNoteContext(fn, contacts = [], rooms = []) {
   };
 }
 
-async function addMenuBundle(client, functionId, proposalId, menuId) {
+async function markMenuUpdated(client, functionId, menuId, userId) {
+  if (!functionId || !menuId) return;
+  await client.query(
+    `INSERT INTO function_menu_updates (function_id, menu_id, updated_at, updated_by)
+     VALUES ($1, $2, NOW(), $3)
+     ON CONFLICT (function_id, menu_id)
+     DO UPDATE
+           SET updated_at = EXCLUDED.updated_at,
+               updated_by = EXCLUDED.updated_by`,
+    [functionId, menuId, userId || null]
+  );
+}
+
+async function addMenuBundle(client, functionId, proposalId, menuId, userId = null) {
   const {
     rows: [menu],
   } = await client.query(
@@ -232,9 +251,9 @@ async function addMenuBundle(client, functionId, proposalId, menuId) {
   }
 
   await client.query(
-    `INSERT INTO proposal_items (proposal_id, description, unit_price)
-     VALUES ($1, $2, $3)`,
-    [proposalId, menuDescription, menu.price || 0]
+    `INSERT INTO proposal_items (proposal_id, description, unit_price, updated_by)
+     VALUES ($1, $2, $3, $4)`,
+    [proposalId, menuDescription, menu.price || 0, userId]
   );
 
   const choices = await client.query(
@@ -290,9 +309,9 @@ async function addMenuBundle(client, functionId, proposalId, menuId) {
     }
 
     await client.query(
-      `INSERT INTO proposal_items (proposal_id, description, unit_price)
-       VALUES ($1, $2, $3)`,
-      [proposalId, description, total]
+      `INSERT INTO proposal_items (proposal_id, description, unit_price, updated_by)
+       VALUES ($1, $2, $3, $4)`,
+      [proposalId, description, total, userId]
     );
   }
 
@@ -342,11 +361,13 @@ async function addMenuBundle(client, functionId, proposalId, menuId) {
     }
 
     await client.query(
-      `INSERT INTO proposal_items (proposal_id, description, unit_price)
-       VALUES ($1, $2, $3)`,
-      [proposalId, description, total]
+      `INSERT INTO proposal_items (proposal_id, description, unit_price, updated_by)
+       VALUES ($1, $2, $3, $4)`,
+      [proposalId, description, total, userId]
     );
   }
+
+  await markMenuUpdated(client, functionId, menu.id, userId);
 }
 
 // ------------------------------------------------------
@@ -441,7 +462,7 @@ router.get("/:functionId/quote", async (req, res) => {
 
     const sessionSaved =
       (req.session.proposalBuilder && req.session.proposalBuilder[functionId]) ||
-      { includeItemIds: [], includeContactIds: [], sections: [], terms: "", termIds: [] };
+      { includeItemIds: [], includeContactIds: [], sections: [], terms: "", termIds: [], termIdsExplicit: false };
 
     const proposalBuilderSaved = {
       includeItemIds: Array.isArray(sessionSaved.includeItemIds)
@@ -459,6 +480,7 @@ router.get("/:functionId/quote", async (req, res) => {
       termIds: Array.isArray(sessionSaved.termIds)
         ? sessionSaved.termIds.map(String)
         : [],
+      termIdsExplicit: Boolean(sessionSaved.termIdsExplicit),
     };
 
     const [
@@ -504,11 +526,17 @@ router.get("/:functionId/quote", async (req, res) => {
       ),
     ]);
 
-    if (!proposalBuilderSaved.termIds.length && termsRes.rows.length) {
+    if (
+      !proposalBuilderSaved.termIds.length &&
+      termsRes.rows.length &&
+      !proposalBuilderSaved.termIdsExplicit
+    ) {
       const defaultTerm = termsRes.rows.find((term) => term.is_default) || termsRes.rows[0];
       if (defaultTerm) {
         proposalBuilderSaved.termIds = [String(defaultTerm.id)];
         sessionSaved.termIds = proposalBuilderSaved.termIds;
+        sessionSaved.termIdsExplicit = false;
+        proposalBuilderSaved.termIdsExplicit = false;
         req.session.proposalBuilder = req.session.proposalBuilder || {};
         req.session.proposalBuilder[functionId] = sessionSaved;
       }
@@ -535,6 +563,7 @@ router.get("/:functionId/quote", async (req, res) => {
 
     res.locals.pageJs = [
       ...(res.locals.pageJs || []),
+      "/js/functions/detail.js",
       "/js/settings/menuDrawer.js",
       "/js/functions/proposal-builder.js",
     ];
@@ -560,6 +589,8 @@ router.get("/:functionId/quote", async (req, res) => {
       proposalBuilderSaved,
       termsLibrary: termsRes.rows,
       functionNotes,
+      proposalStatus: activeProposal?.status || "draft",
+      proposalStatusOptions: PROPOSAL_STATUSES,
     });
   } catch (err) {
     console.error("[Quote] Error loading quote page:", err);
@@ -598,15 +629,16 @@ router.post("/:functionId/quote/add-menu", async (req, res) => {
   if (!menu_id) {
     return res.status(400).json({ success: false, error: "menu_id is required" });
   }
+  const userId = req.session.user?.id || null;
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
     const proposalId = await ensureActiveProposal(client, functionId);
-    await addMenuBundle(client, functionId, proposalId, menu_id);
+    await addMenuBundle(client, functionId, proposalId, menu_id, userId);
 
-    await recalcTotals(client, proposalId);
+    await recalcTotals(client, proposalId, userId);
     await client.query("COMMIT");
     res.json({ success: true });
   } catch (err) {
@@ -625,6 +657,7 @@ router.post("/:functionId/quote/remove-menu", async (req, res) => {
   const { functionId } = req.params;
   const { menu_id } = req.body || {};
   if (!menu_id) return res.status(400).json({ success: false, error: "menu_id is required" });
+  const userId = req.session.user?.id || null;
 
   const client = await pool.connect();
   try {
@@ -644,7 +677,8 @@ router.post("/:functionId/quote/remove-menu", async (req, res) => {
       await client.query(`DELETE FROM proposal_items WHERE id = ANY($1::int[])`, [ids]);
     }
 
-    await recalcTotals(client, proposalId);
+    await markMenuUpdated(client, functionId, menu_id, userId);
+    await recalcTotals(client, proposalId, userId);
     await client.query("COMMIT");
     res.json({ success: true });
   } catch (err) {
@@ -661,6 +695,7 @@ router.post("/:functionId/quote/remove-menu", async (req, res) => {
 // ------------------------------------------------------
 router.post("/:functionId/quote/reset", async (req, res) => {
   const { functionId } = req.params;
+  const userId = req.session.user?.id || null;
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -680,16 +715,25 @@ router.post("/:functionId/quote/reset", async (req, res) => {
               discount_amount = 0,
               deposit_amount = 0,
               total_paid = 0,
-              remaining_due = 0
+              remaining_due = 0,
+              updated_at = NOW(),
+              updated_by = COALESCE($2, updated_by)
         WHERE proposal_id = $1`,
-      [proposalId]
+      [proposalId, userId]
     );
 
     await client.query(
       `UPDATE functions
           SET totals_price = 0,
-              totals_cost = 0
+              totals_cost = 0,
+              updated_at = NOW(),
+              updated_by = COALESCE($2, updated_by)
         WHERE id_uuid = $1`,
+      [functionId, userId]
+    );
+
+    await client.query(
+      `DELETE FROM function_menu_updates WHERE function_id = $1`,
       [functionId]
     );
 
@@ -707,7 +751,7 @@ router.post("/:functionId/quote/reset", async (req, res) => {
 // ------------------------------------------------------
 // Resync menus (single or all) with current definitions
 // ------------------------------------------------------
-async function rebuildMenu(client, proposalId, functionId, menuId) {
+async function rebuildMenu(client, proposalId, functionId, menuId, userId = null) {
   const existing = await client.query(
     `SELECT id, description, unit_price
        FROM proposal_items
@@ -733,7 +777,7 @@ async function rebuildMenu(client, proposalId, functionId, menuId) {
         AND description ILIKE $2`,
     [proposalId, `%[menu_id:${menuId}]%`]
   );
-  await addMenuBundle(client, functionId, proposalId, menuId);
+  await addMenuBundle(client, functionId, proposalId, menuId, userId);
 
   if (!adjustments.size) return;
 
@@ -779,13 +823,14 @@ router.post("/:functionId/quote/resync-menu", async (req, res) => {
   const { functionId } = req.params;
   const { menu_id } = req.body || {};
   if (!menu_id) return res.status(400).json({ success: false, error: "menu_id is required" });
+  const userId = req.session.user?.id || null;
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     const proposalId = await ensureActiveProposal(client, functionId);
-    await rebuildMenu(client, proposalId, functionId, menu_id);
-    await recalcTotals(client, proposalId);
+    await rebuildMenu(client, proposalId, functionId, menu_id, userId);
+    await recalcTotals(client, proposalId, userId);
     await client.query("COMMIT");
     res.json({ success: true });
   } catch (err) {
@@ -799,6 +844,7 @@ router.post("/:functionId/quote/resync-menu", async (req, res) => {
 
 router.post("/:functionId/quote/resync-all", async (req, res) => {
   const { functionId } = req.params;
+  const userId = req.session.user?.id || null;
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -812,10 +858,10 @@ router.post("/:functionId/quote/resync-all", async (req, res) => {
     );
 
     for (const row of menusRes.rows) {
-      await rebuildMenu(client, proposalId, functionId, row.menu_id);
+      await rebuildMenu(client, proposalId, functionId, row.menu_id, userId);
     }
 
-    await recalcTotals(client, proposalId);
+    await recalcTotals(client, proposalId, userId);
     await client.query("COMMIT");
     res.json({ success: true });
   } catch (err) {
@@ -839,6 +885,7 @@ router.post("/:proposalId/totals/update", async (req, res) => {
     override_total = null,
   } = req.body || {};
 
+  const userId = req.session.user?.id || null;
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -847,13 +894,16 @@ router.post("/:proposalId/totals/update", async (req, res) => {
       `UPDATE proposal_totals
           SET gratuity_percent = $1,
               discount_amount = $2,
-              deposit_amount = $3
+              deposit_amount = $3,
+              updated_at = NOW(),
+              updated_by = COALESCE($5, updated_by)
         WHERE proposal_id = $4`,
       [
         Number(gratuity_percent) || 0,
         Number(discount_amount) || 0,
         Number(deposit_amount) || 0,
         proposalId,
+        userId,
       ]
     );
 
@@ -873,13 +923,15 @@ router.post("/:proposalId/totals/update", async (req, res) => {
       discountValue = Math.max(0, neededDiscount);
       await client.query(
         `UPDATE proposal_totals
-            SET discount_amount = $1
+            SET discount_amount = $1,
+                updated_at = NOW(),
+                updated_by = COALESCE($3, updated_by)
           WHERE proposal_id = $2`,
-        [discountValue, proposalId]
+        [discountValue, proposalId, userId]
       );
     }
 
-    await recalcTotals(client, proposalId);
+    await recalcTotals(client, proposalId, userId);
 
     await client.query("COMMIT");
     res.json({ success: true });
@@ -901,6 +953,7 @@ router.post("/proposal-items/:id/price", async (req, res) => {
   if (!Number.isInteger(id) || id <= 0 || unit_price === undefined) {
     return res.status(400).json({ success: false, error: "Invalid input" });
   }
+  const userId = req.session.user?.id || null;
 
   const client = await pool.connect();
   try {
@@ -943,12 +996,30 @@ router.post("/proposal-items/:id/price", async (req, res) => {
     await client.query(
       `UPDATE proposal_items
           SET unit_price = $1,
-              description = $2
+              description = $2,
+              updated_at = NOW(),
+              updated_by = COALESCE($4, updated_by)
         WHERE id = $3`,
-      [Number(unit_price) || 0, description, id]
+      [Number(unit_price) || 0, description, id, userId]
     );
+    const meta = extractMetadata(description);
+    if (meta.menu_id) {
+      const {
+        rows: fnRows,
+      } = await client.query(
+        `SELECT function_id
+           FROM proposals
+          WHERE id = $1
+          LIMIT 1`,
+        [proposalId]
+      );
+      const fnRow = fnRows[0];
+      if (fnRow?.function_id) {
+        await markMenuUpdated(client, fnRow.function_id, Number(meta.menu_id), userId);
+      }
+    }
 
-    await recalcTotals(client, proposalId);
+    await recalcTotals(client, proposalId, userId);
     await client.query("COMMIT");
     res.json({ success: true });
   } catch (err) {
@@ -969,18 +1040,22 @@ router.post("/proposal-items/:id/qty", async (req, res) => {
   if (!Number.isInteger(id) || id <= 0 || !Number.isFinite(qty) || qty <= 0) {
     return res.status(400).json({ success: false, error: "Invalid input" });
   }
+  const userId = req.session.user?.id || null;
 
+  const client = await pool.connect();
   try {
+    await client.query("BEGIN");
     const {
       rows,
-    } = await pool.query(
-      `SELECT description
+    } = await client.query(
+      `SELECT description, proposal_id
          FROM proposal_items
         WHERE id = $1
         LIMIT 1`,
       [id]
     );
     if (!rows.length) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ success: false, error: "Item not found" });
     }
     let description = rows[0].description || "";
@@ -992,16 +1067,37 @@ router.post("/proposal-items/:id/qty", async (req, res) => {
     const meta = metaIdx >= 0 ? description.slice(metaIdx) : "";
     head = head.replace(/ x \d+$/i, "").trim();
     head = `${head} x ${qty}`.trim();
-    await pool.query(
+    const updatedDescription = `${head}${meta}`.trim();
+
+    await client.query(
       `UPDATE proposal_items
-          SET description = $1
+          SET description = $1,
+              updated_at = NOW(),
+              updated_by = COALESCE($3, updated_by)
         WHERE id = $2`,
-      [`${head}${meta}`.trim(), id]
+      [updatedDescription, id, userId]
     );
+
+    const metaMap = extractMetadata(updatedDescription);
+    if (metaMap.menu_id) {
+      const { rows: fnRows } = await client.query(
+        `SELECT function_id FROM proposals WHERE id = $1 LIMIT 1`,
+        [rows[0].proposal_id]
+      );
+      const fnRecord = fnRows[0];
+      if (fnRecord?.function_id) {
+        await markMenuUpdated(client, fnRecord.function_id, Number(metaMap.menu_id), userId);
+      }
+    }
+
+    await client.query("COMMIT");
     res.json({ success: true });
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error("Error updating qty:", err);
     res.status(500).json({ success: false, error: err.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -1078,7 +1174,7 @@ router.get("/:functionId/proposal", async (req, res) => {
     const proposalId = proposalRes.rows[0]?.id || null;
     const sessionSaved =
       (req.session.proposalBuilder && req.session.proposalBuilder[functionId]) ||
-      { includeItemIds: [], includeContactIds: [], sections: [], terms: "", termIds: [] };
+      { includeItemIds: [], includeContactIds: [], sections: [], terms: "", termIds: [], termIdsExplicit: false };
     const saved = {
       includeItemIds: Array.isArray(sessionSaved.includeItemIds)
         ? [...sessionSaved.includeItemIds]
@@ -1095,13 +1191,15 @@ router.get("/:functionId/proposal", async (req, res) => {
       termIds: Array.isArray(sessionSaved.termIds)
         ? sessionSaved.termIds.map(String)
         : [],
+      termIdsExplicit: Boolean(sessionSaved.termIdsExplicit),
     };
-    if (!saved.termIds.length && termsRes.rows.length) {
+    if (!saved.termIds.length && termsRes.rows.length && !saved.termIdsExplicit) {
       const defaultTerms =
         termsRes.rows.find((term) => term.is_default) || termsRes.rows[0];
       if (defaultTerms) {
         saved.termIds = [String(defaultTerms.id)];
         sessionSaved.termIds = saved.termIds;
+        sessionSaved.termIdsExplicit = false;
         req.session.proposalBuilder = req.session.proposalBuilder || {};
         req.session.proposalBuilder[functionId] = sessionSaved;
       }
@@ -1250,6 +1348,7 @@ router.post("/:functionId/proposal/save", async (req, res) => {
     sections: normalizedSections,
     terms: String(terms || ""),
     termIds: cleanTermIds,
+    termIdsExplicit: true,
   };
 
   res.json({ success: true });
@@ -1356,18 +1455,44 @@ router.get("/:functionId/proposal/preview", async (req, res) => {
       ? saved.termIds.map((id) => String(id || "").trim()).filter((id) => id.length)
       : [];
     let selectedTermIds = savedTermIds;
-    if (!selectedTermIds.length && termsLibraryRows.length) {
+    if (!saved.termIdsExplicit && !selectedTermIds.length && termsLibraryRows.length) {
       const defaultTerm = termsLibraryRows.find((term) => term.is_default) || termsLibraryRows[0];
       if (defaultTerm) selectedTermIds = [String(defaultTerm.id)];
     }
-    const combinedTerms = [
-      ...termsLibraryRows
-        .filter((term) => selectedTermIds.includes(String(term.id)))
-        .map((term) => term.content || ""),
-      saved.terms || "",
-    ]
-      .filter((chunk) => chunk && chunk.trim().length)
-      .join("\n\n");
+    const normalizeBlockMarkup = (block = "") => {
+      const trimmed = String(block || "").trim();
+      if (!trimmed) return "";
+      const hasHtml = /<[a-z][\s\S]*>/i.test(trimmed);
+      return hasHtml ? trimmed : trimmed.replace(/\n/g, "<br>");
+    };
+
+    const blockKey = (html = "") =>
+      html
+        .replace(/<[^>]*>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+
+    const selectedTermBlocks = termsLibraryRows
+      .filter((term) => selectedTermIds.includes(String(term.id)))
+      .map((term) => normalizeBlockMarkup(term.content || ""))
+      .filter((chunk) => chunk && chunk.trim().length);
+
+    const blocks = [...selectedTermBlocks];
+    if (saved.terms && saved.terms.trim().length) {
+      blocks.push(normalizeBlockMarkup(saved.terms));
+    }
+
+    const seen = new Set();
+    const dedupedBlocks = blocks.filter((chunk) => {
+      const normalised = blockKey(chunk);
+      if (!normalised) return false;
+      if (seen.has(normalised)) return false;
+      seen.add(normalised);
+      return true;
+    });
+
+    const combinedTerms = dedupedBlocks.join("\n\n");
 
     let totalsData = null;
     if (proposalId) {
@@ -1402,6 +1527,8 @@ router.get("/:functionId/proposal/preview", async (req, res) => {
       layout: "layouts/main",
       title: `Proposal Preview - ${fn.event_name}`,
       pageType: "",
+      hideChrome: true,
+      saved,
       fn,
       proposalId,
       items,
@@ -1413,6 +1540,35 @@ router.get("/:functionId/proposal/preview", async (req, res) => {
   } catch (err) {
     console.error("preview error:", err);
     res.status(500).send("Error rendering preview");
+  }
+});
+
+router.post("/:functionId/proposal/status", async (req, res) => {
+  const { functionId } = req.params;
+  const normalized = String(req.body?.status || "").toLowerCase();
+  if (!PROPOSAL_STATUSES.includes(normalized)) {
+    return res.status(400).json({ success: false, error: "Invalid proposal status." });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT id FROM proposals WHERE function_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [functionId]
+    );
+    const proposal = rows[0];
+    if (!proposal) {
+      return res.status(404).json({ success: false, error: "No proposal found for this function." });
+    }
+
+    await pool.query(`UPDATE proposals SET status = $1, updated_at = NOW() WHERE id = $2`, [
+      normalized,
+      proposal.id,
+    ]);
+
+    res.json({ success: true, status: normalized });
+  } catch (err) {
+    console.error("Error updating proposal status:", err);
+    res.status(500).json({ success: false, error: "Failed to update proposal status." });
   }
 });
 

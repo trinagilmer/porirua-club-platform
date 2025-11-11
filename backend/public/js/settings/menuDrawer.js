@@ -45,6 +45,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const optionPriceInput = document.getElementById("optionPrice");
   const optionUnitSelect = document.getElementById("optionUnit");
   const optionCostInput = document.getElementById("optionCost");
+  const choiceDescriptionToggle = document.getElementById(
+    "choiceDescriptionToggle"
+  );
+  const choiceDescriptionWrap = document.getElementById(
+    "choiceDescriptionWrap"
+  );
+  const choiceDescriptionInput = document.getElementById(
+    "choiceDescription"
+  );
 
   // Link Existing modal + fields
   const linkChoiceModalEl = document.getElementById("linkChoiceModal");
@@ -67,6 +76,80 @@ document.addEventListener("DOMContentLoaded", () => {
     console.warn("⚠️ Menu drawer elements not found.");
     return;
   }
+
+  function updateChoiceDescriptionToggleLabel(visible) {
+    if (!choiceDescriptionToggle) return;
+    choiceDescriptionToggle.innerHTML = `<i class="bi bi-chat-square-text me-1"></i>${
+      visible ? "Hide description" : "Add description"
+    }`;
+  }
+
+  function setChoiceDescriptionVisible(visible) {
+    if (!choiceDescriptionWrap) return;
+    choiceDescriptionWrap.classList.toggle("d-none", !visible);
+    updateChoiceDescriptionToggleLabel(visible);
+    if (visible) {
+      choiceDescriptionInput?.focus();
+    }
+  }
+
+  function setChoiceDescriptionValue(value) {
+    if (!choiceDescriptionInput) return;
+    choiceDescriptionInput.value = value || "";
+    const shouldShow = Boolean((value || "").trim());
+    setChoiceDescriptionVisible(shouldShow);
+  }
+
+  function getChoiceDescriptionValue() {
+    if (
+      !choiceDescriptionInput ||
+      (choiceDescriptionWrap &&
+        choiceDescriptionWrap.classList.contains("d-none"))
+    ) {
+      return "";
+    }
+    return (choiceDescriptionInput.value || "").trim();
+  }
+
+  choiceDescriptionToggle?.addEventListener("click", () => {
+    const isHidden =
+      choiceDescriptionWrap?.classList.contains("d-none") ?? true;
+    setChoiceDescriptionVisible(isHidden);
+  });
+  if (choiceDescriptionWrap) {
+    setChoiceDescriptionVisible(false);
+  }
+
+  let optionLabelDirty = false;
+
+  function setOptionLabelValue(value, options = {}) {
+    if (!optionNameInput) return;
+    optionNameInput.value = value ?? "";
+    if (typeof options.dirty === "boolean") {
+      optionLabelDirty = options.dirty;
+    } else {
+      optionLabelDirty = optionNameInput.value.trim().length > 0;
+    }
+  }
+
+  function resetChoiceModalFields() {
+    if (choiceNameInput) choiceNameInput.value = "";
+    setOptionLabelValue("", { dirty: false });
+    if (optionPriceInput) optionPriceInput.value = "";
+    if (optionCostInput) optionCostInput.value = "";
+    if (optionUnitSelect) optionUnitSelect.value = "";
+    setChoiceDescriptionValue("");
+    setChoiceDescriptionVisible(false);
+  }
+
+  choiceNameInput?.addEventListener("input", () => {
+    if (!optionNameInput || optionLabelDirty) return;
+    optionNameInput.value = choiceNameInput.value;
+  });
+
+  optionNameInput?.addEventListener("input", () => {
+    optionLabelDirty = optionNameInput.value.trim().length > 0;
+  });
 
   // Bootstrap modals
   let createChoiceModal = null;
@@ -908,12 +991,7 @@ function normalizeAddon(addon = {}) {
   // --------------------------
   createChoiceBtn?.addEventListener("click", () => {
     if (!createChoiceModal) return alert("Modal not available.");
-    // reset modal fields
-    choiceNameInput.value = "";
-    if (optionNameInput) optionNameInput.value = "";
-    optionPriceInput.value = "";
-    optionUnitSelect.value = "";
-    if (optionCostInput) optionCostInput.value = "";
+    resetChoiceModalFields();
     choiceModalMode = "create";
     editingChoiceId = null;
     editingChoiceLocalId = null;
@@ -1047,6 +1125,9 @@ function normalizeAddon(addon = {}) {
       unitId != null
         ? unitLookup.get(String(unitId))?.name || null
         : null;
+    const descriptionRaw = getChoiceDescriptionValue();
+    const description = descriptionRaw || "";
+    const descriptionPayload = description || null;
 
     try {
       if (choiceModalMode === "edit-staged" && editingChoiceLocalId) {
@@ -1059,6 +1140,7 @@ function normalizeAddon(addon = {}) {
                 price,
                 cost,
                 unit_id: unitId,
+                description,
               }
             : item
         );
@@ -1075,6 +1157,7 @@ function normalizeAddon(addon = {}) {
                 unitId,
                 _staged: true,
                 _localId: editingChoiceLocalId,
+                description,
               }
             : item
         );
@@ -1084,6 +1167,7 @@ function normalizeAddon(addon = {}) {
         editingChoiceLocalId = null;
         editingChoiceOptionId = null;
         editingChoiceDescription = "";
+        resetChoiceModalFields();
         createChoiceModal?.hide();
         return;
       }
@@ -1096,7 +1180,7 @@ function normalizeAddon(addon = {}) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               name,
-              description: editingChoiceDescription || null,
+              description: descriptionPayload,
             }),
           }
         );
@@ -1146,6 +1230,7 @@ function normalizeAddon(addon = {}) {
         editingChoiceLocalId = null;
         editingChoiceOptionId = null;
         editingChoiceDescription = "";
+        resetChoiceModalFields();
         createChoiceModal?.hide();
         return;
       }
@@ -1166,9 +1251,27 @@ function normalizeAddon(addon = {}) {
         if (!payload.success || !payload.data) {
           throw new Error(payload.error || "Failed to create choice.");
         }
-        linkedChoices.push(normalizeLinkedChoice(payload.data));
+        const normalized = normalizeLinkedChoice(payload.data);
+        linkedChoices.push(normalized);
+        if (descriptionPayload && normalized.id) {
+          try {
+            await fetch(`/settings/menus/choices/api/${normalized.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ description: descriptionPayload }),
+            });
+          } catch (err) {
+            console.warn(
+              "⚠️ Failed to persist description for choice",
+              normalized.id,
+              err
+            );
+          }
+        }
         renderChoiceList();
         choiceModalMode = "create";
+        editingChoiceDescription = "";
+        resetChoiceModalFields();
         createChoiceModal?.hide();
         return;
       }
@@ -1181,6 +1284,7 @@ function normalizeAddon(addon = {}) {
         price,
         cost,
         unit_id: unitId,
+        description,
       };
       stagedChoices.push(stagedRecord);
       window.__stagedChoices = stagedChoices;
@@ -1194,9 +1298,12 @@ function normalizeAddon(addon = {}) {
         unitId,
         _staged: true,
         _localId: localId,
+        description,
       });
       renderChoiceList();
       choiceModalMode = "create";
+      editingChoiceDescription = "";
+      resetChoiceModalFields();
       createChoiceModal?.hide();
     } catch (err) {
       console.error("❌ Error saving choice:", err);
@@ -1712,9 +1819,10 @@ function normalizeAddon(addon = {}) {
         editingChoiceOptionId = null;
         editingChoiceDescription = stagedRecord.description || "";
         if (choiceNameInput) choiceNameInput.value = stagedRecord.name || "";
-        if (optionNameInput)
-          optionNameInput.value =
-            stagedRecord.option_name || stagedRecord.name || "";
+        setOptionLabelValue(
+          stagedRecord.option_name || stagedRecord.name || "",
+          { dirty: true }
+        );
         if (optionPriceInput)
           optionPriceInput.value =
             stagedRecord.price != null ? Number(stagedRecord.price).toFixed(2) : "";
@@ -1724,6 +1832,7 @@ function normalizeAddon(addon = {}) {
         if (optionUnitSelect)
           optionUnitSelect.value =
             stagedRecord.unit_id != null ? String(stagedRecord.unit_id) : "";
+        setChoiceDescriptionValue(editingChoiceDescription);
         createChoiceModal?.show();
         setTimeout(() => choiceNameInput?.focus(), 150);
         return;
@@ -1745,9 +1854,9 @@ function normalizeAddon(addon = {}) {
         editingChoiceOptionId = primary?.id ?? null;
         editingChoiceDescription = choice.description || "";
         if (choiceNameInput) choiceNameInput.value = choice.name || "";
-        if (optionNameInput)
-          optionNameInput.value =
-            primary?.name || choice.name || "";
+        setOptionLabelValue(primary?.name || choice.name || "", {
+          dirty: true,
+        });
         if (optionPriceInput)
           optionPriceInput.value =
             primary?.price != null ? Number(primary.price).toFixed(2) : "";
@@ -1757,6 +1866,7 @@ function normalizeAddon(addon = {}) {
         if (optionUnitSelect)
           optionUnitSelect.value =
             primary?.unit_id != null ? String(primary.unit_id) : "";
+        setChoiceDescriptionValue(editingChoiceDescription);
         createChoiceModal?.show();
         setTimeout(() => choiceNameInput?.focus(), 150);
       } catch (err) {
@@ -1886,11 +1996,34 @@ function normalizeAddon(addon = {}) {
               : null,
         };
         try {
-          await fetch(`/menus/builder/menus/${newMenuId}/choices`, {
+          const res = await fetch(`/menus/builder/menus/${newMenuId}/choices`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(choicePayload),
           });
+          const payload = await res.json().catch(() => ({}));
+          if (!res.ok || payload.success === false || !payload.data?.id) {
+            throw new Error(
+              payload.error || "Failed to attach staged choice."
+            );
+          }
+          if ((choice.description || "").trim()) {
+            try {
+              await fetch(`/settings/menus/choices/api/${payload.data.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  description: choice.description?.trim() || null,
+                }),
+              });
+            } catch (err) {
+              console.warn(
+                "⚠️ Failed to persist description for staged choice",
+                payload.data.id,
+                err
+              );
+            }
+          }
         } catch (err) {
           console.error(
             "⚠️ Failed to attach staged choice:",

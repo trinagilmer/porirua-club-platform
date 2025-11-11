@@ -1,0 +1,120 @@
+<% locals.layout = 'layouts/main'; %>
+<%
+  const eventDateFormatted = eventDate
+    ? new Date(eventDate).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
+    : 'Not set';
+  const formatTime = (value) => {
+    if (!value) return '--:--';
+    const str = String(value);
+    if (str.includes('T')) {
+      return new Date(str).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' });
+    }
+    return str.slice(0, 5);
+  };
+  const startTimeFormatted = formatTime(startTime);
+  const endTimeFormatted = formatTime(endTime);
+  const safeNotes = Array.isArray(notes) ? notes : [];
+  const safeMenus = Array.isArray(menus) ? menus : [];
+%>
+
+<div class="run-sheet container py-4">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+      <p class="text-muted mb-1 text-uppercase small letter-tight">Internal Run Sheet</p>
+      <h1 class="mb-0"><%= fn.event_name || 'Function Run Sheet' %></h1>
+    </div>
+    <div class="run-sheet__actions d-flex gap-2 no-print">
+      <a href="/functions/<%= fn.id_uuid %>" class="btn btn-outline-secondary btn-sm">Back to function</a>
+      <button class="btn btn-primary btn-sm" onclick="window.print()">Print</button>
+    </div>
+  </div>
+
+  <section class="card mb-4 shadow-sm">
+    <div class="card-body">
+      <div class="run-sheet-summary">
+        <div class="run-sheet-summary__group">
+          <p class="text-muted text-uppercase small mb-1">Event Date</p>
+          <p class="fw-semibold mb-3"><%= eventDateFormatted %></p>
+          <p class="text-muted text-uppercase small mb-1">Start &amp; End Time</p>
+          <p class="fw-semibold mb-0"><%= startTimeFormatted %> - <%= endTimeFormatted %></p>
+        </div>
+        <div class="run-sheet-summary__group">
+          <p class="text-muted text-uppercase small mb-1">Room</p>
+          <p class="fw-semibold mb-3"><%= roomName || 'Unassigned' %></p>
+          <p class="text-muted text-uppercase small mb-1">Guests</p>
+          <p class="fw-semibold mb-0"><%= attendees || 0 %></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <% if (safeNotes.length) { %>
+    <section class="card mb-4 shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Instructions &amp; Notes</h5>
+        <div class="vstack gap-3">
+          <% safeNotes.forEach(function(note) { %>
+            <article class="run-sheet-note border rounded-3 p-3">
+              <div class="run-sheet-note__body">
+                <%- note.rendered_html || note.content || '<em>No content</em>' %>
+              </div>
+            </article>
+          <% }) %>
+        </div>
+      </div>
+    </section>
+  <% } %>
+
+  <% if (safeMenus.length) { %>
+    <section class="card shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="card-title mb-0">Catering / Menus</h5>
+          <span class="badge bg-light text-dark"><%= safeMenus.length %> menus</span>
+        </div>
+        <div class="vstack gap-4">
+          <% safeMenus.forEach(function(menu) { %>
+            <article class="run-sheet-menu border rounded-3 overflow-hidden">
+              <header class="p-3 bg-light border-bottom">
+                <div class="d-flex flex-column flex-lg-row justify-content-between gap-2">
+                  <div>
+                    <p class="mb-0 fw-semibold"><%= menu.name %></p>
+                    <small class="text-muted"><%= menu.category || 'Catering' %></small>
+                  </div>
+                  <div class="text-muted small">
+                    Qty <strong><%= menu.qty || 0 %></strong> · <%= menu.unit || 'each' %>
+                  </div>
+                </div>
+              </header>
+              <div class="table-responsive">
+                <table class="table mb-0">
+                  <thead>
+                    <tr>
+                      <th scope="col">Item</th>
+                      <th scope="col" style="width: 120px;">Quantity</th>
+                      <th scope="col" style="width: 120px;">Unit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% (menu.items || []).forEach(function(item) { %>
+                      <tr>
+                        <td><%= item.label || 'Item' %></td>
+                        <td><%= item.qty || 0 %></td>
+                        <td><%= item.unit || '' %></td>
+                      </tr>
+                    <% }) %>
+                    <% if (!(menu.items || []).length) { %>
+                      <tr>
+                        <td colspan="3" class="text-muted text-center">No items recorded for this menu.</td>
+                      </tr>
+                    <% } %>
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          <% }) %>
+        </div>
+      </div>
+    </section>
+  <% } %>
+</div>

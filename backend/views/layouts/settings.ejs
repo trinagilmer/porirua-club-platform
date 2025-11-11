@@ -46,6 +46,12 @@
         <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
       </div>
     </div>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        const toastEl = document.querySelector('.toast');
+        if (toastEl) new bootstrap.Toast(toastEl, { delay: 4000 }).show();
+      });
+    </script>
   <% } %>
 
   <!-- 🧭 Navbar -->
@@ -88,6 +94,7 @@
       <a href="/settings/event-types" class="nav-link <%= activeTab === 'event-types' ? 'active fw-semibold' : '' %>">Event Types</a>
       <a href="/settings/spaces" class="nav-link <%= activeTab === 'spaces' ? 'active fw-semibold' : '' %>">Rooms / Spaces</a>
         <a href="/settings/note-templates" class="nav-link <%= activeTab === 'note-templates' ? 'active fw-semibold' : '' %>">Note Templates</a>
+        <a href="/settings/calendar" class="nav-link <%= activeTab === 'calendar-settings' ? 'active fw-semibold' : '' %>">Calendar Options</a>
         <a href="/settings/proposal-terms" class="nav-link <%= activeTab === 'proposal-terms' ? 'active fw-semibold' : '' %>">Proposal Terms</a>
         <a href="/settings/users" class="nav-link <%= activeTab === 'users' ? 'active fw-semibold' : '' %>">Users</a>
 <!-- Menus Group -->
@@ -123,8 +130,6 @@
     </nav>
   </div>
 </div>
-        <a href="/settings/services" class="nav-link <%= activeTab === 'services' ? 'active fw-semibold' : '' %>">Services</a>
-        <a href="/settings/facilities" class="nav-link <%= activeTab === 'facilities' ? 'active fw-semibold' : '' %>">Facilities</a>
       </nav>
     </aside>
 
@@ -156,12 +161,6 @@
     <script src="<%- file %>" onerror="console.warn('⚠️ Missing script:', this.src)"></script>
   <% }) %>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const toastEl = document.querySelector('.toast');
-      if (toastEl) new bootstrap.Toast(toastEl, { delay: 4000 }).show();
-    });
-  </script>
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     // 🔸 Animate submenu chevrons

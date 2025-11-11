@@ -11,6 +11,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const createOptionCost = document.getElementById('createChoiceOptionCost');
   const createOptionUnit = document.getElementById('createChoiceOptionUnit');
   const createDescription = document.getElementById('createChoiceDescription');
+  const createDescriptionToggle = document.getElementById(
+    'toggleCreateDescription'
+  );
+  const createDescriptionWrap = document.getElementById(
+    'createChoiceDescriptionWrap'
+  );
 
   if (!choicesContainer) {
     console.warn('menu-choices.js: #choicesContainer missing');
@@ -25,13 +31,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let unitLookup = buildUnitLookup();
   let categoryLookup = buildCategoryLookup();
+  window.menuChoiceUnitLookup = unitLookup;
 
   function buildUnitLookup() {
     const map = new Map();
     units.forEach((u) => {
+      if (!u || u.id == null) return;
       map.set(String(u.id), u);
     });
     return map;
+  }
+
+  function ensureUnitLookup() {
+    if (!(unitLookup instanceof Map)) {
+      unitLookup = new Map();
+    }
+    return unitLookup;
   }
 
   function buildCategoryLookup() {
@@ -425,12 +440,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
     body.appendChild(priceRow);
 
+    const descToggle = document.createElement('button');
+    descToggle.type = 'button';
+    descToggle.className =
+      'btn btn-link btn-sm px-0 text-decoration-none text-secondary description-toggle';
+    const hasDescription = Boolean((choice.description || '').trim());
+    descToggle.innerHTML = `<i class="bi bi-chat-square-text me-1"></i>${
+      hasDescription ? 'Hide description' : 'Add description'
+    }`;
+    body.appendChild(descToggle);
+
+    const descWrap = document.createElement('div');
+    descWrap.className = `choice-desc-wrap mt-2${
+      hasDescription ? '' : ' d-none'
+    }`;
+    const descLabel = document.createElement('label');
+    descLabel.className = 'form-label small text-uppercase text-muted';
+    descLabel.textContent = 'Description';
+    descWrap.appendChild(descLabel);
+
     const descInput = document.createElement('textarea');
-    descInput.className = 'form-control form-control-sm choice-description mt-2';
+    descInput.className = 'form-control form-control-sm choice-description';
     descInput.rows = 2;
     descInput.placeholder = 'Optional description...';
     descInput.value = choice.description || '';
-    body.appendChild(descInput);
+    descWrap.appendChild(descInput);
+    body.appendChild(descWrap);
+
+    descToggle.addEventListener('click', () => {
+      const isHidden = descWrap.classList.toggle('d-none');
+      descToggle.innerHTML = `<i class="bi bi-chat-square-text me-1"></i>${
+        isHidden ? 'Add description' : 'Hide description'
+      }`;
+      if (!isHidden) {
+        descInput.focus();
+      }
+    });
 
     const actions = document.createElement('div');
     actions.className = 'choice-actions';
@@ -461,6 +506,7 @@ document.addEventListener('DOMContentLoaded', () => {
         unitSelect,
         costInput,
         descInput,
+        descWrap,
         saveButton: saveBtn,
         deleteButton: deleteBtn,
       });
@@ -482,6 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
       costInput,
       unitSelect,
       descInput,
+      descWrap,
       saveButton,
       deleteButton,
     } = refs;
@@ -512,8 +559,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const unitId =
       unitSelect.value !== '' ? Number(unitSelect.value) : null;
-    const description =
-      (descInput.classList.contains('d-none') ? '' : descInput.value || '').trim();
+    const descriptionEnabled = descWrap
+      ? !descWrap.classList.contains('d-none')
+      : true;
+    const description = descriptionEnabled
+      ? (descInput.value || '').trim()
+      : '';
     let categoryId = null;
     if (categorySelect && categorySelect.value !== '') {
       categoryId = Number(categorySelect.value);
@@ -646,6 +697,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (result.units) {
           units = result.units;
           unitLookup = buildUnitLookup();
+          window.menuChoiceUnitLookup = unitLookup;
         }
       }
       choices = freshChoices.map(normalizeChoice);
@@ -659,12 +711,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
   filterSelect?.addEventListener('change', renderChoices);
 
+  let createLabelDirty = false;
+  function setCreateLabel(value) {
+    if (!createOptionName) return;
+    createOptionName.value = value;
+  }
+
   createChoiceName?.addEventListener('input', () => {
     if (!createOptionName) return;
-    if (!createOptionName.value) {
-      createOptionName.value = createChoiceName.value;
-    }
+    if (!createLabelDirty) setCreateLabel(createChoiceName.value);
   });
+
+  createOptionName?.addEventListener('input', () => {
+    if (!createOptionName) return;
+    createLabelDirty = createOptionName.value.trim().length > 0;
+  });
+
+  function setCreateDescriptionVisibility(show) {
+    if (!createDescriptionWrap || !createDescriptionToggle) return;
+    const shouldShow =
+      typeof show === 'boolean'
+        ? show
+        : createDescriptionWrap.classList.contains('d-none');
+    createDescriptionWrap.classList.toggle('d-none', !shouldShow);
+    createDescriptionToggle.innerHTML = shouldShow
+      ? '<i class="bi bi-chat-square-text me-1"></i> Hide description'
+      : '<i class="bi bi-chat-square-text me-1"></i> Add description';
+    if (shouldShow) {
+      createDescription?.focus();
+    }
+  }
+
+  createDescriptionToggle?.addEventListener('click', () =>
+    setCreateDescriptionVisibility()
+  );
+  if (createDescriptionWrap) {
+    setCreateDescriptionVisibility(false);
+  }
 
   createChoiceForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -707,8 +790,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const unitId = createOptionUnit?.value
       ? Number(createOptionUnit.value)
       : null;
-    const description =
-      (createDescription?.value || '').trim() || null;
+    const createDescEnabled = createDescriptionWrap
+      ? !createDescriptionWrap.classList.contains('d-none')
+      : false;
+    const descriptionValue =
+      createDescEnabled && createDescription
+        ? (createDescription.value || '').trim()
+        : '';
+    const description = descriptionValue || null;
 
     const payload = {
       name,
@@ -740,6 +829,10 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error(dataResp.error || 'Failed to create choice.');
       }
       createChoiceForm.reset();
+      createLabelDirty = false;
+      setCreateLabel('');
+      setCreateDescriptionVisibility(false);
+      if (createDescription) createDescription.value = '';
       await refreshChoices();
     } catch (err) {
       console.error(err);
@@ -809,7 +902,7 @@ document.addEventListener('DOMContentLoaded', () => {
           rawLine
         );
       }
-      const resolvedUnit =
+    const resolvedUnit =
         resolveUnitId(unitToken) ??
         ((description || name).toLowerCase().includes('pp')
           ? findPerPersonUnit()
@@ -863,8 +956,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return findPerPersonUnit();
     }
     let match = null;
-    // eslint-disable-next-line no-undef
-    unitLookup.forEach((unit, id) => {
+    const lookup = ensureUnitLookup();
+    lookup.forEach((unit, id) => {
       if (
         String(unit.id) === normalized ||
         unit.name.toLowerCase() === normalized ||
@@ -878,8 +971,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function findPerPersonUnit() {
     let match = null;
-    // eslint-disable-next-line no-undef
-    unitLookup.forEach((unit, id) => {
+    const lookup = ensureUnitLookup();
+    lookup.forEach((unit, id) => {
       if (
         (unit.type && unit.type.toLowerCase().includes('per')) ||
         (unit.name && unit.name.toLowerCase().includes('pp'))

@@ -47,7 +47,7 @@
         <div class="group status-group">
           <label>Status</label>
           <label><input type="radio" name="note_status" value="proposal"> Proposal</label>
-          <label><input type="radio" name="note_status" value="general" checked> General</label>
+          <label><input type="radio" name="note_status" value="general" checked> Calls</label>
           <label><input type="radio" name="note_status" value="internal"> Internal</label>
         </div>
 
@@ -171,15 +171,15 @@
           </div>
         </div>
 
-        <!-- General -->
+        <!-- Calls -->
         <div class="notes-card">
           <header>
-            <span>General</span>
+            <span>Calls</span>
             <span class="badge badge-general"><%= byStatus.general.length %></span>
           </header>
           <div class="notes-list">
             <% if (!byStatus.general.length) { %>
-              <div class="note-item"><em>No general notes yet.</em></div>
+              <div class="note-item"><em>No call notes yet.</em></div>
             <% } %>
             <% byStatus.general.forEach(n => { %>
               <article class="note-item" data-note-id="<%= n.id %>">

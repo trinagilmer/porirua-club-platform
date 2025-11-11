@@ -218,6 +218,68 @@
   min-height: 320px;
 }
 
+.quote-info-grid {
+  .quote-info-card {
+    border: 1px solid #e0e4ee;
+    border-radius: 16px;
+    background: #fff;
+    padding: 1.25rem 1.5rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .quote-info-title {
+    font-weight: 600;
+    color: #111927;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+  }
+
+  .quote-info-table {
+    th {
+      width: 32%;
+      color: #6b7280;
+      font-weight: 500;
+      text-transform: none;
+    }
+
+    td {
+      color: #111927;
+      font-weight: 600;
+    }
+
+    .badge {
+      letter-spacing: 0.05em;
+    }
+  }
+}
+
+.quote-table {
+  width: 100%;
+
+  td,
+  th {
+    vertical-align: middle;
+  }
+
+  caption.quote-menu-caption {
+    caption-side: top;
+    padding: 0;
+    margin-bottom: 0.5rem;
+
+    > div {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+  }
+}
+
 .quote-menu {
   border: 1px solid #e0e4ee;
   border-radius: 12px;
@@ -386,27 +448,27 @@
 .function-overview {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
 
   @media (max-width: 768px) {
     padding-left: 0;
     padding-right: 0;
-    gap: 1rem;
+    gap: 0.75rem;
   }
 }
 
 .overview-card {
   border: 1px solid #e5e8f0;
-  border-radius: 18px;
+  border-radius: 14px;
   background: $white;
-  padding: 1.5rem;
+  padding: 1.25rem;
 
   &__header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     gap: 1rem;
-    margin-bottom: 1.25rem;
+    margin-bottom: 0.85rem;
   }
 
   &__title {
@@ -420,7 +482,7 @@
   }
 
   @media (max-width: 768px) {
-    padding: 1.25rem;
+    padding: 1rem;
 
     &__header {
       flex-direction: column;
@@ -431,8 +493,12 @@
 
 .overview-snapshot .snapshot-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1rem;
+
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .snapshot-row {
@@ -640,49 +706,85 @@
 
 .proposal-header {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: minmax(90px, auto) minmax(0, 1fr) minmax(90px, auto);
   align-items: center;
-  padding: 1.5rem;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+
+  &__logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    img {
+      display: block;
+      max-height: 36px;
+      width: auto;
+      object-fit: contain;
+    }
+  }
 
   &__meta {
     text-align: center;
   }
 
   &__title {
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 600;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.15rem;
   }
 
   &__date {
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    font-size: 0.85rem;
+    font-size: 0.78rem;
     color: $neutral-600;
+    margin-bottom: 0.05rem;
   }
 
-  &__contact span {
-    display: block;
-    color: $neutral-600;
+  &__contact {
+    line-height: 1.5;
+    span {
+      display: block;
+      color: $neutral-600;
+      font-size: 0.75rem;
+    }
   }
 
-  &__details {
-    margin-top: 0.5rem;
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-    font-size: 0.85rem;
-    color: $neutral-600;
+  &__issued {
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: $neutral-500;
+    margin-top: 0.1rem;
+  }
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    text-align: center;
+    &__logo {
+      justify-content: center;
+    }
   }
 }
 
 .proposal-logo {
   &--primary {
-    max-height: 64px;
+    max-height: 36px;
+    max-width: 90px;
   }
   &--secondary {
-    max-height: 58px;
+    max-height: 36px;
+    max-width: 110px;
   }
+}
+
+.letter-tight {
+  letter-spacing: 0.08em;
+}
+
+.proposal-catering-card {
+  page-break-before: always;
 }
 
 .proposal-summary-grid {
@@ -693,8 +795,14 @@
 
 .proposal-summary-card {
   .card-body {
-    padding: 1.25rem;
+    padding: 0.625rem;
   }
+}
+
+.proposal-summary__title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
 }
 
 .proposal-summary__list {
@@ -707,14 +815,19 @@
     margin-bottom: 0.5rem;
   }
   dt {
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    color: $neutral-500;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: $neutral-700;
+    text-transform: none;
   }
   dd {
     margin: 0;
-    font-weight: 600;
+    font-weight: 400;
     text-align: right;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: $neutral-600;
   }
 }
 
@@ -723,20 +836,64 @@
   margin: 0;
   padding: 0;
   li {
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
     span {
       display: block;
       color: $neutral-600;
+      font-size: 0.8rem;
     }
   }
 }
 
+.proposal-table-card,
+.proposal-section,
+.proposal-flat {
+  margin-bottom: 1.25rem;
+}
+
+.run-sheet-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+
+  &__group {
+    display: flex;
+    flex-direction: column;
+  }
+
+  @media print {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.proposal-content-rail {
+  margin-left: 20px;
+  margin-right: 20px;
+}
+
+.proposal-table-card,
+.proposal-flat {
+  border: 1px solid #e0e4ee;
+  border-radius: 12px;
+  background: #fff;
+  padding: 1.25rem 1.5rem;
+}
+
 .proposal-run-sheet__list {
   margin: 0;
-  padding-left: 1.25rem;
+  padding-left: 1rem;
+  list-style-position: inside;
   li {
     margin-bottom: 0.35rem;
+    font-size: 0.9rem;
   }
+}
+
+.proposal-run-sheet__title,
+.proposal-financial__title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
 }
 
 .proposal-table__grid {
@@ -747,7 +904,7 @@
   th,
   td {
     border: 1px solid $neutral-200;
-    padding: 0.6rem 0.75rem;
+    padding: 0.45rem 0.6rem;
   }
 
   thead th {
@@ -756,6 +913,32 @@
     font-size: 0.75rem;
     letter-spacing: 0.08em;
     color: $neutral-600;
+  }
+
+  .proposal-cell--item {
+    width: auto;
+  }
+
+  .proposal-cell--qty {
+    width: 70px;
+    text-align: center;
+  }
+
+  .proposal-cell--price,
+  .proposal-cell--total {
+    width: 115px;
+    text-align: right;
+    padding-left: 10px;
+    padding-right: 5px;
+  }
+
+  thead .proposal-cell--qty {
+    text-align: center;
+  }
+
+  thead .proposal-cell--price,
+  thead .proposal-cell--total {
+    text-align: right;
   }
 }
 
@@ -768,6 +951,7 @@
   &:not(:last-child) {
     margin-bottom: 1.5rem;
   }
+  page-break-inside: avoid;
   &__title {
     margin-bottom: 0.75rem;
     font-size: 1rem;
@@ -778,8 +962,14 @@
 .proposal-financial__table {
   width: 100%;
   td {
-    padding: 0.5rem 0;
-    border-bottom: 1px solid $neutral-100;
+    // inherits proposal-table__grid borders/padding
+  }
+  td:first-child {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: $neutral-600;
+    font-size: 0.75rem;
+    font-weight: 600;
   }
   .proposal-financial__highlight td {
     font-weight: 600;
@@ -790,8 +980,55 @@
   }
 }
 
+.proposal-financial {
+  h5 {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  .proposal-financial__table {
+    margin: 0;
+    td:first-child {
+      font-weight: 500;
+    }
+  }
+}
+
 .proposal-terms__body {
-  white-space: pre-line;
+  line-height: 1.3;
+
+  p {
+    margin: 0 0 0.3rem;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 0.5rem;
+
+    th,
+    td {
+      border: 1px solid #d8dde8;
+      padding: 0.3rem 0.45rem;
+      text-align: left;
+      vertical-align: top;
+      font-size: 0.9rem;
+    }
+
+    th {
+      background: #f5f7fb;
+      font-weight: 600;
+    }
+  }
+}
+
+@media screen {
+  .proposal-terms__body {
+    margin: 2em;
+  }
 }
 
 @media print {
@@ -801,7 +1038,50 @@
   .proposal-table__grid {
     page-break-inside: avoid;
   }
+  .proposal-catering-card {
+    page-break-before: always;
+  }
+  .proposal-header {
+    grid-template-columns: minmax(70px, auto) minmax(0, 1fr) minmax(70px, auto);
+  }
+  .proposal-header__logo img {
+    max-height: 30px;
+  }
   .proposal-terms {
     page-break-before: always;
+  }
+  .proposal-print .card {
+    box-shadow: none !important;
+    border-color: $neutral-200;
+  }
+  .proposal-print .card-header,
+  .proposal-print .card-body {
+    padding: 0.625rem !important;
+    background: #fff !important;
+  }
+  .proposal-table-card.card {
+    border: none;
+  }
+  .proposal-table-card .card-body {
+    padding: 0 !important;
+  }
+  .proposal-table__grid thead th {
+    background: #fff;
+  }
+  .proposal-category {
+    page-break-inside: avoid;
+  }
+  .proposal-terms__body {
+    margin: 2em;
+  }
+  .proposal-terms {
+    page: terms-page;
+    margin: 0;
+  }
+}
+
+@media print {
+  @page terms-page {
+    margin: 2cm;
   }
 }

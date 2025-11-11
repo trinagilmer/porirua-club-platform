@@ -83,6 +83,156 @@ const FUNCTION_STATUSES = [
   "completed",
 ];
 
+const META_REGEX = /\[([a-z_]+):([^\]]+)\]/gi;
+
+function extractProposalMetadata(description = "") {
+  const meta = {};
+  let match;
+  while ((match = META_REGEX.exec(description))) {
+    meta[match[1].toLowerCase()] = match[2];
+  }
+  return meta;
+}
+
+function stripProposalMetadata(description = "") {
+  return String(description || "").replace(/\s*\[[^\]]+\]/g, "").trim();
+}
+
+function cleanLabelFromDescription(description = "") {
+  return stripProposalMetadata(description)
+    .replace(/^menu:\s*/i, "")
+    .replace(/^choice:\s*/i, "")
+    .trim();
+}
+
+function friendlyUnit(meta = {}) {
+  if (!meta) return "";
+  if (meta.unit) return meta.unit;
+  if (meta.unit_name) return meta.unit_name;
+  const type = (meta.unit_type || "").toLowerCase();
+  if (!type) return "";
+  if (type.includes("per") && type.includes("person")) return "pp";
+  if (type.includes("guest")) return "per guest";
+  if (type.includes("each") || type === "quantity") return "each";
+  return type;
+}
+
+function parseIdList(value) {
+  if (!value && value !== 0) return [];
+  const rawList = Array.isArray(value)
+    ? value
+    : String(value)
+        .split(/[,\s]+/)
+        .filter(Boolean);
+  return rawList
+    .map((entry) => {
+      if (typeof entry === "number") return entry;
+      const trimmed = String(entry || "").trim();
+      if (!trimmed) return null;
+      const maybeNumber = Number(trimmed);
+      return Number.isNaN(maybeNumber) ? trimmed : maybeNumber;
+    })
+    .filter((entry) => entry !== null && entry !== undefined);
+}
+
+function summarizeProposalMenus(items = []) {
+  const map = new Map();
+  items.forEach((item) => {
+    const meta = extractProposalMetadata(item.description);
+    if (!meta.menu_id) return;
+    const menuId = String(meta.menu_id);
+    const entry = map.get(menuId) || {
+      id: Number(menuId),
+      name: "",
+      category: meta.category || "Uncategorised",
+      qty: meta.qty ? Number(meta.qty) : null,
+      unit: friendlyUnit(meta),
+      total_price: 0,
+      total_cost: 0,
+      audit: null,
+    };
+
+    entry.total_price += Number(item.unit_price) || 0;
+    if (meta.cost) {
+      entry.total_cost += Number(meta.cost) || 0;
+    }
+    if (meta.qty && !entry.qty) entry.qty = Number(meta.qty);
+    if (!entry.unit) entry.unit = friendlyUnit(meta);
+    if (meta.category && !entry.category) entry.category = meta.category;
+
+    const clean = stripProposalMetadata(item.description);
+    if (/^menu:/i.test(clean)) {
+      entry.name = cleanLabelFromDescription(item.description);
+    }
+
+    map.set(menuId, entry);
+  });
+
+  return Array.from(map.values())
+    .map((entry) => ({
+      ...entry,
+      name: entry.name || `Menu #${entry.id}`,
+    }))
+    .sort((a, b) => {
+      const catCompare = (a.category || "").localeCompare(b.category || "");
+      if (catCompare !== 0) return catCompare;
+      return (a.name || "").localeCompare(b.name || "");
+    });
+}
+
+function buildMenuItemsByMenu(items = []) {
+  const map = new Map();
+  items.forEach((item) => {
+    const meta = extractProposalMetadata(item.description);
+    const menuId = meta.menu_id;
+    if (!menuId) return;
+    const label = cleanLabelFromDescription(item.description);
+    const qty = Number(meta.qty) || 1;
+    const unit = friendlyUnit(meta);
+    const entry = {
+      label,
+      qty,
+      unit: unit || "",
+      price: Number(item.unit_price) || 0,
+      cost: meta.cost !== undefined ? Number(meta.cost) : null,
+      excluded: String(meta.excluded || "").toLowerCase() === "true",
+    };
+    const key = String(menuId);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(entry);
+  });
+  return map;
+}
+
+function buildFallbackTotals(items = []) {
+  const subtotal = items.reduce((sum, item) => sum + (Number(item.unit_price) || 0), 0);
+  return {
+    subtotal,
+    gratuity_percent: 0,
+    gratuity_amount: 0,
+    discount_amount: 0,
+    deposit_amount: 0,
+    total_paid: 0,
+    remaining_due: subtotal,
+  };
+}
+
+function safePreview(text = "", limit = 160) {
+  const normalized = String(text || "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return normalized.length > limit ? normalized.slice(0, limit) : normalized;
+}
+
+function abbreviateName(name = "") {
+  return String(name || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((chunk) => chunk[0]?.toUpperCase() || "")
+    .join("");
+}
+
 function parseNullableNumber(value) {
   if (value === undefined || value === null || value === "") return null;
   const num = Number(value);
@@ -306,6 +456,7 @@ router.post("/new", async (req, res) => {
   }
 
   const newFunctionId = randomUUID();
+  const userId = req.session.user?.id || null;
   const statusValue = (status || "lead").trim() || "lead";
 
   try {
@@ -327,10 +478,11 @@ router.post("/new", async (req, res) => {
         event_type,
         owner_id,
         created_at,
-        updated_at
+        updated_at,
+        updated_by
       )
       VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW(),NOW()
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW(),NOW(),$15
       );
       `,
       [
@@ -348,6 +500,7 @@ router.post("/new", async (req, res) => {
         room_id ? Number(room_id) : null,
         event_type || null,
         owner_id ? Number(owner_id) : null,
+        userId || null
       ]
     );
 
@@ -587,6 +740,8 @@ router.post("/:id/edit", async (req, res) => {
     owner_id
   } = req.body;
 
+  const userId = req.session.user?.id || null;
+
   try {
     await pool.query(`
       UPDATE functions
@@ -604,8 +759,9 @@ router.post("/:id/edit", async (req, res) => {
       event_type   = $11,
       status       = $12,
       owner_id     = $13,
-      updated_at   = NOW()
-    WHERE id_uuid = $14;`,
+      updated_at   = NOW(),
+      updated_by   = COALESCE($15, updated_by)
+    WHERE id_uuid = $16;`,
     [
       event_name,
       event_date || null,
@@ -620,6 +776,7 @@ router.post("/:id/edit", async (req, res) => {
       event_type || null,
       status,
       owner_id || null,
+      userId,
       functionId
     ]
     );
@@ -634,6 +791,106 @@ router.post("/:id/edit", async (req, res) => {
 });
 
 
+
+router.get("/:id/run-sheet", async (req, res) => {
+  try {
+    const functionId = req.params.id.trim();
+    const notesParam = req.query.notes;
+    const menusParam = req.query.menus;
+    const skipNotes = typeof notesParam === "string" && notesParam.toLowerCase() === "none";
+    const skipMenus = typeof menusParam === "string" && menusParam.toLowerCase() === "none";
+    const noteFilters = skipNotes
+      ? []
+      : parseIdList(notesParam)
+          .map(Number)
+          .filter((n) => Number.isInteger(n));
+    const menuFilters = skipMenus
+      ? []
+      : parseIdList(menusParam)
+          .map(Number)
+          .filter((n) => Number.isInteger(n));
+
+    const { rows: fnRows } = await pool.query(
+      `SELECT f.*, r.name AS room_name
+         FROM functions f
+    LEFT JOIN rooms r ON r.id = f.room_id
+        WHERE f.id_uuid = $1
+        LIMIT 1`,
+      [functionId]
+    );
+    const fn = fnRows[0];
+    if (!fn) {
+      return res.status(404).send("Function not found");
+    }
+
+    const [notesRes, proposalLookupRes] = await Promise.all([
+      pool.query(
+        `SELECT id, note_type, rendered_html, content, created_at, updated_at
+           FROM function_notes
+          WHERE function_id = $1
+          ORDER BY created_at ASC`,
+        [functionId]
+      ),
+      pool.query(
+        `SELECT id, status
+           FROM proposals
+          WHERE function_id = $1
+          ORDER BY created_at DESC
+          LIMIT 1`,
+        [functionId]
+      ),
+    ]);
+
+    const activeProposal = proposalLookupRes.rows[0] || null;
+    let proposalItems = [];
+
+    if (activeProposal) {
+      const { rows: itemsRes } = await pool.query(
+        `SELECT id, description, unit_price
+           FROM proposal_items
+          WHERE proposal_id = $1
+          ORDER BY id ASC`,
+        [activeProposal.id]
+      );
+      proposalItems = itemsRes;
+    }
+
+    const menuItemsMap = buildMenuItemsByMenu(proposalItems);
+    const menuSummary = summarizeProposalMenus(proposalItems).map((menu) => ({
+      ...menu,
+      items: (menuItemsMap.get(String(menu.id)) || []).filter((item) => !item.excluded),
+    }));
+
+    const selectedMenus = skipMenus
+      ? []
+      : menuFilters.length
+      ? menuSummary.filter((menu) => menuFilters.includes(Number(menu.id)))
+      : menuSummary;
+    const selectedNotes = skipNotes
+      ? []
+      : noteFilters.length
+      ? notesRes.rows.filter((note) => noteFilters.includes(Number(note.id)))
+      : notesRes.rows;
+
+    res.render("pages/functions/run-sheet", {
+      layout: "layouts/main",
+      hideChrome: true,
+      pageType: "run-sheet",
+      title: `Run Sheet - ${fn.event_name}`,
+      fn,
+      eventDate: fn.event_date,
+      startTime: fn.start_time,
+      endTime: fn.end_time,
+      attendees: fn.attendees,
+      roomName: fn.room_name,
+      notes: selectedNotes,
+      menus: selectedMenus,
+    });
+  } catch (err) {
+    console.error("[Run Sheet] Error:", err);
+    res.status(500).send("Failed to load run sheet");
+  }
+});
 
 /* =========================================================
    🧭 FUNCTION DETAIL VIEW — Full (Sidebar + Timeline, UUID Safe, Clean Version)
@@ -672,7 +929,9 @@ router.get("/:id", async (req, res) => {
       messagesRes,
       roomsRes,
       eventTypesRes,
-      usersRes
+      usersRes,
+      menuUpdatesRes,
+      proposalLookupRes,
     ] = await Promise.all([
       // Contacts
       pool.query(
@@ -696,15 +955,18 @@ router.get("/:id", async (req, res) => {
       pool.query(
         `
         SELECT 
-          n.id AS entry_id,
+          n.id,
           n.function_id,
           n.note_type,
           n.content AS body,
           n.created_at AS entry_date,
           n.updated_at,
-          u.name AS author
+          n.updated_by,
+          uc.name AS author,
+          uu.name AS updated_by_name
         FROM function_notes n
-        LEFT JOIN users u ON u.id = n.created_by
+        LEFT JOIN users uc ON uc.id = n.created_by
+        LEFT JOIN users uu ON uu.id = n.updated_by
         WHERE n.function_id = $1
         ORDER BY n.created_at DESC;
         `,
@@ -733,13 +995,16 @@ router.get("/:id", async (req, res) => {
       pool.query(
         `
         SELECT 
-          m.id AS entry_id,
+          m.id,
           m.subject,
+          m.body,
+          m.body_html,
+          m.message_type,
           m.created_at AS entry_date
         FROM messages m
         WHERE m.related_function = $1
         ORDER BY m.created_at DESC
-        LIMIT 5;
+        LIMIT 8;
         `,
         [functionId]
       ),
@@ -747,15 +1012,149 @@ router.get("/:id", async (req, res) => {
       // Static lookup data
       pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`),
       pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`),
-      pool.query(`SELECT id, name FROM users ORDER BY name ASC;`)
+      pool.query(`SELECT id, name FROM users ORDER BY name ASC;`),
+      pool.query(
+        `SELECT 
+           fmu.menu_id, 
+           fmu.updated_at, 
+           fmu.created_at,
+           u.name AS updated_by_name
+         FROM function_menu_updates fmu
+         LEFT JOIN users u ON u.id = fmu.updated_by
+        WHERE fmu.function_id = $1`,
+        [functionId]
+      ),
+      pool.query(
+        `SELECT p.id, p.status, p.created_at, p.updated_at, p.updated_by, u.name AS updated_by_name
+           FROM proposals p
+           LEFT JOIN users u ON u.id = p.updated_by
+          WHERE p.function_id = $1
+          ORDER BY p.created_at DESC
+          LIMIT 1;`,
+        [functionId]
+      ),
     ]);
 
     // 3️⃣ Build combined timeline entries
     const allEntries = [
-      ...notesRes.rows.map(n => ({ ...n, entry_type: "note" })),
-      ...tasksRes.rows.map(t => ({ ...t, entry_type: "task" })),
-      ...messagesRes.rows.map(m => ({ ...m, entry_type: "message" }))
+      ...notesRes.rows.map((n) => ({ ...n, entry_type: "note", entry_id: n.id })),
+      ...tasksRes.rows.map((t) => ({ ...t, entry_type: "task", entry_id: t.id })),
+      ...messagesRes.rows.map((m) => ({ ...m, entry_type: "message", entry_id: m.id })),
     ];
+
+    const activeProposal = proposalLookupRes.rows[0] || null;
+    let proposalItems = [];
+    let totalsRow = null;
+
+    if (activeProposal) {
+      const [itemsRes, totalsRes] = await Promise.all([
+        pool.query(
+          `SELECT id, description, unit_price
+             FROM proposal_items
+            WHERE proposal_id = $1
+            ORDER BY id ASC;`,
+          [activeProposal.id]
+        ),
+        pool.query(
+          `SELECT pt.subtotal,
+                  pt.gratuity_percent,
+                  pt.gratuity_amount,
+                  pt.discount_amount,
+                  pt.deposit_amount,
+                  pt.total_paid,
+                  pt.remaining_due,
+                  pt.created_at,
+                  pt.updated_at,
+                  pt.updated_by,
+                  u.name AS updated_by_name
+             FROM proposal_totals pt
+        LEFT JOIN users u ON u.id = pt.updated_by
+            WHERE pt.proposal_id = $1
+            LIMIT 1;`,
+          [activeProposal.id]
+        ),
+      ]);
+      proposalItems = itemsRes.rows;
+      totalsRow = totalsRes.rows[0] || null;
+    }
+
+    const menuAuditMap = new Map(
+      (menuUpdatesRes.rows || []).map((row) => [String(row.menu_id), row])
+    );
+    const menuItemsMap = buildMenuItemsByMenu(proposalItems);
+    const overviewMenus = summarizeProposalMenus(proposalItems).map((menu) => {
+      const audit = menuAuditMap.get(String(menu.id));
+      return {
+        ...menu,
+        audit: audit
+          ? {
+              updated_at: audit.updated_at,
+              created_at: audit.created_at,
+              initials: abbreviateName(audit.updated_by_name || ""),
+              name: audit.updated_by_name || "",
+            }
+          : null,
+        items: menuItemsMap.get(String(menu.id)) || [],
+      };
+    });
+
+    const totals =
+      totalsRow
+        ? {
+            ...totalsRow,
+            audit: {
+              updated_at: totalsRow.updated_at,
+              created_at: totalsRow.created_at,
+              initials: abbreviateName(totalsRow.updated_by_name || ""),
+              name: totalsRow.updated_by_name || "",
+            },
+          }
+        : buildFallbackTotals(proposalItems);
+    if (!totals.audit) {
+      totals.audit = null;
+    }
+
+    const overviewNotes = notesRes.rows.slice(0, 4).map((note) => {
+      const initials = abbreviateName(note.updated_by_name || note.author || "");
+      return {
+        ...note,
+        id: note.id,
+        type: note.note_type,
+        content: note.body,
+        title:
+          note.note_type === "call"
+            ? "Call"
+            : note.note_type
+            ? note.note_type.charAt(0).toUpperCase() + note.note_type.slice(1)
+            : "Note",
+        preview: safePreview(note.body),
+        updated_by_name: note.updated_by_name || note.author || "",
+        updated_by_initials: initials,
+      };
+    });
+
+    const communications = messagesRes.rows.map((message) => ({
+      id: message.id,
+      type: message.message_type || "email",
+      subject: message.subject || "Message",
+      preview: safePreview(message.body || message.body_html),
+      entry_date: message.entry_date,
+      link:
+        (message.message_type || "").toLowerCase() === "proposal"
+          ? `/functions/${functionId}/proposal/preview`
+          : `/functions/${functionId}/communications/${message.id}`,
+    }));
+
+    const proposalAudit = activeProposal
+      ? {
+          id: activeProposal.id,
+          status: activeProposal.status,
+          updated_at: activeProposal.updated_at,
+          created_at: activeProposal.created_at,
+          initials: abbreviateName(activeProposal.updated_by_name || ""),
+          name: activeProposal.updated_by_name || "",
+        }
+      : null;
 
     const grouped = allEntries.reduce((acc, entry) => {
       const dateKey = new Date(entry.entry_date).toISOString().split("T")[0];
@@ -775,6 +1174,13 @@ router.get("/:id", async (req, res) => {
       linkedContacts: linkedContactsRes.rows,
       notes: notesRes.rows,
       tasks: tasksRes.rows,
+      overviewNotes,
+      overviewMenus,
+      totals,
+      communications,
+      proposalId: activeProposal?.id || null,
+      proposalPreviewLink: activeProposal ? `/functions/${fn.id_uuid}/proposal/preview` : null,
+      proposalAuditData: proposalAudit,
       grouped,
       activeTab,
       rooms: roomsRes.rows,

@@ -60,7 +60,9 @@
           </div>
           <div>
             <label class="form-label">Content</label>
-            <textarea class="form-control" id="termContent" name="content" rows="10" placeholder="Write or paste the terms..."></textarea>
+            <input type="hidden" id="termContent" name="content">
+            <textarea class="form-control" id="termContentEditor" rows="10" placeholder="Write or paste the terms..."></textarea>
+            <div class="form-text">Paste from Word to keep formatting. Formatting is reused directly in proposals.</div>
           </div>
           <div class="d-flex flex-wrap gap-2 justify-content-end">
             <button type="button" class="btn btn-outline-secondary" id="termResetBtn">Reset</button>
@@ -73,6 +75,7 @@
   </div>
 </div>
 
+<script src="https://cdn.tiny.cloud/1/hldxbjqq1nr0mikqbsomim1mc6wki8b7z4c9kqpch6gnqc2x/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
 <script>
   window.proposalTermsData = <%- JSON.stringify(terms || []) %>;
 </script>

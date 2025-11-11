@@ -17,9 +17,39 @@
   };
   const startTime = formatTime(fn?.start_time);
   const endTime = formatTime(fn?.end_time);
+  const contactList = Array.isArray(contacts) ? contacts : [];
+  const resolveContactId = (contact) =>
+    contact?.id ?? contact?.contact_id ?? contact?.id_uuid ?? null;
+  const selectedContactIds = Array.isArray(saved?.includeContactIds)
+    ? saved.includeContactIds.map((id) => String(id))
+    : [];
+  let orderedContacts = [];
+  if (selectedContactIds.length) {
+    const orderMap = new Map(
+      selectedContactIds.map((id, index) => [String(id), index])
+    );
+    orderedContacts = contactList
+      .filter((contact) => {
+        const contactId = resolveContactId(contact);
+        return orderMap.has(String(contactId));
+      })
+      .sort((a, b) => {
+        const aIdx = orderMap.get(String(resolveContactId(a)));
+        const bIdx = orderMap.get(String(resolveContactId(b)));
+        return aIdx - bIdx;
+      });
+  } else if (contactList.length) {
+    orderedContacts = [...contactList].sort((a, b) => {
+      const primDelta =
+        Number(Boolean(b?.is_primary)) - Number(Boolean(a?.is_primary));
+      if (primDelta !== 0) return primDelta;
+      return (a?.name || "").localeCompare(b?.name || "");
+    });
+  }
   const primaryContact =
-    (contacts || []).find((contact) => contact.is_primary) ||
-    (contacts || [])[0] ||
+    orderedContacts[0] ||
+    contactList.find((c) => c.is_primary) ||
+    contactList[0] ||
     null;
   const printedDate = new Date().toLocaleDateString('en-NZ', {
     day: 'numeric',
@@ -56,30 +86,27 @@
 
 <div class="proposal-print container py-4">
   <header class="proposal-header card shadow-sm mb-4">
-    <div class="proposal-header__logos">
-      <img src="/img/logo.png" alt="Porirua Club" class="proposal-logo proposal-logo--primary">
+    <div class="proposal-header__logo proposal-header__logo--pc">
+      <img src="/img/Pclogotext.png" alt="Porirua Club" class="proposal-logo proposal-logo--primary">
     </div>
     <div class="proposal-header__meta">
-      <div class="proposal-header__date"><%= printedDate %></div>
-      <div class="proposal-header__title">
-        Proposal for <strong><%= fn.event_name %></strong>
-      </div>
-      <% if (primaryContact) { %>
-        <div class="proposal-header__contact">
-          Attn: <strong><%= primaryContact.name %></strong><br>
+      <div class="proposal-header__date"><%= eventDate %></div>
+      <div class="proposal-header__title"><strong><%= fn.event_name || 'Function Proposal' %></strong></div>
+      <div class="proposal-header__contact">
+        <div class="text-muted text-uppercase small letter-tight">Attention</div>
+        <% if (primaryContact) { %>
+          <strong><%= primaryContact.name %></strong>
           <% if (primaryContact.email) { %><span><%= primaryContact.email %></span><% } %>
           <% if (primaryContact.phone) { %><span><%= primaryContact.phone %></span><% } %>
-        </div>
-      <% } %>
-      <div class="proposal-header__details">
-        <div><strong>Event:</strong> <%= eventDate %></div>
-        <div><strong>Time:</strong> <%= startTime || '--:--' %> – <%= endTime || '--:--' %></div>
-        <% if (fn.room_name) { %>
-          <div><strong>Location:</strong> <%= fn.room_name %></div>
+        <% } else { %>
+          <span class="text-muted">No contact selected</span>
         <% } %>
       </div>
+      <div class="proposal-header__issued text-uppercase small text-muted">
+        Prepared <%= printedDate %>
+      </div>
     </div>
-    <div class="proposal-header__logos">
+    <div class="proposal-header__logo proposal-header__logo--eastwood">
       <img src="/img/EASTWOOD-LOGO-small.png" alt="Eastwood" class="proposal-logo proposal-logo--secondary">
     </div>
   </header>
@@ -89,10 +116,6 @@
       <div class="card-body">
         <h5 class="proposal-summary__title">Function Details</h5>
         <dl class="proposal-summary__list">
-          <div>
-            <dt>Event Name</dt>
-            <dd><%= fn.event_name %></dd>
-          </div>
           <div>
             <dt>Event Date</dt>
             <dd><%= eventDate %></dd>
@@ -120,96 +143,46 @@
         </dl>
       </div>
     </div>
-    <% if ((contacts || []).length) { %>
+    <% if ((orderedContacts || []).length) { %>
       <div class="proposal-summary-card card shadow-sm">
         <div class="card-body">
           <h5 class="proposal-summary__title">Contacts</h5>
           <ul class="proposal-contact-list">
-            <% contacts.forEach((contact) => { %>
+            <% orderedContacts.forEach((contact) => { %>
               <li>
-                <strong><%= contact.name %></strong><br>
-                <span><%= contact.email || '—' %></span>
+                <strong><%= contact.name %></strong>
+                <% if (contact.is_primary) { %>
+                  <span class="badge bg-secondary ms-2 text-uppercase">Primary</span>
+                <% } %>
+                <br>
+                <span><%= contact.email || 'No email' %></span>
                 <% if (contact.phone) { %><span><%= contact.phone %></span><% } %>
               </li>
             <% }) %>
           </ul>
         </div>
       </div>
+    <% } else { %>
+      <div class="proposal-summary-card card shadow-sm">
+        <div class="card-body d-flex align-items-center justify-content-center text-muted small">
+          No contacts linked to this function yet.
+        </div>
+      </div>
     <% } %>
   </section>
 
-  <section class="proposal-table-card card shadow-sm mb-4">
-    <div class="card-header bg-light fw-semibold">Menus &amp; Pricing</div>
-    <div class="card-body">
-      <div id="proposalPricing"></div>
-    </div>
+  <section id="proposalRoomHireSection" class="proposal-table-card proposal-section proposal-content-rail d-none">
+    <h5 class="proposal-category__title">Room Hire</h5>
+    <div id="proposalPricingRoomHire"></div>
   </section>
 
-  <section class="proposal-run-sheet card shadow-sm mb-4">
-    <div class="card-body">
-      <h5 class="proposal-run-sheet__title">Function Run Sheet</h5>
-      <ul class="proposal-run-sheet__list">
-        <li>Set up in <strong><%= fn.room_name || 'TBC' %></strong> from <strong><%= startTime || '--:--' %></strong></li>
-        <li>Guest arrival: <strong><%= startTime || '--:--' %></strong></li>
-        <li>Event concludes: <strong><%= endTime || '--:--' %></strong></li>
-      </ul>
-    </div>
-  </section>
-
-  <section class="proposal-financial card shadow-sm mb-4">
-    <div class="card-header bg-light fw-semibold">Financial Summary</div>
-    <div class="card-body">
-      <table class="proposal-financial__table">
-        <tbody>
-          <tr>
-            <td>Subtotal</td>
-            <td class="text-end"><%= currency(subtotal) %></td>
-          </tr>
-          <% if (gratuityAmount > 0) { %>
-            <tr>
-              <td>Gratuity (<%= gratuityPercent.toFixed(2) %>%)</td>
-              <td class="text-end"><%= currency(gratuityAmount) %></td>
-            </tr>
-          <% } %>
-          <% if (discountAmount > 0) { %>
-            <tr>
-              <td>Discount</td>
-              <td class="text-end">-<%= currency(discountAmount) %></td>
-            </tr>
-          <% } %>
-          <tr class="proposal-financial__highlight">
-            <td>Total (incl. GST)</td>
-            <td class="text-end"><%= currency(finalTotal) %></td>
-          </tr>
-          <tr>
-            <td>GST (included)</td>
-            <td class="text-end"><%= currency(gstPortion) %></td>
-          </tr>
-          <tr>
-            <td>Deposit Paid</td>
-            <td class="text-end">-<%= currency(depositAmount) %></td>
-          </tr>
-          <tr>
-            <td>Payments</td>
-            <td class="text-end">-<%= currency(totalPaid) %></td>
-          </tr>
-          <tr class="proposal-financial__total-due">
-            <td>Total Owing</td>
-            <td class="text-end"><%= currency(remainingDue) %></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <% if ((sections || []).length) { %>
-    <section class="proposal-notes card shadow-sm mb-4">
-      <div class="card-header bg-light fw-semibold">Additional Notes</div>
-      <div class="card-body vstack gap-3">
-        <% sections.forEach((section, idx) => { %>
-          <div>
-            <div class="fw-semibold mb-1">Section <%= idx + 1 %></div>
-            <% 
+  <section class="proposal-run-sheet proposal-flat proposal-content-rail">
+    <h5 class="proposal-run-sheet__title">Function Run Sheet</h5>
+    <% if ((sections || []).length) { %>
+      <div class="proposal-run-sheet__notes vstack gap-3">
+        <% sections.forEach((section) => { %>
+          <div class="proposal-run-sheet__entry">
+            <%
               const sectionBody = section?.content || '';
               const hasMarkup = /<[a-z][\s\S]*>/i.test(sectionBody);
               const renderedSection = hasMarkup ? sectionBody : formatPlain(sectionBody).replace(/\n/g, '<br>');
@@ -218,14 +191,70 @@
           </div>
         <% }) %>
       </div>
-    </section>
-  <% } %>
+    <% } else { %>
+      <div class="text-muted small">No function notes selected for this proposal.</div>
+    <% } %>
+  </section>
+
+  <section id="proposalCateringSection" class="proposal-table-card proposal-section proposal-catering-card proposal-content-rail d-none">
+    <h5 class="proposal-category__title">Catering</h5>
+    <div id="proposalPricingCatering"></div>
+  </section>
+
+  <section id="proposalOtherSection" class="proposal-table-card proposal-section proposal-content-rail d-none">
+    <h5 class="proposal-category__title">Additional Items</h5>
+    <div id="proposalPricingOther"></div>
+  </section>
+
+  <section class="proposal-financial proposal-flat proposal-content-rail">
+    <h5 class="proposal-financial__title">Financial Summary</h5>
+    <table class="proposal-table__grid proposal-financial__table">
+      <tbody>
+        <tr>
+          <td>Subtotal</td>
+          <td class="text-end"><%= currency(subtotal) %></td>
+        </tr>
+        <% if (gratuityAmount > 0) { %>
+          <tr>
+            <td>Gratuity (<%= gratuityPercent.toFixed(2) %>%)</td>
+            <td class="text-end"><%= currency(gratuityAmount) %></td>
+          </tr>
+        <% } %>
+        <% if (discountAmount > 0) { %>
+          <tr>
+            <td>Discount</td>
+            <td class="text-end">-<%= currency(discountAmount) %></td>
+          </tr>
+        <% } %>
+        <tr class="proposal-financial__highlight">
+          <td>Total (incl. GST)</td>
+          <td class="text-end"><%= currency(finalTotal) %></td>
+        </tr>
+        <tr>
+          <td>GST (included)</td>
+          <td class="text-end"><%= currency(gstPortion) %></td>
+        </tr>
+        <tr>
+          <td>Deposit Paid</td>
+          <td class="text-end">-<%= currency(depositAmount) %></td>
+        </tr>
+        <tr>
+          <td>Payments</td>
+          <td class="text-end">-<%= currency(totalPaid) %></td>
+        </tr>
+        <tr class="proposal-financial__total-due">
+          <td>Total Owing</td>
+          <td class="text-end"><%= currency(remainingDue) %></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
 
   <% if (terms) { %>
     <section class="proposal-terms card shadow-sm page-break">
       <div class="card-header bg-light fw-semibold">Terms &amp; Conditions</div>
       <div class="card-body proposal-terms__body small">
-        <%- formatPlain(terms).replace(/\n/g, '<br>') %>
+        <%- terms %>
       </div>
     </section>
   <% } %>
@@ -248,8 +277,13 @@
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const source = document.getElementById('previewItemsSource');
-    const pricingMount = document.getElementById('proposalPricing');
-    if (!source || !pricingMount) return;
+    const roomMount = document.getElementById('proposalPricingRoomHire');
+    const cateringMount = document.getElementById('proposalPricingCatering');
+    const otherMount = document.getElementById('proposalPricingOther');
+    const roomSection = document.getElementById('proposalRoomHireSection');
+    const cateringSection = document.getElementById('proposalCateringSection');
+    const otherSection = document.getElementById('proposalOtherSection');
+    if (!source) return;
 
     const parseMeta = (text) => {
       const meta = {};
@@ -312,28 +346,32 @@
       return categories;
     }
 
-    function render() {
-      const categories = buildModel();
-      pricingMount.innerHTML = '';
-      if (!categories.size) {
-        pricingMount.innerHTML = '<p class="text-muted mb-0 small">No menu items have been added.</p>';
+    function renderGroup(entries, mount, section, options = {}) {
+      const hideTitles = Boolean(options.hideTitles);
+      if (!mount || !section) return;
+      mount.innerHTML = '';
+      if (!entries.length) {
+        section.classList.add('d-none');
         return;
       }
+      section.classList.remove('d-none');
 
-      categories.forEach((menus, categoryName) => {
+      entries.forEach(([categoryName, menus]) => {
         const wrapper = document.createElement('div');
         wrapper.className = 'proposal-category';
-        wrapper.innerHTML = `<h5 class="proposal-category__title">${categoryName}</h5>`;
+        if (categoryName && !hideTitles) {
+          wrapper.innerHTML = `<h5 class="proposal-category__title">${categoryName}</h5>`;
+        }
 
         const table = document.createElement('table');
         table.className = 'proposal-table__grid';
         table.innerHTML = `
           <thead>
             <tr>
-              <th>Item</th>
-              <th style="width: 80px;">Qty</th>
-              <th style="width: 140px;">Price Each</th>
-              <th style="width: 140px;">Total</th>
+              <th class="proposal-cell--item">Item</th>
+              <th class="proposal-cell--qty">Qty</th>
+              <th class="proposal-cell--price">Price Each</th>
+              <th class="proposal-cell--total">Total</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -341,18 +379,14 @@
         const tbody = table.querySelector('tbody');
 
         menus.forEach((menu) => {
-          const menuRow = document.createElement('tr');
-          menuRow.className = 'proposal-table__menu';
-          menuRow.innerHTML = `<td colspan="4">${menu.title}</td>`;
-          tbody.appendChild(menuRow);
-
           if (Number(menu.basePrice || 0) > 0) {
+            const baseLabel = menu.title || 'Package';
             const baseRow = document.createElement('tr');
             baseRow.innerHTML = `
-              <td>${menu.title} Package</td>
-              <td>1</td>
-              <td>${formatCurrency(menu.basePrice)}</td>
-              <td>${formatCurrency(menu.basePrice)}</td>
+              <td class="proposal-cell proposal-cell--item">${baseLabel}</td>
+              <td class="proposal-cell proposal-cell--qty">1</td>
+              <td class="proposal-cell proposal-cell--price">${formatCurrency(menu.basePrice)}</td>
+              <td class="proposal-cell proposal-cell--total">${formatCurrency(menu.basePrice)}</td>
             `;
             tbody.appendChild(baseRow);
           }
@@ -361,18 +395,40 @@
             const row = document.createElement('tr');
             const label = item.isAddon ? `${item.name} (Add-on)` : item.name;
             row.innerHTML = `
-              <td>${label}</td>
-              <td>${item.qty || 1}</td>
-              <td>${formatCurrency(item.priceEach)}</td>
-              <td>${formatCurrency(item.price)}</td>
+              <td class="proposal-cell proposal-cell--item">${label}</td>
+              <td class="proposal-cell proposal-cell--qty">${item.qty || 1}</td>
+              <td class="proposal-cell proposal-cell--price">${formatCurrency(item.priceEach)}</td>
+              <td class="proposal-cell proposal-cell--total">${formatCurrency(item.price)}</td>
             `;
             tbody.appendChild(row);
           });
         });
 
         wrapper.appendChild(table);
-        pricingMount.appendChild(wrapper);
+        mount.appendChild(wrapper);
       });
+    }
+
+    function render() {
+      const categories = buildModel();
+      if (!categories.size) {
+        [roomSection, cateringSection, otherSection]
+          .filter(Boolean)
+          .forEach((section) => section.classList.add('d-none'));
+        return;
+      }
+
+      const entries = Array.from(categories.entries());
+      const normalize = (name = '') => name.trim().toLowerCase();
+      const roomEntries = entries.filter(([name]) => normalize(name) === 'room hire');
+      const cateringEntries = entries.filter(([name]) => normalize(name) === 'catering');
+      const otherEntries = entries.filter(
+        ([name]) => normalize(name) !== 'room hire' && normalize(name) !== 'catering'
+      );
+
+      renderGroup(roomEntries, roomMount, roomSection, { hideTitles: true });
+      renderGroup(cateringEntries, cateringMount, cateringSection, { hideTitles: true });
+      renderGroup(otherEntries, otherMount, otherSection);
     }
 
     render();

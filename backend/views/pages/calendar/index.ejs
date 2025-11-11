@@ -1,0 +1,116 @@
+<% const roomsList = Array.isArray(rooms) ? rooms : []; %>
+
+<script>
+  window.calendarConfig = Object.assign({}, window.calendarConfig || {}, <%- JSON.stringify(calendarConfig || {}) %>);
+</script>
+
+<div class="calendar-page px-4 py-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3 no-print">
+    <div class="flex-grow-1">
+      <h1 class="page-title mb-1">
+        <span>Function Calendar</span>
+        <span class="calendar-view-label" id="calendarViewLabel"></span>
+      </h1>
+      <p class="text-muted mb-0">Track room bookings across functions, restaurant reservations, and club events.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2 justify-content-end align-items-center">
+      <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="exitDayViewBtn">
+        Back to overview
+      </button>
+      <button type="button" class="btn btn-primary btn-sm" id="calendarPrintBtn">
+        <i class="bi bi-printer me-1"></i> Print calendar
+      </button>
+    </div>
+  </div>
+
+  <div class="calendar-print-title" id="calendarPrintTitle"></div>
+
+  <section class="calendar-controls card shadow-sm p-3 mb-4 no-print">
+    <div class="calendar-room-toggle mb-4">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <label class="form-label mb-0">Rooms / Spaces</label>
+        <small class="text-muted">Click to toggle rooms. All are shown by default.</small>
+      </div>
+      <% if (!roomsList.length) { %>
+        <p class="text-muted small mb-0">No rooms have been set up yet.</p>
+      <% } else { %>
+        <div class="calendar-room-grid" role="group" aria-label="Room filters">
+          <% roomsList.forEach(function(room) { %>
+            <button type="button" class="btn btn-outline-secondary btn-sm calendar-room-btn active" data-room-id="<%= room.id %>" aria-pressed="true">
+              <%= room.name %>
+            </button>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+    <div class="row g-3 align-items-center">
+      <div class="col-12 col-md-8">
+        <span class="form-label d-block">Show bookings</span>
+        <div class="btn-group flex-wrap" role="group" aria-label="Calendar source filters">
+          <input class="btn-check" type="checkbox" id="toggleFunctions" data-calendar-type="functions" checked>
+          <label class="btn btn-outline-primary btn-sm" for="toggleFunctions">Functions</label>
+
+          <input class="btn-check" type="checkbox" id="toggleRestaurant" data-calendar-type="restaurant">
+          <label class="btn btn-outline-primary btn-sm" for="toggleRestaurant">Restaurant</label>
+
+          <input class="btn-check" type="checkbox" id="toggleEvents" data-calendar-type="events">
+          <label class="btn btn-outline-primary btn-sm" for="toggleEvents">Club events</label>
+        </div>
+        <small class="text-muted d-block mt-1">Restaurant &amp; club events will be surfaced here soon.</small>
+      </div>
+      <div class="col-12 col-md-4 text-md-end">
+        <button class="btn btn-light w-100 w-md-auto" id="calendarClearFilters">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>
+          Reset filters
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="calendar-wrapper card shadow-sm p-3">
+    <div id="functionCalendar" class="calendar-shell" aria-live="polite"></div>
+  </section>
+</div>
+
+<!-- Event Snapshot Modal -->
+<div class="modal fade" id="calendarEventModal" tabindex="-1" aria-labelledby="calendarEventLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <p class="text-muted text-uppercase small mb-1">Booking Snapshot</p>
+          <h5 class="modal-title mb-0" id="calendarEventLabel" data-calendar-field="title">Function</h5>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-3 text-muted small text-uppercase">Date &amp; time</dt>
+          <dd class="col-sm-9 fw-semibold" data-calendar-field="schedule">--</dd>
+
+          <dt class="col-sm-3 text-muted small text-uppercase">Room</dt>
+          <dd class="col-sm-9" data-calendar-field="room">--</dd>
+
+          <dt class="col-sm-3 text-muted small text-uppercase">Status</dt>
+          <dd class="col-sm-9">
+            <span class="badge rounded-pill bg-light text-dark" data-calendar-field="status">--</span>
+          </dd>
+
+          <dt class="col-sm-3 text-muted small text-uppercase">Primary contact</dt>
+          <dd class="col-sm-9" data-calendar-field="contact">--</dd>
+
+          <dt class="col-sm-3 text-muted small text-uppercase">Guests</dt>
+          <dd class="col-sm-9" data-calendar-field="attendees">--</dd>
+        </dl>
+      </div>
+      <div class="modal-footer justify-content-between">
+        <div class="text-muted small">Click “Open function” to jump to the full details.</div>
+        <div class="d-flex gap-2">
+          <a href="#" target="_blank" rel="noopener" class="btn btn-outline-secondary" data-calendar-action="open-function">
+            Open function
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -159,6 +159,12 @@
           <input type="text" class="form-control" id="choiceName" required placeholder="e.g., Beef Main">
         </div>
 
+        <div class="mb-3">
+          <label for="optionName" class="form-label">Option label</label>
+          <input type="text" class="form-control" id="optionName" placeholder="Shown to customers; defaults to choice name.">
+          <div class="form-text">Auto-fills from the choice name but can be overridden (e.g. friendly platter title).</div>
+        </div>
+
         <!-- Price + Unit -->
         <div class="row g-3">
           <div class="col-lg-4 col-sm-6">
@@ -175,7 +181,18 @@
               <option value="">- none -</option>
               <!-- options populated by JS -->
             </select>
+            <div class="form-text">Friendly labels like PP / each.</div>
           </div>
+        </div>
+
+        <div class="mt-3">
+          <button type="button" class="btn btn-link btn-sm px-0 text-decoration-none text-secondary" id="choiceDescriptionToggle">
+            <i class="bi bi-chat-square-text me-1"></i> Add description
+          </button>
+        </div>
+        <div id="choiceDescriptionWrap" class="d-none">
+          <label for="choiceDescription" class="form-label">Description</label>
+          <textarea id="choiceDescription" class="form-control" rows="3" placeholder="Optional notes (kept within internal builder unless added to proposal)."></textarea>
         </div>
       </div>
 

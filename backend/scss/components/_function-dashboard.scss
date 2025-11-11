@@ -1,3 +1,4 @@
+@use "sass:color";
 @use "../core/variables" as *;
 
 .function-dashboard {
@@ -179,37 +180,37 @@
     color: $brand-dark;
 
     &:hover {
-      background: mix($brand-soft, $white, 70%);
+      background: color.mix($brand-soft, $white, $weight: 70%);
     }
   }
 
   // 🟡 Qualified — warm golden tone
   &.status-qualified {
     border-color: $warning;
-    color: mix($warning, $neutral-700, 40%);
+    color: color.mix($warning, $neutral-700, $weight: 40%);
 
     &:hover {
-      background: mix($warning, $white, 80%);
+      background: color.mix($warning, $white, $weight: 80%);
     }
   }
 
   // 🟢 Confirmed — positive green outline
   &.status-confirmed {
     border-color: $success;
-    color: mix($success, $neutral-700, 35%);
+    color: color.mix($success, $neutral-700, $weight: 35%);
 
     &:hover {
-      background: mix($success, $white, 80%);
+      background: color.mix($success, $white, $weight: 80%);
     }
   }
 
   // 🔵 Balance Due — calm teal accent
   &.status-balance_due {
     border-color: $info;
-    color: mix($info, $neutral-700, 40%);
+    color: color.mix($info, $neutral-700, $weight: 40%);
 
     &:hover {
-      background: mix($info, $white, 80%);
+      background: color.mix($info, $white, $weight: 80%);
     }
   }
 
@@ -226,10 +227,10 @@
   // 🔹 Active — soft brand outline
   &.status-active {
     border-color: $brand-dark;
-    color: mix($brand-dark, $neutral-700, 40%);
+    color: color.mix($brand-dark, $neutral-700, $weight: 40%);
 
     &:hover {
-      background: mix($brand-soft, $white, 75%);
+      background: color.mix($brand-soft, $white, $weight: 75%);
     }
   }
 }

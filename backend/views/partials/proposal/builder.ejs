@@ -16,7 +16,18 @@
     typeof builderDescription !== 'undefined'
       ? builderDescription
       : 'Choose what flows through to the customer proposal, including notes, contacts, and terms.';
-  const builderContacts = contacts || [];
+const statusOptions = Array.isArray(proposalStatusOptions) && proposalStatusOptions.length
+  ? proposalStatusOptions
+  : ['draft', 'sent', 'approved', 'declined'];
+const currentStatus = (proposalStatus || statusOptions[0] || 'draft').toLowerCase();
+const builderContacts = Array.isArray(contacts)
+  ? [...contacts].sort((a, b) => {
+      const primaryDelta =
+        Number(Boolean(b?.is_primary)) - Number(Boolean(a?.is_primary));
+      if (primaryDelta !== 0) return primaryDelta;
+      return (a?.name || '').localeCompare(b?.name || '');
+    })
+  : [];
   const builderSections = ((saved && saved.sections) ? saved.sections : []).map((section) => ({
     content: section?.content || '',
   }));
@@ -29,22 +40,36 @@
   const proposalCount = (proposalItems || []).length;
 %>
 
-<section class="proposal-builder-card" data-proposal-builder data-builder-id="<%= resolvedBuilderId %>" data-function-id="<%= fn.id_uuid %>" data-proposal-id="<%= proposalId || '' %>" data-attendees="<%= Number(fn.attendees || 0) %>">
+<section class="proposal-builder-card" data-proposal-builder data-builder-id="<%= resolvedBuilderId %>" data-function-id="<%= fn.id_uuid %>" data-proposal-id="<%= proposalId || '' %>" data-attendees="<%= Number(fn.attendees || 0) %>" data-proposal-status="<%= currentStatus %>">
   <div class="proposal-builder__intro d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
     <div>
       <p class="proposal-builder__title mb-1"><%= resolvedBuilderHeading %></p>
       <p class="proposal-builder__subtitle mb-0 text-muted"><%= resolvedBuilderDescription %></p>
     </div>
-    <div class="btn-toolbar gap-2">
-      <button type="button" class="btn btn-outline-primary btn-sm" data-role="preview-btn" <%= proposalId ? '' : 'disabled' %>>
-        <i class="bi bi-eye me-1"></i> Preview
-      </button>
-      <button type="button" class="btn btn-outline-secondary btn-sm" data-role="print-btn" <%= proposalId ? '' : 'disabled' %>>
-        <i class="bi bi-printer me-1"></i> Print
-      </button>
-      <button type="button" class="btn btn-success btn-sm" data-role="save-btn">
-        <i class="bi bi-save me-1"></i> Save
-      </button>
+    <div class="d-flex flex-column flex-lg-row gap-3 align-items-lg-center">
+      <div class="d-flex flex-column flex-sm-row gap-2 align-items-sm-center">
+        <label class="form-label mb-0 small text-muted">Proposal status</label>
+        <div class="input-group input-group-sm" style="width: 220px;">
+          <select class="form-select" data-role="proposal-status" <%= proposalId ? '' : 'disabled' %>>
+            <% statusOptions.forEach(function (status) { %>
+              <% const value = String(status || '').toLowerCase(); %>
+              <option value="<%= value %>" <%= currentStatus === value ? 'selected' : '' %>><%= value.charAt(0).toUpperCase() + value.slice(1) %></option>
+            <% }) %>
+          </select>
+          <button class="btn btn-outline-secondary" type="button" data-role="proposal-status-save" <%= proposalId ? '' : 'disabled' %>>Update</button>
+        </div>
+      </div>
+      <div class="btn-toolbar gap-2">
+        <button type="button" class="btn btn-outline-primary btn-sm" data-role="preview-btn" <%= proposalId ? '' : 'disabled' %>>
+          <i class="bi bi-eye me-1"></i> Preview
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-role="print-btn" <%= proposalId ? '' : 'disabled' %>>
+          <i class="bi bi-printer me-1"></i> Print
+        </button>
+        <button type="button" class="btn btn-success btn-sm" data-role="save-btn">
+          <i class="bi bi-save me-1"></i> Save
+        </button>
+      </div>
     </div>
   </div>
 
@@ -157,10 +182,10 @@
 </section>
 
 <script>
-  window.savedProposalState = Object.assign(
-    { includeItemIds: [], includeContactIds: [], sections: [], terms: '', termIds: [] },
-    <%- JSON.stringify(saved || { includeItemIds: [], includeContactIds: [], sections: [], terms: '', termIds: [] }) %>
-  );
+window.savedProposalState = Object.assign(
+  { includeItemIds: [], includeContactIds: [], sections: [], terms: '', termIds: [], termIdsExplicit: false },
+  <%- JSON.stringify(saved || { includeItemIds: [], includeContactIds: [], sections: [], terms: '', termIds: [], termIdsExplicit: false }) %>
+);
 </script>
 
 <script>

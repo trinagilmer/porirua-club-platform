@@ -1,3 +1,5 @@
+@use "sass:color";
+
 // ==============================================
 // 📬 Inbox Styles (Smart Lead/Linked UI)
 // ==============================================
@@ -118,7 +120,7 @@ $transition-fast: 0.15s ease;
         }
 
         &.unlinked {
-          color: darken($unlinked-color, 10%);
+          color: color.adjust($unlinked-color, $lightness: -10%);
         }
       }
 

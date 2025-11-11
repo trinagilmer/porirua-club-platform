@@ -1,0 +1,201 @@
+@use "../core/variables" as *;
+.calendar-page {
+  .page-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.75rem;
+  }
+}
+
+.calendar-controls,
+.calendar-wrapper {
+  border-radius: 0.75rem;
+}
+
+.calendar-view-label {
+  font-size: 0.9rem;
+  color: #475569;
+  font-weight: 500;
+}
+
+.calendar-print-title {
+  display: none;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 3mm;
+}
+
+.calendar-room-toggle {
+  .calendar-room-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.5rem;
+  }
+
+  .calendar-room-btn {
+    &.active {
+      background-color: $brand;
+      border-color: $brand;
+      color: #fff;
+      box-shadow: none;
+    }
+  }
+}
+
+#functionCalendar {
+  min-height: 600px;
+}
+
+.calendar-shell {
+  .fc {
+    --fc-border-color: #e5e7eb;
+    --fc-event-bg-color: #6bb4de;
+    --fc-event-border-color: #6bb4de;
+    --fc-page-bg-color: #fff;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  .fc-event {
+    border-radius: 0.5rem;
+    padding: 2px 6px;
+    font-weight: 500;
+  }
+}
+
+.calendar-event-card {
+  background-color: #fff !important;
+  color: #0f172a !important;
+  border: 1px solid #dbe1ea !important;
+  border-left: 4px solid var(--calendar-event-accent, #6bb4de) !important;
+  border-radius: 10px !important;
+  padding: 6px 8px !important;
+  white-space: normal !important;
+  line-height: 1.2;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+
+  .fc-event-time {
+    display: block;
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-bottom: 2px;
+  }
+
+  .fc-event-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #0f172a;
+    white-space: normal;
+  }
+}
+
+@media print {
+  body {
+    background: #fff !important;
+  }
+
+  .main-header,
+  .calendar-controls,
+  .calendar-room-toggle,
+  #calendarPrintBtn,
+  .nav-links,
+  .overview-toolbar {
+    display: none !important;
+  }
+
+  .calendar-page {
+    padding: 7mm !important;
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 14mm);
+
+    .page-title {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 1.5mm;
+    }
+
+    .calendar-print-title {
+      display: block;
+      page-break-after: avoid !important;
+      margin-bottom: 3mm;
+      font-size: 14px;
+    }
+  }
+
+  .calendar-wrapper {
+    box-shadow: none !important;
+    border: none !important;
+    flex: 1;
+    min-height: calc(100vh - 20mm);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .calendar-page .card {
+    border: none;
+  }
+
+  .calendar-shell .fc-toolbar,
+  .calendar-shell .fc-header-toolbar {
+    display: none !important;
+  }
+
+  #functionCalendar {
+    min-height: auto;
+    margin-top: 0 !important;
+    page-break-inside: avoid !important;
+    font-size: 0.6rem;
+    width: 100% !important;
+    flex: 1;
+  }
+
+  #functionCalendar .fc-view-harness,
+  #functionCalendar .fc-scrollgrid,
+  #functionCalendar .fc-daygrid,
+  #functionCalendar .fc-timegrid-body {
+    min-height: auto !important;
+    page-break-inside: avoid !important;
+    width: 100% !important;
+  }
+
+  .calendar-shell .fc-daygrid,
+  .calendar-shell .fc-scrollgrid {
+    table-layout: fixed !important;
+  }
+
+  .calendar-shell .fc-daygrid-day {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .calendar-shell .fc-daygrid-day-frame,
+  .calendar-shell .fc-daygrid-day-top {
+    padding: 1px !important;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .calendar-shell .fc-daygrid-day-number {
+    font-size: 0.6rem !important;
+  }
+
+  #functionCalendar .fc-timegrid-slot {
+    height: 1.1rem !important;
+  }
+
+  .calendar-shell .fc-daygrid-event {
+    font-size: 0.6rem !important;
+    padding: 1px 1.5px !important;
+    margin: 0 0 1px 0 !important;
+  }
+
+  .calendar-shell .fc-timegrid-now-indicator-line,
+  .calendar-shell .fc-timegrid-now-indicator-arrow,
+  .calendar-shell .fc-now-indicator {
+    display: none !important;
+  }
+}

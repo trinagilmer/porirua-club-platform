@@ -44,11 +44,14 @@ router.get("/functions/:id/notes", async (req, res) => {
          n.content_json,
          n.rendered_html,
          n.created_by,
+         n.updated_by,
          n.created_at,
          n.updated_at,
-         u.name AS author_name
+         uc.name AS author_name,
+         uu.name AS updated_by_name
        FROM function_notes n
-       LEFT JOIN users u ON u.id = n.created_by
+       LEFT JOIN users uc ON uc.id = n.created_by
+       LEFT JOIN users uu ON uu.id = n.updated_by
        WHERE n.function_id = $1
        ORDER BY n.created_at DESC;`,
       [functionId]
@@ -132,9 +135,9 @@ router.post("/functions/:id/notes/new", async (req, res) => {
   try {
     await pool.query(
       `INSERT INTO function_notes
-         (function_id, content, content_json, rendered_html, note_type, created_by, created_at)
+         (function_id, content, content_json, rendered_html, note_type, created_by, updated_by, created_at, updated_at)
        VALUES
-         ($1, $2, $3, $4, COALESCE($5, 'general'), $6, NOW());`,
+         ($1, $2, $3, $4, COALESCE($5, 'general'), $6, $6, NOW(), NOW());`,
       [
         functionId,
         content || null,
@@ -160,6 +163,7 @@ router.post("/functions/:id/notes/new", async (req, res) => {
 router.post("/functions/notes/:noteId/update", async (req, res) => {
   const { noteId } = req.params;
   const { content, content_json, rendered_html, note_type } = req.body;
+  const userId = req.session.user?.id || null;
 
   try {
     await pool.query(
@@ -168,9 +172,17 @@ router.post("/functions/notes/:noteId/update", async (req, res) => {
               content_json  = COALESCE($2, content_json),
               rendered_html = COALESCE($3, rendered_html),
               note_type     = COALESCE($4, note_type),
-              updated_at    = NOW()
-        WHERE id = $5;`,
-      [content || null, content_json || null, rendered_html || null, note_type || null, noteId]
+              updated_at    = NOW(),
+              updated_by    = COALESCE($5, updated_by)
+        WHERE id = $6;`,
+      [
+        content || null,
+        content_json || null,
+        rendered_html || null,
+        note_type || null,
+        userId,
+        noteId,
+      ]
     );
 
     console.log(`✏️ [Notes UPDATE] Note ${noteId} updated`);

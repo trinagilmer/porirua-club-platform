@@ -68,7 +68,14 @@
         class="editable"
         data-field="event_date"
         data-id="<%= fn.id_uuid %>"
-        value="<%= fn.event_date ? new Date(fn.event_date).toISOString().split('T')[0] : '' %>"
+        value="<%= (() => {
+          if (!fn.event_date) return '';
+          const d = new Date(fn.event_date);
+          if (isNaN(d.getTime())) return '';
+          const tzOffset = d.getTimezoneOffset() * 60000;
+          const local = new Date(d.getTime() - tzOffset);
+          return local.toISOString().split('T')[0];
+        })() %>"
       >
     </div>
 
@@ -170,3 +177,4 @@
   </section>
   </div> <!-- /sidebar-scroll-container -->
 </aside>
+
