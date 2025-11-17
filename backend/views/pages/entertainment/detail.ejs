@@ -1,0 +1,72 @@
+<div class="container py-5">
+  <div class="row g-4">
+    <div class="col-lg-7">
+      <article class="card shadow-sm overflow-hidden">
+        <% if (event.image_url) { %>
+          <img src="<%= event.image_url %>" class="w-100" alt="<%= event.title %>" loading="lazy" style="max-height: 400px; object-fit: cover;">
+        <% } %>
+        <div class="card-body">
+          <p class="text-muted text-uppercase small mb-1"><%= new Date(event.start_at).toLocaleDateString('en-NZ', { weekday: 'long', month: 'long', day: 'numeric' }) %></p>
+          <h1 class="card-title mb-3"><%= event.title %></h1>
+          <% if (event.adjunct_name) { %>
+            <p class="mb-2"><strong>Featuring:</strong> <%= event.adjunct_name %></p>
+          <% } %>
+          <p class="text-muted mb-4"><%= new Date(event.start_at).toLocaleDateString('en-NZ', { dateStyle: 'full' }) %> · <%= event.start_at ? new Date(event.start_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' }) : '' %></p>
+          <% if (event.price) { %>
+            <p class="fs-4 fw-semibold"><%= Number(event.price).toLocaleString('en-NZ', { style: 'currency', currency: event.currency || 'NZD' }) %></p>
+          <% } %>
+          <% if (event.acts && event.acts.length) { %>
+            <div class="mb-3">
+              <h5 class="mb-1">Acts</h5>
+              <ul class="list-unstyled mb-0">
+                <% event.acts.forEach(function(act) { %>
+                  <li><strong><%= act.name %></strong> <% if (act.external_url) { %>- <a href="<%= act.external_url %>" target="_blank" rel="noopener">Learn more</a><% } %></li>
+                <% }) %>
+              </ul>
+            </div>
+          <% } %>
+          <% if (event.description) { %>
+            <div class="prose text-muted"><%- event.description %></div>
+          <% } %>
+          <% if (event.external_url) { %>
+            <a href="<%= event.external_url %>" target="_blank" rel="noopener" class="btn btn-outline-primary mt-3">
+              Visit event page
+            </a>
+          <% } %>
+        </div>
+      </article>
+    </div>
+    <div class="col-lg-5">
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="mb-3">Event details</h5>
+          <dl class="row mb-0">
+            <dt class="col-sm-5">Organiser</dt>
+            <dd class="col-sm-7"><%= event.organiser || 'Porirua Club' %></dd>
+            <dt class="col-sm-5">Start</dt>
+            <dd class="col-sm-7"><%= event.start_at ? new Date(event.start_at).toLocaleString('en-NZ') : 'TBC' %></dd>
+            <% if (event.end_at) { %>
+              <dt class="col-sm-5">End</dt>
+              <dd class="col-sm-7"><%= new Date(event.end_at).toLocaleString('en-NZ') %></dd>
+            <% } %>
+            <dt class="col-sm-5">Status</dt>
+            <dd class="col-sm-7 text-capitalize"><%= event.status %></dd>
+          </dl>
+        </div>
+      </div>
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="mb-3">Share</h5>
+          <div class="d-flex gap-2">
+            <a href="https://www.facebook.com/sharer/sharer.php?u=<%= encodeURIComponent(shareUrl || '') %>" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-facebook me-1"></i> Facebook
+            </a>
+            <a href="mailto:?subject=<%= encodeURIComponent(event.title) %>&body=<%= encodeURIComponent('Check out this event: ' + (shareUrl || '')) %>" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-envelope-open me-1"></i> Email
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

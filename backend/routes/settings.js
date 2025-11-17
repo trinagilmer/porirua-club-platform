@@ -8,6 +8,10 @@
 const express = require("express");
 const router = express.Router();
 const { pool } = require("../db");
+const path = require("path");
+const fs = require("fs");
+const multer = require("multer");
+const recurrenceService = require("../services/recurrenceService");
 
 const CALENDAR_SLOT_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
 const DEFAULT_CALENDAR_SLOT = 30;
@@ -58,6 +62,59 @@ function parseOptionalInteger(value) {
   if (value === undefined || value === null || value === "") return null;
   const parsed = parseInt(value, 10);
   return Number.isNaN(parsed) ? null : parsed;
+}
+
+function parseIdArray(value) {
+  if (!value && value !== 0) return [];
+  const arr = Array.isArray(value) ? value : [value];
+  return arr
+    .map((entry) => parseInt(entry, 10))
+    .filter((num) => Number.isInteger(num));
+}
+
+function slugify(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .substring(0, 80);
+}
+
+function combineDateAndTime(dateValue, timeValue) {
+  if (!dateValue) return null;
+  const datePart = String(dateValue).trim();
+  if (!timeValue) return new Date(`${datePart}T00:00:00Z`).toISOString();
+  return new Date(`${datePart}T${timeValue}:00Z`).toISOString();
+}
+
+const entertainmentUploadsDir = path.join(__dirname, "..", "public", "uploads", "entertainment");
+if (!fs.existsSync(entertainmentUploadsDir)) {
+  fs.mkdirSync(entertainmentUploadsDir, { recursive: true });
+}
+
+const entertainmentImageStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, entertainmentUploadsDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const safeName = slugify(path.basename(file.originalname, ext)) || "entertainment";
+    cb(null, `${safeName}-${Date.now()}${ext}`);
+  },
+});
+
+const entertainmentImageUpload = multer({
+  storage: entertainmentImageStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+async function syncEntertainmentEventActs(eventId, actIds, db = pool) {
+  await db.query(`DELETE FROM entertainment_event_acts WHERE event_id = $1;`, [eventId]);
+  if (!actIds?.length) return;
+  const values = actIds.map((_, idx) => `($1, $${idx + 2})`).join(",");
+  await db.query(`INSERT INTO entertainment_event_acts (event_id, act_id) VALUES ${values};`, [
+    eventId,
+    ...actIds,
+  ]);
 }
 
 // Use the settings layout for everything in this router
@@ -1189,5 +1246,357 @@ router.post("/calendar", ensurePrivileged, async (req, res) => {
     req.flash("flashMessage", "Failed to update calendar settings.");
     req.flash("flashType", "error");
     res.redirect("/settings/calendar");
+  }
+});
+
+/* =========================================================
+   🎤 ENTERTAINMENT EVENTS SETTINGS
+========================================================= */
+router.get("/entertainment", ensurePrivileged, async (req, res) => {
+  try {
+    const eventsRes = await pool.query(
+      `
+      SELECT e.*,
+             uc.name AS created_by_name,
+             uu.name AS updated_by_name,
+             COALESCE(
+               json_agg(
+                 json_build_object('id', a.id, 'name', a.name)
+                 ORDER BY a.name
+               ) FILTER (WHERE a.id IS NOT NULL),
+               '[]'
+             ) AS acts
+        FROM entertainment_events e
+        LEFT JOIN users uc ON uc.id = e.created_by
+        LEFT JOIN users uu ON uu.id = e.updated_by
+        LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
+        LEFT JOIN entertainment_acts a ON a.id = ea.act_id
+       GROUP BY e.id, uc.name, uu.name
+       ORDER BY e.start_at DESC;
+      `
+    );
+    const actsRes = await pool.query(
+      `SELECT id, name, external_url FROM entertainment_acts ORDER BY name ASC;`
+    );
+    const prefillEntertainment = {
+      title: req.query.title || "",
+      start_date: req.query.prefill_date || req.query.start_date || "",
+      start_time: req.query.prefill_time || req.query.start_time || "",
+    };
+    res.render("settings/entertainment", {
+      layout: "layouts/settings",
+      title: "Settings — Entertainment",
+      pageType: "settings",
+      activeTab: "entertainment",
+      events: eventsRes.rows,
+      acts: actsRes.rows,
+      user: req.session.user || null,
+      prefillEntertainment,
+    });
+  } catch (err) {
+    console.error("❌ Error loading entertainment events:", err);
+    req.flash("flashMessage", "❌ Failed to load entertainment events.");
+    req.flash("flashType", "error");
+    res.redirect("/settings");
+  }
+});
+
+router.post(
+  "/entertainment/add",
+  ensurePrivileged,
+  entertainmentImageUpload.single("image_file"),
+  async (req, res) => {
+  let client;
+  try {
+    const {
+      title,
+      start_date,
+      start_time,
+      end_date,
+      end_time,
+      adjunct_name,
+      external_url,
+      organiser,
+      price,
+      description,
+      image_url,
+      status,
+    } = req.body;
+
+    if (!title?.trim() || !start_date || !start_time) {
+      req.flash("flashMessage", "⚠️ Title, date, and time are required.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/entertainment");
+    }
+
+    const startAt = combineDateAndTime(start_date, start_time);
+    const endAt = end_date && end_time ? combineDateAndTime(end_date, end_time) : null;
+    const slug = `${slugify(title) || "event"}-${Date.now()}`;
+    const statusValue = (status || "draft").toLowerCase();
+    const userId = req.session.user?.id || null;
+    const acts = parseIdArray(req.body.acts);
+    const imagePath = req.file ? `/uploads/entertainment/${req.file.filename}` : req.body.image_url || null;
+
+    const recurrence = recurrenceService.parseRecurrenceForm(req.body);
+    client = await pool.connect();
+    await client.query("BEGIN");
+    const insert = await client.query(
+      `
+      INSERT INTO entertainment_events
+        (title, slug, adjunct_name, external_url, organiser, price, description,
+         image_url, start_at, end_at, status, series_id, series_order,
+         created_by, updated_by, created_at, updated_at)
+      VALUES
+        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NULL,NULL,$12,$13,NOW(),NOW())
+      RETURNING *;
+      `,
+      [
+        title.trim(),
+        slug,
+        adjunct_name || null,
+        external_url || null,
+        organiser || null,
+        price || null,
+        description || null,
+        imagePath,
+        startAt,
+        endAt,
+        statusValue,
+        userId,
+        userId,
+      ]
+    );
+
+    const insertedEvent = insert.rows[0];
+    if (insertedEvent?.id) {
+      await syncEntertainmentEventActs(insertedEvent.id, acts, client);
+    }
+
+    if (recurrence && start_date) {
+      const series = await recurrenceService.createSeriesRecord(client, {
+        entityType: "entertainment",
+        template: {
+          title: title.trim(),
+          start_time,
+          end_time,
+        },
+        startDate: start_date,
+        recurrence,
+        createdBy: userId,
+      });
+      if (series?.seriesId && insertedEvent?.id) {
+        await client.query(
+          `UPDATE entertainment_events SET series_id = $1, series_order = 1 WHERE id = $2;`,
+          [series.seriesId, insertedEvent.id]
+        );
+        let order = 2;
+        for (const date of series.occurrenceDates.slice(1)) {
+          const cloneSlug = `${slugify(title) || "event"}-${Date.now()}-${order}`;
+          const cloneStart = combineDateAndTime(date, start_time);
+          const cloneEnd = end_time ? combineDateAndTime(date, end_time) : null;
+          const cloneInsert = await client.query(
+            `
+            INSERT INTO entertainment_events
+              (title, slug, adjunct_name, external_url, organiser, price, description,
+               image_url, start_at, end_at, status, series_id, series_order,
+               created_by, updated_by, created_at, updated_at)
+            VALUES
+              ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW(),NOW())
+            RETURNING id;
+            `,
+            [
+              title.trim(),
+              cloneSlug,
+              adjunct_name || null,
+              external_url || null,
+              organiser || null,
+              price || null,
+              description || null,
+              imagePath,
+              cloneStart,
+              cloneEnd,
+              statusValue,
+              series.seriesId,
+              order,
+              userId,
+              userId,
+            ]
+          );
+          const cloneId = cloneInsert.rows[0]?.id;
+          if (cloneId) {
+            await syncEntertainmentEventActs(cloneId, acts, client);
+          }
+          order += 1;
+        }
+      }
+    }
+
+    await client.query("COMMIT");
+    req.flash("flashMessage", "✅ Entertainment event added.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/entertainment");
+  } catch (err) {
+    console.error("❌ Error adding entertainment event:", err);
+    try {
+      if (client) await client.query("ROLLBACK");
+    } catch (rollbackErr) {
+      console.error("❌ Failed rolling back entertainment insert:", rollbackErr);
+    }
+    req.flash("flashMessage", "❌ Failed to add entertainment event.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/entertainment");
+  } finally {
+    if (client) client.release();
+  }
+  }
+);
+
+router.post(
+  "/entertainment/edit",
+  ensurePrivileged,
+  entertainmentImageUpload.single("image_file"),
+  async (req, res) => {
+  try {
+    const {
+      id,
+      title,
+      start_date,
+      start_time,
+      end_date,
+      end_time,
+      adjunct_name,
+      external_url,
+      organiser,
+      price,
+      description,
+      image_url,
+      status,
+    } = req.body;
+
+    if (!id || !title?.trim()) {
+      req.flash("flashMessage", "⚠️ Missing event details.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/entertainment");
+    }
+
+    const startAt = start_date && start_time ? combineDateAndTime(start_date, start_time) : null;
+    const endAt = end_date && end_time ? combineDateAndTime(end_date, end_time) : null;
+    const statusValue = (status || "draft").toLowerCase();
+    const userId = req.session.user?.id || null;
+    const acts = parseIdArray(req.body.acts);
+    const imagePath = req.file ? `/uploads/entertainment/${req.file.filename}` : image_url || null;
+
+    await pool.query(
+      `
+      UPDATE entertainment_events
+         SET title = $1,
+             adjunct_name = $2,
+             external_url = $3,
+             organiser = $4,
+             price = $5,
+             description = $6,
+             image_url = $7,
+             start_at = COALESCE($8, start_at),
+             end_at = $9,
+             status = $10,
+             updated_by = $11,
+             updated_at = NOW()
+       WHERE id = $12;
+      `,
+      [
+        title.trim(),
+        adjunct_name || null,
+        external_url || null,
+        organiser || null,
+        price || null,
+        description || null,
+        imagePath,
+        startAt,
+        endAt,
+        statusValue,
+        userId,
+        id,
+      ]
+    );
+
+    await syncEntertainmentEventActs(id, acts);
+
+    req.flash("flashMessage", "✅ Entertainment event updated.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/entertainment");
+  } catch (err) {
+    console.error("❌ Error updating entertainment event:", err);
+    req.flash("flashMessage", "❌ Failed to update entertainment event.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/entertainment");
+  }
+  }
+);
+
+router.post("/entertainment/delete", ensurePrivileged, async (req, res) => {
+  try {
+    const { id } = req.body;
+    if (!id) {
+      req.flash("flashMessage", "⚠️ Missing event ID.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/entertainment");
+    }
+    await pool.query(`DELETE FROM entertainment_events WHERE id = $1;`, [id]);
+    req.flash("flashMessage", "🗑️ Entertainment event deleted.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/entertainment");
+  } catch (err) {
+    console.error("❌ Error deleting entertainment event:", err);
+    req.flash("flashMessage", "❌ Failed to delete entertainment event.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/entertainment");
+  }
+});
+
+router.post("/entertainment/acts/add", ensurePrivileged, async (req, res) => {
+  try {
+    const name = (req.body.name || "").trim();
+    const externalUrl = req.body.external_url || null;
+    if (!name) {
+      req.flash("flashMessage", "⚠️ Act name is required.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/entertainment");
+    }
+    await pool.query(
+      `
+      INSERT INTO entertainment_acts (name, external_url, created_at, updated_at)
+      VALUES ($1, $2, NOW(), NOW())
+      ON CONFLICT (name) DO UPDATE SET external_url = EXCLUDED.external_url, updated_at = NOW();
+      `,
+      [name, externalUrl]
+    );
+    req.flash("flashMessage", "✅ Act saved.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/entertainment");
+  } catch (err) {
+    console.error("❌ Error saving act:", err);
+    req.flash("flashMessage", "❌ Failed to save act.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/entertainment");
+  }
+});
+
+router.post("/entertainment/acts/delete", ensurePrivileged, async (req, res) => {
+  try {
+    const { id } = req.body;
+    if (!id) {
+      req.flash("flashMessage", "⚠️ Missing act ID.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/entertainment");
+    }
+    await pool.query(`DELETE FROM entertainment_acts WHERE id = $1;`, [id]);
+    req.flash("flashMessage", "🗑️ Act deleted.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/entertainment");
+  } catch (err) {
+    console.error("❌ Error deleting act:", err);
+    req.flash("flashMessage", "❌ Failed to delete act.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/entertainment");
   }
 });

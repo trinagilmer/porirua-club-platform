@@ -1,14 +1,16 @@
 const express = require("express");
+const { randomUUID } = require("crypto");
 const { pool } = require("../db");
 const { sendMail } = require("../services/graphService");
 const { cca } = require("../auth/msal");
+const recurrenceService = require("../services/recurrenceService");
 
 const router = express.Router();
 
 router.use(express.urlencoded({ extended: true }));
 router.use(express.json());
 
-const EVENT_TYPES = ["functions", "restaurant", "events"];
+const EVENT_TYPES = ["functions", "restaurant", "entertainment"];
 const STATUS_COLOURS = {
   lead: "#CBD5F5", // muted indigo
   qualified: "#A5B4FC",
@@ -27,6 +29,15 @@ const RESTAURANT_STATUS_COLOURS = {
 const RESTAURANT_STATUSES = new Set(["pending", "confirmed", "seated", "completed", "cancelled"]);
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
+
+function slugify(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .substring(0, 80);
+}
 
 function pad(value) {
   return String(value).padStart(2, "0");
@@ -130,6 +141,7 @@ function mapFunctionRow(row) {
     borderColor: colour,
     extendedProps: {
       type: "functions",
+      sourceId: row.id_uuid,
       status: row.status,
       attendees: row.attendees || 0,
       roomId: row.room_id,
@@ -162,8 +174,8 @@ function timeStringFromMinutes(totalMinutes) {
   return `${pad(hours)}:${pad(minutes)}:00`;
 }
 
-async function fetchOverrideForService(serviceId, bookingDate) {
-  const { rows } = await pool.query(
+async function fetchOverrideForService(serviceId, bookingDate, db = pool) {
+  const { rows } = await db.query(
     `
     SELECT max_covers_per_slot, slot_minutes
       FROM restaurant_capacity_overrides
@@ -176,8 +188,8 @@ async function fetchOverrideForService(serviceId, bookingDate) {
   return rows[0] || null;
 }
 
-async function fetchServiceById(serviceId) {
-  const { rows } = await pool.query(
+async function fetchServiceById(serviceId, db = pool) {
+  const { rows } = await db.query(
     `
     SELECT id, name, day_of_week, start_time, end_time,
            slot_minutes, turn_minutes,
@@ -191,14 +203,14 @@ async function fetchServiceById(serviceId) {
   return rows[0] || null;
 }
 
-async function findServiceForSlot(bookingDate, bookingTime, explicitServiceId) {
+async function findServiceForSlot(bookingDate, bookingTime, explicitServiceId, db = pool) {
   const targetDate = normaliseDate(bookingDate);
   if (!targetDate) return null;
 
   if (explicitServiceId) {
-    const service = await fetchServiceById(explicitServiceId);
+    const service = await fetchServiceById(explicitServiceId, db);
     if (!service) return null;
-    const override = await fetchOverrideForService(service.id, targetDate);
+    const override = await fetchOverrideForService(service.id, targetDate, db);
     return {
       ...service,
       slot_minutes_effective: override?.slot_minutes || service.slot_minutes,
@@ -210,7 +222,7 @@ async function findServiceForSlot(bookingDate, bookingTime, explicitServiceId) {
   const dow = dateObj.getDay();
   const candidateTime = normaliseTime(bookingTime) || null;
 
-  const { rows } = await pool.query(
+  const { rows } = await db.query(
     `
     SELECT id, name, start_time, end_time,
            slot_minutes, turn_minutes,
@@ -225,7 +237,7 @@ async function findServiceForSlot(bookingDate, bookingTime, explicitServiceId) {
 
   for (const service of rows) {
     if (!candidateTime) {
-      const override = await fetchOverrideForService(service.id, targetDate);
+      const override = await fetchOverrideForService(service.id, targetDate, db);
       return {
         ...service,
         slot_minutes_effective: override?.slot_minutes || service.slot_minutes,
@@ -235,7 +247,7 @@ async function findServiceForSlot(bookingDate, bookingTime, explicitServiceId) {
     const withinWindow =
       candidateTime >= service.start_time && candidateTime < service.end_time;
     if (withinWindow) {
-      const override = await fetchOverrideForService(service.id, targetDate);
+      const override = await fetchOverrideForService(service.id, targetDate, db);
       return {
         ...service,
         slot_minutes_effective: override?.slot_minutes || service.slot_minutes,
@@ -266,14 +278,17 @@ function computeSlotBounds(service, bookingTime) {
   return { slotStart, slotEnd };
 }
 
-async function ensureRestaurantCapacity({
-  bookingDate,
-  service,
-  slotStart,
-  slotEnd,
-  partySize,
-  channel,
-}) {
+async function ensureRestaurantCapacity(
+  {
+    bookingDate,
+    service,
+    slotStart,
+    slotEnd,
+    partySize,
+    channel,
+  },
+  db = pool
+) {
   if (!partySize || partySize <= 0) return;
   const limits = {
     total: service.max_covers_effective || service.max_covers_per_slot || null,
@@ -281,7 +296,7 @@ async function ensureRestaurantCapacity({
   };
   const startTime = timeStringFromMinutes(slotStart);
   const endTime = timeStringFromMinutes(slotEnd);
-  const { rows } = await pool.query(
+  const { rows } = await db.query(
     `
     SELECT COALESCE(SUM(size), 0) AS covers
       FROM restaurant_bookings
@@ -324,6 +339,7 @@ function mapRestaurantBookingRow(row) {
     borderColor: colour,
     extendedProps: {
       type: "restaurant",
+      sourceId: row.id,
       status: row.status,
       channel: row.channel,
       zone: row.zone_name,
@@ -331,13 +347,39 @@ function mapRestaurantBookingRow(row) {
       notes: row.notes,
       contact_email: row.contact_email,
       contact_phone: row.contact_phone,
+      partySize: row.size,
       roomName: row.zone_name || row.table_label || "Restaurant",
       detailUrl: row.id ? `/calendar/restaurant/bookings/${row.id}` : null,
     },
   };
 }
 
-async function createRestaurantBooking(payload) {
+function mapEntertainmentEventRow(row) {
+  const start = row.start_at ? new Date(row.start_at).toISOString() : null;
+  const end = row.end_at ? new Date(row.end_at).toISOString() : null;
+  const colour = "#fbcfe8";
+  const priceValue = row.price !== null && row.price !== undefined ? Number(row.price) : null;
+  return {
+    id: `entertainment-${row.id}`,
+    title: row.title,
+    start,
+    end,
+    backgroundColor: colour,
+    borderColor: colour,
+    extendedProps: {
+      type: "entertainment",
+      sourceId: row.id,
+      organiser: row.organiser,
+      price: priceValue,
+      currency: row.currency || "NZD",
+      link: row.external_url,
+      roomName: "Entertainment",
+      detailUrl: `/entertainment/${row.slug || row.id}`,
+    },
+  };
+}
+
+async function createRestaurantBooking(payload, options = {}) {
   const partyName = (payload.partyName || "").trim();
   const bookingDate = normaliseDate(payload.bookingDate);
   const bookingTime = normaliseTime(payload.bookingTime);
@@ -350,28 +392,32 @@ async function createRestaurantBooking(payload) {
   if (!bookingTime) throw new Error("Booking time is required.");
   if (!size) throw new Error("Party size is required.");
 
-  const service = await findServiceForSlot(bookingDate, bookingTime, explicitServiceId);
+  const db = options.db || pool;
+  const service = await findServiceForSlot(bookingDate, bookingTime, explicitServiceId, db);
   if (!service) {
     throw new Error("No service matches the requested time.");
   }
 
   const { slotStart, slotEnd } = computeSlotBounds(service, bookingTime);
-  await ensureRestaurantCapacity({
-    bookingDate,
-    service,
-    slotStart,
-    slotEnd,
-    partySize: size,
-    channel: payload.channel || "internal",
-  });
+  await ensureRestaurantCapacity(
+    {
+      bookingDate,
+      service,
+      slotStart,
+      slotEnd,
+      partySize: size,
+      channel: payload.channel || "internal",
+    },
+    db
+  );
 
-  const result = await pool.query(
+  const result = await db.query(
     `
     INSERT INTO restaurant_bookings
       (party_name, booking_date, booking_time, size, status, menu_type, price,
        owner_id, service_id, zone_id, table_id, channel,
-       contact_email, contact_phone, notes, created_at, updated_at)
-    VALUES ($1,$2,$3,$4,$5,NULL,NULL,$6,$7,$8,$9,$10,$11,$12,$13,NOW(),NOW())
+       contact_email, contact_phone, notes, series_id, series_order, created_at, updated_at)
+    VALUES ($1,$2,$3,$4,$5,NULL,NULL,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW(),NOW())
     RETURNING *;
     `,
     [
@@ -388,13 +434,17 @@ async function createRestaurantBooking(payload) {
       payload.contactEmail || null,
       payload.contactPhone || null,
       payload.notes || null,
+      options.seriesId || null,
+      options.seriesOrder || null,
     ]
   );
 
   const booking = result.rows[0];
-  notifyRestaurantTeam(booking, service).catch((err) => {
-    console.error("[Restaurant Calendar] Failed to send booking email:", err.message);
-  });
+  if (!options.suppressEmail) {
+    notifyRestaurantTeam(booking, service).catch((err) => {
+      console.error("[Restaurant Calendar] Failed to send booking email:", err.message);
+    });
+  }
 
   return { booking, service };
 }
@@ -467,6 +517,27 @@ async function fetchRestaurantBookingsBetween(startDate, endDate) {
   return rows;
 }
 
+async function fetchEntertainmentEventsBetween(startDate, endDate) {
+  const params = [];
+  const where = [`status = 'published'`];
+  if (startDate) {
+    params.push(startDate);
+    where.push(`start_at >= $${params.length}::date`);
+  }
+  if (endDate) {
+    params.push(endDate);
+    where.push(`start_at <= $${params.length}::date`);
+  }
+  const query = `
+    SELECT *
+      FROM entertainment_events
+     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+     ORDER BY start_at ASC;
+  `;
+  const { rows } = await pool.query(query, params);
+  return rows;
+}
+
 async function fetchCalendarSettings() {
   try {
     const { rows } = await pool.query(`SELECT day_slot_minutes FROM calendar_settings LIMIT 1`);
@@ -528,6 +599,7 @@ router.get("/events", async (req, res) => {
     const types = parseTypes(req.query.include);
     const includeFunctions = types.includes("functions");
     const includeRestaurant = types.includes("restaurant");
+    const includeEntertainment = types.includes("entertainment");
     const roomIds = parseRoomFilter(req.query.rooms);
     const startDate = normaliseDate(req.query.start);
     const endDate = normaliseDate(req.query.end);
@@ -584,6 +656,11 @@ router.get("/events", async (req, res) => {
       bookings.forEach((row) => events.push(mapRestaurantBookingRow(row)));
     }
 
+    if (includeEntertainment) {
+      const shows = await fetchEntertainmentEventsBetween(startDate, endDate);
+      shows.forEach((row) => events.push(mapEntertainmentEventRow(row)));
+    }
+
     res.json(events);
   } catch (err) {
     console.error("[Calendar] Failed to load events:", err);
@@ -624,6 +701,13 @@ router.get("/restaurant", async (req, res) => {
       canManage: isPrivileged(req),
       message: req.query.success ? "Booking saved." : null,
       errorMessage: req.query.error || null,
+      prefillBooking: {
+        booking_date: req.query.booking_date || req.query.prefill_date || "",
+        booking_time: req.query.booking_time || req.query.prefill_time || "",
+        party_name: req.query.party_name || "",
+        size: req.query.size || "",
+        status: req.query.status || "confirmed",
+      },
       calendarConfig: {
         daySlotMinutes: await fetchCalendarSettings(),
       },
@@ -637,6 +721,30 @@ router.get("/restaurant", async (req, res) => {
   } catch (err) {
     console.error("[Restaurant Calendar] Failed to load page:", err);
     res.status(500).send("Unable to load restaurant calendar.");
+  }
+});
+
+router.get("/restaurant/bookings", async (req, res) => {
+  if (!isPrivileged(req)) {
+    return res.redirect("/calendar/restaurant?error=Admin%20access%20required");
+  }
+  try {
+    const statusFilter = (req.query.status || "pending").toLowerCase();
+    const showAll = statusFilter === "all";
+    const bookings = await fetchRestaurantBookingsBetween(null, null);
+    const filtered = showAll
+      ? bookings
+      : bookings.filter((b) => (b.status || "pending").toLowerCase() === statusFilter);
+    res.render("pages/calendar/restaurant-bookings", {
+      layout: "layouts/main",
+      title: "Restaurant Bookings",
+      active: "restaurant",
+      bookings: filtered,
+      filter: statusFilter,
+    });
+  } catch (err) {
+    console.error("[Restaurant Calendar] Failed to load booking list:", err);
+    res.status(500).send("Unable to load bookings.");
   }
 });
 
@@ -657,32 +765,69 @@ router.post("/restaurant/bookings", async (req, res) => {
   if (!isPrivileged(req)) {
     return res.redirect("/calendar/restaurant?error=Admin access required");
   }
+  const recurrence = recurrenceService.parseRecurrenceForm(req.body);
+  const payload = {
+    partyName: req.body.party_name,
+    bookingDate: req.body.booking_date,
+    bookingTime: req.body.booking_time,
+    size: req.body.size,
+    serviceId: req.body.service_id ? Number(req.body.service_id) : null,
+    zoneId: req.body.zone_id ? Number(req.body.zone_id) : null,
+    tableId: req.body.table_id ? Number(req.body.table_id) : null,
+    notes: req.body.notes,
+    contactEmail: req.body.contact_email,
+    contactPhone: req.body.contact_phone,
+    channel: "internal",
+    status: req.body.status || "confirmed",
+    ownerId: req.session.user?.id || null,
+  };
+  const client = await pool.connect();
   try {
-    await createRestaurantBooking({
-      partyName: req.body.party_name,
-      bookingDate: req.body.booking_date,
-      bookingTime: req.body.booking_time,
-      size: req.body.size,
-      serviceId: req.body.service_id ? Number(req.body.service_id) : null,
-      zoneId: req.body.zone_id ? Number(req.body.zone_id) : null,
-      tableId: req.body.table_id ? Number(req.body.table_id) : null,
-      notes: req.body.notes,
-      contactEmail: req.body.contact_email,
-      contactPhone: req.body.contact_phone,
-      channel: "internal",
-      status: req.body.status || "confirmed",
-      ownerId: req.session.user?.id || null,
-    });
+    await client.query("BEGIN");
+    const { booking } = await createRestaurantBooking(payload, { db: client });
+    if (recurrence && booking?.booking_date) {
+      const series = await recurrenceService.createSeriesRecord(client, {
+        entityType: "restaurant",
+        template: {
+          party_name: booking.party_name,
+          booking_time: booking.booking_time,
+          size: booking.size,
+          service_id: booking.service_id,
+        },
+        startDate: booking.booking_date,
+        recurrence,
+        createdBy: req.session.user?.id || null,
+      });
+      if (series?.seriesId) {
+        await client.query(
+          `UPDATE restaurant_bookings SET series_id = $1, series_order = 1 WHERE id = $2;`,
+          [series.seriesId, booking.id]
+        );
+        let order = 2;
+        for (const date of series.occurrenceDates.slice(1)) {
+          await createRestaurantBooking(
+            { ...payload, bookingDate: date },
+            { db: client, seriesId: series.seriesId, seriesOrder: order, suppressEmail: true }
+          );
+          order += 1;
+        }
+      }
+    }
+    await client.query("COMMIT");
     res.redirect("/calendar/restaurant?success=1");
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error("[Restaurant Calendar] Failed to create booking:", err);
     const message = encodeURIComponent(err.message || "Unable to save booking");
     res.redirect(`/calendar/restaurant?error=${message}`);
+  } finally {
+    client.release();
   }
 });
 
 router.get("/restaurant/book", async (req, res) => {
   try {
+    const embed = req.query.embed === "1";
     const { rows: services } = await pool.query(
       `SELECT id, name, day_of_week, start_time, end_time
          FROM restaurant_services
@@ -690,12 +835,13 @@ router.get("/restaurant/book", async (req, res) => {
         ORDER BY day_of_week, start_time;`
     );
     res.render("pages/calendar/restaurant-book", {
-      layout: "layouts/main",
+      layout: embed ? false : "layouts/main",
       title: "Book the Restaurant",
       active: "restaurant",
       services,
       success: req.query.success || null,
       errorMessage: req.query.error || null,
+      embed,
     });
   } catch (err) {
     console.error("[Restaurant Calendar] Failed to load booking form:", err);
@@ -705,6 +851,7 @@ router.get("/restaurant/book", async (req, res) => {
 
 router.post("/restaurant/book", async (req, res) => {
   try {
+    const embed = req.query.embed === "1";
     await createRestaurantBooking({
       partyName: req.body.party_name,
       bookingDate: req.body.booking_date,
@@ -717,11 +864,15 @@ router.post("/restaurant/book", async (req, res) => {
       channel: "online",
       status: "pending",
     });
-    res.redirect("/calendar/restaurant/book?success=1");
+    const successUrl = embed
+      ? "/calendar/restaurant/book?embed=1&success=1"
+      : "/calendar/restaurant/book?success=1";
+    res.redirect(successUrl);
   } catch (err) {
     console.error("[Restaurant Calendar] Public booking failed:", err);
     const message = encodeURIComponent(err.message || "Unable to submit booking");
-    res.redirect(`/calendar/restaurant/book?error=${message}`);
+    const embedPrefix = req.query.embed === "1" ? "embed=1&" : "";
+    res.redirect(`/calendar/restaurant/book?${embedPrefix}error=${message}`);
   }
 });
 
@@ -790,6 +941,224 @@ router.post("/restaurant/bookings/:id/status", async (req, res) => {
     console.error("[Restaurant Calendar] Failed to update booking status:", err);
     const message = encodeURIComponent(err.message || "Unable to update booking");
     res.redirect(`/calendar/restaurant/bookings/${req.params.id}?error=${message}`);
+  }
+});
+
+async function fetchFunctionWithContact(functionId, db = pool) {
+  const { rows } = await db.query(
+    `
+    SELECT f.*, c.email AS contact_email, c.phone AS contact_phone
+      FROM functions f
+      LEFT JOIN function_contacts fc
+        ON fc.function_id = f.id_uuid AND COALESCE(fc.is_primary, FALSE) = TRUE
+      LEFT JOIN contacts c ON c.id = fc.contact_id
+     WHERE f.id_uuid = $1
+     LIMIT 1;
+    `,
+    [functionId]
+  );
+  return rows[0] || null;
+}
+
+async function convertFunctionToRestaurant(functionId, userId) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const fn = await fetchFunctionWithContact(functionId, client);
+    if (!fn) throw new Error("Function not found");
+    if (!fn.event_date) {
+      throw new Error("Function is missing a date.");
+    }
+    const startTime = fn.start_time || fn.event_time || "00:00:00";
+    const { booking } = await createRestaurantBooking(
+      {
+        partyName: fn.event_name || "Function",
+        bookingDate: fn.event_date,
+        bookingTime: startTime,
+        size: fn.attendees || 0,
+        notes: `Converted from function ${fn.event_name || ""}`.trim(),
+        contactEmail: fn.contact_email || null,
+        contactPhone: fn.contact_phone || null,
+        ownerId: userId || null,
+        status: "confirmed",
+        channel: "internal",
+      },
+      { db: client, suppressEmail: true }
+    );
+    await client.query(`DELETE FROM functions WHERE id_uuid = $1;`, [functionId]);
+    await client.query("COMMIT");
+    return { detailUrl: `/calendar/restaurant/bookings/${booking.id}` };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function convertFunctionToEntertainment(functionId, userId) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const fn = await fetchFunctionWithContact(functionId, client);
+    if (!fn) throw new Error("Function not found");
+    if (!fn.event_date) throw new Error("Function is missing a date.");
+    const startAt = composeDateTimeString(fn.event_date, fn.start_time || fn.event_time || "00:00:00");
+    const endAt = fn.end_time ? composeDateTimeString(fn.event_date, fn.end_time) : null;
+    const slug = `${slugify(fn.event_name) || "event"}-${functionId.slice(0, 6)}`;
+    const insert = await client.query(
+      `
+      INSERT INTO entertainment_events
+        (title, slug, adjunct_name, external_url, organiser, price, description,
+         image_url, start_at, end_at, status, created_by, updated_by, created_at, updated_at)
+      VALUES
+        ($1,$2,NULL,NULL,$3,NULL,NULL,NULL,$4,$5,'scheduled',$6,$6,NOW(),NOW())
+      RETURNING id;
+      `,
+      [
+        fn.event_name || "Club event",
+        slug,
+        fn.owner_id ? `Owner #${fn.owner_id}` : null,
+        startAt,
+        endAt,
+        userId || null,
+      ]
+    );
+    const eventId = insert.rows[0]?.id;
+    await client.query(`DELETE FROM functions WHERE id_uuid = $1;`, [functionId]);
+    await client.query("COMMIT");
+    const detailSlug = eventId ? `${slug}` : "";
+    return { detailUrl: `/entertainment/${detailSlug || eventId}` };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function convertRestaurantToFunction(bookingId, userId) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(
+      `
+      SELECT *
+        FROM restaurant_bookings
+       WHERE id = $1
+       LIMIT 1;
+      `,
+      [bookingId]
+    );
+    const booking = rows[0];
+    if (!booking) throw new Error("Booking not found");
+    const fnId = randomUUID();
+    const statusMap = {
+      pending: "lead",
+      confirmed: "confirmed",
+      seated: "qualified",
+      completed: "completed",
+    };
+    const statusValue = statusMap[(booking.status || "").toLowerCase()] || "lead";
+    await client.query(
+      `
+      INSERT INTO functions (
+        id_uuid, event_name, status, event_date, start_time, end_time,
+        attendees, room_id, event_type, owner_id, created_at, updated_at, updated_by
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,NULL,$6,NULL,$7,$8,NOW(),NOW(),$8
+      );
+      `,
+      [
+        fnId,
+        booking.party_name || "Restaurant booking",
+        statusValue,
+        booking.booking_date,
+        booking.booking_time || null,
+        booking.size || 0,
+        "Restaurant Booking",
+        userId || null,
+      ]
+    );
+    await client.query(`DELETE FROM restaurant_bookings WHERE id = $1;`, [bookingId]);
+    await client.query("COMMIT");
+    return { detailUrl: `/functions/${fnId}` };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function convertEntertainmentToFunction(eventId, userId) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(
+      `
+      SELECT *
+        FROM entertainment_events
+       WHERE id = $1
+       LIMIT 1;
+      `,
+      [eventId]
+    );
+    const event = rows[0];
+    if (!event) throw new Error("Event not found");
+    const fnId = randomUUID();
+    const startDate = event.start_at ? new Date(event.start_at) : null;
+    const datePart = startDate ? formatLocalDate(startDate) : null;
+    const timePart = startDate ? `${pad(startDate.getHours())}:${pad(startDate.getMinutes())}:00` : null;
+    await client.query(
+      `
+      INSERT INTO functions (
+        id_uuid, event_name, status, event_date, start_time, end_time,
+        attendees, room_id, event_type, owner_id, created_at, updated_at, updated_by
+      )
+      VALUES (
+        $1,$2,'lead',$3,$4,$5,0,NULL,'Entertainment',$6,NOW(),NOW(),$6
+      );
+      `,
+      [fnId, event.title || "Entertainment", datePart, timePart, null, userId || null]
+    );
+    await client.query(`DELETE FROM entertainment_events WHERE id = $1;`, [eventId]);
+    await client.query("COMMIT");
+    return { detailUrl: `/functions/${fnId}` };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+router.post("/convert", async (req, res) => {
+  if (!isPrivileged(req)) {
+    return res.status(403).json({ success: false, error: "Admin access required" });
+  }
+  try {
+    const { sourceType, sourceId, targetType } = req.body || {};
+    if (!sourceType || !sourceId || !targetType) {
+      throw new Error("Missing conversion details.");
+    }
+    let result;
+    if (sourceType === "functions" && targetType === "restaurant") {
+      result = await convertFunctionToRestaurant(sourceId, req.session.user?.id || null);
+    } else if (sourceType === "functions" && targetType === "entertainment") {
+      result = await convertFunctionToEntertainment(sourceId, req.session.user?.id || null);
+    } else if (sourceType === "restaurant" && targetType === "functions") {
+      result = await convertRestaurantToFunction(Number(sourceId), req.session.user?.id || null);
+    } else if (sourceType === "entertainment" && targetType === "functions") {
+      result = await convertEntertainmentToFunction(Number(sourceId), req.session.user?.id || null);
+    } else {
+      throw new Error("Conversion not supported.");
+    }
+    res.json({ success: true, detailUrl: result?.detailUrl || null });
+  } catch (err) {
+    console.error("[Calendar] Conversion failed:", err);
+    res.status(400).json({ success: false, error: err.message || "Unable to convert" });
   }
 });
 

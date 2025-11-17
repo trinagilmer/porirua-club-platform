@@ -58,10 +58,10 @@
           <input class="btn-check" type="checkbox" id="toggleRestaurant" data-calendar-type="restaurant">
           <label class="btn btn-outline-primary btn-sm" for="toggleRestaurant">Restaurant</label>
 
-          <input class="btn-check" type="checkbox" id="toggleEvents" data-calendar-type="events">
-          <label class="btn btn-outline-primary btn-sm" for="toggleEvents">Club events</label>
+          <input class="btn-check" type="checkbox" id="toggleEntertainment" data-calendar-type="entertainment">
+          <label class="btn btn-outline-primary btn-sm" for="toggleEntertainment">Entertainment</label>
         </div>
-        <small class="text-muted d-block mt-1">Enable restaurant to view dining bookings alongside functions.</small>
+        <small class="text-muted d-block mt-1">Toggle any combination to focus the calendar.</small>
       </div>
       <div class="col-12 col-md-4 text-md-end">
         <button class="btn btn-light w-100 w-md-auto" id="calendarClearFilters">
@@ -154,11 +154,59 @@
       </div>
       <div class="modal-footer justify-content-between">
         <div class="text-muted small">Click “Open function” to jump to the full details.</div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+          <% if (user && ['admin','owner'].includes((user.role || '').toLowerCase())) { %>
+            <div class="btn-group dropup d-none" id="calendarConvertGroup">
+              <button type="button" class="btn btn-outline-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                Convert to…
+              </button>
+              <ul class="dropdown-menu">
+                <li><button type="button" class="dropdown-item d-none" data-convert-target="restaurant">Restaurant booking</button></li>
+                <li><button type="button" class="dropdown-item d-none" data-convert-target="entertainment">Entertainment event</button></li>
+                <li><button type="button" class="dropdown-item d-none" data-convert-target="functions">Function</button></li>
+              </ul>
+            </div>
+          <% } %>
           <a href="#" target="_blank" rel="noopener" class="btn btn-outline-secondary" data-calendar-action="open-function">
             Open function
           </a>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add / Quick action modal -->
+<div class="modal fade" id="calendarAddModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <p class="text-muted text-uppercase small mb-1">New entry</p>
+          <h5 class="modal-title mb-0">Choose what to add</h5>
+          <small class="text-muted" data-calendar-add-date></small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Select the item type to start a new booking for the highlighted date.</p>
+        <div class="d-grid gap-2">
+          <button type="button" class="btn btn-primary" data-calendar-add-target="functions">
+            Add Function
+          </button>
+          <button type="button" class="btn btn-outline-primary" data-calendar-add-target="restaurant">
+            Add Restaurant Booking
+          </button>
+          <button type="button" class="btn btn-outline-primary" data-calendar-add-target="entertainment">
+            Add Entertainment Event
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer justify-content-between">
+        <small class="text-muted">Need a closer look?</small>
+        <button type="button" class="btn btn-link text-decoration-none" id="calendarAddViewDay">
+          View day in calendar
+        </button>
       </div>
     </div>
   </div>

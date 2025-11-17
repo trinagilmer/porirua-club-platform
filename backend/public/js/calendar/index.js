@@ -8,6 +8,8 @@
     pending: "Pending",
     seated: "Seated",
     cancelled: "Cancelled",
+    published: "Published",
+    scheduled: "Scheduled",
   };
 
   function pad(value) {
@@ -78,10 +80,110 @@
     const state = {
       rooms: [],
       types: new Set(["functions"]),
+      pendingAdd: null,
+      selectedEvent: null,
+    };
+
+    const CONVERT_OPTIONS = {
+      functions: ["restaurant", "entertainment"],
+      restaurant: ["functions"],
+      entertainment: ["functions"],
     };
 
     let currentEvents = [];
     let printStyleEl = null;
+
+    function formatAddLabel(dateObj) {
+      if (!dateObj) return "";
+      return dateObj.toLocaleString("en-NZ", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
+
+    function openAddModal(dateInfo) {
+      if (!addModal) {
+        calendar.changeView("timeGridDay", dateInfo.dateStr);
+        return;
+      }
+      const isoDate = dateInfo.dateStr.split("T")[0];
+      const timePart = dateInfo.dateStr.includes("T") ? dateInfo.dateStr.split("T")[1].slice(0, 5) : "00:00";
+      state.pendingAdd = {
+        isoDate,
+        time: timePart,
+      };
+      if (addModalDateField) {
+        addModalDateField.textContent = formatAddLabel(dateInfo.date);
+      }
+      addModal.show();
+    }
+
+    function handleAddAction(target) {
+      if (!state.pendingAdd) return;
+      const params = new URLSearchParams();
+      if (state.pendingAdd.isoDate) {
+        if (target === "functions") params.set("event_date", state.pendingAdd.isoDate);
+        else params.set("prefill_date", state.pendingAdd.isoDate);
+      }
+      if (state.pendingAdd.time) {
+        if (target === "functions") params.set("start_time", state.pendingAdd.time);
+        else params.set("prefill_time", state.pendingAdd.time);
+      }
+      let baseUrl = "/";
+      if (target === "functions") {
+        baseUrl = "/functions/new";
+      } else if (target === "restaurant") {
+        baseUrl = "/calendar/restaurant";
+      } else if (target === "entertainment") {
+        baseUrl = "/settings/entertainment";
+      }
+      const url = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
+      window.location.href = url;
+    }
+
+    function setupConvertOptions(eventType) {
+      if (!convertGroup) return;
+      const allowed = CONVERT_OPTIONS[eventType] || [];
+      convertGroup.classList.toggle("d-none", !allowed.length);
+      convertButtons.forEach((btn) => {
+        const target = btn.getAttribute("data-convert-target");
+        btn.classList.toggle("d-none", !allowed.includes(target));
+      });
+    }
+
+    async function handleConversion(targetType) {
+      if (!state.selectedEvent) return;
+      if (!targetType) return;
+      const confirmLabel = `Convert "${state.selectedEvent.title || "this booking"}" to ${targetType}?`;
+      if (!window.confirm(confirmLabel)) return;
+      try {
+        const res = await fetch("/calendar/convert", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sourceType: state.selectedEvent.type,
+            sourceId: state.selectedEvent.id,
+            targetType,
+          }),
+        });
+        const payload = await res.json();
+        if (!payload.success) throw new Error(payload.error || "Conversion failed");
+        if (payload.detailUrl) {
+          window.location.href = payload.detailUrl;
+          return;
+        }
+        if (addModal) addModal.hide();
+        if (modal) modal.hide();
+        calendar.refetchEvents();
+      } catch (err) {
+        console.error("Conversion failed", err);
+        window.alert(err.message || "Unable to convert");
+      }
+    }
 
     const monthFormatter = new Intl.DateTimeFormat("en-NZ", { month: "long", year: "numeric" });
     const dayFormatter = new Intl.DateTimeFormat("en-NZ", { day: "numeric", month: "long", year: "numeric" });
@@ -95,6 +197,13 @@
     const printWeekRow = document.getElementById("calendarPrintWeekRow");
     const printDayList = document.getElementById("calendarPrintDayList");
     const printDayMeta = document.getElementById("calendarPrintDayMeta");
+    const addModalEl = document.getElementById("calendarAddModal");
+    const addModal = addModalEl && window.bootstrap && window.bootstrap.Modal ? new window.bootstrap.Modal(addModalEl) : null;
+    const addModalDateField = addModalEl ? addModalEl.querySelector("[data-calendar-add-date]") : null;
+    const addTypeButtons = addModalEl ? addModalEl.querySelectorAll("[data-calendar-add-target]") : [];
+    const addViewDayBtn = document.getElementById("calendarAddViewDay");
+    const convertGroup = document.getElementById("calendarConvertGroup");
+    const convertButtons = convertGroup ? convertGroup.querySelectorAll("[data-convert-target]") : [];
 
     const calendar = new window.FullCalendar.Calendar(calendarEl, {
       initialView: "dayGridMonth",
@@ -145,20 +254,54 @@
           if (modalFields.title) modalFields.title.textContent = info.event.title || "Function";
           if (modalFields.schedule)
             modalFields.schedule.textContent = formatDateRange(info.event.start, info.event.end, info.event.allDay);
-          if (modalFields.room) modalFields.room.textContent = info.event.extendedProps?.roomName || "Unassigned";
+          const extended = info.event.extendedProps || {};
+          if (modalFields.room) modalFields.room.textContent = extended.roomName || "Unassigned";
           if (modalFields.status) {
-            const label = info.event.extendedProps?.status || "";
-            modalFields.status.textContent = STATUS_LABELS[label] || label || "--";
+            const label = extended.status || "";
+            modalFields.status.textContent = STATUS_LABELS[label] || label || label || "--";
           }
-          if (modalFields.contact)
-            modalFields.contact.textContent = info.event.extendedProps?.contactName || "Not assigned";
+          const eventType = extended.type || "functions";
+          if (modalFields.contact) {
+            if (eventType === "restaurant") {
+              modalFields.contact.textContent = extended.contact_email || extended.contact_phone || info.event.title;
+            } else if (eventType === "entertainment") {
+              modalFields.contact.textContent = extended.organiser || "Entertainment";
+            } else {
+              modalFields.contact.textContent = extended.contactName || "Not assigned";
+            }
+          }
           if (modalFields.attendees) {
-            const attendees = info.event.extendedProps?.attendees || 0;
-            modalFields.attendees.textContent = `${attendees} guests`;
+            if (eventType === "restaurant") {
+              const size = extended.partySize || 0;
+              modalFields.attendees.textContent = `${size} guests`;
+            } else if (eventType === "entertainment") {
+              if (extended.price) {
+                const priceLabel = new Intl.NumberFormat("en-NZ", {
+                  style: "currency",
+                  currency: extended.currency || "NZD",
+                  minimumFractionDigits: 2,
+                }).format(Number(extended.price));
+                modalFields.attendees.textContent = `${priceLabel} entry`;
+              } else {
+                modalFields.attendees.textContent = "Public event";
+              }
+            } else {
+              const attendees = extended.attendees || 0;
+              modalFields.attendees.textContent = `${attendees} guests`;
+            }
           }
-          if (modalFields.link && info.event.extendedProps?.detailUrl) {
-            modalFields.link.href = info.event.extendedProps.detailUrl;
+          if (modalFields.link && extended.detailUrl) {
+            modalFields.link.href = extended.detailUrl;
+            modalFields.link.classList.remove("d-none");
+          } else if (modalFields.link) {
+            modalFields.link.classList.add("d-none");
           }
+          state.selectedEvent = {
+            id: extended.sourceId || info.event.id,
+            type: eventType,
+            title: info.event.title || "Booking",
+          };
+          setupConvertOptions(eventType);
           modal.show();
         } else if (info.event.extendedProps?.detailUrl) {
           window.location.href = info.event.extendedProps.detailUrl;
@@ -166,7 +309,7 @@
       },
       dateClick: (info) => {
         if (info?.dateStr) {
-          calendar.changeView("timeGridDay", info.dateStr);
+          openAddModal(info);
         }
       },
       datesSet: (arg) => {
@@ -185,6 +328,26 @@
     calendar.render();
     setPrintOrientation(calendar.view?.type || "dayGridMonth");
     updatePrintLayout(calendar.view);
+
+    addTypeButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const target = btn.getAttribute("data-calendar-add-target");
+        handleAddAction(target);
+      });
+    });
+    if (addViewDayBtn) {
+      addViewDayBtn.addEventListener("click", () => {
+        if (!state.pendingAdd?.isoDate) return;
+        if (addModal) addModal.hide();
+        calendar.changeView("timeGridDay", state.pendingAdd.isoDate);
+      });
+    }
+    convertButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const target = btn.getAttribute("data-convert-target");
+        handleConversion(target);
+      });
+    });
 
     const roomButtons = document.querySelectorAll(".calendar-room-btn");
     roomButtons.forEach((btn) => {

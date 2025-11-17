@@ -169,6 +169,10 @@ const OPEN_PATHS = [
   "/auth",              // /auth/* (login, callback, logout)
   "/public",            // static (also already served above)
   "/health",            // health probe
+  "/entertainment",
+  "/calendar/restaurant/book",
+  "/widgets",
+  "/api/widgets",
   "/favicon.ico",
   "/robots.txt",
 ];
@@ -220,6 +224,8 @@ const proposalsRouter = require("./routes/proposals");
 const quoteRouter = require("./routes/quote");       // ✅ must come BEFORE functions
 const functionsRoutes = require("./routes/functions"); // generic, should come later
 const calendarRouter = require("./routes/calendar");
+const entertainmentRouter = require("./routes/entertainment");
+const widgetRouter = require("./routes/widgets");
 
 //---------------------------------------------------
 // ✅ ROUTE REGISTRATION ORDER (most specific → least)
@@ -234,6 +240,8 @@ app.use("/proposals", proposalsRouter);
 app.use("/menus", menusRouter);
 app.use("/contacts", contactsRouter);
 app.use("/calendar", calendarRouter);
+app.use("/entertainment", entertainmentRouter);
+app.use("/", widgetRouter);
 
 // 🧭 Settings (specific first, then general)
 app.use('/settings', settingsRouter);

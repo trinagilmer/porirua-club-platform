@@ -1,0 +1,79 @@
+<div class="container py-4">
+  <div class="d-flex justify-content-between flex-wrap gap-2 mb-4">
+    <div>
+      <h1 class="mb-1">Restaurant Bookings</h1>
+      <p class="text-muted mb-0">Central inbox for online and internal reservations.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="/calendar/restaurant" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-calendar3 me-1"></i> Calendar view
+      </a>
+      <a href="/calendar/restaurant/book" class="btn btn-outline-primary btn-sm">
+        Public booking form
+      </a>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <form class="row g-3 align-items-center" method="GET">
+        <div class="col-auto">
+          <label class="form-label mb-0">Status</label>
+        </div>
+        <div class="col-auto">
+          <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+            <% ["pending","confirmed","seated","completed","cancelled","all"].forEach(function(opt) { %>
+              <option value="<%= opt %>" <%= filter === opt ? 'selected' : '' %>><%= opt.charAt(0).toUpperCase() + opt.slice(1) %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="col text-end">
+          <small class="text-muted">Showing <%= bookings.length %> booking(s).</small>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Party</th>
+            <th>Guests</th>
+            <th>Status</th>
+            <th>Channel</th>
+            <th>Service</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!bookings.length) { %>
+            <tr>
+              <td colspan="8" class="text-center text-muted py-4">No bookings match this filter.</td>
+            </tr>
+          <% } else { %>
+            <% bookings.forEach(function(booking) { %>
+              <tr>
+                <td><%= booking.booking_date ? new Date(booking.booking_date).toLocaleDateString('en-NZ') : '' %></td>
+                <td><%= booking.booking_time || '—' %></td>
+                <td><strong><%= booking.party_name %></strong></td>
+                <td><%= booking.size || 0 %></td>
+                <td class="text-capitalize"><%= booking.status || 'pending' %></td>
+                <td class="text-capitalize"><%= booking.channel || 'internal' %></td>
+                <td><%= booking.service_name || 'Auto' %></td>
+                <td class="text-end">
+                  <a href="/calendar/restaurant/bookings/<%= booking.id %>" class="btn btn-sm btn-outline-primary">
+                    View
+                  </a>
+                </td>
+              </tr>
+            <% }) %>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

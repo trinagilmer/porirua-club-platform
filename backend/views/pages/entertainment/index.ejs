@@ -1,0 +1,59 @@
+<style>
+  .entertainment-card-img {
+    width: 100%;
+    height: 220px;
+    object-fit: cover;
+  }
+</style>
+
+<div class="entertainment-hero d-flex flex-column align-items-center text-center py-5 position-relative overflow-hidden" style="background: linear-gradient(120deg, #0f172a, #1d4ed8);">
+  <div class="hero-content text-white position-relative">
+    <p class="text-uppercase fw-semibold tracking-wide mb-1">Porirua Club</p>
+    <h1 class="display-4 fw-bold mb-3">Live entertainment & events</h1>
+    <p class="lead mb-0">Discover upcoming music, comedy, and special nights at the Club.</p>
+  </div>
+</div>
+
+<div class="container py-5">
+  <% if (!events || !events.length) { %>
+    <div class="alert alert-light border text-center py-5">
+      <h4 class="mb-2">New entertainment schedule coming soon</h4>
+      <p class="text-muted mb-0">Check back shortly for upcoming performances and events.</p>
+    </div>
+  <% } else { %>
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+      <% events.forEach(function(event) { %>
+        <div class="col">
+          <article class="card h-100 shadow-sm">
+            <% if (event.image_url) { %>
+              <img src="<%= event.image_url %>" class="entertainment-card-img" alt="<%= event.title %>" loading="lazy">
+            <% } else { %>
+              <div class="entertainment-card-img bg-light d-flex align-items-center justify-content-center">
+                <span class="text-muted">No image</span>
+              </div>
+            <% } %>
+            <div class="card-body">
+              <p class="text-muted mb-2 text-uppercase small"><%= new Date(event.start_at).toLocaleDateString('en-NZ', { weekday: 'long', month: 'long', day: 'numeric' }) %></p>
+              <h3 class="h5 mb-2"><a href="/entertainment/<%= event.slug || event.id %>" class="stretched-link text-decoration-none"><%= event.title %></a></h3>
+              <% if (event.price) { %>
+                <p class="mb-1 fw-semibold"><%= event.price ? (Number(event.price).toLocaleString('en-NZ', { style: 'currency', currency: event.currency || 'NZD' })) : '' %></p>
+              <% } %>
+              <% if (event.acts && event.acts.length) { %>
+                <p class="text-muted small mb-2">Acts: <%= event.acts.map(function(act) { return act.name; }).join(", ") %></p>
+              <% } %>
+              <% if (event.description) { %>
+                <p class="text-muted mb-0"><%= event.description.replace(/<[^>]+>/g, '').slice(0, 120) %>...</p>
+              <% } %>
+            </div>
+            <div class="card-footer bg-transparent d-flex justify-content-between align-items-center">
+              <span class="small text-muted"><i class="bi bi-clock me-1"></i><%= event.start_at ? new Date(event.start_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' }) : '' %></span>
+              <% if (event.external_url) { %>
+                <a href="<%= event.external_url %>" target="_blank" rel="noopener" class="small text-decoration-none">More info</a>
+              <% } %>
+            </div>
+          </article>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</div>

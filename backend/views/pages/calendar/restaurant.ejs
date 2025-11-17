@@ -1,4 +1,5 @@
 <% const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]; %>
+<% const prefill = typeof prefillBooking !== 'undefined' ? prefillBooking : {}; %>
 <script>
   window.calendarConfig = Object.assign({}, window.calendarConfig || {}, <%- JSON.stringify(calendarConfig || {}) %>);
 </script>
@@ -12,6 +13,9 @@
     <div class="d-flex flex-wrap gap-2">
       <a href="/calendar" class="btn btn-outline-secondary btn-sm">
         <i class="bi bi-arrow-left-short me-1"></i> Function calendar
+      </a>
+      <a href="/calendar/restaurant/bookings" class="btn btn-outline-primary btn-sm">
+        Booking list
       </a>
       <a href="/calendar/restaurant/book" class="btn btn-outline-primary btn-sm">
         Public booking form
@@ -66,22 +70,22 @@
             <form action="/calendar/restaurant/bookings" method="POST" class="vstack gap-3">
               <div>
                 <label class="form-label">Party name</label>
-                <input type="text" name="party_name" class="form-control" required>
+                <input type="text" name="party_name" class="form-control" value="<%= prefill.party_name || '' %>" required>
               </div>
               <div class="row g-2">
                 <div class="col">
                   <label class="form-label">Date</label>
-                  <input type="date" name="booking_date" class="form-control" required>
+                  <input type="date" name="booking_date" class="form-control" value="<%= prefill.booking_date || '' %>" required>
                 </div>
                 <div class="col">
                   <label class="form-label">Time</label>
-                  <input type="time" name="booking_time" class="form-control" required>
+                  <input type="time" name="booking_time" class="form-control" value="<%= prefill.booking_time || '' %>" required>
                 </div>
               </div>
               <div class="row g-2">
                 <div class="col">
                   <label class="form-label">Party size</label>
-                  <input type="number" name="size" class="form-control" min="1" required>
+                  <input type="number" name="size" class="form-control" min="1" value="<%= prefill.size || '' %>" required>
                 </div>
                 <div class="col">
                   <label class="form-label">Service</label>
@@ -130,10 +134,65 @@
               <div>
                 <label class="form-label">Status</label>
                 <select name="status" class="form-select">
-                  <option value="confirmed">Confirmed</option>
-                  <option value="pending">Pending</option>
-                  <option value="seated">Seated</option>
+                  <option value="confirmed" <%= (prefill.status || '') === 'confirmed' ? 'selected' : '' %>>Confirmed</option>
+                  <option value="pending" <%= (prefill.status || '') === 'pending' ? 'selected' : '' %>>Pending</option>
+                  <option value="seated" <%= (prefill.status || '') === 'seated' ? 'selected' : '' %>>Seated</option>
                 </select>
+              </div>
+              <div class="border-top pt-3 mt-3">
+                <h6 class="mb-2">Repeat booking (optional)</h6>
+                <div class="mb-3">
+                  <label class="form-label">Frequency</label>
+                  <select name="recurrence_frequency" class="form-select form-select-sm">
+                    <option value="none">Does not repeat</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly_date">Monthly (date)</option>
+                    <option value="monthly_weekday">Monthly (weekday)</option>
+                  </select>
+                </div>
+                <div class="row g-2">
+                  <div class="col">
+                    <label class="form-label">Interval</label>
+                    <input type="number" name="recurrence_interval" class="form-control form-control-sm" min="1" value="1">
+                  </div>
+                  <div class="col">
+                    <label class="form-label">End date</label>
+                    <input type="date" name="recurrence_end_date" class="form-control form-control-sm">
+                  </div>
+                </div>
+                <div class="mt-2">
+                  <label class="form-label small mb-1">Weekdays</label>
+                  <div class="d-flex flex-wrap gap-2">
+                    <% ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].forEach(function(day, idx) { %>
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" name="recurrence_weekdays[]" value="<%= idx %>" id="rec-restaurant-<%= idx %>">
+                        <label class="form-check-label" for="rec-restaurant-<%= idx %>"><%= day %></label>
+                      </div>
+                    <% }) %>
+                  </div>
+                </div>
+                <div class="row g-2 mt-2">
+                  <div class="col">
+                    <label class="form-label">Monthly day</label>
+                    <input type="number" name="recurrence_monthly_day" class="form-control form-control-sm" min="1" max="31">
+                  </div>
+                  <div class="col">
+                    <label class="form-label">Monthly weekday</label>
+                    <select name="recurrence_monthly_week" class="form-select form-select-sm">
+                      <option value="">--</option>
+                      <option value="1">First</option>
+                      <option value="2">Second</option>
+                      <option value="3">Third</option>
+                      <option value="4">Fourth</option>
+                      <option value="-1">Last</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="mt-2">
+                  <label class="form-label">Skip dates</label>
+                  <textarea name="recurrence_skip_dates" class="form-control form-control-sm" rows="2" placeholder="YYYY-MM-DD, ..."></textarea>
+                </div>
               </div>
               <button type="submit" class="btn btn-primary">Save booking</button>
             </form>

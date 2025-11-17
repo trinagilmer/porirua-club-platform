@@ -4,6 +4,7 @@ const { pool } = require("../db");
 const router = express.Router();
 const { sendMail: graphSendMail } = require("../services/graphService");
 const { sendTaskAssignmentEmail } = require("../services/taskMailer");
+const recurrenceService = require("../services/recurrenceService");
 
 // === MSAL for app-token fallback (if no delegated token in session) ===
 const { ConfidentialClientApplication } = require("@azure/msal-node");
@@ -491,6 +492,16 @@ router.get("/:id/communications", async (req, res, next) => {
 router.get("/new", async (req, res, next) => {
   try {
     const lookups = await loadFunctionFormLookups();
+    const seedValues = {
+      event_name: req.query.event_name || "",
+      event_date: req.query.event_date || req.query.date || "",
+      event_time: req.query.event_time || "",
+      start_time: req.query.start_time || "",
+      end_time: req.query.end_time || "",
+      attendees: req.query.attendees || "",
+      room_id: req.query.room_id || "",
+      status: req.query.status || "lead",
+    };
     res.render("pages/functions/new", {
       layout: "layouts/main",
       title: "Create Function",
@@ -499,7 +510,7 @@ router.get("/new", async (req, res, next) => {
       eventTypes: lookups.eventTypes,
       users: lookups.users,
       statuses: FUNCTION_STATUSES,
-      formValues: {},
+      formValues: seedValues,
       formError: null,
     });
   } catch (err) {
@@ -534,8 +545,11 @@ router.post("/new", async (req, res) => {
   const userId = req.session.user?.id || null;
   const statusValue = (status || "lead").trim() || "lead";
 
+  const recurrence = recurrenceService.parseRecurrenceForm(req.body);
+  const client = await pool.connect();
   try {
-    await pool.query(
+    await client.query("BEGIN");
+    await client.query(
       `
       INSERT INTO functions (
         id_uuid,
@@ -578,10 +592,86 @@ router.post("/new", async (req, res) => {
         userId || null
       ]
     );
-
+    if (recurrence) {
+      if (!event_date) {
+        throw new Error("Recurring functions require an event date.");
+      }
+      const series = await recurrenceService.createSeriesRecord(client, {
+        entityType: "function",
+        template: {
+          event_name: trimmedName,
+          room_id: room_id ? Number(room_id) : null,
+          start_time: start_time || null,
+          end_time: end_time || null,
+        },
+        startDate: event_date,
+        recurrence,
+        createdBy: userId,
+      });
+      if (series?.seriesId) {
+        await client.query(
+          `UPDATE functions SET series_id = $1, series_order = 1 WHERE id_uuid = $2;`,
+          [series.seriesId, newFunctionId]
+        );
+        let order = 2;
+        for (const date of series.occurrenceDates.slice(1)) {
+          const cloneId = randomUUID();
+          await client.query(
+            `
+            INSERT INTO functions (
+              id_uuid,
+              event_name,
+              status,
+              event_date,
+              event_time,
+              start_time,
+              end_time,
+              attendees,
+              budget,
+              totals_price,
+              totals_cost,
+              room_id,
+              event_type,
+              owner_id,
+              series_id,
+              series_order,
+              created_at,
+              updated_at,
+              updated_by
+            )
+            VALUES (
+              $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW(),NOW(),$17
+            );
+            `,
+            [
+              cloneId,
+              trimmedName,
+              statusValue,
+              date,
+              event_time || null,
+              start_time || null,
+              end_time || null,
+              parseNullableNumber(attendees),
+              parseNullableNumber(budget),
+              parseNullableNumber(totals_price),
+              parseNullableNumber(totals_cost),
+              room_id ? Number(room_id) : null,
+              event_type || null,
+              owner_id ? Number(owner_id) : null,
+              series.seriesId,
+              order,
+              userId || null,
+            ]
+          );
+          order += 1;
+        }
+      }
+    }
+    await client.query("COMMIT");
     console.log(`✅ Function created (UUID: ${newFunctionId}, Name: ${trimmedName})`);
     return res.redirect(`/functions/${newFunctionId}`);
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error("❌ Error creating function:", err);
     return renderCreateError(
       res,
@@ -589,6 +679,8 @@ router.post("/new", async (req, res) => {
       "Failed to create function. Please try again.",
       req.body || {}
     );
+  } finally {
+    client.release();
   }
 });
 

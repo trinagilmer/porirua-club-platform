@@ -1,0 +1,426 @@
+<% const entertainmentPrefill = typeof prefillEntertainment !== 'undefined' ? prefillEntertainment : null; %>
+
+<main class="settings-entertainment">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="mb-0">Entertainment Events</h1>
+      <p class="text-muted mb-0">Manage shows, performances, and public listings.</p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEntertainmentModal">
+      + Add Event
+    </button>
+  </div>
+
+  <% if (typeof flashMessage !== 'undefined' && flashMessage) { %>
+    <div class="alert alert-<%= flashType === 'error' ? 'danger' : flashType === 'warning' ? 'warning' : 'success' %> alert-dismissible fade show">
+      <%= flashMessage %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <% } %>
+
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Title</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Organiser</th>
+            <th>Created</th>
+            <th>Updated</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!events || !events.length) { %>
+            <tr>
+              <td colspan="7" class="text-muted text-center py-4">No entertainment events configured yet.</td>
+            </tr>
+          <% } else { %>
+            <% events.forEach(function(event) { %>
+              <tr>
+                <td>
+                  <div class="fw-semibold"><%= event.title %></div>
+                  <% if (event.adjunct_name) { %>
+                    <small class="text-muted d-block">Adjunct: <%= event.adjunct_name %></small>
+                  <% } %>
+                  <% if (event.acts && event.acts.length) { %>
+                    <small class="text-muted d-block">
+                      Acts:
+                      <%= event.acts.map(function(act) { return act.name; }).join(", ") %>
+                    </small>
+                  <% } %>
+                </td>
+                <td><%= event.start_at ? new Date(event.start_at).toLocaleString('en-NZ') : '—' %></td>
+                <td class="text-capitalize"><%= event.status %></td>
+                <td><%= event.organiser || '—' %></td>
+                <td>
+                  <div class="small text-muted"><%= event.created_by_name || '—' %></div>
+                  <small class="text-muted"><%= event.created_at ? new Date(event.created_at).toLocaleDateString('en-NZ') : '' %></small>
+                </td>
+                <td>
+                  <div class="small text-muted"><%= event.updated_by_name || '—' %></div>
+                  <small class="text-muted"><%= event.updated_at ? new Date(event.updated_at).toLocaleDateString('en-NZ') : '' %></small>
+                </td>
+                <td class="text-end">
+                  <button
+                    class="btn btn-sm btn-outline-secondary"
+                    data-bs-toggle="modal"
+                    data-bs-target="#editEntertainmentModal"
+                    data-event='<%- JSON.stringify(event) %>'
+                  >
+                    Edit
+                  </button>
+                  <form action="/settings/entertainment/delete" method="POST" class="d-inline" onsubmit="return confirm('Delete <%= event.title %>?');">
+                    <input type="hidden" name="id" value="<%= event.id %>">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- Add Modal -->
+<div class="modal fade" id="addEntertainmentModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <form class="modal-content" action="/settings/entertainment/add" method="POST" enctype="multipart/form-data">
+      <div class="modal-header">
+        <h5 class="modal-title">Add Entertainment Event</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-md-8">
+            <label class="form-label">Title</label>
+            <input type="text" name="title" class="form-control" value="<%= entertainmentPrefill?.title || '' %>" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Status</label>
+            <select name="status" class="form-select">
+              <option value="draft">Draft</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="published">Published</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Date</label>
+            <input type="date" name="start_date" class="form-control" value="<%= entertainmentPrefill?.start_date || '' %>" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Time</label>
+            <input type="time" name="start_time" class="form-control" value="<%= entertainmentPrefill?.start_time || '' %>" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">End Date (optional)</label>
+            <input type="date" name="end_date" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">End Time (optional)</label>
+            <input type="time" name="end_time" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Adjunct / Support Act</label>
+            <input type="text" name="adjunct_name" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">External link</label>
+            <input type="url" name="external_url" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Organiser</label>
+            <input type="text" name="organiser" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Price (NZD)</label>
+            <input type="number" name="price" class="form-control" min="0" step="0.50">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Image URL</label>
+            <input type="url" name="image_url" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Or Upload Image</label>
+            <input type="file" name="image_file" accept="image/*" class="form-control">
+            <small class="text-muted">Max 5MB. Will be cropped to fit.</small>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Acts</label>
+            <select name="acts[]" class="form-select" multiple>
+              <% (acts || []).forEach(function(act) { %>
+                <option value="<%= act.id %>"><%= act.name %></option>
+              <% }) %>
+            </select>
+            <small class="text-muted">Hold Ctrl (Windows) or ⌘ (Mac) to select multiple acts.</small>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Description</label>
+            <textarea name="description" rows="4" class="form-control"></textarea>
+          </div>
+          <div class="col-12">
+            <div class="border rounded-3 p-3 bg-light-subtle">
+              <h6 class="mb-2">Repeat event</h6>
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label">Frequency</label>
+                  <select name="recurrence_frequency" class="form-select">
+                    <option value="none">Does not repeat</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly_date">Monthly (date)</option>
+                    <option value="monthly_weekday">Monthly (weekday)</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Interval</label>
+                  <input type="number" name="recurrence_interval" class="form-control" min="1" value="1">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">End date</label>
+                  <input type="date" name="recurrence_end_date" class="form-control">
+                </div>
+              </div>
+              <div class="mt-2">
+                <label class="form-label">Weekdays</label>
+                <div class="d-flex flex-wrap gap-2">
+                  <% ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].forEach(function(day, idx) { %>
+                    <div class="form-check form-check-inline">
+                      <input class="form-check-input" type="checkbox" name="recurrence_weekdays[]" value="<%= idx %>" id="ent-rec-<%= idx %>">
+                      <label class="form-check-label" for="ent-rec-<%= idx %>"><%= day %></label>
+                    </div>
+                  <% }) %>
+                </div>
+              </div>
+              <div class="row g-3 mt-2">
+                <div class="col-md-6">
+                  <label class="form-label">Monthly day</label>
+                  <input type="number" name="recurrence_monthly_day" class="form-control" min="1" max="31">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Monthly weekday</label>
+                  <select name="recurrence_monthly_week" class="form-select">
+                    <option value="">--</option>
+                    <option value="1">First</option>
+                    <option value="2">Second</option>
+                    <option value="3">Third</option>
+                    <option value="4">Fourth</option>
+                    <option value="-1">Last</option>
+                  </select>
+                </div>
+              </div>
+              <div class="mt-2">
+                <label class="form-label">Skip dates</label>
+                <textarea name="recurrence_skip_dates" rows="2" class="form-control" placeholder="YYYY-MM-DD separated by commas"></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="submit" class="btn btn-primary">Save event</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editEntertainmentModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <form class="modal-content" action="/settings/entertainment/edit" method="POST" enctype="multipart/form-data">
+      <div class="modal-header">
+        <h5 class="modal-title">Edit Entertainment Event</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="id" id="entEditId">
+        <div class="row g-3">
+          <div class="col-md-8">
+            <label class="form-label">Title</label>
+            <input type="text" name="title" id="entEditTitle" class="form-control" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Status</label>
+            <select name="status" id="entEditStatus" class="form-select">
+              <option value="draft">Draft</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="published">Published</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Date</label>
+            <input type="date" name="start_date" id="entEditDate" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Time</label>
+            <input type="time" name="start_time" id="entEditTime" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">End Date</label>
+            <input type="date" name="end_date" id="entEditEndDate" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">End Time</label>
+            <input type="time" name="end_time" id="entEditEndTime" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Adjunct / Support Act</label>
+            <input type="text" name="adjunct_name" id="entEditAdjunct" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">External link</label>
+            <input type="url" name="external_url" id="entEditLink" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Organiser</label>
+            <input type="text" name="organiser" id="entEditOrganiser" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Price (NZD)</label>
+            <input type="number" name="price" id="entEditPrice" class="form-control" min="0" step="0.50">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Image URL</label>
+            <input type="url" name="image_url" id="entEditImage" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Or Upload Image</label>
+            <input type="file" name="image_file" accept="image/*" class="form-control">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Acts</label>
+            <select name="acts[]" id="entEditActs" class="form-select" multiple>
+              <% (acts || []).forEach(function(act) { %>
+                <option value="<%= act.id %>"><%= act.name %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Description</label>
+            <textarea name="description" id="entEditDescription" rows="4" class="form-control"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="submit" class="btn btn-primary">Save changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<section class="card shadow-sm mt-4">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h5 class="mb-0">Acts Directory</h5>
+        <small class="text-muted">Manage performers for quick selection and reporting.</small>
+      </div>
+      <form class="d-flex gap-2" action="/settings/entertainment/acts/add" method="POST">
+        <input type="text" name="name" class="form-control form-control-sm" placeholder="New act name" required>
+        <input type="url" name="external_url" class="form-control form-control-sm" placeholder="Website (optional)">
+        <button type="submit" class="btn btn-sm btn-outline-primary">Add</button>
+      </form>
+    </div>
+    <% if (!acts || !acts.length) { %>
+      <p class="text-muted mb-0">No acts recorded yet.</p>
+    <% } else { %>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Link</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% acts.forEach(function(act) { %>
+              <tr>
+                <td><%= act.name %></td>
+                <td>
+                  <% if (act.external_url) { %>
+                    <a href="<%= act.external_url %>" target="_blank" rel="noopener"><%= act.external_url %></a>
+                  <% } else { %>
+                    <span class="text-muted">—</span>
+                  <% } %>
+                </td>
+                <td class="text-end">
+                  <form action="/settings/entertainment/acts/delete" method="POST" onsubmit="return confirm('Delete <%= act.name %>?');">
+                    <input type="hidden" name="id" value="<%= act.id %>">
+                    <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </div>
+</section>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const editModal = document.getElementById("editEntertainmentModal");
+    editModal?.addEventListener("show.bs.modal", (event) => {
+      const button = event.relatedTarget;
+      if (!button) return;
+      const eventData = button.getAttribute("data-event");
+      if (!eventData) return;
+      try {
+        const record = JSON.parse(eventData);
+        document.getElementById("entEditId").value = record.id || "";
+        document.getElementById("entEditTitle").value = record.title || "";
+        document.getElementById("entEditStatus").value = record.status || "draft";
+        document.getElementById("entEditAdjunct").value = record.adjunct_name || "";
+        document.getElementById("entEditLink").value = record.external_url || "";
+        document.getElementById("entEditOrganiser").value = record.organiser || "";
+        document.getElementById("entEditPrice").value = record.price || "";
+        document.getElementById("entEditImage").value = record.image_url || "";
+        document.getElementById("entEditDescription").value = record.description || "";
+        if (record.start_at) {
+          const dateObj = new Date(record.start_at);
+          document.getElementById("entEditDate").value = dateObj.toISOString().slice(0, 10);
+          document.getElementById("entEditTime").value = dateObj.toISOString().slice(11, 16);
+        } else {
+          document.getElementById("entEditDate").value = "";
+          document.getElementById("entEditTime").value = "";
+        }
+        if (record.end_at) {
+          const endObj = new Date(record.end_at);
+          document.getElementById("entEditEndDate").value = endObj.toISOString().slice(0, 10);
+          document.getElementById("entEditEndTime").value = endObj.toISOString().slice(11, 16);
+        } else {
+          document.getElementById("entEditEndDate").value = "";
+          document.getElementById("entEditEndTime").value = "";
+        }
+        const select = document.getElementById("entEditActs");
+        if (select) {
+          const selectedIds = (record.acts || []).map((act) => act.id);
+          Array.from(select.options).forEach((option) => {
+            option.selected = selectedIds.includes(Number(option.value));
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load event data", err);
+      }
+    });
+  });
+</script>
+
+<% if (entertainmentPrefill && (entertainmentPrefill.title || entertainmentPrefill.start_date || entertainmentPrefill.start_time)) { %>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var addModal = document.getElementById('addEntertainmentModal');
+    if (!addModal || !window.bootstrap) return;
+    var modal = new window.bootstrap.Modal(addModal);
+    modal.show();
+  });
+</script>
+<% } %>

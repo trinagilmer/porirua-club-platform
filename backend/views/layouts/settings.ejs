@@ -61,25 +61,62 @@
         <img src="/img/pc-logo.png" alt="Porirua Club" class="logo-img" />
       </a>
 
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+              aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
         <span class="navbar-toggler-icon"></span>
       </button>
 
       <div class="collapse navbar-collapse" id="mainNav">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0 nav-links">
-          <li class="nav-item"><a class="nav-link <%= active === 'dashboard' ? 'active' : '' %>" href="/dashboard">Dashboard</a></li>
-          <li class="nav-item"><a class="nav-link <%= active === 'functions' ? 'active' : '' %>" href="/functions">Functions</a></li>
-          <li class="nav-item"><a class="nav-link <%= active === 'inbox' ? 'active' : '' %>" href="/inbox">Inbox</a></li>
-          <li class="nav-item"><a class="nav-link <%= active === 'settings' ? 'active' : '' %>" href="/settings">Settings</a></li>
+          <li class="nav-item">
+            <a class="nav-link <%= active === 'dashboard' ? 'active' : '' %>" href="/dashboard">Dashboard</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link <%= active === 'functions' ? 'active' : '' %>" href="/functions">Functions</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link <%= active === 'calendar' ? 'active' : '' %>" href="/calendar">Calendar</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link <%= active === 'restaurant' ? 'active' : '' %>" href="/calendar/restaurant">Restaurant</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link <%= active === 'entertainment' ? 'active' : '' %>" href="/entertainment">Entertainment</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link <%= active === 'inbox' ? 'active' : '' %>" href="/inbox">Inbox</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link <%= active === 'settings' ? 'active' : '' %>" href="/settings">Settings</a>
+          </li>
         </ul>
 
-        <% if (user) { %>
-          <div class="user-circle ms-2" title="<%= user.name || '' %>">
-            <%= user.name ? user.name.charAt(0).toUpperCase() : '?' %>
-          </div>
-        <% } else { %>
-          <a href="/login" class="btn btn-outline-light btn-sm">Login</a>
-        <% } %>
+        <div class="d-flex align-items-center header-right">
+          <% if (user) { %>
+            <div class="dropdown">
+              <button
+                class="btn btn-outline-light header-user-avatar p-0"
+                type="button"
+                id="userMenuBtn"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+                title="<%= user.name || 'User' %>"
+              >
+                <%= user.name ? user.name.charAt(0).toUpperCase() : '?' %>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end text-sm" aria-labelledby="userMenuBtn">
+                <li><a class="dropdown-item" href="/settings/users">View Profile</a></li>
+                <li><a class="dropdown-item" href="/auth/logout">Log out</a></li>
+                <% if (user.role && ['admin','owner'].includes(user.role.toLowerCase())) { %>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item" href="/settings/users">User management</a></li>
+                <% } %>
+              </ul>
+            </div>
+          <% } else { %>
+            <a href="/login" class="btn btn-outline-light btn-sm">Login</a>
+          <% } %>
+        </div>
       </div>
     </div>
   </header>
@@ -94,6 +131,7 @@
       <a href="/settings/event-types" class="nav-link <%= activeTab === 'event-types' ? 'active fw-semibold' : '' %>">Event Types</a>
       <a href="/settings/spaces" class="nav-link <%= activeTab === 'spaces' ? 'active fw-semibold' : '' %>">Rooms / Spaces</a>
       <a href="/settings/restaurant" class="nav-link <%= activeTab === 'restaurant' ? 'active fw-semibold' : '' %>">Restaurant Bookings</a>
+      <a href="/settings/entertainment" class="nav-link <%= activeTab === 'entertainment' ? 'active fw-semibold' : '' %>">Entertainment Events</a>
         <a href="/settings/note-templates" class="nav-link <%= activeTab === 'note-templates' ? 'active fw-semibold' : '' %>">Note Templates</a>
         <a href="/settings/calendar" class="nav-link <%= activeTab === 'calendar-settings' ? 'active fw-semibold' : '' %>">Calendar Options</a>
         <a href="/settings/proposal-terms" class="nav-link <%= activeTab === 'proposal-terms' ? 'active fw-semibold' : '' %>">Proposal Terms</a>
