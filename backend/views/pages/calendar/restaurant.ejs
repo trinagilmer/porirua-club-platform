@@ -1,0 +1,145 @@
+<% const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]; %>
+<script>
+  window.calendarConfig = Object.assign({}, window.calendarConfig || {}, <%- JSON.stringify(calendarConfig || {}) %>);
+</script>
+
+<div class="calendar-page px-4 py-4">
+  <div class="d-flex justify-content-between flex-wrap gap-2 mb-4">
+    <div>
+      <h1 class="mb-1">Restaurant Bookings</h1>
+      <p class="text-muted mb-0">Live view of reservations and capacity windows.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="/calendar" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left-short me-1"></i> Function calendar
+      </a>
+      <a href="/calendar/restaurant/book" class="btn btn-outline-primary btn-sm">
+        Public booking form
+      </a>
+    </div>
+  </div>
+
+  <% if (message) { %>
+    <div class="alert alert-success"><%= message %></div>
+  <% } %>
+  <% if (errorMessage) { %>
+    <div class="alert alert-danger"><%= decodeURIComponent(errorMessage) %></div>
+  <% } %>
+
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <section class="card shadow-sm p-3">
+        <div id="restaurantCalendar" class="calendar-shell" aria-live="polite"></div>
+      </section>
+    </div>
+    <div class="col-lg-4">
+      <section class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="mb-3">Service windows</h5>
+          <% if (!services || !services.length) { %>
+            <p class="text-muted mb-0">No services configured. Set them up under Settings → Restaurant Bookings.</p>
+          <% } else { %>
+            <ul class="list-unstyled mb-0">
+              <% services.forEach(function(service) { %>
+                <li class="mb-2">
+                  <strong><%= service.name %></strong><br>
+                  <small class="text-muted">
+                    <%= dayNames[service.day_of_week] %>,
+                    <%= service.start_time ? service.start_time.slice(0,5) : "--:--" %>
+                    –
+                    <%= service.end_time ? service.end_time.slice(0,5) : "--:--" %>
+                  </small>
+                </li>
+              <% }) %>
+            </ul>
+          <% } %>
+        </div>
+      </section>
+
+      <section class="card shadow-sm">
+        <div class="card-body">
+          <% if (!canManage) { %>
+            <h5 class="mb-3">Need to add a booking?</h5>
+            <p class="text-muted">Only administrators can add bookings here. Use the public form to capture enquiries.</p>
+          <% } else { %>
+            <h5 class="mb-3">Add booking</h5>
+            <form action="/calendar/restaurant/bookings" method="POST" class="vstack gap-3">
+              <div>
+                <label class="form-label">Party name</label>
+                <input type="text" name="party_name" class="form-control" required>
+              </div>
+              <div class="row g-2">
+                <div class="col">
+                  <label class="form-label">Date</label>
+                  <input type="date" name="booking_date" class="form-control" required>
+                </div>
+                <div class="col">
+                  <label class="form-label">Time</label>
+                  <input type="time" name="booking_time" class="form-control" required>
+                </div>
+              </div>
+              <div class="row g-2">
+                <div class="col">
+                  <label class="form-label">Party size</label>
+                  <input type="number" name="size" class="form-control" min="1" required>
+                </div>
+                <div class="col">
+                  <label class="form-label">Service</label>
+                  <select name="service_id" class="form-select">
+                    <option value="">Auto detect</option>
+                    <% (services || []).forEach(function(service) { %>
+                      <option value="<%= service.id %>">
+                        <%= service.name %> — <%= dayNames[service.day_of_week] %>
+                      </option>
+                    <% }) %>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label class="form-label">Zone</label>
+                <select name="zone_id" class="form-select">
+                  <option value="">No preference</option>
+                  <% (zones || []).forEach(function(zone) { %>
+                    <option value="<%= zone.id %>"><%= zone.name %></option>
+                  <% }) %>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Table</label>
+                <select name="table_id" class="form-select">
+                  <option value="">Unassigned</option>
+                  <% (tables || []).forEach(function(table) { %>
+                    <option value="<%= table.id %>"><%= table.label %></option>
+                  <% }) %>
+                </select>
+              </div>
+              <div class="row g-2">
+                <div class="col">
+                  <label class="form-label">Contact email</label>
+                  <input type="email" name="contact_email" class="form-control">
+                </div>
+                <div class="col">
+                  <label class="form-label">Phone</label>
+                  <input type="text" name="contact_phone" class="form-control">
+                </div>
+              </div>
+              <div>
+                <label class="form-label">Notes</label>
+                <textarea name="notes" class="form-control" rows="2"></textarea>
+              </div>
+              <div>
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                  <option value="confirmed">Confirmed</option>
+                  <option value="pending">Pending</option>
+                  <option value="seated">Seated</option>
+                </select>
+              </div>
+              <button type="submit" class="btn btn-primary">Save booking</button>
+            </form>
+          <% } %>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>

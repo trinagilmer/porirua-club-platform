@@ -1,0 +1,78 @@
+<% const booking = locals.booking || {}; %>
+<% const success = locals.success || null; %>
+<% const errorMessage = locals.errorMessage || null; %>
+
+<div class="container py-4">
+  <a href="/calendar/restaurant" class="btn btn-outline-secondary btn-sm mb-3">
+    <i class="bi bi-arrow-left-short me-1"></i> Back to restaurant calendar
+  </a>
+
+  <div class="row g-4">
+    <div class="col-lg-7">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h2 class="mb-2"><%= booking.party_name %></h2>
+          <p class="text-muted mb-4"><%= booking.booking_date ? new Date(booking.booking_date).toLocaleDateString('en-NZ') : '' %> · <%= booking.booking_time || 'TBC' %></p>
+
+          <dl class="row">
+            <dt class="col-sm-4">Guests</dt>
+            <dd class="col-sm-8"><%= booking.size || 0 %></dd>
+
+            <dt class="col-sm-4">Status</dt>
+            <dd class="col-sm-8 text-capitalize"><%= booking.status || 'pending' %></dd>
+
+            <dt class="col-sm-4">Channel</dt>
+            <dd class="col-sm-8 text-capitalize"><%= booking.channel || 'internal' %></dd>
+
+            <dt class="col-sm-4">Service</dt>
+            <dd class="col-sm-8"><%= booking.service_name || 'Auto detected' %></dd>
+
+            <dt class="col-sm-4">Zone</dt>
+            <dd class="col-sm-8"><%= booking.zone_name || 'Unassigned' %></dd>
+
+            <dt class="col-sm-4">Table</dt>
+            <dd class="col-sm-8"><%= booking.table_label || 'Unassigned' %></dd>
+          </dl>
+
+          <hr>
+          <h5>Contact</h5>
+          <p class="mb-1"><strong>Email:</strong> <%= booking.contact_email || '—' %></p>
+          <p class="mb-1"><strong>Phone:</strong> <%= booking.contact_phone || '—' %></p>
+
+          <hr>
+          <h5>Notes</h5>
+          <p class="mb-0"><%= booking.notes || 'No notes provided.' %></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <% if (success) { %>
+        <div class="alert alert-success">Booking updated.</div>
+      <% } %>
+      <% if (errorMessage) { %>
+        <div class="alert alert-danger"><%= decodeURIComponent(errorMessage) %></div>
+      <% } %>
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="mb-3">Update status</h5>
+          <form action="/calendar/restaurant/bookings/<%= booking.id %>/status" method="POST" class="vstack gap-3">
+            <div>
+              <label class="form-label">Status</label>
+              <select name="status" class="form-select" required>
+                <% ["pending","confirmed","seated","completed","cancelled"].forEach(function(status) { %>
+                  <option value="<%= status %>" <%= booking.status === status ? 'selected' : '' %>><%= status.charAt(0).toUpperCase() + status.slice(1) %></option>
+                <% }) %>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Notes</label>
+              <textarea name="notes" class="form-control" rows="3"><%= booking.notes || '' %></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Save changes</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

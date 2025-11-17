@@ -11,6 +11,8 @@ const { pool } = require("../db");
 
 const CALENDAR_SLOT_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
 const DEFAULT_CALENDAR_SLOT = 30;
+const DEFAULT_SERVICE_SLOT = 30;
+const DEFAULT_SERVICE_TURN = 90;
 
 async function logPromotionAttempt({ userId, requestedRole, ipAddress, succeeded, message }) {
   try {
@@ -43,6 +45,19 @@ function ensurePrivileged(req, res, next) {
   req.flash("flashMessage", "?? Admin access required.");
   req.flash("flashType", "warning");
   res.redirect("/settings");
+}
+
+function parseBooleanField(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (!value) return false;
+  return ["true", "1", "yes", "on"].includes(String(value).toLowerCase());
+}
+
+function parseOptionalInteger(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = parseInt(value, 10);
+  return Number.isNaN(parsed) ? null : parsed;
 }
 
 // Use the settings layout for everything in this router
@@ -673,6 +688,480 @@ router.get("/calendar", ensurePrivileged, async (req, res) => {
     req.flash("flashMessage", "Failed to load calendar settings.");
     req.flash("flashType", "error");
     res.redirect("/settings/overview");
+  }
+});
+
+/* =========================================================
+   🍽️ RESTAURANT SETTINGS CRUD
+========================================================= */
+router.post("/restaurant/services/add", ensurePrivileged, async (req, res) => {
+  try {
+    const {
+      name,
+      day_of_week,
+      start_time,
+      end_time,
+      slot_minutes,
+      turn_minutes,
+      max_covers_per_slot,
+      max_online_covers,
+      active,
+    } = req.body;
+
+    if (!name?.trim() || !start_time || !end_time) {
+      req.flash("flashMessage", "⚠️ Service name, start, and end time are required.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/restaurant");
+    }
+
+    const day = parseInt(day_of_week, 10);
+    if (Number.isNaN(day) || day < 0 || day > 6) {
+      req.flash("flashMessage", "⚠️ Invalid day of week.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/restaurant");
+    }
+
+    const slot = parseOptionalInteger(slot_minutes) || DEFAULT_SERVICE_SLOT;
+    const turn = parseOptionalInteger(turn_minutes) || DEFAULT_SERVICE_TURN;
+    const maxCovers = parseOptionalInteger(max_covers_per_slot);
+    const maxOnline = parseOptionalInteger(max_online_covers);
+
+    await pool.query(
+      `
+      INSERT INTO restaurant_services
+        (name, day_of_week, start_time, end_time, slot_minutes, turn_minutes, max_covers_per_slot, max_online_covers, active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+      `,
+      [name.trim(), day, start_time, end_time, slot, turn, maxCovers, maxOnline, parseBooleanField(active)]
+    );
+
+    req.flash("flashMessage", "✅ Service added.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/restaurant");
+  } catch (err) {
+    console.error("❌ Error adding restaurant service:", err);
+    req.flash("flashMessage", "❌ Failed to add service.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/restaurant");
+  }
+});
+
+router.post("/restaurant/services/edit", ensurePrivileged, async (req, res) => {
+  try {
+    const {
+      id,
+      name,
+      day_of_week,
+      start_time,
+      end_time,
+      slot_minutes,
+      turn_minutes,
+      max_covers_per_slot,
+      max_online_covers,
+      active,
+    } = req.body;
+
+    if (!id || !name?.trim() || !start_time || !end_time) {
+      req.flash("flashMessage", "⚠️ Missing service details.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/restaurant");
+    }
+
+    const day = parseInt(day_of_week, 10);
+    if (Number.isNaN(day) || day < 0 || day > 6) {
+      req.flash("flashMessage", "⚠️ Invalid day of week.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/restaurant");
+    }
+
+    const slot = parseOptionalInteger(slot_minutes) || DEFAULT_SERVICE_SLOT;
+    const turn = parseOptionalInteger(turn_minutes) || DEFAULT_SERVICE_TURN;
+
+    await pool.query(
+      `
+      UPDATE restaurant_services
+         SET name = $1,
+             day_of_week = $2,
+             start_time = $3,
+             end_time = $4,
+             slot_minutes = $5,
+             turn_minutes = $6,
+             max_covers_per_slot = $7,
+             max_online_covers = $8,
+             active = $9,
+             updated_at = NOW()
+       WHERE id = $10;
+      `,
+      [
+        name.trim(),
+        day,
+        start_time,
+        end_time,
+        slot,
+        turn,
+        parseOptionalInteger(max_covers_per_slot),
+        parseOptionalInteger(max_online_covers),
+        parseBooleanField(active),
+        id,
+      ]
+    );
+
+    req.flash("flashMessage", "✅ Service updated.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/restaurant");
+  } catch (err) {
+    console.error("❌ Error updating restaurant service:", err);
+    req.flash("flashMessage", "❌ Failed to update service.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/restaurant");
+  }
+});
+
+router.post("/restaurant/services/delete", ensurePrivileged, async (req, res) => {
+  try {
+    const { id } = req.body;
+    if (!id) {
+      req.flash("flashMessage", "⚠️ Missing service ID.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/restaurant");
+    }
+    await pool.query("DELETE FROM restaurant_services WHERE id = $1;", [id]);
+    req.flash("flashMessage", "🗑️ Service deleted.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/restaurant");
+  } catch (err) {
+    console.error("❌ Error deleting restaurant service:", err);
+    req.flash("flashMessage", "❌ Failed to delete service.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/restaurant");
+  }
+});
+
+router.post("/restaurant/zones/add", ensurePrivileged, async (req, res) => {
+  try {
+    const { name, max_covers_per_slot, notes } = req.body;
+    if (!name?.trim()) {
+      req.flash("flashMessage", "⚠️ Zone name is required.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/restaurant");
+    }
+    await pool.query(
+      `
+      INSERT INTO restaurant_zones (name, max_covers_per_slot, notes)
+      VALUES ($1, $2, $3);
+      `,
+      [name.trim(), parseOptionalInteger(max_covers_per_slot), notes?.trim() || null]
+    );
+    req.flash("flashMessage", "✅ Zone added.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/restaurant");
+  } catch (err) {
+    console.error("❌ Error adding zone:", err);
+    req.flash("flashMessage", "❌ Failed to add zone.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/restaurant");
+  }
+});
+
+router.post("/restaurant/zones/edit", ensurePrivileged, async (req, res) => {
+  try {
+    const { id, name, max_covers_per_slot, notes } = req.body;
+    if (!id || !name?.trim()) {
+      req.flash("flashMessage", "⚠️ Missing zone details.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/restaurant");
+    }
+    await pool.query(
+      `
+      UPDATE restaurant_zones
+         SET name = $1,
+             max_covers_per_slot = $2,
+             notes = $3
+       WHERE id = $4;
+      `,
+      [name.trim(), parseOptionalInteger(max_covers_per_slot), notes?.trim() || null, id]
+    );
+    req.flash("flashMessage", "✅ Zone updated.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/restaurant");
+  } catch (err) {
+    console.error("❌ Error updating zone:", err);
+    req.flash("flashMessage", "❌ Failed to update zone.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/restaurant");
+  }
+});
+
+router.post("/restaurant/zones/delete", ensurePrivileged, async (req, res) => {
+  try {
+    const { id } = req.body;
+    if (!id) {
+      req.flash("flashMessage", "⚠️ Missing zone ID.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/restaurant");
+    }
+    await pool.query("DELETE FROM restaurant_zones WHERE id = $1;", [id]);
+    req.flash("flashMessage", "🗑️ Zone deleted.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/restaurant");
+  } catch (err) {
+    console.error("❌ Error deleting zone:", err);
+    req.flash("flashMessage", "❌ Failed to delete zone.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/restaurant");
+  }
+});
+
+router.post("/restaurant/tables/add", ensurePrivileged, async (req, res) => {
+  try {
+    const { label, zone_id, seats, can_join, active } = req.body;
+    if (!label?.trim() || !seats) {
+      req.flash("flashMessage", "⚠️ Table label and seats are required.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/restaurant");
+    }
+    const seatsInt = parseInt(seats, 10);
+    if (Number.isNaN(seatsInt) || seatsInt <= 0) {
+      req.flash("flashMessage", "⚠️ Seats must be a positive number.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/restaurant");
+    }
+    await pool.query(
+      `
+      INSERT INTO restaurant_tables (zone_id, label, seats, can_join, active)
+      VALUES ($1, $2, $3, $4, $5);
+      `,
+      [parseOptionalInteger(zone_id), label.trim(), seatsInt, parseBooleanField(can_join), parseBooleanField(active)]
+    );
+    req.flash("flashMessage", "✅ Table added.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/restaurant");
+  } catch (err) {
+    console.error("❌ Error adding table:", err);
+    req.flash("flashMessage", "❌ Failed to add table.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/restaurant");
+  }
+});
+
+router.post("/restaurant/tables/edit", ensurePrivileged, async (req, res) => {
+  try {
+    const { id, label, zone_id, seats, can_join, active } = req.body;
+    if (!id || !label?.trim() || !seats) {
+      req.flash("flashMessage", "⚠️ Missing table details.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/restaurant");
+    }
+    const seatsInt = parseInt(seats, 10);
+    if (Number.isNaN(seatsInt) || seatsInt <= 0) {
+      req.flash("flashMessage", "⚠️ Seats must be a positive number.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/restaurant");
+    }
+    await pool.query(
+      `
+      UPDATE restaurant_tables
+         SET zone_id = $1,
+             label = $2,
+             seats = $3,
+             can_join = $4,
+             active = $5
+       WHERE id = $6;
+      `,
+      [parseOptionalInteger(zone_id), label.trim(), seatsInt, parseBooleanField(can_join), parseBooleanField(active), id]
+    );
+    req.flash("flashMessage", "✅ Table updated.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/restaurant");
+  } catch (err) {
+    console.error("❌ Error updating table:", err);
+    req.flash("flashMessage", "❌ Failed to update table.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/restaurant");
+  }
+});
+
+router.post("/restaurant/tables/delete", ensurePrivileged, async (req, res) => {
+  try {
+    const { id } = req.body;
+    if (!id) {
+      req.flash("flashMessage", "⚠️ Missing table ID.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/restaurant");
+    }
+    await pool.query("DELETE FROM restaurant_tables WHERE id = $1;", [id]);
+    req.flash("flashMessage", "🗑️ Table removed.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/restaurant");
+  } catch (err) {
+    console.error("❌ Error deleting table:", err);
+    req.flash("flashMessage", "❌ Failed to delete table.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/restaurant");
+  }
+});
+
+router.post("/restaurant/overrides/add", ensurePrivileged, async (req, res) => {
+  try {
+    const { service_id, override_date, max_covers_per_slot, slot_minutes, notes } = req.body;
+    const serviceId = parseInt(service_id, 10);
+    if (!serviceId || !override_date) {
+      req.flash("flashMessage", "⚠️ Override needs a service and date.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/restaurant");
+    }
+    await pool.query(
+      `
+      INSERT INTO restaurant_capacity_overrides
+        (service_id, override_date, max_covers_per_slot, slot_minutes, notes)
+      VALUES ($1, $2, $3, $4, $5);
+      `,
+      [serviceId, override_date, parseOptionalInteger(max_covers_per_slot), parseOptionalInteger(slot_minutes), notes?.trim() || null]
+    );
+    req.flash("flashMessage", "✅ Override added.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/restaurant");
+  } catch (err) {
+    console.error("❌ Error adding override:", err);
+    req.flash("flashMessage", "❌ Failed to add override.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/restaurant");
+  }
+});
+
+router.post("/restaurant/overrides/delete", ensurePrivileged, async (req, res) => {
+  try {
+    const { id } = req.body;
+    if (!id) {
+      req.flash("flashMessage", "⚠️ Missing override ID.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/restaurant");
+    }
+    await pool.query("DELETE FROM restaurant_capacity_overrides WHERE id = $1;", [id]);
+    req.flash("flashMessage", "🗑️ Override removed.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/restaurant");
+  } catch (err) {
+    console.error("❌ Error deleting override:", err);
+    req.flash("flashMessage", "❌ Failed to delete override.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/restaurant");
+  }
+});
+
+router.post("/restaurant/blackouts/add", ensurePrivileged, async (req, res) => {
+  try {
+    const { start_at, end_at, reason, applies_to } = req.body;
+    if (!start_at || !end_at) {
+      req.flash("flashMessage", "⚠️ Blackout requires start and end times.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/restaurant");
+    }
+    await pool.query(
+      `
+      INSERT INTO restaurant_blackouts (start_at, end_at, reason, applies_to)
+      VALUES ($1, $2, $3, $4);
+      `,
+      [start_at, end_at, reason?.trim() || null, applies_to?.trim() || "all"]
+    );
+    req.flash("flashMessage", "✅ Blackout created.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/restaurant");
+  } catch (err) {
+    console.error("❌ Error adding blackout:", err);
+    req.flash("flashMessage", "❌ Failed to add blackout.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/restaurant");
+  }
+});
+
+router.post("/restaurant/blackouts/delete", ensurePrivileged, async (req, res) => {
+  try {
+    const { id } = req.body;
+    if (!id) {
+      req.flash("flashMessage", "⚠️ Missing blackout ID.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/restaurant");
+    }
+    await pool.query("DELETE FROM restaurant_blackouts WHERE id = $1;", [id]);
+    req.flash("flashMessage", "🗑️ Blackout removed.");
+    req.flash("flashType", "success");
+    res.redirect("/settings/restaurant");
+  } catch (err) {
+    console.error("❌ Error deleting blackout:", err);
+    req.flash("flashMessage", "❌ Failed to delete blackout.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/restaurant");
+  }
+});
+
+/* =========================================================
+   🍽️ RESTAURANT BOOKING SETTINGS
+========================================================= */
+router.get("/restaurant", ensurePrivileged, async (req, res) => {
+  try {
+    const [servicesRes, zonesRes, tablesRes, overridesRes, blackoutsRes] = await Promise.all([
+      pool.query(`
+        SELECT id, name, day_of_week, start_time, end_time, slot_minutes, turn_minutes,
+               max_covers_per_slot, max_online_covers, active, created_at, updated_at
+          FROM restaurant_services
+         ORDER BY day_of_week, start_time;
+      `),
+      pool.query(`
+        SELECT id, name, max_covers_per_slot, notes, created_at
+          FROM restaurant_zones
+         ORDER BY name ASC;
+      `),
+      pool.query(`
+        SELECT t.id,
+               t.zone_id,
+               z.name AS zone_name,
+               t.label,
+               t.seats,
+               t.can_join,
+               t.active,
+               t.created_at
+          FROM restaurant_tables t
+          LEFT JOIN restaurant_zones z ON z.id = t.zone_id
+         ORDER BY z.name NULLS LAST, t.label ASC;
+      `),
+      pool.query(`
+        SELECT o.id,
+               o.service_id,
+               s.name AS service_name,
+               o.override_date,
+               o.max_covers_per_slot,
+               o.slot_minutes,
+               o.notes,
+               o.created_at
+          FROM restaurant_capacity_overrides o
+          LEFT JOIN restaurant_services s ON s.id = o.service_id
+         ORDER BY o.override_date DESC;
+      `),
+      pool.query(`
+        SELECT id, start_at, end_at, reason, applies_to, created_at
+          FROM restaurant_blackouts
+         ORDER BY start_at DESC;
+      `),
+    ]);
+
+    res.render("settings/restaurant", {
+      layout: "layouts/settings",
+      title: "Settings — Restaurant Booking",
+      pageType: "settings",
+      activeTab: "restaurant",
+      user: req.session.user || null,
+      services: servicesRes.rows,
+      zones: zonesRes.rows,
+      tables: tablesRes.rows,
+      overrides: overridesRes.rows,
+      blackouts: blackoutsRes.rows,
+    });
+  } catch (err) {
+    console.error("❌ Error loading restaurant settings:", err);
+    req.flash("flashMessage", "❌ Failed to load restaurant settings.");
+    req.flash("flashType", "error");
+    res.redirect("/settings");
   }
 });
 

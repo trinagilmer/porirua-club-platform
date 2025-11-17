@@ -1,0 +1,60 @@
+<% const serviceList = Array.isArray(services) ? services : []; %>
+
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+      <h1 class="mb-3 text-center">Restaurant Booking Request</h1>
+      <p class="text-muted text-center mb-4">
+        Complete the form below to request a reservation. Our team will confirm availability as soon as possible.
+      </p>
+      <% if (success) { %>
+        <div class="alert alert-success">Thanks! We have received your booking request.</div>
+      <% } %>
+      <% if (errorMessage) { %>
+        <div class="alert alert-danger"><%= decodeURIComponent(errorMessage) %></div>
+      <% } %>
+      <form action="/calendar/restaurant/book" method="POST" class="vstack gap-3">
+        <div>
+          <label class="form-label">Name</label>
+          <input type="text" name="party_name" class="form-control" required>
+        </div>
+        <div>
+          <label class="form-label">Email</label>
+          <input type="email" name="contact_email" class="form-control" required>
+        </div>
+        <div>
+          <label class="form-label">Phone</label>
+          <input type="text" name="contact_phone" class="form-control">
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Date</label>
+            <input type="date" name="booking_date" class="form-control" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Preferred time</label>
+            <input type="time" name="booking_time" class="form-control" required>
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Guests</label>
+          <input type="number" name="size" class="form-control" min="1" required>
+        </div>
+        <div>
+          <label class="form-label">Service</label>
+          <select name="service_id" class="form-select">
+            <option value="">Any available</option>
+            <% serviceList.forEach(function(service) { %>
+              <option value="<%= service.id %>"><%= service.name %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Notes / requests</label>
+          <textarea name="notes" class="form-control" rows="3"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Send booking request</button>
+      </form>
+    </div>
+  </div>
+</div>

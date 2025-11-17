@@ -5,6 +5,9 @@
     confirmed: "Confirmed",
     balance_due: "Balance due",
     completed: "Completed",
+    pending: "Pending",
+    seated: "Seated",
+    cancelled: "Cancelled",
   };
 
   function pad(value) {
