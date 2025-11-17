@@ -3,6 +3,7 @@ const { randomUUID } = require("crypto");
 const { pool } = require("../db");
 const router = express.Router();
 const { sendMail: graphSendMail } = require("../services/graphService");
+const { sendTaskAssignmentEmail } = require("../services/taskMailer");
 
 // === MSAL for app-token fallback (if no delegated token in session) ===
 const { ConfidentialClientApplication } = require("@azure/msal-node");
@@ -72,6 +73,77 @@ async function getGraphAccessToken(req, res) {
   throw new Error("no_delegated_token");
 }
 
+function isTruthy(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    return ["true", "1", "yes", "on"].includes(value.trim().toLowerCase());
+  }
+  return false;
+}
+
+async function maybeSendTaskAssignmentEmail(req, task, assignedUserId, shouldNotify) {
+  if (!shouldNotify || !task || !assignedUserId) return;
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, email FROM users WHERE id = $1 LIMIT 1;`,
+      [assignedUserId]
+    );
+    const assignedUser = rows[0];
+    if (!assignedUser?.email) {
+      console.warn(`[Tasks EMAIL] Assigned user ${assignedUserId} has no email. Skipping notification.`);
+      return;
+    }
+
+    let token;
+    try {
+      token = await getGraphAccessToken(req);
+    } catch (tokenErr) {
+      console.warn("[Tasks EMAIL] Unable to acquire Graph token for assignment email:", tokenErr.message);
+      return;
+    }
+
+    const assignedBy = req.session?.user || { name: "Porirua Club" };
+    const emailRecord = await sendTaskAssignmentEmail(token, task, assignedUser, assignedBy);
+    console.log(`[Tasks EMAIL] Assignment email sent to ${assignedUser.email} for task ${task.id}`);
+
+    await recordTaskAssignmentMessage(task, assignedBy, assignedUser, emailRecord);
+  } catch (err) {
+    console.error("[Tasks EMAIL] Failed to send assignment email:", err.message);
+  }
+}
+
+async function recordTaskAssignmentMessage(task, assignedBy, assignedUser, emailRecord) {
+  if (!emailRecord) return;
+  const functionId = task.function_id || task.functionId || task.related_function;
+  if (!functionId) {
+    console.warn("[Tasks EMAIL] Task has no function_id; skipping comms log.");
+    return;
+  }
+
+  const fromEmail = assignedBy?.email || process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
+  const toEmail = assignedUser?.email;
+  if (!toEmail) return;
+
+  try {
+    await pool.query(
+      `INSERT INTO messages
+         (related_function, from_email, to_email, subject, body, body_html, created_at, message_type)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), 'outbound');`,
+      [
+        functionId,
+        fromEmail,
+        toEmail,
+        emailRecord.subject,
+        emailRecord.body_text || "",
+        emailRecord.body_html || "",
+      ]
+    );
+  } catch (err) {
+    console.error("[Tasks EMAIL] Failed to log assignment email:", err.message);
+  }
+}
 
 router.use(express.json());
 
@@ -360,7 +432,7 @@ router.get("/:id/communications", async (req, res, next) => {
     if (!fn) return res.status(404).send("Function not found");
 
     // 2️⃣ Fetch related messages
-    const { rows: messages } = await pool.query(
+  const { rows: messages } = await pool.query(
       `SELECT 
          id,
          subject,
@@ -369,11 +441,14 @@ router.get("/:id/communications", async (req, res, next) => {
          from_email,
          to_email,
          created_at,
+         sent_at,
+         received_at,
+         COALESCE(sent_at, created_at, received_at) AS entry_date,
          related_function,
          message_type
        FROM messages
-       WHERE related_function = $1
-       ORDER BY created_at DESC;`,
+        WHERE related_function = $1
+        ORDER BY COALESCE(sent_at, created_at, received_at) DESC;`,
       [functionId]
     );
 
@@ -551,7 +626,18 @@ router.get("/:id/communications/:messageId", async (req, res, next) => {
 
     // Fetch message detail
     const { rows: msgRows } = await pool.query(
-      `SELECT id, subject, body, body_html, from_email, to_email, created_at
+      `SELECT 
+         id, 
+         subject, 
+         body, 
+         body_html, 
+         from_email, 
+         to_email, 
+         message_type,
+         created_at,
+         sent_at,
+         received_at,
+         COALESCE(sent_at, created_at, received_at) AS entry_date
        FROM messages
        WHERE id = $1 AND related_function = $2;`,
       [messageId, functionId]
@@ -1000,10 +1086,15 @@ router.get("/:id", async (req, res) => {
           m.body,
           m.body_html,
           m.message_type,
-          m.created_at AS entry_date
+          m.from_email,
+          m.to_email,
+          m.created_at,
+          m.sent_at,
+          m.received_at,
+          COALESCE(m.sent_at, m.created_at, m.received_at) AS entry_date
         FROM messages m
         WHERE m.related_function = $1
-        ORDER BY m.created_at DESC
+        ORDER BY COALESCE(m.sent_at, m.created_at, m.received_at) DESC
         LIMIT 8;
         `,
         [functionId]
@@ -1133,17 +1224,26 @@ router.get("/:id", async (req, res) => {
       };
     });
 
-    const communications = messagesRes.rows.map((message) => ({
-      id: message.id,
-      type: message.message_type || "email",
-      subject: message.subject || "Message",
-      preview: safePreview(message.body || message.body_html),
-      entry_date: message.entry_date,
-      link:
-        (message.message_type || "").toLowerCase() === "proposal"
-          ? `/functions/${functionId}/proposal/preview`
-          : `/functions/${functionId}/communications/${message.id}`,
-    }));
+    const communications = messagesRes.rows.map((message) => {
+      const type = (message.message_type || "email").toLowerCase();
+      const timestamp =
+        message.entry_date || message.created_at || message.sent_at || message.received_at || null;
+      return {
+        id: message.id,
+        type,
+        subject: message.subject || "Message",
+        preview: safePreview(message.body_html || message.body),
+        sender: message.from_email || "",
+        recipient: Array.isArray(message.to_email)
+          ? message.to_email.join(", ")
+          : message.to_email || "",
+        entry_date: timestamp,
+        link:
+          type === "proposal"
+            ? `/functions/${functionId}/proposal/preview`
+            : `/functions/${functionId}/communications/${message.id}`,
+      };
+    });
 
     const proposalAudit = activeProposal
       ? {
@@ -1279,7 +1379,7 @@ router.get("/:id/tasks", async (req, res) => {
 // 🆕 POST: Create a new task for a function
 router.post("/:id/tasks/new", async (req, res) => {
   const { id: functionId } = req.params;
-  const { title, description, assigned_to, due_at } = req.body;
+  const { title, description, assigned_to, due_at, send_email } = req.body;
 
   if (!title?.trim()) {
     return res.status(400).json({ success: false, error: "Task title is required" });
@@ -1301,6 +1401,9 @@ router.post("/:id/tasks/new", async (req, res) => {
     const newTask = rows[0];
     console.log(`✅ [Tasks NEW] Created task '${title}' for function ${functionId}`);
 
+    const shouldEmailAssignee = isTruthy(send_email);
+    await maybeSendTaskAssignmentEmail(req, newTask, assignedUserId, shouldEmailAssignee);
+
     res.json({ success: true, task: newTask });
   } catch (err) {
     console.error("❌ [Tasks NEW] Error:", err);
@@ -1310,12 +1413,12 @@ router.post("/:id/tasks/new", async (req, res) => {
 // ✏️ UPDATE an existing task
 router.post("/tasks/:taskId/update", async (req, res) => {
   const { taskId } = req.params;
-  const { title, description, assigned_to, due_at, status } = req.body;
+  const { title, description, assigned_to, due_at, status, send_email } = req.body;
 
   try {
     const assignedUserId = assigned_to ? parseInt(assigned_to, 10) : null;
 
-    const { rowCount } = await pool.query(
+    const { rows } = await pool.query(
       `
       UPDATE tasks
       SET 
@@ -1325,17 +1428,22 @@ router.post("/tasks/:taskId/update", async (req, res) => {
         due_at = $4,
         status = COALESCE($5, status),
         updated_at = NOW()
-      WHERE id = $6;
+      WHERE id = $6
+      RETURNING *;
       `,
       [title, description || null, assignedUserId, due_at || null, status || null, taskId]
     );
 
-    if (rowCount === 0) {
+    const updatedTask = rows[0];
+    if (!updatedTask) {
       return res.status(404).json({ success: false, error: "Task not found" });
     }
 
+    const shouldEmailAssignee = isTruthy(send_email);
+    await maybeSendTaskAssignmentEmail(req, updatedTask, updatedTask.assigned_user_id, shouldEmailAssignee);
+
     console.log(`✏️ [Tasks UPDATE] Task ${taskId} updated successfully`);
-    res.json({ success: true });
+    res.json({ success: true, task: updatedTask });
   } catch (err) {
     console.error("❌ [Tasks UPDATE] Error:", err.message);
     res.status(500).json({ success: false, error: err.message });

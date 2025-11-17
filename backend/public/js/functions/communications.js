@@ -19,6 +19,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const listEl          = document.getElementById("communicationsList");
   const editorEl        = document.getElementById("editor");
   const sendBtn         = document.getElementById("sendBtn");
+  const composeModal    = createModalController(newMessageModal);
+  newMessageModal?.querySelectorAll('[data-bs-dismiss="modal"]').forEach((btn) => {
+    btn.addEventListener("click", () => composeModal?.hide());
+  });
 
   // ---- Guard: don’t crash if partials missing
   if (!fnId) {
@@ -71,17 +75,64 @@ document.addEventListener("DOMContentLoaded", () => {
     return false;
   };
 
+  function createModalController(el) {
+    if (!el) return null;
+    let instance = null;
+    let fallbackBackdrop = null;
+
+    const getInstance = () => {
+      if (!window.bootstrap?.Modal) return null;
+      if (!instance) {
+        instance = bootstrap.Modal.getOrCreateInstance(el);
+      }
+      return instance;
+    };
+
+    const showFallback = () => {
+      if (el.classList.contains("show")) return;
+      el.classList.add("show");
+      el.style.display = "block";
+      el.removeAttribute("aria-hidden");
+      fallbackBackdrop = document.createElement("div");
+      fallbackBackdrop.className = "modal-backdrop fade show";
+      document.body.appendChild(fallbackBackdrop);
+      document.body.classList.add("modal-open");
+      el.dataset.modalFallback = "true";
+    };
+
+    const hideFallback = () => {
+      if (el.dataset.modalFallback !== "true") return;
+      el.classList.remove("show");
+      el.style.display = "none";
+      el.setAttribute("aria-hidden", "true");
+      document.body.classList.remove("modal-open");
+      if (fallbackBackdrop) {
+        fallbackBackdrop.remove();
+        fallbackBackdrop = null;
+      }
+      delete el.dataset.modalFallback;
+    };
+
+    return {
+      show() {
+        const inst = getInstance();
+        if (inst) inst.show();
+        else showFallback();
+      },
+      hide() {
+        const inst = getInstance();
+        if (inst) inst.hide();
+        else hideFallback();
+      },
+    };
+  }
+
   // ======================================================
-  // 1) “+ New Message” button -> open modal
+  // 1) "+ New Message" button -> open modal
   // ======================================================
   if (newMessageBtn && newMessageModal) {
     newMessageBtn.addEventListener("click", () => {
-      if (!window.bootstrap) {
-        console.error("Bootstrap not loaded – modal cannot open.");
-        return;
-      }
-      const modal = new bootstrap.Modal(newMessageModal);
-      modal.show();
+      composeModal?.show();
       ensureQuill();
       if (subjectInput) subjectInput.value = "";
       if (recipientsInput) recipientsInput.value = "";
@@ -139,9 +190,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // Close modal
-        if (window.bootstrap && newMessageModal) {
-          bootstrap.Modal.getOrCreateInstance(newMessageModal).hide();
-        }
+        composeModal?.hide();
       } catch (err) {
         console.error(err);
         showToast("Couldn’t send your email.", "error");

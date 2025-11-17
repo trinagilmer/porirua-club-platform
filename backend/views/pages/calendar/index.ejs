@@ -4,7 +4,11 @@
   window.calendarConfig = Object.assign({}, window.calendarConfig || {}, <%- JSON.stringify(calendarConfig || {}) %>);
 </script>
 
-<div class="calendar-page px-4 py-4">
+<div class="calendar-page px-4 py-4 calendar-print-shell">
+  <div class="calendar-print-header">
+    <h1 class="calendar-print-title" id="calendarPrintTitle"></h1>
+  </div>
+
   <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3 no-print">
     <div class="flex-grow-1">
       <h1 class="page-title mb-1">
@@ -22,8 +26,6 @@
       </button>
     </div>
   </div>
-
-  <div class="calendar-print-title" id="calendarPrintTitle"></div>
 
   <section class="calendar-controls card shadow-sm p-3 mb-4 no-print">
     <div class="calendar-room-toggle mb-4">
@@ -67,8 +69,52 @@
     </div>
   </section>
 
-  <section class="calendar-wrapper card shadow-sm p-3">
-    <div id="functionCalendar" class="calendar-shell" aria-live="polite"></div>
+  <section class="calendar-wrapper card shadow-sm p-3 calendar-area">
+    <div id="functionCalendar" class="calendar-shell calendar-area" aria-live="polite"></div>
+  </section>
+
+  <!-- Print-only layouts -->
+  <section class="calendar-print-wrapper">
+    <div class="calendar-print-month">
+      <table class="calendar-print-table" id="calendarPrintMonthTable">
+        <thead>
+          <tr>
+            <th>Mon</th>
+            <th>Tue</th>
+            <th>Wed</th>
+            <th>Thu</th>
+            <th>Fri</th>
+            <th>Sat</th>
+            <th>Sun</th>
+          </tr>
+        </thead>
+        <tbody id="calendarPrintMonthBody"></tbody>
+      </table>
+    </div>
+
+    <div class="calendar-print-week">
+      <table class="calendar-print-table" id="calendarPrintWeekTable">
+        <thead>
+          <tr>
+            <th>Mon</th>
+            <th>Tue</th>
+            <th>Wed</th>
+            <th>Thu</th>
+            <th>Fri</th>
+            <th>Sat</th>
+            <th>Sun</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr id="calendarPrintWeekRow"></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="calendar-print-day">
+      <div class="calendar-print-day-meta" id="calendarPrintDayMeta"></div>
+      <ul class="calendar-print-day-list" id="calendarPrintDayList"></ul>
+    </div>
   </section>
 </div>
 

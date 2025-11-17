@@ -617,6 +617,38 @@ textarea {
   background-color: #F9FAFB;
 }
 
+.message-card--communication {
+  align-items: flex-start;
+  gap: 1rem;
+}
+.message-card--communication .msg-subject {
+  font-size: 1rem;
+  color: #111827;
+}
+.message-card--communication .msg-address span {
+  line-height: 1.2;
+}
+.message-card--communication .msg-preview {
+  color: #4B5563;
+}
+.message-card--communication .msg-date {
+  min-width: 120px;
+}
+
+.message-card--detail {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+.message-card--detail .msg-subject {
+  margin-bottom: 0.625rem;
+}
+.message-card--detail .msg-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
 .header-user-avatar {
   background: #6BB4DE;
   color: #ffffff;
@@ -1097,6 +1129,10 @@ textarea {
 .comms-entry__meta {
   font-size: 0.8rem;
   color: #4B5563;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
 }
 @media (max-width: 768px) {
   .comms-entry {
@@ -1176,6 +1212,29 @@ textarea {
   .proposal-header__logo {
     justify-content: center;
   }
+}
+
+.message-body-html,
+.message-body-plain {
+  width: 100%;
+  line-height: 1.5;
+  color: #1F2937;
+  word-break: break-word;
+}
+.message-body-html p,
+.message-body-plain p {
+  margin-bottom: 0.5rem;
+}
+
+.message-body-plain {
+  white-space: pre-wrap;
+}
+
+.message-body-html > *:first-child {
+  margin-top: 0;
+}
+.message-body-html > * {
+  max-width: 100%;
 }
 
 .proposal-logo--primary {
@@ -2060,6 +2119,77 @@ textarea {
   margin-bottom: 3mm;
 }
 
+.calendar-print-header {
+  display: none;
+}
+
+.calendar-print-shell {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.calendar-print-wrapper,
+.calendar-print-month,
+.calendar-print-week,
+.calendar-print-day {
+  display: none;
+}
+
+.calendar-print-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.calendar-print-table th,
+.calendar-print-table td {
+  border: 1px solid #d1d5db;
+  vertical-align: top;
+  padding: 4px;
+}
+.calendar-print-table th {
+  background: #f3f4f6;
+  text-align: center;
+  font-weight: 600;
+}
+
+.print-day-cell {
+  min-height: 80px;
+}
+
+.print-day-number {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.print-event-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.print-event-list li {
+  font-size: 0.85rem;
+  margin-bottom: 2px;
+  word-break: break-word;
+}
+
+.calendar-print-day {
+  display: none;
+}
+
+.calendar-print-day-meta {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.calendar-print-day-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.calendar-print-day-list li {
+  margin-bottom: 6px;
+}
+
 .calendar-room-toggle .calendar-room-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -2113,95 +2243,137 @@ textarea {
   white-space: normal;
 }
 
+/* ============================================
+   PRINT STYLES
+   ============================================ */
 @media print {
-  body {
-    background: #fff !important;
+  @page {
+    size: A4 landscape;
+    margin: 7mm;
   }
-  .main-header,
+  body,
+  html {
+    background: #fff !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+  }
+  header,
+  footer,
+  nav,
+  .no-print,
+  .btn,
+  .modal,
   .calendar-controls,
   .calendar-room-toggle,
-  #calendarPrintBtn,
-  .nav-links,
-  .overview-toolbar {
+  #calendarEventModal,
+  .fc-header-toolbar,
+  .fc-toolbar {
     display: none !important;
+  }
+  .calendar-print-shell {
+    width: 270mm !important;
+    margin: 0 auto !important;
+  }
+  .calendar-print-header {
+    display: block !important;
+    text-align: center;
+    margin-bottom: 3mm;
+    page-break-after: avoid;
+  }
+  .calendar-print-title {
+    display: block !important;
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 2mm;
+  }
+  .calendar-page,
+  .calendar-wrapper,
+  .card,
+  .container,
+  .container-fluid {
+    padding: 0 !important;
+    margin: 0 auto !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    border: 0 !important;
   }
   .calendar-page {
-    padding: 7mm !important;
-    display: flex;
-    flex-direction: column;
-    min-height: calc(100vh - 14mm);
-  }
-  .calendar-page .page-title {
-    font-size: 13px;
-    font-weight: 600;
-    margin-bottom: 1.5mm;
-  }
-  .calendar-page .calendar-print-title {
     display: block;
-    page-break-after: avoid !important;
-    margin-bottom: 3mm;
-    font-size: 14px;
   }
   .calendar-wrapper {
-    box-shadow: none !important;
     border: none !important;
-    flex: 1;
-    min-height: calc(100vh - 20mm);
-    display: flex;
-    flex-direction: column;
+    padding: 0 !important;
   }
-  .calendar-page .card {
-    border: none;
-  }
-  .calendar-shell .fc-toolbar,
-  .calendar-shell .fc-header-toolbar {
+  .calendar-area {
     display: none !important;
   }
-  #functionCalendar {
-    min-height: auto;
-    margin-top: 0 !important;
-    page-break-inside: avoid !important;
-    font-size: 0.6rem;
-    width: 100% !important;
-    flex: 1;
+  .calendar-print-wrapper,
+  .calendar-print-header {
+    display: block !important;
   }
+  .print-mode-month .calendar-print-month,
+  .print-mode-week .calendar-print-week,
+  .print-mode-day .calendar-print-day {
+    display: block !important;
+  }
+  .print-mode-month .calendar-print-table {
+    table-layout: fixed;
+    width: 100%;
+    page-break-inside: avoid;
+  }
+  .print-mode-month .print-day-cell {
+    height: 32mm;
+  }
+  .print-mode-week .calendar-print-table {
+    table-layout: fixed;
+    width: 100%;
+    page-break-inside: avoid;
+  }
+  .print-mode-week .print-day-cell {
+    min-height: 35mm;
+  }
+  .print-mode-day .calendar-print-day {
+    min-height: 160mm;
+    page-break-inside: avoid;
+  }
+  #functionCalendar,
   #functionCalendar .fc-view-harness,
   #functionCalendar .fc-scrollgrid,
   #functionCalendar .fc-daygrid,
   #functionCalendar .fc-timegrid-body {
+    width: 100% !important;
     min-height: auto !important;
     page-break-inside: avoid !important;
-    width: 100% !important;
+  }
+  #functionCalendar {
+    font-size: 0.65rem;
   }
   .calendar-shell .fc-daygrid,
-  .calendar-shell .fc-scrollgrid {
+  .calendar-shell .fc-scrollgrid-table {
     table-layout: fixed !important;
-  }
-  .calendar-shell .fc-daygrid-day {
-    display: flex;
-    flex-direction: column;
   }
   .calendar-shell .fc-daygrid-day-frame,
   .calendar-shell .fc-daygrid-day-top {
-    padding: 1px !important;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
+    padding: 1px 2px !important;
   }
   .calendar-shell .fc-daygrid-day-number {
-    font-size: 0.6rem !important;
-  }
-  #functionCalendar .fc-timegrid-slot {
-    height: 1.1rem !important;
+    font-size: 0.65rem !important;
   }
   .calendar-shell .fc-daygrid-event {
-    font-size: 0.6rem !important;
-    padding: 1px 1.5px !important;
-    margin: 0 0 1px 0 !important;
+    font-size: 0.65rem !important;
+    padding: 1px 2px !important;
+    margin-bottom: 1px;
   }
-  .calendar-shell .fc-timegrid-now-indicator-line,
-  .calendar-shell .fc-timegrid-now-indicator-arrow,
-  .calendar-shell .fc-now-indicator {
+  .calendar-shell .fc-daygrid-day-events {
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+  .fc-day-today,
+  .fc-now-indicator,
+  .fc-timegrid-now-indicator-line,
+  .fc-timegrid-now-indicator-arrow {
     display: none !important;
   }
 }

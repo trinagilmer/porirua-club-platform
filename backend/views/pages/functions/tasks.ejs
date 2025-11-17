@@ -1,66 +1,73 @@
 <% locals.layout = 'layouts/main'; %>
 
-  <!-- 🧩 Workspace -->
-  <section class="function-workspace">
-   
-    <!-- 🔹 Body -->
-    <div class="function-body py-4 px-4">
+<!-- ?? Workspace -->
+<section class="function-workspace">
 
+  <!-- ?? Body -->
+  <div class="function-body py-4 px-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h2 class="mb-0">Tasks</h2>
+        <p class="text-muted small mb-0">Manage follow-ups and assignments for this function.</p>
+      </div>
+      <button class="btn btn-dark" id="addTaskBtn">
+        <i class="bi bi-plus-lg me-1"></i>
+        Add task
+      </button>
+    </div>
 
-      <!-- ✅ Task Cards Grid -->
-      <div class="task-cards-grid row g-3">
-        <% if (Array.isArray(tasks) && tasks.length > 0) { %>
-          <% tasks.forEach(task => { %>
-            <div class="col-md-6 col-lg-4">
-              <div class="task-card border rounded-3 p-3 shadow-sm" data-id="<%= task.id %>">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                  <h5 class="task-card-title fw-medium mb-0"><%= task.title %></h5>
-                  <span class="small text-uppercase px-2 py-1 rounded"
-                        style="background: <%= task.status === 'completed' ? '#d4edda' : '#f0f0f0' %>;
-                               color: <%= task.status === 'completed' ? '#155724' : '#333' %>;">
-                    <%= task.status %>
-                  </span>
-                </div>
+    <!-- ? Task Cards Grid -->
+    <div class="task-cards-grid row g-3">
+      <% if (Array.isArray(tasks) && tasks.length > 0) { %>
+        <% tasks.forEach(task => { %>
+          <div class="col-md-6 col-lg-4">
+            <div class="task-card border rounded-3 p-3 shadow-sm" data-id="<%= task.id %>">
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <h5 class="task-card-title fw-medium mb-0"><%= task.title %></h5>
+                <span class="small text-uppercase px-2 py-1 rounded"
+                      style="background: <%= task.status === 'completed' ? '#d4edda' : '#f0f0f0' %>;
+                             color: <%= task.status === 'completed' ? '#155724' : '#333' %>;">
+                  <%= task.status %>
+                </span>
+              </div>
 
-                <p class="task-card-desc text-secondary mb-2">
-                  <%= task.description || 'No details' %>
-                </p>
+              <p class="task-card-desc text-secondary mb-2">
+                <%= task.description || 'No details' %>
+              </p>
 
-                <div class="task-card-meta small text-muted mb-3">
-                  <div><strong>Assigned:</strong> <%= task.assigned_user_name || '—' %></div>
-                  <div><strong>Due:</strong> <%= task.due_at ? new Date(task.due_at).toLocaleDateString('en-NZ') : '—' %></div>
-                </div>
+              <div class="task-card-meta small text-muted mb-3">
+                <div><strong>Assigned:</strong> <%= task.assigned_user_name || '-' %></div>
+                <div><strong>Due:</strong> <%= task.due_at ? new Date(task.due_at).toLocaleDateString('en-NZ') : '-' %></div>
+              </div>
 
-                <!-- Actions -->
-                <div class="d-flex justify-content-end gap-2">
-                  <% if (String(task.status).toLowerCase().trim() === 'completed') { %>
-                    <button class="btn btn-sm btn-outline-dark reopenTaskBtn" data-id="<%= task.id %>">
-                      Reopen
-                    </button>
-                    <button class="btn btn-sm btn-outline-dark deleteTaskBtn" data-id="<%= task.id %>">
-                      Delete
-                    </button>
-                  <% } else { %>
-                    <button class="btn btn-sm btn-dark completeTaskBtn" data-id="<%= task.id %>">
-                      Complete
-                    </button>
-                    <button class="btn btn-sm btn-outline-dark deleteTaskBtn" data-id="<%= task.id %>">
-                      Delete
-                    </button>
-                  <% } %>
-                </div>
+              <div class="d-flex justify-content-end gap-2">
+                <% if (String(task.status).toLowerCase().trim() === 'completed') { %>
+                  <button class="btn btn-sm btn-outline-dark reopenTaskBtn" data-id="<%= task.id %>">
+                    Reopen
+                  </button>
+                  <button class="btn btn-sm btn-outline-dark deleteTaskBtn" data-id="<%= task.id %>">
+                    Delete
+                  </button>
+                <% } else { %>
+                  <button class="btn btn-sm btn-dark completeTaskBtn" data-id="<%= task.id %>">
+                    Complete
+                  </button>
+                  <button class="btn btn-sm btn-outline-dark deleteTaskBtn" data-id="<%= task.id %>">
+                    Delete
+                  </button>
+                <% } %>
               </div>
             </div>
-          <% }) %>
-        <% } else { %>
-          <p class="text-secondary">No tasks yet.</p>
-        <% } %>
-      </div>
+          </div>
+        <% }) %>
+      <% } else { %>
+        <p class="text-secondary">No tasks yet.</p>
+      <% } %>
     </div>
-  </section>
-</main>
+  </div>
+</section>
 
-<!-- 🧩 Add/Edit Task Modal -->
+<!-- ?? Add/Edit Task Modal -->
 <div class="modal fade" id="taskModal" tabindex="-1" aria-labelledby="taskModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content border-0 shadow-sm">
@@ -97,6 +104,16 @@
             <label for="taskDueAt" class="form-label">Due Date</label>
             <input type="date" id="taskDueAt" class="form-control border" />
           </div>
+
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="taskNotifyAssignee" checked>
+            <label class="form-check-label" for="taskNotifyAssignee">
+              Email the assignee about this task
+            </label>
+            <div class="form-text">
+              We’ll send a notification when a user is selected.
+            </div>
+          </div>
         </div>
 
         <div class="modal-footer border-0">
@@ -108,7 +125,7 @@
   </div>
 </div>
 
-<!-- 🧱 Shared Modals -->
+<!-- Shared modals -->
 <%- include('../../partials/functions/modals', {
   fn,
   linkedContacts: linkedContacts || [],
@@ -116,7 +133,6 @@
   eventTypes: eventTypes || []
 }) %>
 
-<!-- JS Context -->
 <script>
   window.fnContext = {
     id: "<%= fn.id_uuid %>",
@@ -124,15 +140,6 @@
     status: "<%= fn.status %>",
     eventDate: "<%= fn.event_date ? fn.event_date.toISOString().split('T')[0] : '' %>"
   };
-
-  console.log("📋 Function Context (Tasks):", window.fnContext);
 </script>
 
-<!-- JS Controllers -->
 <script src="/js/functions/tasks.js" defer></script>
-<script src="/js/functions/detail.js" defer></script>
-
-
-
-
-

@@ -5,28 +5,45 @@
 
     <!-- 🔹 Body -->
     <div class="function-body py-4 px-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h2 class="mb-0">Communications</h2>
+          <p class="text-muted small mb-0">Log and send email updates for this function.</p>
+        </div>
+        <button class="btn btn-dark" id="newMessageBtn" type="button">
+          <i class="bi bi-plus-lg me-1"></i>
+          New message
+        </button>
+      </div>
 
       <!-- 📜 Communications List -->
       <div class="inbox">
         <div id="communicationsList" class="inbox-list">
           <% if (Array.isArray(messages) && messages.length > 0) { %>
             <% messages.forEach(function(m) { 
-                var sender  = m.from_email || "Unknown Sender";
-                var subject = m.subject || "(No Subject)";
-                var preview = (m.body_html || m.body || "").replace(/<[^>]+>/g, "").slice(0, 120);
-                var dt      = m.created_at || m.sent_at || m.received_at;
+                var sender  = m.from_email || "Unknown sender";
+                var recipient = Array.isArray(m.to_email) ? m.to_email.join(", ") : (m.to_email || "");
+                var subject = m.subject || "(No subject)";
+                var preview = (m.body_html || m.body || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160);
+                var dt      = m.entry_date || m.created_at || m.sent_at || m.received_at;
             %>
               <!-- 📨 Each message card links to detail -->
-              <a class="message-card d-flex justify-content-between align-items-start text-reset text-decoration-none border rounded p-3 mb-2"
+              <a class="message-card message-card--communication text-reset text-decoration-none border rounded p-3 mb-2"
                  href="/functions/<%= fn.id_uuid %>/communications/<%= m.id %>"
                  aria-label="Open message: <%= subject %>">
-                <div class="msg-left">
-                  <div class="msg-from fw-bold"><%= sender %></div>
-                  <div class="msg-subject"><%= subject %></div>
-                  <div class="msg-preview text-muted"><%= preview %></div>
+                <div class="msg-left flex-grow-1">
+                  <p class="msg-subject fw-semibold mb-1 text-break"><%= subject %></p>
+                  <div class="msg-address text-muted small mb-2">
+                    <span class="d-block text-break"><strong>From:</strong> <%= sender %></span>
+                    <% if (recipient) { %>
+                      <span class="d-block text-break">To: <%= recipient %></span>
+                    <% } %>
+                  </div>
+                  <div class="msg-preview text-muted small text-truncate"><%= preview %></div>
                 </div>
-                <div class="msg-date small text-muted">
-                  <%= dt ? new Date(dt).toLocaleString('en-NZ') : "" %>
+                <div class="msg-date small text-muted text-end ps-3">
+                  <div><%= dt ? new Date(dt).toLocaleDateString('en-NZ') : "" %></div>
+                  <div><%= dt ? new Date(dt).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' }) : "" %></div>
                 </div>
               </a>
             <% }); %>

@@ -337,13 +337,16 @@
               <i class="bi <%= entry.type === 'proposal' ? 'bi-file-earmark-text' : entry.type === 'email' ? 'bi-envelope' : entry.type === 'survey' ? 'bi-clipboard-check' : 'bi-chat-left' %>"></i>
             </div>
             <div class="comms-entry__body">
-              <p class="mb-0 fw-semibold"><%= entry.subject || entry.title || entry.type || 'Update' %></p>
-              <small class="text-muted"><%= entry.preview || entry.summary || entry.note || '' %></small>
+              <p class="mb-1 fw-semibold text-truncate"><%= entry.subject || entry.title || entry.type || 'Update' %></p>
+              <% if (entry.sender) { %>
+                <small class="text-muted d-block text-break"><%= entry.sender %></small>
+              <% } %>
+              <small class="text-muted d-block text-truncate"><%= entry.preview || entry.summary || entry.note || '' %></small>
             </div>
             <div class="comms-entry__meta text-end">
               <span class="d-block"><%= nzDate(entry.entry_date || entry.created_at) %></span>
               <small class="text-muted"><%= nzTime(entry.entry_date || entry.created_at) %></small>
-              <a href="<%= entry.link || '#' %>" class="btn btn-link btn-sm p-0 mt-1">Open</a>
+              <a href="<%= entry.link || '#' %>" class="btn btn-link btn-sm p-0 mt-2">Open</a>
             </div>
           </article>
         <% }) %>

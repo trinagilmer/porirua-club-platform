@@ -32,22 +32,34 @@
 
       <!-- 🧾 Original message -->
       <div class="inbox">
-        <div class="message-card p-3 border rounded mb-4">
-          <div class="msg-header mb-2">
-            <div class="fw-bold"><%= message.from_email || "Unknown Sender" %></div>
-            <div class="text-muted">
-              <%= message.created_at ? new Date(message.created_at).toLocaleString('en-NZ') : "" %>
+        <div class="message-card message-card--detail p-3 border rounded mb-4">
+          <% const toEmail = Array.isArray(message.to_email) ? message.to_email.join(", ") : message.to_email; %>
+          <p class="msg-subject h5 fw-semibold mb-2 text-break"><%= message.subject || "(No Subject)" %></p>
+          <div class="msg-header text-muted small mb-3">
+            <div class="d-flex flex-column gap-1">
+              <% if (message.from_email) { %>
+                <span class="text-break">From: <%= message.from_email %></span>
+              <% } %>
+              <% if (toEmail) { %>
+                <span class="text-break">To: <%= toEmail %></span>
+              <% } %>
+            </div>
+            <div class="mt-2">
+              <%= (message.entry_date || message.created_at)
+                    ? new Date(message.entry_date || message.created_at).toLocaleString('en-NZ')
+                    : "" %>
             </div>
           </div>
-          <div class="msg-subject h5 mb-3"><%= message.subject || "(No Subject)" %></div>
 
           <div class="msg-body">
-            <% if (message.body_html) { %>
-              <div class="border rounded p-3" style="max-height:15rem;overflow:auto;">
-                <%- message.body_html %>
+            <% const htmlBody = (message.body_html || "").trim(); %>
+            <% const plainBody = (message.body || "").trim(); %>
+            <% if (htmlBody) { %>
+              <div class="message-body-html">
+                <%- htmlBody %>
               </div>
             <% } else { %>
-              <pre style="white-space:pre-wrap;"><%= message.body || "" %></pre>
+              <div class="message-body-plain"><%= plainBody %></div>
             <% } %>
           </div>
         </div>
