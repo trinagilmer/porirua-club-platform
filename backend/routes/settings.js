@@ -17,6 +17,8 @@ const CALENDAR_SLOT_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
 const DEFAULT_CALENDAR_SLOT = 30;
 const DEFAULT_SERVICE_SLOT = 30;
 const DEFAULT_SERVICE_TURN = 90;
+const FEEDBACK_DELAY_MIN = 0;
+const FEEDBACK_DELAY_MAX = 30;
 
 async function logPromotionAttempt({ userId, requestedRole, ipAddress, succeeded, message }) {
   try {
@@ -86,6 +88,17 @@ function combineDateAndTime(dateValue, timeValue) {
   const datePart = String(dateValue).trim();
   if (!timeValue) return new Date(`${datePart}T00:00:00Z`).toISOString();
   return new Date(`${datePart}T${timeValue}:00Z`).toISOString();
+}
+
+async function ensureFeedbackSettingsRow() {
+  const existing = await pool.query("SELECT * FROM feedback_settings ORDER BY id DESC LIMIT 1;");
+  if (existing.rows[0]) return existing.rows[0];
+  const inserted = await pool.query(
+    `INSERT INTO feedback_settings (auto_functions, auto_restaurant, send_delay_days, reminder_days)
+     VALUES (TRUE, TRUE, 1, 0)
+     RETURNING *;`
+  );
+  return inserted.rows[0];
 }
 
 const entertainmentUploadsDir = path.join(__dirname, "..", "public", "uploads", "entertainment");
@@ -167,6 +180,71 @@ router.get("/overview", async (req, res) => {
       stack: err.stack,
     });
   }
+});
+
+router.get("/feedback", ensurePrivileged, async (req, res) => {
+  try {
+    const settings = await ensureFeedbackSettingsRow();
+    const { rows: optOutRows } = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM contacts WHERE feedback_opt_out = TRUE;`
+    );
+    res.render("settings/feedback", {
+      layout: "layouts/settings",
+      title: "Settings — Feedback & Surveys",
+      pageType: "settings",
+      activeTab: "feedback",
+      feedbackSettings: settings,
+      contactStats: { optOutCount: optOutRows[0]?.count || 0 },
+      user: req.session.user || null,
+      flashMessage: req.flash?.("flashMessage"),
+      flashType: req.flash?.("flashType"),
+    });
+  } catch (err) {
+    console.error("❌ Error loading feedback settings:", err);
+    res.status(500).render("error", {
+      layout: "layouts/main",
+      title: "Error",
+      message: "Failed to load feedback settings.",
+      error: err.message,
+      stack: err.stack,
+    });
+  }
+});
+
+router.post("/feedback", ensurePrivileged, async (req, res) => {
+  const autoFunctions = parseBooleanField(req.body.auto_functions);
+  const autoRestaurant = parseBooleanField(req.body.auto_restaurant);
+  const sendDelay = Math.max(
+    FEEDBACK_DELAY_MIN,
+    Math.min(FEEDBACK_DELAY_MAX, parseInt(req.body.send_delay_days, 10) || 0)
+  );
+  const reminderDays = Math.max(
+    FEEDBACK_DELAY_MIN,
+    Math.min(FEEDBACK_DELAY_MAX, parseInt(req.body.reminder_days, 10) || 0)
+  );
+  try {
+    const settings = await ensureFeedbackSettingsRow();
+    await pool.query(
+      `
+      UPDATE feedback_settings
+         SET auto_functions = $1,
+             auto_restaurant = $2,
+             send_delay_days = $3,
+             reminder_days = $4,
+             updated_at = NOW()
+       WHERE id = (SELECT id FROM feedback_settings ORDER BY id DESC LIMIT 1);
+       WHERE id = $5;
+      `,
+      [autoFunctions, autoRestaurant, sendDelay, reminderDays, settings.id]
+    );
+    req.flash("flashMessage", "✅ Feedback settings updated.");
+    req.flash("flashType", "success");
+  } catch (err) {
+    console.error("❌ Error saving feedback settings:", err);
+    req.flash("flashMessage", "❌ Unable to save feedback settings.");
+    req.flash("flashType", "error");
+  }
+  res.redirect("/settings/feedback");
 });
 
 /* =========================================================

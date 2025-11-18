@@ -225,6 +225,7 @@ const quoteRouter = require("./routes/quote");       // ✅ must come BEFORE fun
 const functionsRoutes = require("./routes/functions"); // generic, should come later
 const calendarRouter = require("./routes/calendar");
 const entertainmentRouter = require("./routes/entertainment");
+const reportsRouter = require("./routes/reports");
 const widgetRouter = require("./routes/widgets");
 
 //---------------------------------------------------
@@ -241,6 +242,7 @@ app.use("/menus", menusRouter);
 app.use("/contacts", contactsRouter);
 app.use("/calendar", calendarRouter);
 app.use("/entertainment", entertainmentRouter);
+app.use("/reports", reportsRouter);
 app.use("/", widgetRouter);
 
 // 🧭 Settings (specific first, then general)
