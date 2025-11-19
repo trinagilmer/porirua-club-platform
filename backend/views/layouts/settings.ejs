@@ -139,6 +139,42 @@
       <a href="/settings/spaces" class="nav-link <%= activeTab === 'spaces' ? 'active fw-semibold' : '' %>">Rooms / Spaces</a>
       <a href="/settings/restaurant" class="nav-link <%= activeTab === 'restaurant' ? 'active fw-semibold' : '' %>">Restaurant Bookings</a>
       <a href="/settings/entertainment" class="nav-link <%= activeTab === 'entertainment' ? 'active fw-semibold' : '' %>">Entertainment Events</a>
+
+      <div class="nav-item">
+        <button
+          class="btn w-100 text-start nav-link d-flex justify-content-between align-items-center <%= ['feedback-automation','feedback-template-email','feedback-template-survey','feedback-template-entertainment','feedback-activity'].includes(activeTab) ? 'active fw-semibold' : '' %>"
+          data-bs-toggle="collapse"
+          data-bs-target="#submenu-feedback"
+          aria-expanded="<%= ['feedback-automation','feedback-template-email','feedback-template-survey','feedback-template-entertainment','feedback-activity'].includes(activeTab) ? 'true' : 'false' %>"
+          aria-controls="submenu-feedback"
+        >
+          Feedback &amp; Surveys
+          <span class="ms-auto">
+            <i class="bi bi-chevron-down small"></i>
+          </span>
+        </button>
+        <div class="collapse <%= ['feedback-automation','feedback-template-email','feedback-template-survey','feedback-template-entertainment','feedback-activity'].includes(activeTab) ? 'show' : '' %>" id="submenu-feedback">
+          <nav class="nav flex-column ms-3 mt-1">
+            <a href="/settings/feedback" class="nav-link <%= activeTab === 'feedback-automation' ? 'active fw-semibold' : '' %>">
+              Automation &amp; Questions
+            </a>
+            <span class="text-muted text-uppercase small mt-2">Templates</span>
+            <a href="/settings/feedback/templates/email" class="nav-link <%= activeTab === 'feedback-template-email' ? 'active fw-semibold' : '' %>">
+              Email invite
+            </a>
+            <a href="/settings/feedback/templates/survey" class="nav-link <%= activeTab === 'feedback-template-survey' ? 'active fw-semibold' : '' %>">
+              Survey intro
+            </a>
+            <a href="/settings/feedback/templates/entertainment" class="nav-link <%= activeTab === 'feedback-template-entertainment' ? 'active fw-semibold' : '' %>">
+              Entertainment header
+            </a>
+            <span class="text-muted text-uppercase small mt-2">Insights</span>
+            <a href="/settings/feedback/activity" class="nav-link <%= activeTab === 'feedback-activity' ? 'active fw-semibold' : '' %>">
+              Activity &amp; responses
+            </a>
+          </nav>
+        </div>
+      </div>
         <a href="/settings/note-templates" class="nav-link <%= activeTab === 'note-templates' ? 'active fw-semibold' : '' %>">Note Templates</a>
         <a href="/settings/calendar" class="nav-link <%= activeTab === 'calendar-settings' ? 'active fw-semibold' : '' %>">Calendar Options</a>
         <a href="/settings/proposal-terms" class="nav-link <%= activeTab === 'proposal-terms' ? 'active fw-semibold' : '' %>">Proposal Terms</a>

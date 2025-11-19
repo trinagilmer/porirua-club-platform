@@ -10,20 +10,11 @@
   };
   const functionQuestions = feedbackSettings.function_question_config || fallbackQuestions;
   const restaurantQuestions = feedbackSettings.restaurant_question_config || fallbackQuestions;
+  const templateButtons = Array.isArray(templateLinks) ? templateLinks : [];
 %>
 
 <main class="settings-feedback py-4">
   <style>
-    .quill-editor {
-      min-height: 200px;
-      background: #fff;
-      border: 1px solid var(--bs-border-color);
-      border-radius: 0.75rem;
-      padding: 0.5rem 0.75rem;
-    }
-    .template-block + .template-block {
-      margin-top: 1.5rem;
-    }
     .question-card {
       border: 1px solid var(--bs-border-color);
       border-radius: 0.75rem;
@@ -35,8 +26,8 @@
 
   <div class="d-flex justify-content-between align-items-center flex-wrap mb-4 gap-2">
     <div>
-      <h1 class="mb-1">Feedback templates</h1>
-      <p class="text-muted mb-0">Control automation and the wording shown in emails and surveys.</p>
+      <h1 class="mb-1">Feedback automation &amp; questions</h1>
+      <p class="text-muted mb-0">Control when surveys are sent and which questions appear for each form.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
       <a href="/settings/feedback/activity" class="btn btn-outline-secondary btn-sm">
@@ -59,6 +50,24 @@
       <%= flashMessage %>
     </div>
   <% } %>
+
+  <section class="card shadow-sm mb-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between flex-wrap gap-2 align-items-center mb-3">
+        <div>
+          <h5 class="mb-1">Templates</h5>
+          <p class="text-muted mb-0">Email, survey, and entertainment templates now live on dedicated pages.</p>
+        </div>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <% templateButtons.forEach(function(link) { %>
+          <a href="<%= link.path %>" class="btn btn-light border">
+            <%= link.label %>
+          </a>
+        <% }) %>
+      </div>
+    </div>
+  </section>
 
   <section class="card shadow-sm">
     <form class="card-body" method="POST" action="/settings/feedback">
@@ -91,36 +100,6 @@
 
       <hr class="my-4">
 
-      <div class="row g-4 template-block">
-        <div class="col-12">
-          <h5 class="mb-2">Email template</h5>
-          <p class="small text-muted">Use placeholders <code>{{NAME}}</code>, <code>{{EVENT_NAME}}</code>, <code>{{EVENT_DATE}}</code>, <code>{{SURVEY_LINK}}</code></p>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">Email subject</label>
-          <input type="text" class="form-control" name="email_subject" value="<%= feedbackSettings.email_subject %>">
-        </div>
-        <div class="col-12">
-          <label class="form-label">Email body</label>
-          <div id="emailBodyEditor" class="quill-editor"></div>
-          <input type="hidden" name="email_body_html" id="emailBodyInput" value="<%- feedbackSettings.email_body_html %>">
-        </div>
-        <div class="col-12">
-          <label class="form-label">Survey intro / header</label>
-          <div id="surveyHeaderEditor" class="quill-editor"></div>
-          <input type="hidden" name="survey_header_html" id="surveyHeaderInput" value="<%- feedbackSettings.survey_header_html %>">
-          <small class="text-muted">Displayed at the top of the public survey page.</small>
-        </div>
-        <div class="col-12" id="entertainment-template">
-          <label class="form-label">Entertainment header template</label>
-          <div id="eventsHeaderEditor" class="quill-editor"></div>
-          <input type="hidden" name="events_header_html" id="eventsHeaderInput" value="<%- feedbackSettings.events_header_html %>">
-          <small class="text-muted">Controls the hero text on the entertainment landing page.</small>
-        </div>
-      </div>
-
-      <hr class="my-4">
-
       <div class="row g-4">
         <div class="col-12 col-lg-6">
           <div class="question-card">
@@ -136,7 +115,7 @@
               </div>
               <div class="col-4">
                 <div class="form-check">
-                  <input type="hidden" name="function_show_service" value="off">
+                  <input type="hidden" name="function_show_service_present" value="1">
                   <input class="form-check-input" type="checkbox" id="functionShowService" name="function_show_service" value="on" <%= functionQuestions.showService ? 'checked' : '' %>>
                   <label class="form-check-label" for="functionShowService">Show</label>
                 </div>
@@ -149,7 +128,7 @@
               </div>
               <div class="col-4">
                 <div class="form-check">
-                  <input type="hidden" name="function_show_recommend" value="off">
+                  <input type="hidden" name="function_show_recommend_present" value="1">
                   <input class="form-check-input" type="checkbox" id="functionShowRecommend" name="function_show_recommend" value="on" <%= functionQuestions.showRecommend ? 'checked' : '' %>>
                   <label class="form-check-label" for="functionShowRecommend">Show</label>
                 </div>
@@ -162,7 +141,7 @@
               </div>
               <div class="col-4">
                 <div class="form-check">
-                  <input type="hidden" name="function_show_comments" value="off">
+                  <input type="hidden" name="function_show_comments_present" value="1">
                   <input class="form-check-input" type="checkbox" id="functionShowComments" name="function_show_comments" value="on" <%= functionQuestions.showComments ? 'checked' : '' %>>
                   <label class="form-check-label" for="functionShowComments">Show</label>
                 </div>
@@ -184,7 +163,7 @@
               </div>
               <div class="col-4">
                 <div class="form-check">
-                  <input type="hidden" name="restaurant_show_service" value="off">
+                  <input type="hidden" name="restaurant_show_service_present" value="1">
                   <input class="form-check-input" type="checkbox" id="restaurantShowService" name="restaurant_show_service" value="on" <%= restaurantQuestions.showService ? 'checked' : '' %>>
                   <label class="form-check-label" for="restaurantShowService">Show</label>
                 </div>
@@ -197,7 +176,7 @@
               </div>
               <div class="col-4">
                 <div class="form-check">
-                  <input type="hidden" name="restaurant_show_recommend" value="off">
+                  <input type="hidden" name="restaurant_show_recommend_present" value="1">
                   <input class="form-check-input" type="checkbox" id="restaurantShowRecommend" name="restaurant_show_recommend" value="on" <%= restaurantQuestions.showRecommend ? 'checked' : '' %>>
                   <label class="form-check-label" for="restaurantShowRecommend">Show</label>
                 </div>
@@ -210,7 +189,7 @@
               </div>
               <div class="col-4">
                 <div class="form-check">
-                  <input type="hidden" name="restaurant_show_comments" value="off">
+                  <input type="hidden" name="restaurant_show_comments_present" value="1">
                   <input class="form-check-input" type="checkbox" id="restaurantShowComments" name="restaurant_show_comments" value="on" <%= restaurantQuestions.showComments ? 'checked' : '' %>>
                   <label class="form-check-label" for="restaurantShowComments">Show</label>
                 </div>
@@ -226,43 +205,3 @@
     </form>
   </section>
 </main>
-
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const editors = [
-      { editorId: "emailBodyEditor", inputId: "emailBodyInput" },
-      { editorId: "surveyHeaderEditor", inputId: "surveyHeaderInput" },
-      { editorId: "eventsHeaderEditor", inputId: "eventsHeaderInput" }
-    ];
-    const toolbarOptions = [
-      [{ header: [1, 2, false] }],
-      ["bold", "italic", "underline"],
-      [{ list: "ordered" }, { list: "bullet" }],
-      ["link", "image"],
-      ["clean"],
-    ];
-    const initEditors = (attempt = 0) => {
-      if (typeof Quill === "undefined") {
-        if (attempt < 20) {
-          return setTimeout(() => initEditors(attempt + 1), 100);
-        }
-        console.warn("Quill failed to load; template editors unavailable.");
-        return;
-      }
-      editors.forEach(({ editorId, inputId }) => {
-        const container = document.getElementById(editorId);
-        const hiddenInput = document.getElementById(inputId);
-        if (!container || !hiddenInput) return;
-        const quill = new Quill(container, {
-          theme: "snow",
-          modules: { toolbar: toolbarOptions },
-        });
-        quill.root.innerHTML = hiddenInput.value || "";
-        quill.on("text-change", () => {
-          hiddenInput.value = quill.root.innerHTML;
-        });
-      });
-    };
-    initEditors();
-  });
-</script>

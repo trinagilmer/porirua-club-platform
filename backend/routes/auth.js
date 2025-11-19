@@ -12,7 +12,7 @@ const router = express.Router();
 
 // --- LOGIN ---
 router.get("/login", (req, res) => {
-  res.render("pages/login", { error: null, title: "Login" });
+  res.render("pages/login", { error: null, title: "Login", hideChrome: true });
 });
 
 router.post("/login", async (req, res, next) => {
@@ -21,12 +21,20 @@ router.post("/login", async (req, res, next) => {
     const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
 
     if (!rows.length)
-      return res.render("pages/login", { error: "Invalid email or password", title: "Login" });
+      return res.render("pages/login", {
+        error: "Invalid email or password",
+        title: "Login",
+        hideChrome: true,
+      });
 
     const user = rows[0];
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid)
-      return res.render("pages/login", { error: "Invalid email or password", title: "Login" });
+      return res.render("pages/login", {
+        error: "Invalid email or password",
+        title: "Login",
+        hideChrome: true,
+      });
 
     req.session.user = {
       id: user.id,

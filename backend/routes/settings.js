@@ -30,6 +30,49 @@ const DEFAULT_SERVICE_TURN = 90;
 const FEEDBACK_DELAY_MIN = 0;
 const FEEDBACK_DELAY_MAX = 30;
 
+const FEEDBACK_TEMPLATE_CONFIG = {
+  email: {
+    key: "email",
+    title: "Email invitation template",
+    description:
+      "Customize the survey invitation email that is sent after functions and restaurant bookings.",
+    subjectField: "email_subject",
+    subjectLabel: "Email subject",
+    subjectDefault: DEFAULT_TEMPLATE_SUBJECT,
+    editorField: "email_body_html",
+    editorLabel: "Email body",
+    editorDefault: DEFAULT_TEMPLATE_BODY,
+    helperText: "Supported placeholders: {{NAME}}, {{EVENT_NAME}}, {{EVENT_DATE}}, {{SURVEY_LINK}}",
+    activeTab: "feedback-template-email",
+  },
+  survey: {
+    key: "survey",
+    title: "Survey intro template",
+    description: "Shown at the top of the public feedback form before the questions.",
+    editorField: "survey_header_html",
+    editorLabel: "Survey intro / header",
+    editorDefault: DEFAULT_SURVEY_HEADER,
+    helperText: "",
+    activeTab: "feedback-template-survey",
+  },
+  entertainment: {
+    key: "entertainment",
+    title: "Entertainment header template",
+    description: "Controls the hero text on the public entertainment page.",
+    editorField: "events_header_html",
+    editorLabel: "Entertainment header",
+    editorDefault: DEFAULT_EVENT_HEADER,
+    helperText: "",
+    activeTab: "feedback-template-entertainment",
+  },
+};
+
+const FEEDBACK_TEMPLATE_LINKS = [
+  { key: "email", label: "Email invite", path: "/settings/feedback/templates/email" },
+  { key: "survey", label: "Survey intro", path: "/settings/feedback/templates/survey" },
+  { key: "entertainment", label: "Entertainment header", path: "/settings/feedback/templates/entertainment" },
+];
+
 async function logPromotionAttempt({ userId, requestedRole, ipAddress, succeeded, message }) {
   try {
     await pool.query(
@@ -186,10 +229,11 @@ router.get("/feedback", ensurePrivileged, async (req, res) => {
     const feedbackSettings = await getFeedbackSettings();
     res.render("settings/feedback", {
       layout: "layouts/settings",
-      title: "Settings — Feedback Templates",
+      title: "Settings — Feedback Automation",
       pageType: "settings",
-      activeTab: "feedback",
+      activeTab: "feedback-automation",
       feedbackSettings,
+      templateLinks: FEEDBACK_TEMPLATE_LINKS,
       user: req.session.user || null,
       flashMessage: req.flash?.("flashMessage"),
       flashType: req.flash?.("flashType"),
@@ -234,7 +278,7 @@ router.get("/feedback/activity", ensurePrivileged, async (req, res) => {
       layout: "layouts/settings",
       title: "Settings — Feedback Activity",
       pageType: "settings",
-      activeTab: "feedback",
+      activeTab: "feedback-activity",
       contactStats: { optOutCount: optOutRows[0]?.count || 0 },
       statusCounts,
       responses,
@@ -265,10 +309,6 @@ router.post("/feedback", ensurePrivileged, async (req, res) => {
     FEEDBACK_DELAY_MIN,
     Math.min(FEEDBACK_DELAY_MAX, parseInt(req.body.reminder_days, 10) || 0)
   );
-  const emailSubject = (req.body.email_subject || DEFAULT_TEMPLATE_SUBJECT).trim();
-  const emailBody = req.body.email_body_html || DEFAULT_TEMPLATE_BODY;
-  const surveyHeader = req.body.survey_header_html || DEFAULT_SURVEY_HEADER;
-  const eventsHeader = req.body.events_header_html || DEFAULT_EVENT_HEADER;
   function extractQuestionConfig(prefix, defaults) {
     const overallLabel = req.body[`${prefix}_overall_label`] || defaults.overallLabel;
     const showService =
@@ -310,24 +350,16 @@ router.post("/feedback", ensurePrivileged, async (req, res) => {
              auto_restaurant = $2,
              send_delay_days = $3,
              reminder_days = $4,
-             email_subject = $5,
-             email_body_html = $6,
-             survey_header_html = $7,
-             events_header_html = $8,
-             function_question_config = $9,
-             restaurant_question_config = $10,
+             function_question_config = $5,
+             restaurant_question_config = $6,
              updated_at = NOW()
-       WHERE id = $11;
+       WHERE id = $7;
       `,
       [
         autoFunctions,
         autoRestaurant,
         sendDelay,
         reminderDays,
-        emailSubject,
-        emailBody,
-        surveyHeader,
-        eventsHeader,
         JSON.stringify(functionQuestionConfig),
         JSON.stringify(restaurantQuestionConfig),
         settings.id,
@@ -341,6 +373,97 @@ router.post("/feedback", ensurePrivileged, async (req, res) => {
     req.flash("flashType", "error");
   }
   res.redirect("/settings/feedback");
+});
+
+router.get("/feedback/templates/:type", ensurePrivileged, async (req, res) => {
+  const templateType = req.params.type;
+  const templateConfig = FEEDBACK_TEMPLATE_CONFIG[templateType];
+  if (!templateConfig) {
+    return res.status(404).render("error", {
+      layout: "layouts/main",
+      title: "Not found",
+      message: "Template not found.",
+    });
+  }
+
+  try {
+    const feedbackSettings = await getFeedbackSettings();
+    res.render("settings/feedback-template", {
+      layout: "layouts/settings",
+      title: `Settings — ${templateConfig.title}`,
+      pageType: "settings",
+      activeTab: templateConfig.activeTab,
+      templateConfig,
+      templateLinks: FEEDBACK_TEMPLATE_LINKS,
+      templateValues: {
+        subject: templateConfig.subjectField ? feedbackSettings[templateConfig.subjectField] : "",
+        editor: templateConfig.editorField ? feedbackSettings[templateConfig.editorField] : "",
+      },
+      user: req.session.user || null,
+      flashMessage: req.flash?.("flashMessage"),
+      flashType: req.flash?.("flashType"),
+    });
+  } catch (err) {
+    console.error("❌ Error loading template settings:", err);
+    res.status(500).render("error", {
+      layout: "layouts/main",
+      title: "Error",
+      message: "Failed to load template.",
+      error: err.message,
+      stack: err.stack,
+    });
+  }
+});
+
+router.post("/feedback/templates/:type", ensurePrivileged, async (req, res) => {
+  const templateType = req.params.type;
+  const templateConfig = FEEDBACK_TEMPLATE_CONFIG[templateType];
+  if (!templateConfig) {
+    req.flash("flashMessage", "Unknown template.");
+    req.flash("flashType", "error");
+    return res.redirect("/settings/feedback");
+  }
+
+  try {
+    const settings = await getFeedbackSettings();
+    const updates = [];
+    const values = [];
+
+    if (templateConfig.subjectField) {
+      const subjectValue =
+        (req.body[templateConfig.subjectField] || templateConfig.subjectDefault || "").trim();
+      updates.push(`${templateConfig.subjectField} = $${updates.length + 1}`);
+      values.push(subjectValue);
+    }
+
+    if (templateConfig.editorField) {
+      const editorValue =
+        req.body[templateConfig.editorField] || templateConfig.editorDefault || "";
+      updates.push(`${templateConfig.editorField} = $${updates.length + 1}`);
+      values.push(editorValue);
+    }
+
+    if (!updates.length) throw new Error("No fields to update.");
+
+    await pool.query(
+      `
+        UPDATE feedback_settings
+           SET ${updates.join(", ")},
+               updated_at = NOW()
+         WHERE id = $${updates.length + 1};
+      `,
+      [...values, settings.id]
+    );
+
+    req.flash("flashMessage", "✅ Template saved.");
+    req.flash("flashType", "success");
+  } catch (err) {
+    console.error("❌ Error saving template:", err);
+    req.flash("flashMessage", "Unable to save template.");
+    req.flash("flashType", "error");
+  }
+
+  res.redirect(`/settings/feedback/templates/${templateType}`);
 });
 
 router.get("/feedback/preview", ensurePrivileged, async (req, res) => {

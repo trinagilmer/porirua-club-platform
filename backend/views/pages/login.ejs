@@ -1,23 +1,53 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <%-  %>
-  <title>Login</title>
-</head>
-<body style="background:#f8fafc;display:flex;align-items:center;justify-content:center;height:100vh;">
-  <form method="POST" action="/auth/login" style="background:#fff;padding:40px;border-radius:10px;box-shadow:0 4px 8px rgba(0,0,0,0.1);width:350px;">
-    <h2 style="color:var(--deep);margin-bottom:20px;">Porirua Club Login</h2>
-    <% if (error) { %>
-      <div style="color:red;margin-bottom:10px;"><%= error %></div>
-    <% } %>
-    <label>Email</label>
-    <input type="email" name="email" required style="width:100%;padding:8px;margin-bottom:10px;">
-    <label>Password</label>
-    <input type="password" name="password" required style="width:100%;padding:8px;margin-bottom:20px;">
-    <button type="submit" class="btn" style="width:100%;">Login</button>
-    <div style="text-align:center;margin-top:10px;">
-      <a href="/auth/register">Create an account</a>
+<style>
+  .login-shell {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+  .login-card {
+    width: 100%;
+    max-width: 420px;
+    border: none;
+    border-radius: 1rem;
+  }
+  .login-logo {
+    height: 64px;
+    width: auto;
+  }
+</style>
+
+<main class="login-shell">
+  <div class="card shadow-lg login-card">
+    <div class="card-body p-4 p-md-5">
+      <div class="text-center mb-4">
+        <img src="/img/pc-logo.png" alt="Porirua Club" class="login-logo mb-3">
+        <h2 class="h4 mb-1">Welcome back</h2>
+        <p class="text-muted mb-0">Sign in to manage events and bookings.</p>
+      </div>
+
+      <% if (error) { %>
+        <div class="alert alert-danger"><%= error %></div>
+      <% } %>
+
+      <form method="POST" action="/auth/login" class="vstack gap-3">
+        <div>
+          <label class="form-label" for="loginEmail">Email</label>
+          <input type="email" class="form-control" id="loginEmail" name="email" required autocomplete="email">
+        </div>
+        <div>
+          <label class="form-label" for="loginPassword">Password</label>
+          <input type="password" class="form-control" id="loginPassword" name="password" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Login</button>
+      </form>
+
+      <div class="text-center mt-4">
+        <p class="text-muted mb-1">Need an account?</p>
+        <a href="/auth/register" class="fw-semibold">Create one</a>
+      </div>
     </div>
-  </form>
-</body>
-</html>
+  </div>
+</main>
