@@ -1,14 +1,19 @@
 <% const entertainmentPrefill = typeof prefillEntertainment !== 'undefined' ? prefillEntertainment : null; %>
 
 <main class="settings-entertainment">
-  <div class="d-flex justify-content-between align-items-center mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-4 gap-2 flex-wrap">
     <div>
       <h1 class="mb-0">Entertainment Events</h1>
       <p class="text-muted mb-0">Manage shows, performances, and public listings.</p>
     </div>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEntertainmentModal">
-      + Add Event
-    </button>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-outline-secondary" href="/settings/feedback#entertainment-template">
+        Edit public header template
+      </a>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEntertainmentModal">
+        + Add Event
+      </button>
+    </div>
   </div>
 
   <% if (typeof flashMessage !== 'undefined' && flashMessage) { %>

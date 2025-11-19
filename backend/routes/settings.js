@@ -12,6 +12,16 @@ const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
 const recurrenceService = require("../services/recurrenceService");
+const {
+  getFeedbackSettings,
+  getQuestionConfig,
+  DEFAULT_TEMPLATE_SUBJECT,
+  DEFAULT_TEMPLATE_BODY,
+  DEFAULT_SURVEY_HEADER,
+  DEFAULT_EVENT_HEADER,
+  DEFAULT_FUNCTION_QUESTIONS,
+  DEFAULT_RESTAURANT_QUESTIONS,
+} = require("../services/feedbackService");
 
 const CALENDAR_SLOT_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
 const DEFAULT_CALENDAR_SLOT = 30;
@@ -88,17 +98,6 @@ function combineDateAndTime(dateValue, timeValue) {
   const datePart = String(dateValue).trim();
   if (!timeValue) return new Date(`${datePart}T00:00:00Z`).toISOString();
   return new Date(`${datePart}T${timeValue}:00Z`).toISOString();
-}
-
-async function ensureFeedbackSettingsRow() {
-  const existing = await pool.query("SELECT * FROM feedback_settings ORDER BY id DESC LIMIT 1;");
-  if (existing.rows[0]) return existing.rows[0];
-  const inserted = await pool.query(
-    `INSERT INTO feedback_settings (auto_functions, auto_restaurant, send_delay_days, reminder_days)
-     VALUES (TRUE, TRUE, 1, 0)
-     RETURNING *;`
-  );
-  return inserted.rows[0];
 }
 
 const entertainmentUploadsDir = path.join(__dirname, "..", "public", "uploads", "entertainment");
@@ -184,17 +183,13 @@ router.get("/overview", async (req, res) => {
 
 router.get("/feedback", ensurePrivileged, async (req, res) => {
   try {
-    const settings = await ensureFeedbackSettingsRow();
-    const { rows: optOutRows } = await pool.query(
-      `SELECT COUNT(*)::int AS count FROM contacts WHERE feedback_opt_out = TRUE;`
-    );
+    const feedbackSettings = await getFeedbackSettings();
     res.render("settings/feedback", {
       layout: "layouts/settings",
-      title: "Settings — Feedback & Surveys",
+      title: "Settings — Feedback Templates",
       pageType: "settings",
       activeTab: "feedback",
-      feedbackSettings: settings,
-      contactStats: { optOutCount: optOutRows[0]?.count || 0 },
+      feedbackSettings,
       user: req.session.user || null,
       flashMessage: req.flash?.("flashMessage"),
       flashType: req.flash?.("flashType"),
@@ -205,6 +200,54 @@ router.get("/feedback", ensurePrivileged, async (req, res) => {
       layout: "layouts/main",
       title: "Error",
       message: "Failed to load feedback settings.",
+      error: err.message,
+      stack: err.stack,
+    });
+  }
+});
+
+router.get("/feedback/activity", ensurePrivileged, async (req, res) => {
+  try {
+    const { rows: optOutRows } = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM contacts WHERE feedback_opt_out = TRUE;`
+    );
+    const { rows: statusRows } = await pool.query(
+      `SELECT status, COUNT(*)::int AS count FROM feedback_responses GROUP BY status;`
+    );
+    const statusCounts = statusRows.reduce((acc, row) => {
+      acc[row.status] = row.count;
+      return acc;
+    }, {});
+    const { rows: responses } = await pool.query(
+      `
+      SELECT r.*,
+             CASE WHEN r.entity_type = 'function' THEN f.event_name ELSE rb.party_name END AS event_name,
+             CASE WHEN r.entity_type = 'function' THEN f.event_date ELSE rb.booking_date END AS event_date
+        FROM feedback_responses r
+        LEFT JOIN functions f ON r.entity_type = 'function' AND f.id_uuid::text = r.entity_id
+        LEFT JOIN restaurant_bookings rb ON r.entity_type = 'restaurant' AND rb.id::text = r.entity_id
+       ORDER BY r.updated_at DESC
+       LIMIT 25;
+      `
+    );
+    res.render("settings/feedback-activity", {
+      layout: "layouts/settings",
+      title: "Settings — Feedback Activity",
+      pageType: "settings",
+      activeTab: "feedback",
+      contactStats: { optOutCount: optOutRows[0]?.count || 0 },
+      statusCounts,
+      responses,
+      user: req.session.user || null,
+      flashMessage: req.flash?.("flashMessage"),
+      flashType: req.flash?.("flashType"),
+    });
+  } catch (err) {
+    console.error("❌ Error loading feedback activity:", err);
+    res.status(500).render("error", {
+      layout: "layouts/main",
+      title: "Error",
+      message: "Failed to load feedback activity.",
       error: err.message,
       stack: err.stack,
     });
@@ -222,8 +265,44 @@ router.post("/feedback", ensurePrivileged, async (req, res) => {
     FEEDBACK_DELAY_MIN,
     Math.min(FEEDBACK_DELAY_MAX, parseInt(req.body.reminder_days, 10) || 0)
   );
+  const emailSubject = (req.body.email_subject || DEFAULT_TEMPLATE_SUBJECT).trim();
+  const emailBody = req.body.email_body_html || DEFAULT_TEMPLATE_BODY;
+  const surveyHeader = req.body.survey_header_html || DEFAULT_SURVEY_HEADER;
+  const eventsHeader = req.body.events_header_html || DEFAULT_EVENT_HEADER;
+  function extractQuestionConfig(prefix, defaults) {
+    const overallLabel = req.body[`${prefix}_overall_label`] || defaults.overallLabel;
+    const showService =
+      Object.prototype.hasOwnProperty.call(req.body, `${prefix}_show_service_present`) ?
+        parseBooleanField(req.body[`${prefix}_show_service`]) :
+        defaults.showService;
+    const serviceLabel = req.body[`${prefix}_service_label`] || defaults.serviceLabel;
+    const showRecommend =
+      Object.prototype.hasOwnProperty.call(req.body, `${prefix}_show_recommend_present`) ?
+        parseBooleanField(req.body[`${prefix}_show_recommend`]) :
+        defaults.showRecommend;
+    const recommendLabel = req.body[`${prefix}_recommend_label`] || defaults.recommendLabel;
+    const showComments =
+      Object.prototype.hasOwnProperty.call(req.body, `${prefix}_show_comments_present`) ?
+        parseBooleanField(req.body[`${prefix}_show_comments`]) :
+        defaults.showComments;
+    const commentsLabel = req.body[`${prefix}_comments_label`] || defaults.commentsLabel;
+
+    return {
+      overallLabel,
+      showService,
+      serviceLabel,
+      showRecommend,
+      recommendLabel,
+      showComments,
+      commentsLabel,
+    };
+  }
+
+  const functionQuestionConfig = extractQuestionConfig("function", DEFAULT_FUNCTION_QUESTIONS);
+  const restaurantQuestionConfig = extractQuestionConfig("restaurant", DEFAULT_RESTAURANT_QUESTIONS);
+
   try {
-    const settings = await ensureFeedbackSettingsRow();
+    const settings = await getFeedbackSettings();
     await pool.query(
       `
       UPDATE feedback_settings
@@ -231,11 +310,28 @@ router.post("/feedback", ensurePrivileged, async (req, res) => {
              auto_restaurant = $2,
              send_delay_days = $3,
              reminder_days = $4,
+             email_subject = $5,
+             email_body_html = $6,
+             survey_header_html = $7,
+             events_header_html = $8,
+             function_question_config = $9,
+             restaurant_question_config = $10,
              updated_at = NOW()
-       WHERE id = (SELECT id FROM feedback_settings ORDER BY id DESC LIMIT 1);
-       WHERE id = $5;
+       WHERE id = $11;
       `,
-      [autoFunctions, autoRestaurant, sendDelay, reminderDays, settings.id]
+      [
+        autoFunctions,
+        autoRestaurant,
+        sendDelay,
+        reminderDays,
+        emailSubject,
+        emailBody,
+        surveyHeader,
+        eventsHeader,
+        JSON.stringify(functionQuestionConfig),
+        JSON.stringify(restaurantQuestionConfig),
+        settings.id,
+      ]
     );
     req.flash("flashMessage", "✅ Feedback settings updated.");
     req.flash("flashType", "success");
@@ -245,6 +341,58 @@ router.post("/feedback", ensurePrivileged, async (req, res) => {
     req.flash("flashType", "error");
   }
   res.redirect("/settings/feedback");
+});
+
+router.get("/feedback/preview", ensurePrivileged, async (req, res) => {
+  try {
+    const type = req.query.type === "restaurant" ? "restaurant" : "function";
+    const settings = await getFeedbackSettings();
+    const questionConfig = getQuestionConfig(settings, type);
+    const now = new Date();
+    const entry =
+      type === "restaurant"
+        ? {
+            entity_type: "restaurant",
+            contact_name: "Alex Preview",
+            contact_email: "preview@example.com",
+            booking_name: "Sample Restaurant Booking",
+            booking_date: now,
+            status: "pending",
+          }
+        : {
+            entity_type: "function",
+            contact_name: "Alex Preview",
+            contact_email: "preview@example.com",
+            function_name: "Sample Function",
+            function_date: now,
+            status: "pending",
+          };
+    res.render("pages/feedback/form", {
+      layout: "layouts/main",
+      hideChrome: true,
+      title: "Feedback Preview",
+      pageType: "feedback",
+      entry,
+      surveyHeaderHtml: settings.survey_header_html,
+      errorMessage: null,
+      success: false,
+      questionConfig,
+      preview: true,
+      formatDisplayDate: (value) => {
+        const date = value instanceof Date ? value : new Date(value);
+        return Number.isNaN(date.getTime())
+          ? ""
+          : date.toLocaleDateString("en-NZ", {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+            });
+      },
+    });
+  } catch (err) {
+    console.error("[Feedback Preview] Failed:", err);
+    res.status(500).send("Unable to load preview");
+  }
 });
 
 /* =========================================================

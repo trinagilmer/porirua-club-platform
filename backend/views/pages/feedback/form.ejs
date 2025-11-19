@@ -1,0 +1,117 @@
+<style>
+  .feedback-shell {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0f172a;
+    padding: 2rem 1rem;
+  }
+  .feedback-card {
+    max-width: 720px;
+    width: 100%;
+  }
+</style>
+
+<div class="feedback-shell">
+  <div class="card shadow-lg feedback-card">
+    <div class="card-body p-4">
+      <% const resolvedQuestionConfig = typeof questionConfig !== 'undefined' ? questionConfig : {
+        overallLabel: "Overall, how was your experience?",
+        showService: true,
+        serviceLabel: "How would you rate our service?",
+        showRecommend: true,
+        recommendLabel: "Would you recommend us?",
+        showComments: true,
+        commentsLabel: "Anything we could improve?"
+      }; %>
+
+      <% if (surveyHeaderHtml) { %>
+        <div class="mb-4">
+          <%- surveyHeaderHtml %>
+        </div>
+      <% } %>
+
+      <% if (preview) { %>
+        <div class="alert alert-info">Preview mode — this link is not tracked.</div>
+      <% } %>
+
+      <% if (errorMessage) { %>
+        <div class="alert alert-danger"><%= errorMessage %></div>
+      <% } %>
+
+      <% if (!entry) { %>
+        <p class="text-muted mb-0">This feedback link is no longer active.</p>
+      <% } else if (success) { %>
+        <div class="alert alert-success">
+          <h5 class="alert-heading mb-1">Thank you!</h5>
+          <p class="mb-0">We appreciate you taking the time to share your feedback.</p>
+        </div>
+      <% } else { %>
+        <form method="POST" class="vstack gap-4">
+          <div>
+            <p class="text-muted mb-1 text-uppercase small">
+              <%= entry.entity_type === 'function' ? 'Function' : 'Restaurant booking' %>
+            </p>
+            <h4 class="mb-0"><%= entry.entity_type === 'function' ? (entry.function_name || entry.contact_name || 'Your event') : (entry.booking_name || entry.contact_name || 'Your event') %></h4>
+            <% const displayDate = entry.entity_type === 'function' ? entry.function_date : entry.booking_date; %>
+            <% if (displayDate) { %>
+              <p class="text-muted mb-0"><%= formatDisplayDate(displayDate) %></p>
+            <% } %>
+          </div>
+
+          <div>
+            <label class="form-label fw-semibold"><%= resolvedQuestionConfig.overallLabel %></label>
+            <div class="d-flex gap-3 flex-wrap">
+              <% for (let i = 1; i <= 5; i += 1) { %>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="rating_overall" id="ratingOverall<%= i %>" value="<%= i %>" required>
+                  <label class="form-check-label" for="ratingOverall<%= i %>"><%= i %> / 5</label>
+                </div>
+              <% } %>
+            </div>
+          </div>
+
+          <% if (resolvedQuestionConfig.showService) { %>
+            <div>
+              <label class="form-label"><%= resolvedQuestionConfig.serviceLabel %></label>
+              <select class="form-select" name="rating_service">
+                <option value="">Select…</option>
+                <% for (let i = 1; i <=5; i += 1) { %>
+                  <option value="<%= i %>"><%= i %> / 5</option>
+                <% } %>
+              </select>
+            </div>
+          <% } %>
+
+          <% if (resolvedQuestionConfig.showRecommend) { %>
+            <div>
+              <label class="form-label"><%= resolvedQuestionConfig.recommendLabel %></label>
+              <div class="d-flex gap-3">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="recommend" id="recommendYes" value="yes">
+                  <label class="form-check-label" for="recommendYes">Yes</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="recommend" id="recommendNo" value="no">
+                  <label class="form-check-label" for="recommendNo">No</label>
+                </div>
+              </div>
+            </div>
+          <% } %>
+
+          <% if (resolvedQuestionConfig.showComments) { %>
+            <div>
+              <label class="form-label"><%= resolvedQuestionConfig.commentsLabel %></label>
+              <textarea class="form-control" name="comments" rows="4" placeholder="Share your thoughts…"></textarea>
+            </div>
+          <% } %>
+
+          <div class="d-flex justify-content-end">
+            <button type="submit" class="btn btn-primary">Send feedback</button>
+          </div>
+        </form>
+      <% } %>
+    </div>
+  </div>
+</div>

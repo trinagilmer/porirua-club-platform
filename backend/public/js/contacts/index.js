@@ -267,7 +267,7 @@
         phone: payload.phone,
         company: payload.company,
         function_count: 0,
-        feedback_opt_out: false,
+        feedback_opt_out: Boolean(payload.feedback_opt_out),
       });
       filteredContacts = contacts.slice();
       renderList();

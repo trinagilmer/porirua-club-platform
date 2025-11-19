@@ -167,14 +167,18 @@
           <label class="form-label">Email</label>
           <input type="email" class="form-control" name="email">
         </div>
-        <div class="mb-3">
-          <label class="form-label">Phone</label>
-          <input type="text" class="form-control" name="phone">
-        </div>
-        <div>
-          <label class="form-label">Company</label>
-          <input type="text" class="form-control" name="company">
-        </div>
+      <div class="mb-3">
+        <label class="form-label">Phone</label>
+        <input type="text" class="form-control" name="phone">
+      </div>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" name="feedback_opt_out" id="contactCreateOptOut">
+        <label class="form-check-label" for="contactCreateOptOut">Opt this contact out of surveys</label>
+      </div>
+      <div>
+        <label class="form-label">Company</label>
+        <input type="text" class="form-control" name="company">
+      </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>

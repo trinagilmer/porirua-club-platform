@@ -1,5 +1,6 @@
 const express = require("express");
 const { pool } = require("../db");
+const { getFeedbackSettings } = require("../services/feedbackService");
 
 const router = express.Router();
 
@@ -38,11 +39,13 @@ router.get("/", async (req, res) => {
        ORDER BY e.start_at ASC;
       `
     );
+    const feedbackSettings = await getFeedbackSettings();
     res.render("pages/entertainment/index", {
       layout: "layouts/main",
       title: "Entertainment",
       active: "entertainment",
       events: rows,
+      entertainmentHeaderHtml: feedbackSettings.events_header_html,
     });
   } catch (err) {
     console.error("[Entertainment] Failed to load events:", err);
@@ -102,12 +105,14 @@ router.get("/:slugOrId", async (req, res) => {
       });
     }
     const shareUrl = `${process.env.APP_URL || ""}/entertainment/${event.slug || event.id}`;
+    const feedbackSettings = await getFeedbackSettings();
     res.render("pages/entertainment/detail", {
       layout: "layouts/main",
       title: event.title,
       active: "entertainment",
       event,
       shareUrl,
+      entertainmentHeaderHtml: feedbackSettings.events_header_html,
     });
   } catch (err) {
     console.error("[Entertainment] Failed to load event detail:", err);

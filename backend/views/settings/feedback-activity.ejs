@@ -1,0 +1,99 @@
+<main class="settings-feedback py-4">
+  <div class="d-flex justify-content-between align-items-center flex-wrap mb-4 gap-2">
+    <div>
+      <h1 class="mb-1">Feedback activity</h1>
+      <p class="text-muted mb-0">Review opt-outs, sending status, and the latest survey responses.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="/settings/feedback" class="btn btn-outline-secondary btn-sm">Edit templates</a>
+      <a href="/settings/overview" class="btn btn-link text-decoration-none">&larr; Back to overview</a>
+    </div>
+  </div>
+
+  <% if (flashMessage) { %>
+    <div class="alert alert-<%= flashType === 'error' ? 'danger' : flashType || 'success' %>">
+      <%= flashMessage %>
+    </div>
+  <% } %>
+
+  <section class="card shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3 align-items-center">
+        <div class="col-md-4">
+          <h5 class="mb-1">Contact preferences</h5>
+          <p class="text-muted mb-0">
+            <strong><%= contactStats?.optOutCount || 0 %></strong> contacts have opted out of feedback emails.
+          </p>
+          <p class="small text-muted mb-0">Opt-outs can be managed on the Contacts page. Automatic emails respect per-contact and per-booking toggles.</p>
+        </div>
+        <div class="col-md-8">
+          <div class="d-flex flex-wrap gap-2">
+            <% Object.keys(statusCounts || {}).forEach(function(status) { %>
+              <span class="badge bg-light text-dark text-uppercase">
+                <%= status %>: <%= statusCounts[status] %>
+              </span>
+            <% }) %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card shadow-sm">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h5 class="mb-0">Recent feedback</h5>
+          <p class="text-muted small mb-0">Latest requests and responses across functions and restaurant bookings.</p>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Sent</th>
+              <th>Type</th>
+              <th>Event / Booking</th>
+              <th>Contact</th>
+              <th>Rating</th>
+              <th>Status</th>
+              <th>Comments</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (!responses || !responses.length) { %>
+              <tr>
+                <td colspan="7" class="text-muted text-center py-4">No feedback requests yet.</td>
+              </tr>
+            <% } else { %>
+              <% responses.forEach(function(response) { %>
+                <tr>
+                  <td>
+                    <%= response.sent_at ? new Date(response.sent_at).toLocaleDateString('en-NZ', { month: 'short', day: 'numeric' }) : '—' %>
+                  </td>
+                  <td class="text-capitalize"><%= response.entity_type %></td>
+                  <td>
+                    <div class="fw-semibold"><%= response.event_name || '—' %></div>
+                    <% if (response.event_date) { %>
+                      <small class="text-muted"><%= new Date(response.event_date).toLocaleDateString('en-NZ', { month: 'short', day: 'numeric' }) %></small>
+                    <% } %>
+                  </td>
+                  <td><%= response.contact_name || response.contact_email || '—' %></td>
+                  <td>
+                    <% if (response.rating_overall) { %>
+                      <strong><%= response.rating_overall %>/5</strong>
+                    <% } else { %>
+                      <span class="text-muted">—</span>
+                    <% } %>
+                  </td>
+                  <td><span class="badge bg-light text-dark text-uppercase"><%= response.status %></span></td>
+                  <td class="small text-muted"><%= response.comments ? response.comments.slice(0, 100) : '—' %></td>
+                </tr>
+              <% }) %>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
