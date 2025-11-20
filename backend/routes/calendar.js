@@ -518,7 +518,7 @@ async function fetchRestaurantBookingsBetween(startDate, endDate) {
   return rows;
 }
 
-async function fetchEntertainmentEventsBetween(startDate, endDate) {
+async function fetchEntertainmentEventsBetween(startDate, endDate, roomIds = []) {
   const params = [];
   const where = [`status = 'published'`];
   if (startDate) {
@@ -528,6 +528,10 @@ async function fetchEntertainmentEventsBetween(startDate, endDate) {
   if (endDate) {
     params.push(endDate);
     where.push(`start_at <= $${params.length}::date`);
+  }
+  if (roomIds?.length) {
+    params.push(roomIds);
+    where.push(`room_id = ANY($${params.length}::int[])`);
   }
   const query = `
     SELECT e.*, r.name AS room_name
@@ -659,7 +663,7 @@ router.get("/events", async (req, res) => {
     }
 
     if (includeEntertainment) {
-      const shows = await fetchEntertainmentEventsBetween(startDate, endDate);
+      const shows = await fetchEntertainmentEventsBetween(startDate, endDate, roomIds);
       shows.forEach((row) => events.push(mapEntertainmentEventRow(row)));
     }
 
