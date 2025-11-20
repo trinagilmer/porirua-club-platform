@@ -49,6 +49,12 @@
       <p>Control automatic post-event surveys</p>
       <a href="/settings/feedback" class="btn btn-outline-primary btn-sm">Configure</a>
     </div>
+
+    <div class="overview-card">
+      <h4>Entertainment</h4>
+      <p><%= (counts && typeof counts.entertainment !== 'undefined') ? counts.entertainment : 0 %> events scheduled</p>
+      <a href="/settings/entertainment" class="btn btn-outline-primary btn-sm">Manage</a>
+    </div>
   </div>
 </main>
 

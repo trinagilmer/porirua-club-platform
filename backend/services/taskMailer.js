@@ -22,7 +22,7 @@ async function sendTaskAssignmentEmail(accessToken, task, assignedUser, assigned
   if (!accessToken) throw new Error("Missing Graph token for task email.");
   if (!assignedUser?.email) throw new Error("Assigned user has no email.");
 
-  const dashboardLink = `${process.env.APP_URL || "https://poriruaclub.co.nz"}/functions/${task.function_id}?tab=tasks`;
+  const dashboardLink = `${process.env.APP_URL || "https://portal.poriruaclub.co.nz"}/functions/${task.function_id}?tab=tasks`;
   const subject = `New Task Assigned: ${task.title}`;
   const bodySections = [
     `<p>Hi ${assignedUser.name || "there"},</p>`,

@@ -5,15 +5,23 @@
 </div>
 
 <div class="container py-5">
+  <div class="mb-4">
+    <a href="/entertainment" class="text-decoration-none small fw-semibold">
+      &larr; Back to calendar
+    </a>
+  </div>
   <div class="row g-4">
     <div class="col-lg-7">
       <article class="card shadow-sm overflow-hidden">
         <% if (event.image_url) { %>
-          <img src="<%= event.image_url %>" class="w-100" alt="<%= event.title %>" loading="lazy" style="max-height: 400px; object-fit: cover;">
+          <img src="<%= event.image_url %>" class="w-100 d-block" alt="<%= event.title %>" loading="lazy" style="max-height: 420px; width: 100%; height: auto; object-fit: contain; background:#0b1220;">
         <% } %>
         <div class="card-body">
           <p class="text-muted text-uppercase small mb-1"><%= new Date(event.start_at).toLocaleDateString('en-NZ', { weekday: 'long', month: 'long', day: 'numeric' }) %></p>
           <h1 class="card-title mb-3"><%= event.title %></h1>
+          <% if (event.room_name) { %>
+            <p class="text-muted mb-2"><i class="bi bi-geo-alt me-1"></i><%= event.room_name %></p>
+          <% } %>
           <% if (event.adjunct_name) { %>
             <p class="mb-2"><strong>Featuring:</strong> <%= event.adjunct_name %></p>
           <% } %>
@@ -49,6 +57,8 @@
           <dl class="row mb-0">
             <dt class="col-sm-5">Organiser</dt>
             <dd class="col-sm-7"><%= event.organiser || 'Porirua Club' %></dd>
+            <dt class="col-sm-5">Room</dt>
+            <dd class="col-sm-7"><%= event.room_name || 'Unassigned' %></dd>
             <dt class="col-sm-5">Start</dt>
             <dd class="col-sm-7"><%= event.start_at ? new Date(event.start_at).toLocaleString('en-NZ') : 'TBC' %></dd>
             <% if (event.end_at) { %>

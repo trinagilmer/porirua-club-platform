@@ -191,11 +191,12 @@ router.get("/", (req, res) => res.redirect("/settings/overview"));
 ========================================================= */
 router.get("/overview", async (req, res) => {
   try {
-    const [eventTypesRes, roomsRes, templatesRes] = await Promise.all([
+    const [eventTypesRes, roomsRes, templatesRes, menusRes, entertainmentRes] = await Promise.all([
       pool.query("SELECT COUNT(*)::int AS count FROM club_event_types;"),
       pool.query("SELECT COUNT(*)::int AS count FROM rooms;"),
       pool.query("SELECT COUNT(*)::int AS count FROM note_templates;"),
-      pool.query("SELECT COUNT(*)::int AS count FROM menus;")
+      pool.query("SELECT COUNT(*)::int AS count FROM menus;"),
+      pool.query("SELECT COUNT(*)::int AS count FROM entertainment_events;"),
     ]);
 
     res.render("settings/index", {
@@ -207,6 +208,8 @@ router.get("/overview", async (req, res) => {
         eventTypes: eventTypesRes.rows[0]?.count ?? 0,
         rooms: roomsRes.rows[0]?.count ?? 0,
         noteTemplates: templatesRes.rows[0]?.count ?? 0,
+        menus: menusRes.rows[0]?.count ?? 0,
+        entertainment: entertainmentRes.rows[0]?.count ?? 0,
       },
       user: req.session.user || null,
       flashMessage: req.flash?.("flashMessage"),
@@ -1608,6 +1611,7 @@ router.get("/entertainment", ensurePrivileged, async (req, res) => {
       SELECT e.*,
              uc.name AS created_by_name,
              uu.name AS updated_by_name,
+             r.name AS room_name,
              COALESCE(
                json_agg(
                  json_build_object('id', a.id, 'name', a.name)
@@ -1620,12 +1624,16 @@ router.get("/entertainment", ensurePrivileged, async (req, res) => {
         LEFT JOIN users uu ON uu.id = e.updated_by
         LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
         LEFT JOIN entertainment_acts a ON a.id = ea.act_id
-       GROUP BY e.id, uc.name, uu.name
+        LEFT JOIN rooms r ON r.id = e.room_id
+       GROUP BY e.id, uc.name, uu.name, r.name
        ORDER BY e.start_at DESC;
       `
     );
     const actsRes = await pool.query(
       `SELECT id, name, external_url FROM entertainment_acts ORDER BY name ASC;`
+    );
+    const roomsRes = await pool.query(
+      `SELECT id, name FROM rooms ORDER BY name ASC;`
     );
     const prefillEntertainment = {
       title: req.query.title || "",
@@ -1639,6 +1647,7 @@ router.get("/entertainment", ensurePrivileged, async (req, res) => {
       activeTab: "entertainment",
       events: eventsRes.rows,
       acts: actsRes.rows,
+      rooms: roomsRes.rows,
       user: req.session.user || null,
       prefillEntertainment,
     });
@@ -1666,10 +1675,12 @@ router.post(
       adjunct_name,
       external_url,
       organiser,
+      room_id,
       price,
       description,
       image_url,
       status,
+      display_type,
     } = req.body;
 
     if (!title?.trim() || !start_date || !start_time) {
@@ -1685,6 +1696,8 @@ router.post(
     const userId = req.session.user?.id || null;
     const acts = parseIdArray(req.body.acts);
     const imagePath = req.file ? `/uploads/entertainment/${req.file.filename}` : req.body.image_url || null;
+    const displayTypeValue = display_type === "regularevents" ? "regularevents" : "entertainment";
+    const roomId = parseOptionalInteger(room_id);
 
     const recurrence = recurrenceService.parseRecurrenceForm(req.body);
     client = await pool.connect();
@@ -1692,11 +1705,11 @@ router.post(
     const insert = await client.query(
       `
       INSERT INTO entertainment_events
-        (title, slug, adjunct_name, external_url, organiser, price, description,
+        (title, slug, adjunct_name, external_url, organiser, room_id, display_type, price, description,
          image_url, start_at, end_at, status, series_id, series_order,
          created_by, updated_by, created_at, updated_at)
       VALUES
-        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NULL,NULL,$12,$13,NOW(),NOW())
+        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NULL,NULL,$14,$15,NOW(),NOW())
       RETURNING *;
       `,
       [
@@ -1705,6 +1718,8 @@ router.post(
         adjunct_name || null,
         external_url || null,
         organiser || null,
+        roomId,
+        displayTypeValue,
         price || null,
         description || null,
         imagePath,
@@ -1746,11 +1761,11 @@ router.post(
           const cloneInsert = await client.query(
             `
             INSERT INTO entertainment_events
-              (title, slug, adjunct_name, external_url, organiser, price, description,
+              (title, slug, adjunct_name, external_url, organiser, room_id, display_type, price, description,
                image_url, start_at, end_at, status, series_id, series_order,
                created_by, updated_by, created_at, updated_at)
             VALUES
-              ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW(),NOW())
+              ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW(),NOW())
             RETURNING id;
             `,
             [
@@ -1759,6 +1774,8 @@ router.post(
               adjunct_name || null,
               external_url || null,
               organiser || null,
+              roomId,
+              displayTypeValue,
               price || null,
               description || null,
               imagePath,
@@ -1816,10 +1833,12 @@ router.post(
       adjunct_name,
       external_url,
       organiser,
+      room_id,
       price,
       description,
       image_url,
       status,
+      display_type,
     } = req.body;
 
     if (!id || !title?.trim()) {
@@ -1834,6 +1853,7 @@ router.post(
     const userId = req.session.user?.id || null;
     const acts = parseIdArray(req.body.acts);
     const imagePath = req.file ? `/uploads/entertainment/${req.file.filename}` : image_url || null;
+    const roomId = parseOptionalInteger(room_id);
 
     await pool.query(
       `
@@ -1842,23 +1862,27 @@ router.post(
              adjunct_name = $2,
              external_url = $3,
              organiser = $4,
-             price = $5,
-             description = $6,
-             image_url = $7,
-             start_at = COALESCE($8, start_at),
-             end_at = $9,
-             status = $10,
-             updated_by = $11,
+             room_id = $5,
+             price = $6,
+             description = $7,
+             display_type = $8,
+             image_url = $9,
+             start_at = COALESCE($10, start_at),
+             end_at = $11,
+             status = $12,
+             updated_by = $13,
              updated_at = NOW()
-       WHERE id = $12;
+       WHERE id = $14;
       `,
       [
         title.trim(),
         adjunct_name || null,
         external_url || null,
         organiser || null,
+        roomId,
         price || null,
         description || null,
+        display_type === "regularevents" ? "regularevents" : "entertainment",
         imagePath,
         startAt,
         endAt,
@@ -1949,3 +1973,4 @@ router.post("/entertainment/acts/delete", ensurePrivileged, async (req, res) => 
     res.redirect("/settings/entertainment");
   }
 });
+

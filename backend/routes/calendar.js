@@ -373,7 +373,8 @@ function mapEntertainmentEventRow(row) {
       price: priceValue,
       currency: row.currency || "NZD",
       link: row.external_url,
-      roomName: "Entertainment",
+      roomId: row.room_id || null,
+      roomName: row.room_name || "Entertainment",
       detailUrl: `/entertainment/${row.slug || row.id}`,
     },
   };
@@ -471,7 +472,7 @@ async function notifyRestaurantTeam(booking, service) {
     const body = `
       <p>A new restaurant booking has been submitted.</p>
       <p>${details.join("<br>")}</p>
-      <p><a href="${process.env.APP_URL || "https://poriruaclub.co.nz"}/calendar/restaurant">View calendar</a></p>
+      <p><a href="${process.env.APP_URL || "https://portal.poriruaclub.co.nz"}/calendar/restaurant">View calendar</a></p>
     `;
 
     await sendMail(accessToken, {
@@ -529,8 +530,9 @@ async function fetchEntertainmentEventsBetween(startDate, endDate) {
     where.push(`start_at <= $${params.length}::date`);
   }
   const query = `
-    SELECT *
-      FROM entertainment_events
+    SELECT e.*, r.name AS room_name
+      FROM entertainment_events e
+      LEFT JOIN rooms r ON r.id = e.room_id
      ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
      ORDER BY start_at ASC;
   `;
@@ -1009,16 +1011,17 @@ async function convertFunctionToEntertainment(functionId, userId) {
     const insert = await client.query(
       `
       INSERT INTO entertainment_events
-        (title, slug, adjunct_name, external_url, organiser, price, description,
+        (title, slug, adjunct_name, external_url, organiser, room_id, price, description,
          image_url, start_at, end_at, status, created_by, updated_by, created_at, updated_at)
       VALUES
-        ($1,$2,NULL,NULL,$3,NULL,NULL,NULL,$4,$5,'scheduled',$6,$6,NOW(),NOW())
+        ($1,$2,NULL,NULL,$3,$4,NULL,NULL,NULL,$5,$6,'scheduled',$7,$7,NOW(),NOW())
       RETURNING id;
       `,
       [
         fn.event_name || "Club event",
         slug,
         fn.owner_id ? `Owner #${fn.owner_id}` : null,
+        fn.room_id || null,
         startAt,
         endAt,
         userId || null,

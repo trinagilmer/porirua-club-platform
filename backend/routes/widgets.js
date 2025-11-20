@@ -20,6 +20,7 @@ async function fetchPublishedEntertainment(limit) {
     SELECT e.id, e.title, e.slug, e.start_at, e.end_at, e.price, e.currency,
            e.description, e.image_url, e.adjunct_name, e.organiser,
            e.external_url, e.event_link, e.venue_name,
+           r.name AS room_name,
            COALESCE(
              json_agg(
                json_build_object('id', a.id, 'name', a.name, 'external_url', a.external_url)
@@ -29,9 +30,10 @@ async function fetchPublishedEntertainment(limit) {
       FROM entertainment_events e
       LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
       LEFT JOIN entertainment_acts a ON a.id = ea.act_id
+      LEFT JOIN rooms r ON r.id = e.room_id
      WHERE e.status = 'published'
        AND COALESCE(e.end_at, e.start_at) >= NOW() - INTERVAL '1 day'
-     GROUP BY e.id
+     GROUP BY e.id, r.name
      ORDER BY e.start_at ASC NULLS LAST
      LIMIT $1;
     `,

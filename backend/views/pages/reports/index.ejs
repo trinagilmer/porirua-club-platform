@@ -312,6 +312,7 @@
                 <th>Date</th>
                 <th>Time</th>
                 <th>Status</th>
+                <th>Room</th>
                 <th>Adjunct</th>
                 <th>Organiser</th>
               </tr>
@@ -323,8 +324,9 @@
                   <td><%= helpers.formatDisplayDate(evt.start_at) %></td>
                   <td><%= helpers.formatTime(evt.start_at) %></td>
                   <td><span class="badge bg-light text-dark text-uppercase"><%= evt.status || 'scheduled' %></span></td>
-                  <td><%= evt.adjunct_name || '—' %></td>
-                  <td><%= evt.organiser || '—' %></td>
+                  <td><%= evt.room_name || '—' %></td>
+                  <td><%= evt.adjunct_name || '-' %></td>
+                  <td><%= evt.organiser || '-' %></td>
                 </tr>
               <% }) %>
             </tbody>

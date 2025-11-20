@@ -47,6 +47,12 @@
               <tr>
                 <td>
                   <div class="fw-semibold"><%= event.title %></div>
+                  <small class="badge bg-light text-dark text-uppercase mt-1 d-inline-block">
+                    <%= event.display_type === 'regularevents' ? 'Regular' : 'Entertainment' %>
+                  </small>
+                  <% if (event.room_name) { %>
+                    <small class="text-muted d-block">Room: <%= event.room_name %></small>
+                  <% } %>
                   <% if (event.adjunct_name) { %>
                     <small class="text-muted d-block">Adjunct: <%= event.adjunct_name %></small>
                   <% } %>
@@ -113,6 +119,23 @@
               <option value="published">Published</option>
               <option value="cancelled">Cancelled</option>
             </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Room / Space</label>
+            <select name="room_id" class="form-select">
+              <option value="">Unassigned</option>
+              <% (rooms || []).forEach(function(room) { %>
+                <option value="<%= room.id %>"><%= room.name %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Display as</label>
+            <select name="display_type" class="form-select">
+              <option value="entertainment" selected>Entertainment (default)</option>
+              <option value="regularevents">Regular events</option>
+            </select>
+            <small class="text-muted">Controls which tab the event appears under.</small>
           </div>
           <div class="col-md-6">
             <label class="form-label">Date</label>
@@ -258,6 +281,22 @@
               <option value="cancelled">Cancelled</option>
             </select>
           </div>
+          <div class="col-md-4">
+            <label class="form-label">Room / Space</label>
+            <select name="room_id" id="entEditRoom" class="form-select">
+              <option value="">Unassigned</option>
+              <% (rooms || []).forEach(function(room) { %>
+                <option value="<%= room.id %>"><%= room.name %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Display as</label>
+            <select name="display_type" id="entEditDisplayType" class="form-select">
+              <option value="entertainment">Entertainment</option>
+              <option value="regularevents">Regular events</option>
+            </select>
+          </div>
           <div class="col-md-6">
             <label class="form-label">Date</label>
             <input type="date" name="start_date" id="entEditDate" class="form-control">
@@ -383,6 +422,9 @@
         document.getElementById("entEditId").value = record.id || "";
         document.getElementById("entEditTitle").value = record.title || "";
         document.getElementById("entEditStatus").value = record.status || "draft";
+        document.getElementById("entEditRoom").value = record.room_id || "";
+        document.getElementById("entEditDisplayType").value =
+          record.display_type === "regularevents" ? "regularevents" : "entertainment";
         document.getElementById("entEditAdjunct").value = record.adjunct_name || "";
         document.getElementById("entEditLink").value = record.external_url || "";
         document.getElementById("entEditOrganiser").value = record.organiser || "";

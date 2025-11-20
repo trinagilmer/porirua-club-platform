@@ -127,8 +127,10 @@ async function loadEntertainmentReport(range) {
            e.start_at,
            e.end_at,
            e.organiser,
-           e.adjunct_name
+           e.adjunct_name,
+           r.name AS room_name
       FROM entertainment_events e
+      LEFT JOIN rooms r ON r.id = e.room_id
      WHERE e.start_at::date BETWEEN $1 AND $2
      ORDER BY e.start_at ASC;
     `,
