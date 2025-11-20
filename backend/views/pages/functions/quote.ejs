@@ -138,6 +138,18 @@
             <button id="saveQuoteBtn" class="btn btn-sm btn-outline-secondary">Save</button>
             <button id="resetQuoteBtn" class="btn btn-sm btn-outline-danger">Reset</button>
             <button id="editTotalsBtn" class="btn btn-sm btn-outline-primary" <%= proposals.length ? '' : 'disabled' %>>Edit</button>
+            <button id="resyncQuoteBtn" class="btn btn-sm btn-warning" <%= proposals.length ? '' : 'disabled' %>>
+              Refresh from menus
+            </button>
+            <span class="badge bg-light text-dark text-uppercase align-self-center">
+              Client: <%= clientStatus || 'draft' %>
+            </span>
+            <button id="sendClientLinkBtn" class="btn btn-sm btn-outline-success" <%= proposals.length ? '' : 'disabled' %>>
+              Email client link
+            </button>
+            <button id="copyClientLinkBtn" type="button" class="btn btn-sm btn-outline-secondary" data-link="<%= clientLink || '' %>" <%= clientLink ? '' : 'disabled' %>>
+              Copy client link
+            </button>
           </div>
         </div>
         <dl class="row gy-2 gx-0 small">
@@ -190,6 +202,70 @@
       </li>
     <% }) %>
   </ul>
+</div>
+
+<!-- Send Client Email Modal -->
+<div class="modal fade" id="sendClientEmailModal" tabindex="-1" aria-labelledby="sendClientEmailModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <form id="sendClientEmailForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="sendClientEmailModalLabel">Email client link</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Recipient</label>
+            <div class="row g-2">
+              <div class="col-md-6">
+                <select class="form-select" id="clientEmailSelect">
+                  <% if (primaryContact) { %>
+                    <option value="<%= primaryContact.id %>" data-email="<%= primaryContact.email %>" data-name="<%= primaryContact.name %>">
+                      <%= primaryContact.name || primaryContact.email %> (<%= primaryContact.email || 'no email' %>)
+                    </option>
+                  <% } %>
+                  <% (otherContacts || []).forEach((c) => { %>
+                    <option value="<%= c.id %>" data-email="<%= c.email %>" data-name="<%= c.name %>">
+                      <%= c.name || c.email %> (<%= c.email || 'no email' %>)
+                    </option>
+                  <% }); %>
+                  <option value="" data-email="" data-name="">Custom email…</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <input type="email" class="form-control" id="clientEmailInput" placeholder="name@example.com">
+              </div>
+            </div>
+            <div class="mt-2">
+              <input type="text" class="form-control" id="clientNameInput" placeholder="Recipient name (optional)">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label d-flex align-items-center gap-2">Link type</label>
+            <div class="d-flex gap-3">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="clientLinkType" id="clientLinkTypeClient" value="client" checked>
+                <label class="form-check-label" for="clientLinkTypeClient">Proposal link</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="clientLinkType" id="clientLinkTypeAccept" value="accept">
+                <label class="form-check-label" for="clientLinkTypeAccept">Acceptance link</label>
+              </div>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Message (you can edit the AI draft)</label>
+            <textarea class="form-control" id="clientEmailMessage" rows="5"></textarea>
+            <div class="form-text">The system email is sent via Microsoft 365 and will appear in Sent Items.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="sendClientEmailSubmit">Send email</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
 <!-- Add Menu Modal -->
@@ -338,6 +414,8 @@
     const fnId = window.fnContext?.id;
     const proposalId = window.fnContext?.proposalId;
     const attendees = Number(window.fnContext?.attendees || 0);
+    const fnEventName = `<%- (fn.event_name || 'your booking').replace(/\\/g, '\\\\').replace(/\"/g, '\\"').replace(/` + "`" + `/g, '\\`" + "`" + `') %>`;
+    const fnEventDate = `<%- fn.event_date || '' %>`;
 
     window.quoteActiveItemIds = new Set();
     const itemLookup = new Map();
@@ -400,10 +478,19 @@
             baseId: id,
             title: menuTitle,
             basePrice: price,
+            baseExcluded: Boolean(meta.excluded),
             baseCost,
             items: [],
           };
           categories.get(categoryName).push(currentMenu);
+          itemLookup.set(id, {
+            id,
+            name: menuTitle,
+            price,
+            qty: 1,
+            excluded: Boolean(meta.excluded),
+            isBase: true,
+          });
           if (!meta.excluded) window.quoteActiveItemIds.add(id);
           return;
         }
@@ -438,7 +525,7 @@
         };
         currentMenu.items.push(item);
         itemLookup.set(item.id, item);
-        if (!item.excluded && price > 0) window.quoteActiveItemIds.add(id);
+        if (!item.excluded) window.quoteActiveItemIds.add(id);
       });
 
       return categories;
@@ -504,17 +591,19 @@
             <div class="table-responsive">
               <table class="table table-sm align-middle quote-table mb-0">
                 <caption class="quote-menu-caption">
-                  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
-                    <div>
-                      <div class="fw-semibold">${menu.title}</div>
-                      <div class="text-muted small">Menu ID: ${menu.menuId || 'n/a'}</div>
-                    </div>
-                    <div class="btn-group btn-group-sm">
-                      <button class="btn btn-outline-secondary menu-edit" data-menu-id="${menu.menuId || ''}">Edit</button>
-                      <button class="btn btn-outline-primary menu-resync" data-menu-id="${menu.menuId || ''}">Resync</button>
-                      <button class="btn btn-outline-danger menu-remove" data-menu-id="${menu.menuId || ''}">Remove</button>
-                    </div>
-                  </div>
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div>
+              <div class="fw-semibold">${menu.title}</div>
+              <div class="text-muted small">Menu ID: ${menu.menuId || 'n/a'}</div>
+            </div>
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary menu-edit" data-menu-id="${menu.menuId || ''}">Edit</button>
+                <button class="btn btn-outline-primary menu-resync" data-menu-id="${menu.menuId || ''}">Resync</button>
+                <button class="btn btn-outline-success menu-client-select" data-menu-id="${menu.menuId || ''}">Client selectable</button>
+                <button class="btn btn-outline-dark menu-hide-proposal" data-menu-id="${menu.menuId || ''}">Hide from proposal</button>
+                <button class="btn btn-outline-danger menu-remove" data-menu-id="${menu.menuId || ''}">Remove</button>
+              </div>
+            </div>
                 </caption>
                 <thead class="table-light">
                   <tr>
@@ -537,12 +626,33 @@
           `;
           const tbody = listItem.querySelector('tbody');
 
+          // Base line
+          const baseRow = document.createElement('tr');
+          baseRow.dataset.id = menu.baseId;
+          baseRow.classList.add('table-secondary');
+          baseRow.innerHTML = `
+            <td class="text-center">
+              <input class="form-check-input include-toggle" type="checkbox" ${menu.baseExcluded ? '' : 'checked'}>
+            </td>
+            <td><strong>${menu.title}</strong></td>
+            <td>
+              <input type="number" class="form-control form-control-sm qty-input" min="1" value="1">
+            </td>
+            <td>
+              <input type="number" class="form-control form-control-sm price-input" step="0.01" min="0" value="${(menu.basePrice || 0).toFixed(2)}">
+            </td>
+            <td class="text-end">
+              <span class="line-total">${formatCurrency(menu.basePrice || 0)}</span>
+            </td>
+          `;
+          tbody.appendChild(baseRow);
+
           menu.items.forEach((item) => {
             const row = document.createElement('tr');
             row.dataset.id = item.id;
-            const includeChecked = !item.excluded && item.price > 0;
+            const includeChecked = !item.excluded;
             const qtyValue = item.qty > 0 ? item.qty : item.unitType === 'per_person' ? attendees : 1;
-            row.innerHTML = `
+                    row.innerHTML = `
               <td class="text-center">
                 <input class="form-check-input include-toggle" type="checkbox" ${includeChecked ? 'checked' : ''}>
               </td>
@@ -813,6 +923,102 @@
       }
     });
 
+    const sendClientLinkBtn = document.getElementById('sendClientLinkBtn');
+    const copyClientLinkBtn = document.getElementById('copyClientLinkBtn');
+    const sendClientEmailModalEl = document.getElementById('sendClientEmailModal');
+    const sendClientEmailForm = document.getElementById('sendClientEmailForm');
+    const clientEmailSelect = document.getElementById('clientEmailSelect');
+    const clientEmailInput = document.getElementById('clientEmailInput');
+    const clientNameInput = document.getElementById('clientNameInput');
+    const clientEmailMessage = document.getElementById('clientEmailMessage');
+    const sendClientEmailSubmit = document.getElementById('sendClientEmailSubmit');
+
+    function formatEventDateForEmail(value) {
+      if (!value) return '';
+      try {
+        return new Date(value).toLocaleDateString('en-NZ', {
+          weekday: 'short',
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        });
+      } catch (err) {
+        return '';
+      }
+    }
+
+    function seedEmailDraft() {
+      const friendlyDate = formatEventDateForEmail(fnEventDate);
+      const name = clientNameInput.value || (clientEmailSelect?.selectedOptions?.[0]?.dataset?.name || '');
+      clientEmailMessage.value =
+        `Hi ${name || 'there'},\n\n` +
+        `Here is your proposal for ${fnEventName || 'your booking'}${friendlyDate ? ' on ' + friendlyDate : ''}. ` +
+        `Please review and confirm using the link below.\n\n` +
+        `If you’d like to adjust menu selections, you can do so inside the link.`;
+    }
+
+    function applySelectedContact() {
+      const opt = clientEmailSelect?.selectedOptions?.[0];
+      if (!opt) return;
+      const email = opt.dataset.email || '';
+      const name = opt.dataset.name || '';
+      clientEmailInput.value = email || clientEmailInput.value;
+      clientNameInput.value = name || clientNameInput.value;
+    }
+
+    sendClientLinkBtn?.addEventListener('click', () => {
+      if (!fnId) return;
+      applySelectedContact();
+      seedEmailDraft();
+      const modal = bootstrap.Modal.getOrCreateInstance(sendClientEmailModalEl);
+      modal.show();
+    });
+
+    clientEmailSelect?.addEventListener('change', () => {
+      applySelectedContact();
+    });
+
+    sendClientEmailForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!fnId) return;
+      sendClientEmailSubmit.disabled = true;
+      try {
+        const linkType = (sendClientEmailForm.querySelector('input[name="clientLinkType"]:checked')?.value) || 'client';
+        const payload = {
+          contactId: clientEmailSelect?.value || null,
+          email: clientEmailInput.value || null,
+          name: clientNameInput.value || null,
+          linkType,
+          message: clientEmailMessage.value || null,
+        };
+        const res = await fetch(`/functions/${fnId}/quote/send-client-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to send email');
+        alert(`Email sent to ${data.sentTo || 'recipient'}. A copy is in Sent Items.`);
+        bootstrap.Modal.getInstance(sendClientEmailModalEl)?.hide();
+      } catch (err) {
+        console.error(err);
+        alert(err.message || 'Failed to send email.');
+      } finally {
+        sendClientEmailSubmit.disabled = false;
+      }
+    });
+
+    copyClientLinkBtn?.addEventListener('click', async () => {
+      const link = copyClientLinkBtn.dataset.link;
+      if (!link) return;
+      try {
+        await navigator.clipboard.writeText(link);
+        alert('Link copied.');
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
     resetQuoteBtn?.addEventListener('click', async () => {
       if (!fnId) return;
       if (!confirm('Reset quote totals and remove all menu items?')) return;
@@ -831,6 +1037,74 @@
         resetQuoteBtn.disabled = false;
       }
     });
+
+    const resyncQuoteBtn = document.getElementById('resyncQuoteBtn');
+    resyncQuoteBtn?.addEventListener('click', async () => {
+      if (!fnId) return;
+      if (!confirm('Refresh prices from current menus? This will overwrite manual price edits on this quote.')) return;
+      resyncQuoteBtn.disabled = true;
+      try {
+        const res = await fetch(`/functions/${fnId}/quote/resync-all`, {
+          method: 'POST',
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to refresh pricing');
+        location.reload();
+      } catch (err) {
+        console.error(err);
+        alert(err.message || 'Refresh failed.');
+      } finally {
+        resyncQuoteBtn.disabled = false;
+      }
+    });
+
+    mount.addEventListener('click', async (event) => {
+      const clientSelectBtn = event.target.closest('.menu-client-select');
+      if (clientSelectBtn) {
+        const menuId = clientSelectBtn.dataset.menuId;
+        if (!menuId) return;
+        clientSelectBtn.disabled = true;
+        try {
+          const res = await fetch(`/functions/${fnId}/quote/menu/client-toggle`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ menu_id: menuId, selectable: true }),
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || 'Failed to mark menu client-selectable');
+          alert('Menu marked client-selectable.');
+        } catch (err) {
+          console.error(err);
+          alert(err.message || 'Failed to update client flag.');
+        } finally {
+          clientSelectBtn.disabled = false;
+        }
+        return;
+      }
+
+      const hideBtn = event.target.closest('.menu-hide-proposal');
+      if (hideBtn) {
+        const menuId = hideBtn.dataset.menuId;
+        if (!menuId) return;
+        hideBtn.disabled = true;
+        try {
+          const res = await fetch(`/functions/${fnId}/quote/menu/proposal-toggle`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ menu_id: menuId, hide: true }),
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || 'Failed to hide menu from proposal');
+          alert('Menu hidden from proposal (still in quote).');
+        } catch (err) {
+          console.error(err);
+          alert(err.message || 'Failed to update proposal visibility.');
+        } finally {
+          hideBtn.disabled = false;
+        }
+        return;
+      }
+    }, true);
 
     updateModalActions();
     populateMenus();

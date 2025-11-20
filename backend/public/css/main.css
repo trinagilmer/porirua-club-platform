@@ -2248,8 +2248,8 @@ textarea {
    ============================================ */
 @media print {
   @page {
-    size: A4 landscape;
-    margin: 7mm;
+    size: A4 portrait;
+    margin: 10mm;
   }
   body,
   html {

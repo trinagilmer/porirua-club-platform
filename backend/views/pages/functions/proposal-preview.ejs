@@ -85,6 +85,11 @@
 %>
 
 <div class="proposal-print container py-4">
+  <div class="d-flex justify-content-end mb-3 no-print">
+    <button class="btn btn-outline-primary btn-sm" type="button" onclick="window.print()">
+      <i class="bi bi-printer me-1"></i> Print / Save as PDF
+    </button>
+  </div>
   <header class="proposal-header card shadow-sm mb-4">
     <div class="proposal-header__logo proposal-header__logo--pc">
       <img src="/img/Pclogotext.png" alt="Porirua Club" class="proposal-logo proposal-logo--primary">
@@ -318,6 +323,8 @@
           currentMenu = {
             title: text.replace(/^Menu:\s*/i, '').trim(),
             basePrice: price,
+            baseQty: meta.qty ? Number(meta.qty) : 1,
+            baseExcluded: Boolean(meta.excluded),
             items: [],
           };
           categories.get(categoryName).push(currentMenu);
@@ -379,14 +386,15 @@
         const tbody = table.querySelector('tbody');
 
         menus.forEach((menu) => {
-          if (Number(menu.basePrice || 0) > 0) {
+          if (!menu.baseExcluded) {
             const baseLabel = menu.title || 'Package';
+            const baseQty = menu.baseQty || 1;
             const baseRow = document.createElement('tr');
             baseRow.innerHTML = `
               <td class="proposal-cell proposal-cell--item">${baseLabel}</td>
-              <td class="proposal-cell proposal-cell--qty">1</td>
+              <td class="proposal-cell proposal-cell--qty">${baseQty}</td>
               <td class="proposal-cell proposal-cell--price">${formatCurrency(menu.basePrice)}</td>
-              <td class="proposal-cell proposal-cell--total">${formatCurrency(menu.basePrice)}</td>
+              <td class="proposal-cell proposal-cell--total">${formatCurrency((menu.basePrice || 0) * baseQty)}</td>
             `;
             tbody.appendChild(baseRow);
           }

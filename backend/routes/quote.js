@@ -3,8 +3,175 @@ const express = require("express");
 const router = express.Router();
 const { pool } = require("../db");
 const { renderNote } = require("../services/templateRenderer");
+const { sendMail: graphSendMail } = require("../services/graphService");
 
-const PROPOSAL_STATUSES = ["draft", "sent", "approved", "declined"];
+const PROPOSAL_STATUSES = [
+  "draft",
+  "sent",
+  "approved",
+  "declined",
+  "accepted-pending-menu",
+  "accepted-final",
+];
+
+function getAppUrl(req) {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+  const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
+  return `${proto}://${req.get("host")}`;
+}
+
+// Reuse delegated Graph token from session (same logic as routes/functions.js)
+function getGraphAccessTokenFromSession(req) {
+  const s = req.session || {};
+  const delegated =
+    s.graphToken ||
+    s.graphAccessToken ||
+    s.accessToken ||
+    (s.graph && s.graph.accessToken);
+  if (delegated) return delegated;
+  return null;
+}
+
+// ------------------------------------------------------
+// Client-facing proposal (tokenized)
+// ------------------------------------------------------
+router.get("/proposal/client/:token", async (req, res) => {
+  try {
+    const token = req.params.token;
+    const proposal = await findProposalByToken(token);
+    if (!proposal) return res.status(404).send("Link not found or expired.");
+
+    const { rows: items } = await pool.query(
+      `
+      SELECT id, description, unit_price, client_selectable
+        FROM proposal_items
+       WHERE proposal_id = $1
+       ORDER BY id ASC;
+      `,
+      [proposal.id]
+    );
+
+    const { rows: totalsRes } = await pool.query(
+      `
+      SELECT subtotal,
+             gratuity_percent,
+             gratuity_amount,
+             discount_amount,
+             deposit_amount,
+             total_paid,
+             remaining_due
+        FROM proposal_totals
+       WHERE proposal_id = $1
+       LIMIT 1;
+      `,
+      [proposal.id]
+    );
+    const totals = totalsRes[0] || {
+      subtotal: 0,
+      gratuity_percent: 0,
+      gratuity_amount: 0,
+      discount_amount: 0,
+      deposit_amount: 0,
+      total_paid: 0,
+      remaining_due: 0,
+    };
+
+    res.render("pages/functions/proposal-client", {
+      layout: "layouts/main",
+      title: "Confirm Proposal",
+      pageType: "proposal-client",
+      proposal,
+      items,
+      totals,
+      errorMessage: null,
+      successMessage: null,
+    });
+  } catch (err) {
+    console.error("[Client Proposal] Failed to load:", err);
+    res.status(500).send("Unable to load proposal.");
+  }
+});
+
+router.post("/proposal/client/:token/accept", async (req, res) => {
+  const token = req.params.token;
+  const action = req.body.action === "final" ? "accepted-final" : "accepted-pending-menu";
+  const clientName = req.body.client_name || "";
+  try {
+    const proposal = await findProposalByToken(token);
+    if (!proposal) return res.status(404).send("Link not found or expired.");
+
+    const { rows: items } = await pool.query(
+      `SELECT id, description, unit_price, client_selectable FROM proposal_items WHERE proposal_id = $1 ORDER BY id ASC`,
+      [proposal.id]
+    );
+
+    const selections = items
+      .filter((item) => item.client_selectable)
+      .map((item) => {
+        const include = Boolean(req.body[`item_${item.id}_include`]);
+        const qty = parseInt(req.body[`item_${item.id}_qty`], 10) || 1;
+        return { id: item.id, include, qty, description: item.description, unit_price: item.unit_price };
+      });
+
+    const payload = {
+      action,
+      selections,
+      client_name: clientName,
+      submitted_at: new Date().toISOString(),
+    };
+
+    await pool.query(
+      `UPDATE proposals
+          SET client_status = $1,
+              client_accepted_at = NOW(),
+              client_accepted_by = $2,
+              client_ip = $3,
+              client_selection = $4
+        WHERE id = $5;`,
+      [action, clientName || proposal.client_accepted_by || null, req.ip, JSON.stringify(payload), proposal.id]
+    );
+
+    await pool.query(
+      `
+      INSERT INTO proposal_acceptance_events
+        (proposal_id, client_status, submitted_by, submitted_ip, payload, snapshot)
+      VALUES
+        ($1, $2, $3, $4, $5, $6);
+      `,
+      [
+        proposal.id,
+        action,
+        clientName || null,
+        req.ip,
+        JSON.stringify(payload),
+        JSON.stringify({ items: items, selections: payload, totals: req.body }),
+      ]
+    );
+
+    res.render("pages/functions/proposal-client", {
+      layout: "layouts/main",
+      title: "Confirm Proposal",
+      pageType: "proposal-client",
+      proposal: { ...proposal, client_status: action },
+      items,
+      totals: null,
+      successMessage: action === "accepted-final" ? "Thanks! Your selections have been submitted." : "Thanks! Your booking is confirmed. You can update menu selections later using this link.",
+      errorMessage: null,
+    });
+  } catch (err) {
+    console.error("[Client Proposal] Failed to accept:", err);
+    res.status(500).render("pages/functions/proposal-client", {
+      layout: "layouts/main",
+      title: "Confirm Proposal",
+      pageType: "proposal-client",
+      proposal: null,
+      items: [],
+      totals: null,
+      successMessage: null,
+      errorMessage: "We could not save your confirmation. Please try again or contact the club.",
+    });
+  }
+});
 
 // ------------------------------------------------------
 // Helpers
@@ -47,6 +214,20 @@ async function ensureActiveProposal(client, functionId, contactId = null) {
   );
 
   return proposal.id;
+}
+
+async function findProposalByToken(token) {
+  const { rows } = await pool.query(
+    `
+    SELECT p.*, f.event_name, f.event_date, f.start_time, f.end_time, f.attendees, f.room_id, f.id_uuid AS function_id
+      FROM proposals p
+      JOIN functions f ON f.id_uuid = p.function_id
+     WHERE p.client_token = $1
+     LIMIT 1;
+    `,
+    [token]
+  );
+  return rows[0] || null;
 }
 
 async function recalcTotals(client, proposalId, userId = null) {
@@ -401,7 +582,12 @@ router.get("/:functionId/quote", async (req, res) => {
     if (!fn) return res.status(404).send("Function not found");
 
     const { rows: proposals } = await pool.query(
-      `SELECT id, status, created_at, contact_id
+      `SELECT id, status, created_at, contact_id,
+              client_status,
+              client_accepted_at,
+              client_accepted_by,
+              client_token,
+              client_selection
          FROM proposals
         WHERE function_id = $1
         ORDER BY created_at DESC`,
@@ -579,6 +765,11 @@ router.get("/:functionId/quote", async (req, res) => {
       proposalItems,
       payments,
       totals,
+      clientStatus: activeProposal?.client_status || "draft",
+      clientAcceptedAt: activeProposal?.client_accepted_at || null,
+      clientAcceptedBy: activeProposal?.client_accepted_by || null,
+      clientSelection: activeProposal?.client_selection || null,
+      clientLink: activeProposal ? `${getAppUrl(req)}/functions/proposal/client/${activeProposal.client_token}` : null,
       linkedContacts: contactsRes.rows,
       rooms: roomsRes.rows,
       eventTypes: eventTypesRes.rows,
@@ -1233,7 +1424,6 @@ router.get("/:functionId/proposal", async (req, res) => {
           `SELECT id, description, unit_price
              FROM proposal_items
             WHERE proposal_id = $1
-              AND COALESCE(unit_price, 0) > 0
               AND description NOT ILIKE '%[excluded:true]%'
             ORDER BY id ASC`,
           [proposalId]
@@ -1569,6 +1759,227 @@ router.post("/:functionId/proposal/status", async (req, res) => {
   } catch (err) {
     console.error("Error updating proposal status:", err);
     res.status(500).json({ success: false, error: "Failed to update proposal status." });
+  }
+});
+
+// ------------------------------------------------------
+// Mark menu items as client-selectable
+// ------------------------------------------------------
+router.post("/:functionId/quote/menu/client-toggle", async (req, res) => {
+  const { functionId } = req.params;
+  const { menu_id, selectable } = req.body || {};
+  const flag = selectable === false || selectable === "false" ? false : true;
+  if (!menu_id) return res.status(400).json({ success: false, error: "menu_id is required" });
+  const userId = req.session.user?.id || null;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const proposalId = await ensureActiveProposal(client, functionId);
+    await client.query(
+      `
+      UPDATE proposal_items
+         SET client_selectable = $1,
+             updated_by = COALESCE($4, updated_by),
+             updated_at = NOW()
+       WHERE proposal_id = $2
+         AND description ILIKE $3;
+      `,
+      [flag, proposalId, `%[menu_id:${menu_id}]%`, userId]
+    );
+    await client.query("COMMIT");
+    res.json({ success: true });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("[Quote] client-toggle failed:", err);
+    res.status(500).json({ success: false, error: "Failed to update client-selectable flag" });
+  } finally {
+    client.release();
+  }
+});
+
+// ------------------------------------------------------
+// Hide/show menu on proposal (set excluded meta on all items for that menu)
+// ------------------------------------------------------
+router.post("/:functionId/quote/menu/proposal-toggle", async (req, res) => {
+  const { functionId } = req.params;
+  const { menu_id, hide } = req.body || {};
+  if (!menu_id) return res.status(400).json({ success: false, error: "menu_id is required" });
+  const userId = req.session.user?.id || null;
+  const hideFlag = hide === false || hide === "false" ? false : true;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const proposalId = await ensureActiveProposal(client, functionId);
+    const { rows } = await client.query(
+      `SELECT id, description
+         FROM proposal_items
+        WHERE proposal_id = $1
+          AND description ILIKE $2`,
+      [proposalId, `%[menu_id:${menu_id}]%`]
+    );
+    for (const row of rows) {
+      const baseLabel = stripAllMetadata(row.description || "");
+      const meta = extractMetadata(row.description || "");
+      meta.excluded = hideFlag;
+      const metaString = Object.entries(meta)
+        .filter(([, val]) => val !== undefined && val !== null && val !== "")
+        .map(([k, v]) => `[${k}:${v}]`)
+        .join(" ");
+      const updatedDescription = `${baseLabel}${metaString ? " " + metaString : ""}`.trim();
+      await client.query(
+        `UPDATE proposal_items
+            SET description = $1,
+                updated_by = COALESCE($3, updated_by),
+                updated_at = NOW()
+          WHERE id = $2`,
+        [updatedDescription, row.id, userId]
+      );
+    }
+    await recalcTotals(client, proposalId, userId);
+    await client.query("COMMIT");
+    res.json({ success: true });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("[Quote] proposal-toggle failed:", err);
+    res.status(500).json({ success: false, error: "Failed to toggle proposal visibility" });
+  } finally {
+    client.release();
+  }
+});
+
+// ------------------------------------------------------
+// Send client link (sets status to sent)
+// ------------------------------------------------------
+router.post("/:functionId/quote/send-client", async (req, res) => {
+  const { functionId } = req.params;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const proposalId = await ensureActiveProposal(client, functionId);
+    const {
+      rows: [proposal],
+    } = await client.query(`SELECT client_token FROM proposals WHERE id = $1 LIMIT 1`, [proposalId]);
+    const token = proposal?.client_token;
+    await client.query(
+      `UPDATE proposals
+          SET client_status = 'sent',
+              updated_at = NOW()
+        WHERE id = $1`,
+      [proposalId]
+    );
+    await client.query("COMMIT");
+    const link = `${getAppUrl(req)}/functions/proposal/client/${token}`;
+    res.json({ success: true, link });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("[Quote] send-client failed:", err);
+    res.status(500).json({ success: false, error: "Failed to prepare client link" });
+  } finally {
+    client.release();
+  }
+});
+
+// ------------------------------------------------------
+// Email client link (uses Graph; lands in Sent Items)
+// ------------------------------------------------------
+router.post("/:functionId/quote/send-client-email", async (req, res) => {
+  const { functionId } = req.params;
+  const { contactId, email, name, linkType = "client", message } = req.body || {};
+
+  const accessToken = getGraphAccessTokenFromSession(req);
+  if (!accessToken) {
+    return res.status(401).json({ success: false, error: "Please sign in again to send email." });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const proposalId = await ensureActiveProposal(client, functionId);
+    const {
+      rows: [proposal],
+    } = await client.query(`SELECT client_token FROM proposals WHERE id = $1 LIMIT 1`, [proposalId]);
+
+    const {
+      rows: [fn],
+    } = await client.query(
+      `SELECT id_uuid, event_name, event_date, attendees FROM functions WHERE id_uuid = $1 LIMIT 1`,
+      [functionId]
+    );
+
+    let contact = null;
+    if (contactId) {
+      const {
+        rows: [c],
+      } = await client.query(`SELECT id, name, email FROM contacts WHERE id = $1 LIMIT 1`, [contactId]);
+      contact = c || null;
+    }
+
+    const recipientEmail = (contact?.email || email || "").trim();
+    if (!recipientEmail) throw new Error("No recipient email available.");
+    const recipientName = (contact?.name || name || "").trim();
+
+    const link = `${getAppUrl(req)}/functions/proposal/client/${proposal.client_token}`;
+    const fnName = fn?.event_name || "your booking";
+    const fnDate = fn?.event_date
+      ? new Date(fn.event_date).toLocaleDateString("en-NZ", {
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : "";
+
+    const bodyMessage =
+      (message && message.trim()) ||
+      `Here is your proposal for ${fnName}${fnDate ? ` on ${fnDate}` : ""}. Please review and confirm using the link below.`;
+
+    const subject = `[Porirua Club – System] Proposal for ${fnName}`;
+    const html = `
+      <p>Hi ${recipientName || "there"},</p>
+      <p>${bodyMessage}</p>
+      <p><a href="${link}">View &amp; confirm your proposal</a></p>
+      <p style="font-size:12px;color:#666;">This email was automatically sent by Porirua Club Platform.</p>
+    `;
+
+    await graphSendMail(accessToken, {
+      to: recipientEmail,
+      subject,
+      body: html,
+    });
+
+    await client.query(
+      `UPDATE proposals
+          SET client_status = 'sent',
+              updated_at = NOW()
+        WHERE id = $1`,
+      [proposalId]
+    );
+
+    await client.query(
+      `
+      INSERT INTO proposal_acceptance_events
+        (proposal_id, client_status, submitted_by, submitted_ip, payload, snapshot)
+      VALUES
+        ($1, $2, $3, $4, $5, $6);
+      `,
+      [
+        proposalId,
+        "sent",
+        recipientEmail,
+        req.ip,
+        JSON.stringify({ linkType, recipientEmail, recipientName, message: bodyMessage }),
+        JSON.stringify({}),
+      ]
+    );
+
+    await client.query("COMMIT");
+    res.json({ success: true, link, sentTo: recipientEmail });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("[Quote] send-client-email failed:", err);
+    res.status(500).json({ success: false, error: err.message || "Failed to send email" });
+  } finally {
+    client.release();
   }
 });
 
