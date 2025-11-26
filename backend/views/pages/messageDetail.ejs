@@ -365,7 +365,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // ✉️ Handle Quill Reply Form Submission
 function handleReplySubmit() {
-  const html = window.quill?.root?.innerHTML.trim();
+  const html =
+    window.quill && window.quill.root
+      ? window.quill.root.innerHTML.trim()
+      : "";
   if (!html || html === "<p><br></p>") {
     alert("Please write a message before sending.");
     return false;
@@ -472,20 +475,22 @@ function handleReplySubmit() {
       functionSelect.disabled = true;
       try {
         const res = await fetch(`/inbox/api/functions/by-contact/${contactId}`);
-        if (!res.ok) throw new Error(\"Failed to load functions\");
+        if (!res.ok) throw new Error("Failed to load functions");
         const data = await res.json();
         renderOptions(data);
       } catch (err) {
-        console.error(\"⚠️ Failed to fetch functions for contact\", err);
+        console.error("⚠️ Failed to fetch functions for contact", err);
         renderOptions(defaultOptions);
       } finally {
         functionSelect.disabled = false;
       }
     };
 
-    contactSelect?.addEventListener(\"change\", (e) => {
-      loadFunctions(e.target.value);
-    });
+    if (contactSelect) {
+      contactSelect.addEventListener("change", (e) => {
+        loadFunctions(e.target.value);
+      });
+    }
   });
 </script>
 
