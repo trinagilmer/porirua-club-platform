@@ -245,7 +245,7 @@ async function findServiceForSlot(bookingDate, bookingTime, explicitServiceId, d
       };
     }
     const withinWindow =
-      candidateTime >= service.start_time && candidateTime < service.end_time;
+      candidateTime >= service.start_time && candidateTime <= service.end_time;
     if (withinWindow) {
       const override = await fetchOverrideForService(service.id, targetDate, db);
       return {
@@ -417,8 +417,8 @@ async function createRestaurantBooking(payload, options = {}) {
     INSERT INTO restaurant_bookings
       (party_name, booking_date, booking_time, size, status, menu_type, price,
        owner_id, service_id, zone_id, table_id, channel,
-       contact_email, contact_phone, notes, series_id, series_order, created_at, updated_at)
-    VALUES ($1,$2,$3,$4,$5,NULL,NULL,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW(),NOW())
+       contact_email, contact_phone, notes, created_at, updated_at)
+    VALUES ($1,$2,$3,$4,$5,NULL,NULL,$6,$7,$8,$9,$10,$11,$12,$13,NOW(),NOW())
     RETURNING *;
     `,
     [
@@ -435,8 +435,6 @@ async function createRestaurantBooking(payload, options = {}) {
       payload.contactEmail || null,
       payload.contactPhone || null,
       payload.notes || null,
-      options.seriesId || null,
-      options.seriesOrder || null,
     ]
   );
 
@@ -445,6 +443,11 @@ async function createRestaurantBooking(payload, options = {}) {
     notifyRestaurantTeam(booking, service).catch((err) => {
       console.error("[Restaurant Calendar] Failed to send booking email:", err.message);
     });
+    if (booking.contact_email) {
+      notifyRestaurantCustomer(booking, service, "request").catch((err) => {
+        console.error("[Restaurant Calendar] Failed to send customer email:", err.message);
+      });
+    }
   }
 
   return { booking, service };
@@ -482,6 +485,42 @@ async function notifyRestaurantTeam(booking, service) {
     });
   } catch (err) {
     console.error("[Restaurant Calendar] Booking email skipped:", err.message);
+  }
+}
+
+async function notifyRestaurantCustomer(booking, service, template = "request") {
+  try {
+    const accessToken = await acquireGraphToken();
+    if (!accessToken || !booking?.contact_email) return;
+    const subject =
+      template === "confirm"
+        ? "Restaurant booking confirmation"
+        : "Restaurant booking request received";
+    const details = [
+      `<strong>Name:</strong> ${booking.party_name}`,
+      `<strong>Date:</strong> ${booking.booking_date}`,
+      `<strong>Time:</strong> ${booking.booking_time || "TBC"}`,
+      `<strong>Guests:</strong> ${booking.size || 0}`,
+      `<strong>Service:</strong> ${service?.name || "Restaurant"}`,
+    ];
+    const intro =
+      template === "confirm"
+        ? "<p>Your restaurant booking has been confirmed. We look forward to seeing you.</p>"
+        : "<p>Thank you for your reservation request. We will confirm availability as soon as possible.</p>";
+
+    const body = `
+      ${intro}
+      <p>${details.join("<br>")}</p>
+      <p>If you need to make changes, please contact us.</p>
+    `;
+
+    await sendMail(accessToken, {
+      to: booking.contact_email,
+      subject,
+      body,
+    });
+  } catch (err) {
+    console.error("[Restaurant Calendar] Customer email skipped:", err.message);
   }
 }
 
@@ -790,35 +829,7 @@ router.post("/restaurant/bookings", async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const { booking } = await createRestaurantBooking(payload, { db: client });
-    if (recurrence && booking?.booking_date) {
-      const series = await recurrenceService.createSeriesRecord(client, {
-        entityType: "restaurant",
-        template: {
-          party_name: booking.party_name,
-          booking_time: booking.booking_time,
-          size: booking.size,
-          service_id: booking.service_id,
-        },
-        startDate: booking.booking_date,
-        recurrence,
-        createdBy: req.session.user?.id || null,
-      });
-      if (series?.seriesId) {
-        await client.query(
-          `UPDATE restaurant_bookings SET series_id = $1, series_order = 1 WHERE id = $2;`,
-          [series.seriesId, booking.id]
-        );
-        let order = 2;
-        for (const date of series.occurrenceDates.slice(1)) {
-          await createRestaurantBooking(
-            { ...payload, bookingDate: date },
-            { db: client, seriesId: series.seriesId, seriesOrder: order, suppressEmail: true }
-          );
-          order += 1;
-        }
-      }
-    }
+    await createRestaurantBooking(payload, { db: client });
     await client.query("COMMIT");
     res.redirect("/calendar/restaurant?success=1");
   } catch (err) {
@@ -932,6 +943,15 @@ router.post("/restaurant/bookings/:id/status", async (req, res) => {
     if (!bookingId) throw new Error("Missing booking id");
     const newStatus = (req.body.status || "").trim().toLowerCase();
     if (!RESTAURANT_STATUSES.has(newStatus)) throw new Error("Status required");
+    const { rows: existingRows } = await pool.query(
+      `SELECT contact_email, party_name, booking_date, booking_time, size, service_id
+         FROM restaurant_bookings
+        WHERE id = $1
+        LIMIT 1;`,
+      [bookingId]
+    );
+    const existing = existingRows[0] || null;
+
     await pool.query(
       `
       UPDATE restaurant_bookings
@@ -942,6 +962,27 @@ router.post("/restaurant/bookings/:id/status", async (req, res) => {
       `,
       [newStatus, req.body.notes || null, bookingId]
     );
+
+    if (newStatus === "confirmed" && existing?.contact_email) {
+      // Fetch service info for email
+      let service = null;
+      if (existing.service_id) {
+        const { rows } = await pool.query(
+          `SELECT id, name FROM restaurant_services WHERE id = $1 LIMIT 1;`,
+          [existing.service_id]
+        );
+        service = rows[0] || null;
+      }
+      notifyRestaurantCustomer(
+        {
+          ...existing,
+          status: newStatus,
+        },
+        service,
+        "confirm"
+      ).catch((err) => console.error("[Restaurant Calendar] Confirm email failed:", err.message));
+    }
+
     res.redirect(`/calendar/restaurant/bookings/${bookingId}?success=1`);
   } catch (err) {
     console.error("[Restaurant Calendar] Failed to update booking status:", err);

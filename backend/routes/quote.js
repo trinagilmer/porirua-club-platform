@@ -2332,6 +2332,23 @@ router.post("/:functionId/quote/send-client-email", async (req, res) => {
       body: html,
     });
 
+    // Log to messages so it appears in communications/overview
+    await client.query(
+      `
+      INSERT INTO messages
+        (related_function, from_email, to_email, subject, body, body_html, created_at, message_type)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), 'proposal');
+      `,
+      [
+        fn?.id_uuid || functionId,
+        process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz",
+        recipientEmail,
+        subject,
+        html.replace(/<[^>]+>/g, ""),
+        html,
+      ]
+    );
+
     await client.query(
       `UPDATE proposals
           SET client_status = 'sent',

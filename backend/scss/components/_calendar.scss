@@ -131,7 +131,48 @@
     --fc-event-bg-color: #6bb4de;
     --fc-event-border-color: #6bb4de;
     --fc-page-bg-color: #fff;
+    --fc-event-text-color: #333333;
+    --fc-small-font-size: 0.75em;
     font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  // Keep non-business transparent; we overlay closed slots via background events instead
+  .fc-non-business {
+    background: transparent !important;
+    opacity: 1;
+  }
+
+  // Restaurant closed blocks
+  .fc-bg-event.restaurant-closed,
+  .restaurant-closed {
+    background-color: #f5f5f5 !important;
+    border-color: #f5f5f5 !important;
+    opacity: 0.75 !important;
+  }
+
+  // Dim slot text when closed
+  .fc .restaurant-closed ~ .fc-timegrid-slot,
+  .fc .restaurant-closed ~ .fc-timegrid-slot-label {
+    color: #9aa0a6 !important;
+  }
+
+  // Remove current-day highlight in time grid
+  .fc-timegrid-col.fc-day-today,
+  .fc-timeGridDay-view .fc-day-today,
+  .fc-timeGridWeek-view .fc-day-today {
+    background: transparent !important;
+  }
+
+  // Force event text to dark regardless of inline styles/themes
+  .fc-event,
+  .fc-event * {
+    color: #333 !important;
+  }
+
+  // Ensure “small” elements respect the requested size
+  .fc .fc-small,
+  .fc .fc-small * {
+    font-size: 0.75em !important;
   }
 
   .fc-event {
@@ -164,6 +205,10 @@
     font-size: 0.9rem;
     color: #0f172a;
     white-space: normal;
+  }
+
+  * {
+    color: #0f172a !important;
   }
 }
 
@@ -311,6 +356,15 @@
     font-size: 0.65rem !important;
     padding: 1px 2px !important;
     margin-bottom: 1px;
+    color: #333 !important;
+  }
+
+  .calendar-shell .fc-timegrid-event {
+    color: #333 !important;
+  }
+  .calendar-shell .fc-timegrid-event .fc-event-title,
+  .calendar-shell .fc-timegrid-event .fc-event-time {
+    color: #333 !important;
   }
 
   .calendar-shell .fc-daygrid-day-events {

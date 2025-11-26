@@ -2,6 +2,8 @@
 <% const prefill = typeof prefillBooking !== 'undefined' ? prefillBooking : {}; %>
 <script>
   window.calendarConfig = Object.assign({}, window.calendarConfig || {}, <%- JSON.stringify(calendarConfig || {}) %>);
+  window.restaurantCanManage = <%= canManage ? 'true' : 'false' %>;
+  window.restaurantServices = <%- JSON.stringify(services || []) %>;
 </script>
 
 <div class="calendar-page px-4 py-4">
@@ -37,7 +39,9 @@
       </section>
     </div>
     <div class="col-lg-4">
-      <section class="card shadow-sm mb-4">
+      <section class="card shadow-sm">
+        <div class="card-body">
+      <section class="card shadow-sm">
         <div class="card-body">
           <h5 class="mb-3">Service windows</h5>
           <% if (!services || !services.length) { %>
@@ -50,155 +54,169 @@
                   <small class="text-muted">
                     <%= dayNames[service.day_of_week] %>,
                     <%= service.start_time ? service.start_time.slice(0,5) : "--:--" %>
-                    –
+                    -
                     <%= service.end_time ? service.end_time.slice(0,5) : "--:--" %>
                   </small>
                 </li>
               <% }) %>
             </ul>
           <% } %>
+          <hr>
+          <p class="text-muted small mb-0">Click a calendar slot to add a booking.</p>
         </div>
       </section>
+    </div>
+  </div>
+</div>
 
-      <section class="card shadow-sm">
-        <div class="card-body">
-          <% if (!canManage) { %>
-            <h5 class="mb-3">Need to add a booking?</h5>
-            <p class="text-muted">Only administrators can add bookings here. Use the public form to capture enquiries.</p>
-          <% } else { %>
-            <h5 class="mb-3">Add booking</h5>
-            <form action="/calendar/restaurant/bookings" method="POST" class="vstack gap-3">
-              <div>
-                <label class="form-label">Party name</label>
-                <input type="text" name="party_name" class="form-control" value="<%= prefill.party_name || '' %>" required>
-              </div>
-              <div class="row g-2">
-                <div class="col">
-                  <label class="form-label">Date</label>
-                  <input type="date" name="booking_date" class="form-control" value="<%= prefill.booking_date || '' %>" required>
-                </div>
-                <div class="col">
-                  <label class="form-label">Time</label>
-                  <input type="time" name="booking_time" class="form-control" value="<%= prefill.booking_time || '' %>" required>
-                </div>
-              </div>
-              <div class="row g-2">
-                <div class="col">
-                  <label class="form-label">Party size</label>
-                  <input type="number" name="size" class="form-control" min="1" value="<%= prefill.size || '' %>" required>
-                </div>
-                <div class="col">
-                  <label class="form-label">Service</label>
-                  <select name="service_id" class="form-select">
-                    <option value="">Auto detect</option>
-                    <% (services || []).forEach(function(service) { %>
-                      <option value="<%= service.id %>">
-                        <%= service.name %> — <%= dayNames[service.day_of_week] %>
-                      </option>
-                    <% }) %>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label class="form-label">Zone</label>
-                <select name="zone_id" class="form-select">
-                  <option value="">No preference</option>
-                  <% (zones || []).forEach(function(zone) { %>
-                    <option value="<%= zone.id %>"><%= zone.name %></option>
-                  <% }) %>
-                </select>
-              </div>
-              <div>
-                <label class="form-label">Table</label>
-                <select name="table_id" class="form-select">
-                  <option value="">Unassigned</option>
-                  <% (tables || []).forEach(function(table) { %>
-                    <option value="<%= table.id %>"><%= table.label %></option>
-                  <% }) %>
-                </select>
-              </div>
-              <div class="row g-2">
-                <div class="col">
-                  <label class="form-label">Contact email</label>
-                  <input type="email" name="contact_email" class="form-control">
-                </div>
-                <div class="col">
-                  <label class="form-label">Phone</label>
-                  <input type="text" name="contact_phone" class="form-control">
-                </div>
-              </div>
-              <div>
-                <label class="form-label">Notes</label>
-                <textarea name="notes" class="form-control" rows="2"></textarea>
-              </div>
-              <div>
-                <label class="form-label">Status</label>
-                <select name="status" class="form-select">
-                  <option value="confirmed" <%= (prefill.status || '') === 'confirmed' ? 'selected' : '' %>>Confirmed</option>
-                  <option value="pending" <%= (prefill.status || '') === 'pending' ? 'selected' : '' %>>Pending</option>
-                  <option value="seated" <%= (prefill.status || '') === 'seated' ? 'selected' : '' %>>Seated</option>
-                </select>
-              </div>
-              <div class="border-top pt-3 mt-3">
-                <h6 class="mb-2">Repeat booking (optional)</h6>
-                <div class="mb-3">
-                  <label class="form-label">Frequency</label>
-                  <select name="recurrence_frequency" class="form-select form-select-sm">
-                    <option value="none">Does not repeat</option>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly_date">Monthly (date)</option>
-                    <option value="monthly_weekday">Monthly (weekday)</option>
-                  </select>
-                </div>
-                <div class="row g-2">
-                  <div class="col">
-                    <label class="form-label">Interval</label>
-                    <input type="number" name="recurrence_interval" class="form-control form-control-sm" min="1" value="1">
-                  </div>
-                  <div class="col">
-                    <label class="form-label">End date</label>
-                    <input type="date" name="recurrence_end_date" class="form-control form-control-sm">
-                  </div>
-                </div>
-                <div class="mt-2">
-                  <label class="form-label small mb-1">Weekdays</label>
-                  <div class="d-flex flex-wrap gap-2">
-                    <% ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].forEach(function(day, idx) { %>
-                      <div class="form-check form-check-inline">
-                        <input class="form-check-input" type="checkbox" name="recurrence_weekdays[]" value="<%= idx %>" id="rec-restaurant-<%= idx %>">
-                        <label class="form-check-label" for="rec-restaurant-<%= idx %>"><%= day %></label>
-                      </div>
-                    <% }) %>
-                  </div>
-                </div>
-                <div class="row g-2 mt-2">
-                  <div class="col">
-                    <label class="form-label">Monthly day</label>
-                    <input type="number" name="recurrence_monthly_day" class="form-control form-control-sm" min="1" max="31">
-                  </div>
-                  <div class="col">
-                    <label class="form-label">Monthly weekday</label>
-                    <select name="recurrence_monthly_week" class="form-select form-select-sm">
-                      <option value="">--</option>
-                      <option value="1">First</option>
-                      <option value="2">Second</option>
-                      <option value="3">Third</option>
-                      <option value="4">Fourth</option>
-                      <option value="-1">Last</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="mt-2">
-                  <label class="form-label">Skip dates</label>
-                  <textarea name="recurrence_skip_dates" class="form-control form-control-sm" rows="2" placeholder="YYYY-MM-DD, ..."></textarea>
-                </div>
-              </div>
-              <button type="submit" class="btn btn-primary">Save booking</button>
-            </form>
-          <% } %>
+<!-- Add / Edit Booking Modal -->
+<div class="modal fade" id="restaurantBookingModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <form id="restaurantBookingForm" action="/calendar/restaurant/bookings" method="POST">
+        <div class="modal-header">
+          <h5 class="modal-title">Add restaurant booking</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-      </section>
+        <div class="modal-body vstack gap-2">
+          <div>
+            <label class="form-label">Party name</label>
+            <input type="text" name="party_name" id="rb-party" class="form-control form-control-sm" required>
+          </div>
+          <div class="row g-2">
+            <div class="col">
+              <label class="form-label">Date</label>
+              <input type="date" name="booking_date" id="rb-date" class="form-control form-control-sm" required>
+            </div>
+            <div class="col">
+              <label class="form-label">Time</label>
+              <input type="time" name="booking_time" id="rb-time" class="form-control form-control-sm" required>
+            </div>
+          </div>
+          <div class="row g-2">
+            <div class="col">
+              <label class="form-label">Party size</label>
+              <input type="number" name="size" id="rb-size" class="form-control form-control-sm" min="1" required>
+            </div>
+            <div class="col">
+              <label class="form-label">Service</label>
+              <select name="service_id" id="rb-service" class="form-select form-select-sm">
+                <option value="">Auto detect</option>
+                <% (services || []).forEach(function(service) { %>
+                  <option value="<%= service.id %>"><%= service.name %> - <%= dayNames[service.day_of_week] %></option>
+                <% }) %>
+              </select>
+            </div>
+          </div>
+          <div class="row g-2">
+            <div class="col">
+              <label class="form-label">Zone</label>
+              <select name="zone_id" id="rb-zone" class="form-select form-select-sm">
+                <option value="">No preference</option>
+                <% (zones || []).forEach(function(zone) { %>
+                  <option value="<%= zone.id %>"><%= zone.name %></option>
+                <% }) %>
+              </select>
+            </div>
+            <div class="col">
+              <label class="form-label">Table</label>
+              <select name="table_id" id="rb-table" class="form-select form-select-sm">
+                <option value="">Unassigned</option>
+                <% (tables || []).forEach(function(table) { %>
+                  <option value="<%= table.id %>"><%= table.label %></option>
+                <% }) %>
+              </select>
+            </div>
+          </div>
+          <div class="row g-2">
+            <div class="col">
+              <label class="form-label">Contact email</label>
+              <input type="email" name="contact_email" id="rb-email" class="form-control form-control-sm">
+            </div>
+            <div class="col">
+              <label class="form-label">Phone</label>
+              <input type="text" name="contact_phone" id="rb-phone" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div>
+            <label class="form-label">Notes</label>
+            <textarea name="notes" id="rb-notes" class="form-control form-control-sm" rows="2"></textarea>
+          </div>
+          <div>
+            <label class="form-label">Status</label>
+            <select name="status" id="rb-status" class="form-select form-select-sm">
+              <option value="confirmed">Confirmed</option>
+              <option value="pending">Pending</option>
+              <option value="seated">Seated</option>
+            </select>
+          </div>
+
+          <div class="border-top pt-3 mt-2">
+            <div class="form-check form-switch mb-2">
+              <input class="form-check-input" type="checkbox" id="rb-recurring-toggle">
+              <label class="form-check-label" for="rb-recurring-toggle">Recurring booking</label>
+            </div>
+            <div id="rb-recurring-fields" class="d-none">
+              <div class="mb-3">
+                <label class="form-label">Frequency</label>
+                <select name="recurrence_frequency" class="form-select form-select-sm">
+                  <option value="none">Does not repeat</option>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly_date">Monthly (date)</option>
+                  <option value="monthly_weekday">Monthly (weekday)</option>
+                </select>
+              </div>
+              <div class="row g-2">
+                <div class="col">
+                  <label class="form-label">Interval</label>
+                  <input type="number" name="recurrence_interval" class="form-control form-control-sm" min="1" value="1">
+                </div>
+                <div class="col">
+                  <label class="form-label">End date</label>
+                  <input type="date" name="recurrence_end_date" class="form-control form-control-sm">
+                </div>
+              </div>
+              <div class="mt-2">
+                <label class="form-label small mb-1">Weekdays</label>
+                <div class="d-flex flex-wrap gap-2">
+                  <% ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].forEach(function(day, idx) { %>
+                    <div class="form-check form-check-inline">
+                      <input class="form-check-input" type="checkbox" name="recurrence_weekdays[]" value="<%= idx %>" id="rb-rec-<%= idx %>">
+                      <label class="form-check-label" for="rb-rec-<%= idx %>"><%= day %></label>
+                    </div>
+                  <% }) %>
+                </div>
+              </div>
+              <div class="row g-2 mt-2">
+                <div class="col">
+                  <label class="form-label">Monthly day</label>
+                  <input type="number" name="recurrence_monthly_day" class="form-control form-control-sm" min="1" max="31">
+                </div>
+                <div class="col">
+                  <label class="form-label">Monthly weekday</label>
+                  <select name="recurrence_monthly_week" class="form-select form-select-sm">
+                    <option value="">--</option>
+                    <option value="1">First</option>
+                    <option value="2">Second</option>
+                    <option value="3">Third</option>
+                    <option value="4">Fourth</option>
+                    <option value="-1">Last</option>
+                  </select>
+                </div>
+              </div>
+              <div class="mt-2">
+                <label class="form-label">Skip dates</label>
+                <textarea name="recurrence_skip_dates" class="form-control form-control-sm" rows="2" placeholder="YYYY-MM-DD, ..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save booking</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>

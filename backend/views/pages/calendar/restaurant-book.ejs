@@ -1,6 +1,7 @@
 <% const serviceList = Array.isArray(services) ? services : []; %>
 <% const isEmbed = Boolean(embed); %>
 <% const actionUrl = isEmbed ? "/calendar/restaurant/book?embed=1" : "/calendar/restaurant/book"; %>
+<% const slotStepMinutes = (typeof calendarConfig !== 'undefined' && calendarConfig && calendarConfig.daySlotMinutes) || 30; %>
 
 <% if (isEmbed) { %>
 <!DOCTYPE html>
@@ -10,6 +11,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Porirua Club · Restaurant booking</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css">
     <style>
       body.pc-booking-embed {
         background: #f8fafc;
@@ -26,9 +28,84 @@
         box-shadow: 0 12px 24px rgba(15,23,42,0.12);
         padding: 32px;
       }
-      @media (max-width: 640px) {
+      /* Compact calendar styling */
+      .pc-calendar-embed {
+        max-width: 100%;
+      }
+      /* Compact mini calendar for public form only */
+      .pc-calendar-embed {
+        max-width: 100%;
+      }
+      .pc-calendar-embed .fc {
+        font-size: 0.62rem !important;
+        --fc-daygrid-row-min-height: 24px;
+        --fc-daygrid-event-horizon: 0px;
+      }
+      .pc-calendar-embed .fc .fc-scrollgrid,
+      .pc-calendar-embed .fc .fc-daygrid,
+      .pc-calendar-embed .fc .fc-daygrid-body {
+        height: auto !important;
+      }
+      .pc-calendar-embed .fc .pc-cal-btn,
+      .pc-calendar-embed .fc .fc-button {
+        padding: 1px 3px !important;
+        min-height: 18px !important;
+        font-size: 8px !important;
+        line-height: 1.1 !important;
+      }
+      .pc-calendar-embed .fc .fc-col-header-cell-cushion {
+        padding: 1px 0 !important;
+        font-size: 8px !important;
+      }
+      .pc-calendar-embed .fc .fc-daygrid-day {
+        border: 1px solid #e5e7eb;
+        height: 24px !important;
+        max-height: 24px !important;
+        min-height: 24px !important;
+      }
+      .pc-calendar-embed .fc .fc-daygrid-day-frame {
+        height: 24px !important;
+        max-height: 24px !important;
+        min-height: 24px !important;
+        padding: 1px !important;
+        display: flex;
+        align-items: flex-start;
+        justify-content: flex-end;
+      }
+      .pc-calendar-embed .fc .fc-daygrid-row {
+        min-height: 24px !important;
+        height: 24px !important;
+      }
+      .pc-calendar-embed .fc .fc-daygrid-body tr,
+      .pc-calendar-embed .fc .fc-daygrid-body td {
+        height: 24px !important;
+        max-height: 24px !important;
+        min-height: 24px !important;
+        padding: 0 !important;
+      }
+      .pc-calendar-embed .fc .fc-daygrid-day-number {
+        padding: 0 !important;
+        font-size: 9px !important;
+        line-height: 1;
+      }
+      .pc-calendar-embed .fc .fc-daygrid-day.fc-day-today {
+        background: #e8f5e9 !important;
+      }
+      .pc-calendar-embed .pc-selected,
+      .pc-calendar-embed .pc-selected .fc-daygrid-day-frame {
+        background: #0a2f18 !important;
+        border-color: #0a2f18 !important;
+        color: #fff !important;
+      }
+      .pc-calendar-embed .fc .fc-daygrid-day-events {
+        display: none;
+        height: 0;
+        margin: 0;
+        padding: 0;
+      }
+      @media (max-width: 700px) {
         body.pc-booking-embed { padding: 12px; }
-        .pc-booking-card { padding: 20px; }
+        .pc-booking-card { padding: 10px; }
       }
     </style>
   </head>
@@ -48,7 +125,7 @@
       <% if (errorMessage) { %>
         <div class="alert alert-danger"><%= decodeURIComponent(errorMessage) %></div>
       <% } %>
-      <form action="<%= actionUrl %>" method="POST" class="vstack gap-3">
+      <form action="<%= actionUrl %>" method="POST" class="vstack gap-2" id="restaurantPublicForm">
         <div>
           <label class="form-label">Name</label>
           <input type="text" name="party_name" class="form-control" required>
@@ -61,14 +138,22 @@
           <label class="form-label">Phone</label>
           <input type="text" name="contact_phone" class="form-control">
         </div>
-        <div class="row g-3">
-          <div class="col-md-6">
-            <label class="form-label">Date</label>
-            <input type="date" name="booking_date" class="form-control" required>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Preferred time</label>
-            <input type="time" name="booking_time" class="form-control" required>
+        <div class="card border-0 shadow-sm">
+          <div class="card-body">
+            <label class="form-label mb-2">Choose a date and time</label>
+            <div class="row g-2">
+              <div class="col-md-6">
+                <div id="publicBookingCalendar" class="calendar-mini pc-calendar-embed"></div>
+              </div>
+              <div class="col-md-6">
+                <div class="small text-muted mb-1" id="selectedDateLabel">Pick a date to see available times</div>
+                <select id="publicTimeSelect" class="form-select form-select-sm mb-1"></select>
+                <div class="small text-muted" id="timeHelper">Select a date to load times.</div>
+              </div>
+            </div>
+            <!-- Hidden actual inputs the form submits -->
+            <input type="date" name="booking_date" id="hiddenBookingDate" class="form-control" hidden required>
+            <input type="time" name="booking_time" id="hiddenBookingTime" class="form-control" hidden required>
           </div>
         </div>
         <div>
@@ -94,6 +179,158 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+<script>
+  (function() {
+    const services = <%- JSON.stringify(serviceList) %>;
+    const slotStep = <%= slotStepMinutes %> || 30;
+
+    const calendarEl = document.getElementById("publicBookingCalendar");
+    const timeSelect = document.getElementById("publicTimeSelect");
+    const timeHelper = document.getElementById("timeHelper");
+    const dateLabelEl = document.getElementById("selectedDateLabel");
+    const hiddenDate = document.getElementById("hiddenBookingDate");
+    const hiddenTime = document.getElementById("hiddenBookingTime");
+
+    const toMinutes = (t) => {
+      if (!t) return 0;
+      const [h, m] = t.split(":").map(Number);
+      return h * 60 + m;
+    };
+
+    const pad = (n) => String(n).padStart(2, "0");
+    const timeFromMinutes = (m) => `${pad(Math.floor(m/60))}:${pad(m%60)}`;
+
+    const slotsForDate = (dateStr) => {
+      const dt = new Date(dateStr + "T00:00:00");
+      const dow = dt.getDay();
+      const windows = services
+        .filter((s) => Number(s.day_of_week) === dow)
+        .map((s) => ({
+          startM: toMinutes((s.start_time || "00:00").slice(0,5)),
+          endM: toMinutes((s.end_time || "23:59").slice(0,5))
+        }));
+      if (!windows.length) return [];
+      const slots = [];
+      windows.forEach((w) => {
+        for (let m = w.startM; m <= w.endM; m += slotStep) {
+          slots.push(timeFromMinutes(m));
+        }
+      });
+      return slots;
+    };
+
+    const renderSlots = (dateStr) => {
+      const slots = slotsForDate(dateStr);
+      timeSelect.innerHTML = "";
+      if (!slots.length) {
+        timeSelect.innerHTML = '<option value="">No times available</option>';
+        hiddenTime.value = "";
+        timeHelper.textContent = "No times for this day.";
+        return;
+      }
+      slots.forEach((t) => {
+        const opt = document.createElement("option");
+        opt.value = t;
+        opt.textContent = t;
+        timeSelect.appendChild(opt);
+      });
+      hiddenTime.value = slots[0];
+      timeSelect.value = slots[0];
+      timeHelper.textContent = "Select a time that suits you.";
+    };
+
+    const setDate = (dateStr) => {
+      hiddenDate.value = dateStr;
+      dateLabelEl.textContent = `Selected: ${dateStr}`;
+      renderSlots(dateStr);
+    };
+
+    const firstAvailableDate = (() => {
+      const today = new Date();
+      for (let i = 0; i < 60; i++) {
+        const d = new Date(today);
+        d.setDate(d.getDate() + i);
+        const iso = d.toISOString().split("T")[0];
+        if (slotsForDate(iso).length) return iso;
+      }
+      return today.toISOString().split("T")[0];
+    })();
+
+    if (calendarEl && window.FullCalendar) {
+      const forceCompactGrid = () => {
+        const frames = calendarEl.querySelectorAll(
+          ".fc-daygrid-day, .fc-daygrid-day-frame, .fc-daygrid-row, .fc-daygrid-body tr, .fc-daygrid-body td"
+        );
+        frames.forEach((el) => {
+          el.style.height = "40px";
+          el.style.minHeight = "40px";
+          el.style.maxHeight = "40px";
+          if (el.classList.contains("fc-daygrid-day-frame")) {
+            el.style.padding = "2px";
+          }
+        });
+        // Add custom class to toolbar buttons for styling
+        calendarEl.querySelectorAll(".fc-toolbar .fc-button").forEach((btn) => {
+          btn.classList.add("pc-cal-btn");
+          btn.style.padding = "1px 3px";
+          btn.style.minHeight = "18px";
+          btn.style.fontSize = "8px";
+          btn.style.lineHeight = "1.1";
+        });
+        // Apply selection class to the currently selected date if any
+        const selectedDate = hiddenDate.value;
+        if (selectedDate) {
+          calendarEl.querySelectorAll(".pc-selected").forEach((d) => d.classList.remove("pc-selected"));
+          const cell = calendarEl.querySelector(`.fc-daygrid-day[data-date="${selectedDate}"]`);
+          if (cell) cell.classList.add("pc-selected");
+        }
+      };
+
+      const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: "dayGridMonth",
+        aspectRatio: 2.4,
+        selectable: true,
+        dateClick: (info) => {
+          const iso = info.dateStr;
+          // Clear prior selection and apply new one for styling
+          calendarEl.querySelectorAll(".pc-selected").forEach((d) => d.classList.remove("pc-selected"));
+          if (info.dayEl) {
+            info.dayEl.classList.add("pc-selected");
+            info.dayEl.style.backgroundColor = "#0a2f18";
+            info.dayEl.style.borderColor = "#0a2f18";
+            const num = info.dayEl.querySelector(".fc-daygrid-day-number");
+            if (num) num.style.color = "#fff";
+          }
+          setDate(iso);
+        },
+        validRange: { start: new Date().toISOString().split("T")[0] },
+        height: "auto",
+        contentHeight: "auto",
+        expandRows: false,
+        datesSet: forceCompactGrid
+      });
+      calendar.render();
+      setDate(firstAvailableDate);
+
+      forceCompactGrid();
+      setTimeout(forceCompactGrid, 50);
+    }
+
+    timeSelect?.addEventListener("change", (e) => {
+      hiddenTime.value = e.target.value || "";
+    });
+
+    // On submit, ensure both date/time present
+    const form = document.getElementById("restaurantPublicForm");
+    form?.addEventListener("submit", (e) => {
+      if (!hiddenDate.value || !hiddenTime.value) {
+        e.preventDefault();
+        alert("Please select a date and time.");
+      }
+    });
+  })();
+</script>
 <% if (isEmbed) { %>
   </body>
 </html>
