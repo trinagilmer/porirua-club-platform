@@ -2,7 +2,6 @@
 @import '../../public/css/bootstrap-fix.css';
 @import '../../public/css/legacy/main.css';
 @import '../../public/css/legacy/styles.css';
-@import '../../public/css/legacy/inbox.css';
 body {
   background-color: #f9fafb;
   font-family: "Inter", "Segoe UI", sans-serif;

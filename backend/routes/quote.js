@@ -41,7 +41,86 @@ router.get("/proposal/client/:token", async (req, res) => {
     const proposal = await findProposalByToken(token);
     if (!proposal) return res.status(404).send("Link not found or expired.");
 
-    const { rows: items } = await pool.query(
+    // Load function data, contacts, notes, terms, items, totals similar to admin preview
+    const {
+      rows: fnRows,
+    } = await pool.query(
+      `SELECT f.id_uuid,
+              f.event_name,
+              f.event_date,
+              f.status,
+              f.event_type,
+              f.attendees,
+              f.totals_price,
+              f.totals_cost,
+              f.budget,
+              f.start_time,
+              f.end_time,
+              f.room_id,
+              r.name AS room_name
+         FROM functions f
+    LEFT JOIN rooms r ON r.id = f.room_id
+        WHERE f.id_uuid = $1
+        LIMIT 1`,
+      [proposal.function_id]
+    );
+    const fn = fnRows[0] || null;
+
+    const [templatesRes, termsRes, functionNotesRes, contactsRes, roomsRes] = await Promise.all([
+      pool.query(
+        `SELECT id, name, category
+           FROM note_templates
+          ORDER BY name ASC`
+      ),
+      pool.query(
+        `SELECT id,
+                COALESCE(NULLIF(name, ''), NULLIF(notes_template, ''), CONCAT('Terms Block #', id)) AS name,
+                NULLIF(category, '') AS category,
+                COALESCE(content, terms_and_conditions, '') AS content,
+                COALESCE(is_default, FALSE) AS is_default
+           FROM proposal_settings
+          ORDER BY COALESCE(is_default, FALSE) DESC, name ASC`
+      ),
+      pool.query(
+        `SELECT id, note_type, content, rendered_html, created_at
+           FROM function_notes
+          WHERE function_id = $1
+          ORDER BY created_at DESC`,
+        [proposal.function_id]
+      ),
+      pool.query(
+        `SELECT c.id, c.name, c.email, c.phone, fc.is_primary
+           FROM contacts c
+           JOIN function_contacts fc ON fc.contact_id = c.id
+          WHERE fc.function_id = $1
+          ORDER BY fc.is_primary DESC, c.name ASC`,
+        [proposal.function_id]
+      ),
+      pool.query("SELECT id, name, capacity FROM rooms ORDER BY name ASC"),
+    ]);
+
+    const saved = { includeItemIds: [], includeContactIds: [], sections: [], terms: "", termIds: [], termIdsExplicit: false };
+    // default terms fallback
+    if (!saved.termIds.length && termsRes.rows.length) {
+      const defaultTerms = termsRes.rows.find((term) => term.is_default) || termsRes.rows[0];
+      if (defaultTerms) {
+        saved.termIds = [String(defaultTerms.id)];
+        saved.termIdsExplicit = false;
+      }
+    }
+
+    const noteContext = buildNoteContext(fn, contactsRes.rows, roomsRes.rows);
+    const functionNotes = await Promise.all(
+      functionNotesRes.rows.map(async (note) => {
+        const rendered = await renderNote(
+          { raw_html: note.content, rendered_html: note.rendered_html },
+          noteContext
+        );
+        return { ...note, rendered_content: rendered };
+      })
+    );
+
+    const { rows: rawItems } = await pool.query(
       `
       SELECT id, description, unit_price, client_selectable
         FROM proposal_items
@@ -50,6 +129,31 @@ router.get("/proposal/client/:token", async (req, res) => {
       `,
       [proposal.id]
     );
+
+    // Fallback: if this proposal has no items (e.g., older token), try the latest proposal for the same function
+    let items = rawItems;
+    let itemsFallbackNote = null;
+    if (!items.length) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const rebuilt = await rebuildMenusForFunction(client, proposal.id, proposal.function_id, null);
+        await client.query("COMMIT");
+        if (rebuilt) {
+          const { rows: refreshed } = await pool.query(
+            `SELECT id, description, unit_price, client_selectable FROM proposal_items WHERE proposal_id = $1 ORDER BY id ASC`,
+            [proposal.id]
+          );
+          items = refreshed;
+          itemsFallbackNote = "Menus were rebuilt automatically for this link.";
+        }
+      } catch (e) {
+        await pool.query("ROLLBACK");
+        console.error("[Client Proposal] Rebuild failed:", e);
+      } finally {
+        client.release();
+      }
+    }
 
     const { rows: totalsRes } = await pool.query(
       `
@@ -76,15 +180,38 @@ router.get("/proposal/client/:token", async (req, res) => {
       remaining_due: 0,
     };
 
-    res.render("pages/functions/proposal-client", {
+    // Apply saved selections (if any) to items for rendering
+    if (proposal.client_selection) {
+      let savedSel = proposal.client_selection;
+      if (typeof savedSel === "string") {
+        try {
+          savedSel = JSON.parse(savedSel);
+        } catch (e) {
+          savedSel = null;
+        }
+      }
+      if (savedSel?.selections) {
+        items = applySelectionsToItems(rawItems, savedSel.selections);
+      }
+    }
+
+    res.render("pages/functions/proposal-preview", {
       layout: "layouts/main",
       title: "Confirm Proposal",
-      pageType: "proposal-client",
+      fn,
+      proposalId: proposal.id,
       proposal,
       items,
       totals,
-      errorMessage: null,
-      successMessage: null,
+      contacts: contactsRes.rows,
+      sections: saved.sections.length ? saved.sections : functionNotes.map((n) => ({ content: n.rendered_content })),
+      terms:
+        (saved.termIds.length
+          ? termsRes.rows.filter((t) => saved.termIds.includes(String(t.id))).map((t) => t.content).join("<hr/>")
+          : (termsRes.rows.find((t) => t.is_default) || termsRes.rows[0] || {}).content) || "",
+      saved,
+      itemsFallbackNote,
+      clientMode: true,
     });
   } catch (err) {
     console.error("[Client Proposal] Failed to load:", err);
@@ -96,14 +223,43 @@ router.post("/proposal/client/:token/accept", async (req, res) => {
   const token = req.params.token;
   const action = req.body.action === "final" ? "accepted-final" : "accepted-pending-menu";
   const clientName = req.body.client_name || "";
+  const clientEmail = (req.body.client_email || "").trim();
   try {
     const proposal = await findProposalByToken(token);
     if (!proposal) return res.status(404).send("Link not found or expired.");
+    if (!req.body.accept_terms) {
+      return res.status(400).render("pages/functions/proposal-preview", {
+        layout: "layouts/main",
+        title: "Confirm Proposal",
+        fn: {
+          id_uuid: proposal.function_id,
+          event_name: proposal.event_name,
+          event_date: proposal.event_date,
+          start_time: proposal.start_time,
+          end_time: proposal.end_time,
+          attendees: proposal.attendees,
+          room_id: proposal.room_id,
+        },
+        proposalId: proposal.id,
+        proposal,
+        items: [],
+        totals: null,
+        contacts: [],
+        sections: [],
+        terms: null,
+        saved: { includeItemIds: [], includeContactIds: [], sections: [], terms: "" },
+        clientMode: true,
+        successMessage: null,
+        errorMessage: "You must agree to the Terms & Conditions to confirm.",
+      });
+    }
 
-    const { rows: items } = await pool.query(
+    const { rows: rawItems } = await pool.query(
       `SELECT id, description, unit_price, client_selectable FROM proposal_items WHERE proposal_id = $1 ORDER BY id ASC`,
       [proposal.id]
     );
+
+    let items = rawItems;
 
     const selections = items
       .filter((item) => item.client_selectable)
@@ -112,6 +268,8 @@ router.post("/proposal/client/:token/accept", async (req, res) => {
         const qty = parseInt(req.body[`item_${item.id}_qty`], 10) || 1;
         return { id: item.id, include, qty, description: item.description, unit_price: item.unit_price };
       });
+
+    const itemsWithSelection = applySelectionsToItems(rawItems, selections);
 
     const payload = {
       action,
@@ -144,18 +302,114 @@ router.post("/proposal/client/:token/accept", async (req, res) => {
         clientName || null,
         req.ip,
         JSON.stringify(payload),
-        JSON.stringify({ items: items, selections: payload, totals: req.body }),
+        JSON.stringify({ items: itemsWithSelection, selections: payload, totals: req.body }),
       ]
     );
 
-    res.render("pages/functions/proposal-client", {
+    // Notify via email + communications log if possible
+    try {
+      const accessToken = getGraphAccessTokenFromSession(req);
+      if (accessToken) {
+        const link = `${getAppUrl(req)}/functions/proposal/client/${proposal.client_token}`;
+        const summaryLines = selections
+          .map((s) => `• ${s.description} x${s.qty} (${s.include ? "included" : "excluded"})`)
+          .join("<br>");
+        const body = `
+          <p>Client submission received for <strong>${proposal.event_name || "Function"}</strong>.</p>
+          <p><strong>Name:</strong> ${clientName || "n/a"}<br>
+             <strong>IP:</strong> ${req.ip || "n/a"}</p>
+          <p><strong>Selections:</strong><br>${summaryLines || "No selections"}</p>
+          <p><a href="${link}">View proposal link</a></p>
+        `;
+        await graphSendMail(accessToken, {
+          to: process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz",
+          subject: `Client submission: ${proposal.event_name || "Function"}`,
+          body,
+        });
+        // Optional: log to communications if table exists
+        try {
+          await pool.query(
+            `INSERT INTO communications (function_id, subject, body, direction, created_at)
+               VALUES ($1, $2, $3, 'outbound', NOW())`,
+            [proposal.function_id, `Client submission: ${proposal.event_name || "Function"}`, body]
+          );
+        } catch (e) {
+          console.warn("Communications log skipped:", e.message);
+        }
+      }
+    } catch (mailErr) {
+      console.warn("Client submission email skipped:", mailErr.message);
+    }
+
+    // Load supporting data for the preview render
+    const { rows: totalsRows } = await pool.query(
+      `SELECT subtotal,
+              gratuity_percent,
+              gratuity_amount,
+              discount_amount,
+              deposit_amount,
+              total_paid,
+              remaining_due
+         FROM proposal_totals
+        WHERE proposal_id = $1
+        LIMIT 1`,
+      [proposal.id]
+    );
+    const totals =
+      totalsRows[0] || {
+        subtotal: 0,
+        gratuity_percent: 0,
+        gratuity_amount: 0,
+        discount_amount: 0,
+        deposit_amount: 0,
+        total_paid: 0,
+        remaining_due: 0,
+      };
+    const {
+      rows: contactsRows,
+    } = await pool.query(
+      `SELECT c.id, c.name, c.email, c.phone, fc.is_primary
+         FROM contacts c
+         JOIN function_contacts fc ON fc.contact_id = c.id
+        WHERE fc.function_id = $1
+        ORDER BY fc.is_primary DESC, c.name ASC`,
+      [proposal.function_id]
+    );
+    const { rows: termsRows } = await pool.query(
+      `SELECT id,
+              COALESCE(content, terms_and_conditions, '') AS content,
+              COALESCE(is_default, FALSE) AS is_default
+         FROM proposal_settings
+        ORDER BY COALESCE(is_default, FALSE) DESC, id ASC`
+    );
+    const termsContent =
+      (termsRows.find((t) => t.is_default) || termsRows[0] || {}).content || "";
+
+    res.render("pages/functions/proposal-preview", {
       layout: "layouts/main",
       title: "Confirm Proposal",
-      pageType: "proposal-client",
+      fn: {
+        id_uuid: proposal.function_id,
+        event_name: proposal.event_name,
+        event_date: proposal.event_date,
+        start_time: proposal.start_time,
+        end_time: proposal.end_time,
+        attendees: proposal.attendees,
+        room_id: proposal.room_id,
+      },
+      proposalId: proposal.id,
       proposal: { ...proposal, client_status: action },
-      items,
-      totals: null,
-      successMessage: action === "accepted-final" ? "Thanks! Your selections have been submitted." : "Thanks! Your booking is confirmed. You can update menu selections later using this link.",
+      items: itemsWithSelection,
+      totals: totals || null,
+      contacts: contactsRows,
+      sections: [],
+      terms: termsContent,
+      saved: { includeItemIds: [], includeContactIds: [], sections: [], terms: "" },
+      clientMode: true,
+      successMessage:
+        action === "accepted-final"
+          ? "Thanks! Your selections have been submitted."
+          : "Thanks! Your booking is confirmed. You can update menu selections later using this link.",
       errorMessage: null,
     });
   } catch (err) {
@@ -170,6 +424,90 @@ router.post("/proposal/client/:token/accept", async (req, res) => {
       successMessage: null,
       errorMessage: "We could not save your confirmation. Please try again or contact the club.",
     });
+  }
+});
+
+// ------------------------------------------------------
+// Apply latest client selections to the proposal items (include/qty) and recalc totals
+// ------------------------------------------------------
+router.post("/:functionId/proposal/apply-client", async (req, res) => {
+  const { functionId } = req.params;
+  const userId = req.session.user?.id || null;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows: proposalRows } = await client.query(
+      `SELECT id, client_selection FROM proposals WHERE function_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [functionId]
+    );
+    const proposal = proposalRows[0];
+    if (!proposal) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ success: false, error: "Proposal not found" });
+    }
+    let selection = proposal.client_selection;
+    if (!selection) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ success: false, error: "No client selections to apply" });
+    }
+    if (typeof selection === "string") {
+      try {
+        selection = JSON.parse(selection);
+      } catch (e) {
+        selection = null;
+      }
+    }
+    const selections = selection?.selections || [];
+    if (!selections.length) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ success: false, error: "No client selections to apply" });
+    }
+
+    for (const sel of selections) {
+      const itemId = Number(sel.id);
+      if (!Number.isInteger(itemId)) continue;
+      const { rows: itemRows } = await client.query(
+        `SELECT description, unit_price FROM proposal_items WHERE id = $1 AND proposal_id = $2 LIMIT 1`,
+        [itemId, proposal.id]
+      );
+      const row = itemRows[0];
+      if (!row) continue;
+      const baseLabel = stripAllMetadata(row.description || "");
+      const meta = extractMetadata(row.description || "");
+      const originalQty = Number(meta.qty || 1) || 1;
+      const perUnit = (Number(row.unit_price) || 0) / originalQty || 0;
+      const newQty = Number(sel.qty || meta.qty || 1);
+      const includeFlag = Boolean(sel.include);
+
+      meta.qty = newQty;
+      meta.excluded = includeFlag ? false : true;
+      const metaString = Object.entries(meta)
+        .filter(([, val]) => val !== undefined && val !== null && val !== "")
+        .map(([k, v]) => `[${k}:${v}]`)
+        .join(" ");
+      const updatedDescription = `${baseLabel}${metaString ? " " + metaString : ""}`.trim();
+      const newTotal = includeFlag ? perUnit * newQty : 0;
+
+      await client.query(
+        `UPDATE proposal_items
+            SET description = $1,
+                unit_price = $2,
+                updated_by = COALESCE($4, updated_by),
+                updated_at = NOW()
+          WHERE id = $3`,
+        [updatedDescription, newTotal, itemId, userId]
+      );
+    }
+
+    await recalcTotals(client, proposal.id, userId);
+    await client.query("COMMIT");
+    res.json({ success: true });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("[Quote] apply-client failed:", err);
+    res.status(500).json({ success: false, error: "Failed to apply client selections" });
+  } finally {
+    client.release();
   }
 });
 
@@ -386,6 +724,37 @@ async function markMenuUpdated(client, functionId, menuId, userId) {
                updated_by = EXCLUDED.updated_by`,
     [functionId, menuId, userId || null]
   );
+}
+
+// Apply client selection (include/qty) to a local items array for rendering
+function applySelectionsToItems(items = [], selections = []) {
+  const selMap = new Map();
+  selections.forEach((s) => {
+    if (s && s.id) selMap.set(Number(s.id), s);
+  });
+  return items.map((item) => {
+    const sel = selMap.get(Number(item.id));
+    if (!sel) return item;
+    const include = Boolean(sel.include);
+    const qty = Number(sel.qty || 1) || 1;
+    // adjust description metadata for view only
+    const baseLabel = stripAllMetadata(item.description || "");
+    const meta = extractMetadata(item.description || "");
+    if (!include) meta.excluded = true;
+    meta.qty = qty;
+    const metaString = Object.entries(meta)
+      .filter(([, val]) => val !== undefined && val !== null && val !== "")
+      .map(([k, v]) => `[${k}:${v}]`)
+      .join(" ");
+    const updatedDesc = `${baseLabel}${metaString ? " " + metaString : ""}`.trim();
+    const originalQty = Number(meta.qty || 1) || 1;
+    const perUnit = originalQty > 0 ? (Number(item.unit_price) || 0) / originalQty : Number(item.unit_price) || 0;
+    return {
+      ...item,
+      description: updatedDesc,
+      unit_price: include ? perUnit * qty : 0,
+    };
+  });
 }
 
 async function addMenuBundle(client, functionId, proposalId, menuId, userId = null) {
@@ -944,7 +1313,7 @@ router.post("/:functionId/quote/reset", async (req, res) => {
 // ------------------------------------------------------
 async function rebuildMenu(client, proposalId, functionId, menuId, userId = null) {
   const existing = await client.query(
-    `SELECT id, description, unit_price
+    `SELECT id, description, unit_price, client_selectable
        FROM proposal_items
       WHERE proposal_id = $1
         AND description ILIKE $2
@@ -959,6 +1328,7 @@ async function rebuildMenu(client, proposalId, functionId, menuId, userId = null
     adjustments.set(label, {
       unit_price: Number(row.unit_price) || 0,
       meta: extractMetadata(row.description || ""),
+      client_selectable: row.client_selectable,
     });
   }
 
@@ -1003,11 +1373,25 @@ async function rebuildMenu(client, proposalId, functionId, menuId, userId = null
     await client.query(
       `UPDATE proposal_items
           SET unit_price = $1,
-              description = $2
+              description = $2,
+              client_selectable = COALESCE($4, client_selectable)
         WHERE id = $3`,
-      [saved.unit_price, updatedDescription, row.id]
+      [saved.unit_price, updatedDescription, row.id, saved.client_selectable]
     );
   }
+}
+
+async function rebuildMenusForFunction(client, proposalId, functionId, userId = null) {
+  const { rows: menuRows } = await client.query(
+    `SELECT DISTINCT menu_id FROM function_menu_updates WHERE function_id = $1 AND menu_id IS NOT NULL`,
+    [functionId]
+  );
+  if (!menuRows.length) return false;
+  for (const row of menuRows) {
+    await rebuildMenu(client, proposalId, functionId, row.menu_id, userId);
+  }
+  await recalcTotals(client, proposalId, userId);
+  return true;
 }
 
 router.post("/:functionId/quote/resync-menu", async (req, res) => {
@@ -1408,28 +1792,14 @@ router.get("/:functionId/proposal", async (req, res) => {
 
     let proposalItems = [];
     if (proposalId) {
-      const includeIds = saved.includeItemIds.map(Number).filter(Number.isFinite);
-      if (includeIds.length) {
-        const { rows } = await pool.query(
-          `SELECT id, description, unit_price
-             FROM proposal_items
-            WHERE proposal_id = $1
-              AND id = ANY($2::int[])
-            ORDER BY id ASC`,
-          [proposalId, includeIds]
-        );
-        proposalItems = rows;
-      } else {
-        const { rows } = await pool.query(
-          `SELECT id, description, unit_price
-             FROM proposal_items
-            WHERE proposal_id = $1
-              AND description NOT ILIKE '%[excluded:true]%'
-            ORDER BY id ASC`,
-          [proposalId]
-        );
-        proposalItems = rows;
-      }
+      const { rows } = await pool.query(
+        `SELECT id, description, unit_price, client_selectable
+           FROM proposal_items
+          WHERE proposal_id = $1
+          ORDER BY id ASC`,
+        [proposalId]
+      );
+      proposalItems = rows;
     }
 
     let totals = null;
@@ -1594,7 +1964,7 @@ router.get("/:functionId/proposal/preview", async (req, res) => {
       const includeIds = saved.includeItemIds.map(Number).filter((n) => Number.isInteger(n) && n > 0);
       if (includeIds.length) {
         const { rows } = await pool.query(
-          `SELECT id, description, unit_price
+          `SELECT id, description, unit_price, client_selectable
              FROM proposal_items
             WHERE proposal_id = $1
               AND id = ANY($2::int[])
@@ -1604,10 +1974,9 @@ router.get("/:functionId/proposal/preview", async (req, res) => {
         items = rows;
       } else {
         const { rows } = await pool.query(
-          `SELECT id, description, unit_price
+          `SELECT id, description, unit_price, client_selectable
              FROM proposal_items
             WHERE proposal_id = $1
-              AND COALESCE(unit_price, 0) > 0
               AND description NOT ILIKE '%[excluded:true]%'
             ORDER BY id ASC`,
           [proposalId]
@@ -1775,17 +2144,33 @@ router.post("/:functionId/quote/menu/client-toggle", async (req, res) => {
   try {
     await client.query("BEGIN");
     const proposalId = await ensureActiveProposal(client, functionId);
-    await client.query(
-      `
-      UPDATE proposal_items
-         SET client_selectable = $1,
-             updated_by = COALESCE($4, updated_by),
-             updated_at = NOW()
-       WHERE proposal_id = $2
-         AND description ILIKE $3;
-      `,
-      [flag, proposalId, `%[menu_id:${menu_id}]%`, userId]
+    const { rows } = await client.query(
+      `SELECT id, description FROM proposal_items WHERE proposal_id = $1 AND description ILIKE $2`,
+      [proposalId, `%[menu_id:${menu_id}]%`]
     );
+
+    for (const row of rows) {
+      const baseLabel = stripAllMetadata(row.description || "");
+      const meta = extractMetadata(row.description || "");
+      meta.client_selectable = flag;
+      const metaString = Object.entries(meta)
+        .filter(([, val]) => val !== undefined && val !== null && val !== "")
+        .map(([k, v]) => `[${k}:${v}]`)
+        .join(" ");
+      const updatedDescription = `${baseLabel}${metaString ? " " + metaString : ""}`.trim();
+      await client.query(
+        `
+        UPDATE proposal_items
+           SET client_selectable = $1,
+               description = $2,
+               updated_by = COALESCE($4, updated_by),
+               updated_at = NOW()
+         WHERE id = $3;
+        `,
+        [flag, updatedDescription, row.id, userId]
+      );
+    }
+
     await client.query("COMMIT");
     res.json({ success: true });
   } catch (err) {

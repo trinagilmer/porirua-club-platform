@@ -433,23 +433,43 @@ router.get("/:id/communications", async (req, res, next) => {
     if (!fn) return res.status(404).send("Function not found");
 
     // 2️⃣ Fetch related messages
-  const { rows: messages } = await pool.query(
-      `SELECT 
-         id,
-         subject,
-         body,
-         body_html,
-         from_email,
-         to_email,
-         created_at,
-         sent_at,
-         received_at,
-         COALESCE(sent_at, created_at, received_at) AS entry_date,
-         related_function,
-         message_type
-       FROM messages
-        WHERE related_function = $1
-        ORDER BY COALESCE(sent_at, created_at, received_at) DESC;`,
+    const { rows: messages } = await pool.query(
+      `
+      SELECT * FROM (
+        SELECT 
+           id::text AS message_id,
+           subject,
+           body,
+           body_html,
+           from_email,
+           to_email,
+           created_at,
+           sent_at,
+           received_at,
+           COALESCE(sent_at, created_at, received_at) AS entry_date,
+           related_function::text AS related_function,
+           message_type
+         FROM messages
+        WHERE related_function::text = $1::text
+        UNION ALL
+        SELECT
+           id::text AS message_id,
+           subject,
+           body,
+           body AS body_html,
+           NULL AS from_email,
+           NULL AS to_email,
+           created_at,
+           NULL AS sent_at,
+           NULL AS received_at,
+           created_at AS entry_date,
+           function_id::text AS related_function,
+           COALESCE(channel, 'proposal') AS message_type
+        FROM communications
+        WHERE function_id::text = $1::text
+      ) AS combined
+      ORDER BY entry_date DESC;
+      `,
       [functionId]
     );
 
@@ -718,20 +738,41 @@ router.get("/:id/communications/:messageId", async (req, res, next) => {
 
     // Fetch message detail
     const { rows: msgRows } = await pool.query(
-      `SELECT 
-         id, 
-         subject, 
-         body, 
-         body_html, 
-         from_email, 
-         to_email, 
-         message_type,
-         created_at,
-         sent_at,
-         received_at,
-         COALESCE(sent_at, created_at, received_at) AS entry_date
-       FROM messages
-       WHERE id = $1 AND related_function = $2;`,
+      `
+      SELECT * FROM (
+        SELECT 
+           id::text AS message_id,
+           subject, 
+           body, 
+           body_html, 
+           from_email, 
+           to_email, 
+           message_type,
+           created_at,
+           sent_at,
+           received_at,
+           COALESCE(sent_at, created_at, received_at) AS entry_date
+         FROM messages
+         WHERE related_function::text = $2::text
+        UNION ALL
+        SELECT
+           id::text AS message_id,
+           subject,
+           body,
+           body AS body_html,
+           NULL AS from_email,
+           NULL AS to_email,
+           COALESCE(channel, 'proposal') AS message_type,
+           created_at,
+           NULL AS sent_at,
+           NULL AS received_at,
+           created_at AS entry_date
+        FROM communications
+        WHERE function_id::text = $2::text
+      ) AS combined
+      WHERE message_id = $1::text
+      LIMIT 1;
+      `,
       [messageId, functionId]
     );
 
@@ -1110,6 +1151,7 @@ router.get("/:id", async (req, res) => {
       usersRes,
       menuUpdatesRes,
       proposalLookupRes,
+      acceptanceRes,
     ] = await Promise.all([
       // Contacts
       pool.query(
@@ -1169,24 +1211,41 @@ router.get("/:id", async (req, res) => {
         [functionId]
       ),
 
-      // Messages
+      // Messages + communications (recent)
       pool.query(
         `
-        SELECT 
-          m.id,
-          m.subject,
-          m.body,
-          m.body_html,
-          m.message_type,
-          m.from_email,
-          m.to_email,
-          m.created_at,
-          m.sent_at,
-          m.received_at,
-          COALESCE(m.sent_at, m.created_at, m.received_at) AS entry_date
-        FROM messages m
-        WHERE m.related_function = $1
-        ORDER BY COALESCE(m.sent_at, m.created_at, m.received_at) DESC
+        SELECT * FROM (
+          SELECT 
+            m.id::text AS message_id,
+            m.subject,
+            m.body,
+            m.body_html,
+            m.message_type,
+            m.from_email,
+            m.to_email,
+            m.created_at,
+            m.sent_at,
+            m.received_at,
+            COALESCE(m.sent_at, m.created_at, m.received_at) AS entry_date
+          FROM messages m
+          WHERE m.related_function::text = $1::text
+          UNION ALL
+          SELECT
+            c.id::text AS message_id,
+            c.subject,
+            c.body,
+            c.body AS body_html,
+            COALESCE(c.channel, 'proposal') AS message_type,
+            NULL AS from_email,
+            NULL AS to_email,
+            c.created_at,
+            NULL AS sent_at,
+            NULL AS received_at,
+            c.created_at AS entry_date
+          FROM communications c
+          WHERE c.function_id::text = $1::text
+        ) AS combined
+        ORDER BY entry_date DESC
         LIMIT 8;
         `,
         [functionId]
@@ -1216,13 +1275,30 @@ router.get("/:id", async (req, res) => {
           LIMIT 1;`,
         [functionId]
       ),
+      pool.query(
+        `SELECT pae.client_status,
+                pae.submitted_by,
+                pae.submitted_ip,
+                pae.submitted_at AS created_at,
+                pae.id AS event_id
+           FROM proposal_acceptance_events pae
+           JOIN proposals p ON p.id = pae.proposal_id
+          WHERE p.function_id = $1
+          ORDER BY pae.id DESC
+          LIMIT 1`,
+        [functionId]
+      ),
     ]);
 
     // 3️⃣ Build combined timeline entries
     const allEntries = [
       ...notesRes.rows.map((n) => ({ ...n, entry_type: "note", entry_id: n.id })),
       ...tasksRes.rows.map((t) => ({ ...t, entry_type: "task", entry_id: t.id })),
-      ...messagesRes.rows.map((m) => ({ ...m, entry_type: "message", entry_id: m.id })),
+      ...messagesRes.rows.map((m) => ({
+        ...m,
+        entry_type: "message",
+        entry_id: m.message_id || m.id,
+      })),
     ];
 
     const activeProposal = proposalLookupRes.rows[0] || null;
@@ -1317,11 +1393,12 @@ router.get("/:id", async (req, res) => {
     });
 
     const communications = messagesRes.rows.map((message) => {
+      const msgId = message.message_id || message.id;
       const type = (message.message_type || "email").toLowerCase();
       const timestamp =
         message.entry_date || message.created_at || message.sent_at || message.received_at || null;
       return {
-        id: message.id,
+        id: msgId,
         type,
         subject: message.subject || "Message",
         preview: safePreview(message.body_html || message.body),
@@ -1333,7 +1410,7 @@ router.get("/:id", async (req, res) => {
         link:
           type === "proposal"
             ? `/functions/${functionId}/proposal/preview`
-            : `/functions/${functionId}/communications/${message.id}`,
+            : `/functions/${functionId}/communications/${encodeURIComponent(msgId)}`,
       };
     });
 

@@ -26,10 +26,11 @@
                 var subject = m.subject || "(No subject)";
                 var preview = (m.body_html || m.body || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160);
                 var dt      = m.entry_date || m.created_at || m.sent_at || m.received_at;
+                var msgId   = m.message_id || m.id;
             %>
               <!-- 📨 Each message card links to detail -->
               <a class="message-card message-card--communication text-reset text-decoration-none border rounded p-3 mb-2"
-                 href="/functions/<%= fn.id_uuid %>/communications/<%= m.id %>"
+                 href="/functions/<%= fn.id_uuid %>/communications/<%= encodeURIComponent(msgId) %>"
                  aria-label="Open message: <%= subject %>">
                 <div class="msg-left flex-grow-1">
                   <p class="msg-subject fw-semibold mb-1 text-break"><%= subject %></p>

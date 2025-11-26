@@ -3,7 +3,6 @@
 <head>
 
   <link rel="stylesheet" href="/css/main.css">
-  <link rel="stylesheet" href="/css/inbox.css">
 
   <style>
     /* --- Message Detail Layout --- */
@@ -435,6 +434,58 @@ function handleReplySubmit() {
         }
       });
     }
+  });
+</script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const contactSelect = document.getElementById("contact_id");
+    const functionSelect = document.getElementById("function_id");
+    if (!functionSelect) return;
+
+    const preselectedFunction = functionSelect.value || "";
+    const defaultOptions = Array.from(functionSelect.options)
+      .filter((opt) => opt.value)
+      .map((opt) => ({ id: opt.value, event_name: opt.textContent.trim() }));
+
+    const renderOptions = (items = []) => {
+      const currentValue = functionSelect.value;
+      functionSelect.innerHTML = '<option value="">(none)</option>';
+      items.forEach((fn) => {
+        const opt = document.createElement("option");
+        opt.value = fn.id || fn.id_uuid || fn.function_id || "";
+        opt.textContent = fn.event_name || "(Untitled Function)";
+        functionSelect.appendChild(opt);
+      });
+
+      const targetValue = currentValue || preselectedFunction;
+      if (targetValue && functionSelect.querySelector(`option[value="${targetValue}"]`)) {
+        functionSelect.value = targetValue;
+      }
+    };
+
+    const loadFunctions = async (contactId) => {
+      if (!contactId) {
+        renderOptions(defaultOptions);
+        return;
+      }
+
+      functionSelect.disabled = true;
+      try {
+        const res = await fetch(`/inbox/api/functions/by-contact/${contactId}`);
+        if (!res.ok) throw new Error(\"Failed to load functions\");
+        const data = await res.json();
+        renderOptions(data);
+      } catch (err) {
+        console.error(\"⚠️ Failed to fetch functions for contact\", err);
+        renderOptions(defaultOptions);
+      } finally {
+        functionSelect.disabled = false;
+      }
+    };
+
+    contactSelect?.addEventListener(\"change\", (e) => {
+      loadFunctions(e.target.value);
+    });
   });
 </script>
 

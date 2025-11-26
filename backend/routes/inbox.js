@@ -33,6 +33,24 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
 const SHARED_MAILBOX = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
 const SENDER_EMAIL = "events@poriruaclub.co.nz";
 
+async function findLatestFunctionForContact(contactId) {
+  if (!contactId) return null;
+
+  const { rows } = await pool.query(
+    `
+    SELECT f.id_uuid
+    FROM functions f
+    LEFT JOIN function_contacts fc ON fc.function_id = f.id_uuid
+    WHERE f.contact_id::text = $1::text OR fc.contact_id::text = $1::text
+    ORDER BY f.updated_at DESC NULLS LAST, f.event_date DESC NULLS LAST
+    LIMIT 1;
+    `,
+    [contactId]
+  );
+
+  return rows[0]?.id_uuid || null;
+}
+
 /* Utility: Deduplicate messages by ID */
 // eslint-disable-next-line no-unused-vars
 function dedupeMessages(messages) {
@@ -85,16 +103,6 @@ router.get("/", ensureGraphToken, async (req, res) => {
         .filter(Boolean)
         .join(", ");
 
-      // Skip if exists
-      const exists = await pool.query(
-        `SELECT id FROM messages WHERE graph_id = $1 LIMIT 1;`,
-        [m.id]
-      );
-      if (exists.rowCount > 0) {
-        skipped++;
-        continue;
-      }
-
       // Try linking to a contact automatically
       let relatedContact = null;
       const contactRes = await pool.query(
@@ -104,14 +112,39 @@ router.get("/", ensureGraphToken, async (req, res) => {
       if (contactRes.rows.length > 0)
         relatedContact = contactRes.rows[0].id;
 
+      const relatedFunction = await findLatestFunctionForContact(relatedContact);
+
+      // Skip if exists but backfill missing links if we can
+      const exists = await pool.query(
+        `SELECT id, related_contact, related_function FROM messages WHERE graph_id = $1 LIMIT 1;`,
+        [m.id]
+      );
+      if (exists.rowCount > 0) {
+        const existingId = exists.rows[0].id;
+        if (relatedContact || relatedFunction) {
+          await pool.query(
+            `
+            UPDATE messages
+            SET 
+              related_contact = COALESCE(related_contact, $1),
+              related_function = COALESCE(related_function, $2)
+            WHERE id = $3;
+            `,
+            [relatedContact || null, relatedFunction || null, existingId]
+          );
+        }
+        skipped++;
+        continue;
+      }
+
       // Insert inbound message
       await pool.query(
         `INSERT INTO messages (
           graph_id, subject, body, from_email, to_email, to_recipients,
           cc_recipients, received_at, message_type, conversation_id,
-          related_contact, created_at
+          related_contact, related_function, created_at
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,'inbound',$9,$10,NOW()
+          $1,$2,$3,$4,$5,$6,$7,$8,'inbound',$9,$10,$11,NOW()
         ) ON CONFLICT (graph_id) DO NOTHING;`,
         [
           m.id,
@@ -124,6 +157,7 @@ router.get("/", ensureGraphToken, async (req, res) => {
           receivedAt,
           conversationId,
           relatedContact || null,
+          relatedFunction || null,
         ]
       );
       inserted++;
@@ -180,7 +214,6 @@ router.get("/", ensureGraphToken, async (req, res) => {
         deleted: deleted.length,
       },
       active: "inbox",
-      pageCss: ["/css/inbox.css"],
       pageJs: ["/js/inbox.js"],
     });
   } catch (err) {
@@ -251,17 +284,22 @@ router.get("/:id", async (req, res, next) => {
       "SELECT id, name FROM contacts ORDER BY name ASC;"
     );
 
-    // 🧩 If a contact is linked, only fetch functions related to that contact
+    // 🧩 Prefer functions linked to the contact; otherwise provide recent functions as a fallback
     const functionsRes = message.related_contact
       ? await pool.query(
           `SELECT DISTINCT f.id_uuid AS id, f.event_name
            FROM functions f
            LEFT JOIN function_contacts fc ON fc.function_id = f.id_uuid
            WHERE f.contact_id::text = $1 OR fc.contact_id::text = $1
-           ORDER BY f.event_name;`,
+           ORDER BY f.updated_at DESC NULLS LAST, f.event_date DESC NULLS LAST;`,
           [message.related_contact]
         )
-      : { rows: [] };
+      : await pool.query(
+          `SELECT f.id_uuid AS id, f.event_name
+           FROM functions f
+           ORDER BY f.updated_at DESC NULLS LAST, f.event_date DESC NULLS LAST
+           LIMIT 50;`
+        );
 
     // 🧩 Debug check
     console.log("🧩 [DEBUG] functions passed to EJS:", functionsRes.rows[0]);
@@ -331,7 +369,7 @@ router.post("/reply/:id", ensureGraphToken, upload.single("attachment"), async (
     if (linkedContact && !linkedFunction) {
       const funcLookup = await client.query(
         `SELECT f.id_uuid FROM functions f
-         LEFT JOIN function_contacts fc ON fc.function_id = f.id
+         LEFT JOIN function_contacts fc ON fc.function_id = f.id_uuid
          WHERE f.contact_id=$1 OR fc.contact_id=$1
          ORDER BY f.updated_at DESC LIMIT 1;`,
         [linkedContact]
@@ -455,7 +493,7 @@ router.get("/api/functions/by-contact/:contactId", async (req, res) => {
     const { rows } = await pool.query(
       `SELECT DISTINCT f.id_uuid AS id, f.event_name
        FROM functions f
-       LEFT JOIN function_contacts fc ON fc.function_id = f.id
+       LEFT JOIN function_contacts fc ON fc.function_id = f.id_uuid
        WHERE f.contact_id::text = $1 OR fc.contact_id::text = $1
        ORDER BY f.event_name;`,
       [contactId]

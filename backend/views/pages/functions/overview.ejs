@@ -70,6 +70,15 @@
 %>
 
 <div class="function-body function-overview py-4 px-4">
+  <div class="alert alert-secondary d-flex align-items-center gap-3 py-2 mb-3">
+    <div>
+      <div class="small text-muted text-uppercase">Function ID</div>
+      <code><%= fn.id_uuid %></code>
+    </div>
+  </div>
+  <style>
+    .overview-snapshot { display: none !important; }
+  </style>
   <% const canManage = user && ['admin','owner'].includes((user.role || '').toLowerCase()); %>
   <div class="overview-toolbar d-flex flex-wrap align-items-center gap-2 mb-3 w-100">
     <% if (canManage) { %>
@@ -605,7 +614,7 @@
           var badge = item.excluded
             ? '<span class="badge bg-warning text-dark ms-2">Excluded</span>'
             : '';
-          var unitText = item.unit ? ' · ' + item.unit : '';
+          var unitText = item.unit ? ' x ' + item.unit : '';
           var costLine =
             item.cost !== null && item.cost !== undefined
               ? '<small class="text-muted d-block">Cost ' + formatCurrency(item.cost) + '</small>'

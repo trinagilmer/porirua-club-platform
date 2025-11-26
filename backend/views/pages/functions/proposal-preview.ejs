@@ -1,6 +1,22 @@
 <% locals.layout = 'layouts/main'; %>
 
 <%
+  const clientModeFlag =
+    typeof locals.clientMode !== 'undefined'
+      ? locals.clientMode
+      : typeof clientMode !== 'undefined'
+      ? clientMode
+      : false;
+
+  const successMessage =
+    typeof locals.successMessage !== 'undefined'
+      ? locals.successMessage
+      : null;
+
+  const errorMessage =
+    typeof locals.errorMessage !== 'undefined'
+      ? locals.errorMessage
+      : null;
   const formatPlain = (value) => {
     return String(value || '')
       .replace(/<br\s*\/?>/gi, '\n')
@@ -82,13 +98,41 @@
   const finalTotal = subtotal + gratuityAmount - discountAmount;
   const gstPortion = finalTotal > 0 ? finalTotal - finalTotal / 1.15 : 0;
   const currency = (val) => `$${(Number(val) || 0).toFixed(2)}`;
+  const baseDiscount = Number(totals?.discount_amount || 0);
+  const baseDeposit = Number(totals?.deposit_amount || 0);
 %>
 
+<style>
+  .proposal-items-table td,
+  .proposal-items-table th {
+    font-size: 0.95rem;
+    padding: 0.4rem 0.5rem;
+  }
+  .proposal-menu-row {
+    font-weight: 700;
+    border-top: 2px solid #c2ccd6;
+    border-bottom: 2px solid #c2ccd6;
+  }
+  .proposal-choice-row td:first-child {
+    padding-left: 1.75rem;
+  }
+</style>
+
 <div class="proposal-print container py-4">
-  <div class="d-flex justify-content-end mb-3 no-print">
-    <button class="btn btn-outline-primary btn-sm" type="button" onclick="window.print()">
-      <i class="bi bi-printer me-1"></i> Print / Save as PDF
-    </button>
+  <div class="d-flex justify-content-between align-items-center mb-3 no-print">
+    <div>
+      <% if (clientModeFlag) { %>
+        <div class="badge bg-primary-subtle text-primary">Client view</div>
+        <% if (typeof itemsFallbackNote !== 'undefined' && itemsFallbackNote) { %>
+          <div class="text-muted small"><%= itemsFallbackNote %></div>
+        <% } %>
+      <% } %>
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-primary btn-sm" type="button" onclick="window.print()">
+        <i class="bi bi-printer me-1"></i> Print / Save as PDF
+      </button>
+    </div>
   </div>
   <header class="proposal-header card shadow-sm mb-4">
     <div class="proposal-header__logo proposal-header__logo--pc">
@@ -116,69 +160,87 @@
     </div>
   </header>
 
-  <section class="proposal-summary-grid mb-4">
-    <div class="proposal-summary-card card shadow-sm">
-      <div class="card-body">
-        <h5 class="proposal-summary__title">Function Details</h5>
-        <dl class="proposal-summary__list">
-          <div>
-            <dt>Event Date</dt>
-            <dd><%= eventDate %></dd>
+  <% if (clientModeFlag) { %>
+    <div id="clientFormAlert" class="alert alert-warning d-none" role="alert">
+      Please enter your name and agree to the Terms &amp; Conditions before confirming.
+    </div>
+  <% } %>
+
+  <% if (clientModeFlag) { %>
+    <form id="clientProposalForm" method="POST" action="/functions/proposal/client/<%= encodeURIComponent(proposal?.client_token || '') %>/accept" class="mb-4">
+  <% } else { %>
+    <form class="mb-4">
+  <% } %>
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="proposal-summary-card card shadow-sm h-100">
+          <div class="card-body">
+            <h5 class="proposal-summary__title">Function Details</h5>
+            <dl class="proposal-summary__list">
+              <div>
+                <dt>Event Date</dt>
+                <dd><%= eventDate %></dd>
+              </div>
+              <div>
+                <dt>Attendees</dt>
+                <dd><%= fn.attendees || 0 %></dd>
+              </div>
+              <div>
+                <dt>Start / Finish</dt>
+                <dd><%= startTime || '--:--' %> - <%= endTime || '--:--' %></dd>
+              </div>
+              <% if (fn.room_name) { %>
+                <div>
+                  <dt>Room</dt>
+                  <dd><%= fn.room_name %></dd>
+                </div>
+              <% } %>
+              <% if (fn.status) { %>
+                <div>
+                  <dt>Status</dt>
+                  <dd><%= fn.status %></dd>
+                </div>
+              <% } %>
+            </dl>
           </div>
-          <div>
-            <dt>Attendees</dt>
-            <dd><%= fn.attendees || 0 %></dd>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="proposal-summary-card card shadow-sm h-100">
+          <div class="card-body">
+            <h5 class="proposal-summary__title">Contacts</h5>
+            <% if ((orderedContacts || []).length) { %>
+              <ul class="proposal-contact-list">
+                <% orderedContacts.forEach((contact) => { %>
+                  <li>
+                    <strong><%= contact.name %></strong>
+                    <% if (contact.is_primary) { %>
+                      <span class="badge bg-secondary ms-2 text-uppercase">Primary</span>
+                    <% } %>
+                    <br>
+                    <span><%= contact.email || 'No email' %></span>
+                    <% if (contact.phone) { %><span><%= contact.phone %></span><% } %>
+                  </li>
+                <% }) %>
+              </ul>
+            <% } else { %>
+              <div class="d-flex align-items-center justify-content-center text-muted small h-100">
+                No contacts linked to this function yet.
+              </div>
+            <% } %>
           </div>
-          <div>
-            <dt>Start / Finish</dt>
-            <dd><%= startTime || '--:--' %> – <%= endTime || '--:--' %></dd>
-          </div>
-          <% if (fn.room_name) { %>
-            <div>
-              <dt>Room</dt>
-              <dd><%= fn.room_name %></dd>
-            </div>
-          <% } %>
-          <% if (fn.status) { %>
-            <div>
-              <dt>Status</dt>
-              <dd><%= fn.status %></dd>
-            </div>
-          <% } %>
-        </dl>
+        </div>
       </div>
     </div>
-    <% if ((orderedContacts || []).length) { %>
-      <div class="proposal-summary-card card shadow-sm">
-        <div class="card-body">
-          <h5 class="proposal-summary__title">Contacts</h5>
-          <ul class="proposal-contact-list">
-            <% orderedContacts.forEach((contact) => { %>
-              <li>
-                <strong><%= contact.name %></strong>
-                <% if (contact.is_primary) { %>
-                  <span class="badge bg-secondary ms-2 text-uppercase">Primary</span>
-                <% } %>
-                <br>
-                <span><%= contact.email || 'No email' %></span>
-                <% if (contact.phone) { %><span><%= contact.phone %></span><% } %>
-              </li>
-            <% }) %>
-          </ul>
-        </div>
-      </div>
-    <% } else { %>
-      <div class="proposal-summary-card card shadow-sm">
-        <div class="card-body d-flex align-items-center justify-content-center text-muted small">
-          No contacts linked to this function yet.
-        </div>
-      </div>
-    <% } %>
-  </section>
+  <% if (clientModeFlag) { %>
+    <div id="clientFormAlert" class="alert alert-warning d-none" role="alert">
+      Please enter your name and agree to the Terms &amp; Conditions before confirming.
+    </div>
+  <% } %>
 
-  <section id="proposalRoomHireSection" class="proposal-table-card proposal-section proposal-content-rail d-none">
-    <h5 class="proposal-category__title">Room Hire</h5>
-    <div id="proposalPricingRoomHire"></div>
+  <section id="proposalItemsSection" class="proposal-table-card proposal-section proposal-content-rail">
+    <h5 class="proposal-category__title">Proposal Items</h5>
+    <div id="proposalPricingAll"></div>
   </section>
 
   <section class="proposal-run-sheet proposal-flat proposal-content-rail">
@@ -217,23 +279,23 @@
       <tbody>
         <tr>
           <td>Subtotal</td>
-          <td class="text-end"><%= currency(subtotal) %></td>
+          <td class="text-end" id="fs-subtotal"><%= currency(subtotal) %></td>
         </tr>
         <% if (gratuityAmount > 0) { %>
           <tr>
             <td>Gratuity (<%= gratuityPercent.toFixed(2) %>%)</td>
-            <td class="text-end"><%= currency(gratuityAmount) %></td>
+            <td class="text-end" id="fs-gratuity"><%= currency(gratuityAmount) %></td>
           </tr>
         <% } %>
         <% if (discountAmount > 0) { %>
           <tr>
             <td>Discount</td>
-            <td class="text-end">-<%= currency(discountAmount) %></td>
+            <td class="text-end" id="fs-discount">-<%= currency(discountAmount) %></td>
           </tr>
         <% } %>
         <tr class="proposal-financial__highlight">
           <td>Total (incl. GST)</td>
-          <td class="text-end"><%= currency(finalTotal) %></td>
+          <td class="text-end" id="fs-total"><%= currency(finalTotal) %></td>
         </tr>
         <tr>
           <td>GST (included)</td>
@@ -241,7 +303,7 @@
         </tr>
         <tr>
           <td>Deposit Paid</td>
-          <td class="text-end">-<%= currency(depositAmount) %></td>
+          <td class="text-end" id="fs-deposit">-<%= currency(depositAmount) %></td>
         </tr>
         <tr>
           <td>Payments</td>
@@ -249,31 +311,72 @@
         </tr>
         <tr class="proposal-financial__total-due">
           <td>Total Owing</td>
-          <td class="text-end"><%= currency(remainingDue) %></td>
+          <td class="text-end" id="fs-remaining"><%= currency(remainingDue) %></td>
         </tr>
       </tbody>
     </table>
   </section>
 
-  <% if (terms) { %>
-    <section class="proposal-terms card shadow-sm page-break">
+  <% if (successMessage && clientModeFlag) { %>
+    <div class="alert alert-success mb-3">
+      <%= successMessage %>
+      <div class="mt-1">
+        <a href="/functions/proposal/client/<%= proposal?.client_token %>" target="_blank" rel="noopener">View/print your submitted proposal</a>
+      </div>
+    </div>
+  <% } %>
+
+  <% if (terms && !successMessage) { %>
+    <% if (clientModeFlag) { %>
+      <div class="mb-3">
+        <div class="alert alert-info mb-2">
+          Please review the Terms &amp; Conditions below, enter your name, and tick agreement before submitting.
+        </div>
+        <div class="row g-2 align-items-end mb-2">
+          <div class="col-md-6">
+            <label class="form-label">Your name</label>
+            <input type="text" class="form-control" name="client_name" form="clientProposalForm" required>
+          </div>
+          <div class="col-md-6 d-flex flex-column flex-sm-row gap-2 align-items-sm-center">
+            <div class="form-check mb-0">
+              <input class="form-check-input" type="checkbox" value="yes" id="acceptTerms" name="accept_terms" form="clientProposalForm" required>
+              <label class="form-check-label" for="acceptTerms">
+                I agree to the Terms &amp; Conditions.
+              </label>
+            </div>
+            <div class="ms-sm-auto">
+              <div class="btn-group btn-group-sm" role="group">
+                <button class="btn btn-outline-secondary" type="button" id="refreshClientTotalsTerms">
+                  <i class="bi bi-arrow-repeat"></i> Refresh totals
+                </button>
+                <button class="btn btn-primary" type="submit" name="action" value="pending">Confirm</button>
+                <button class="btn btn-success" type="submit" name="action" value="final">Confirm with selections</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% } %>
+    <section class="proposal-terms card shadow-sm page-break" id="termsSection">
       <div class="card-header bg-light fw-semibold">Terms &amp; Conditions</div>
       <div class="card-body proposal-terms__body small">
         <%- terms %>
       </div>
     </section>
   <% } %>
+</form>
 </div>
 
 <ul id="previewItemsSource" class="d-none">
   <% (items || []).forEach(item => { %>
-    <li data-id="<%= item.id %>" data-price="<%= Number(item.unit_price || 0).toFixed(2) %>">
+    <li data-id="<%= item.id %>" data-price="<%= Number(item.unit_price || 0).toFixed(2) %>" data-selectable="<%= item.client_selectable ? 'true' : 'false' %>">
       <%- String(item.description || '').replace(/\r\n|\r|\n/g, ' ') %>
     </li>
   <% }) %>
 </ul>
 
 <script>
+  const clientModeFlag = <%= clientModeFlag ? 'true' : 'false' %>;
   window.previewContext = {
     proposalId: <%= proposalId ? Number(proposalId) : 'null' %>
   };
@@ -282,12 +385,10 @@
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const source = document.getElementById('previewItemsSource');
-    const roomMount = document.getElementById('proposalPricingRoomHire');
-    const cateringMount = document.getElementById('proposalPricingCatering');
-    const otherMount = document.getElementById('proposalPricingOther');
-    const roomSection = document.getElementById('proposalRoomHireSection');
-    const cateringSection = document.getElementById('proposalCateringSection');
-    const otherSection = document.getElementById('proposalOtherSection');
+    const itemsMount = document.getElementById('proposalPricingAll');
+    const itemsSection = document.getElementById('proposalItemsSection');
+    const itemsTable = document.querySelector('.proposal-items-table');
+    const termsSection = document.getElementById('termsSection') || document.querySelector('.proposal-terms');
     if (!source) return;
 
     const parseMeta = (text) => {
@@ -314,6 +415,7 @@
         const rawText = (li.textContent || '').trim();
         const meta = parseMeta(rawText);
         const price = Number(li.dataset.price || 0);
+        const selectable = String(li.dataset.selectable || '').toLowerCase() === 'true';
         const text = cleanLabel(rawText);
         const isAddon = /^\s*Add-on:/i.test(rawText);
 
@@ -324,14 +426,15 @@
             title: text.replace(/^Menu:\s*/i, '').trim(),
             basePrice: price,
             baseQty: meta.qty ? Number(meta.qty) : 1,
-            baseExcluded: Boolean(meta.excluded),
+            baseExcluded: false,
+            clientSelectable: selectable,
             items: [],
           };
           categories.get(categoryName).push(currentMenu);
           return;
         }
 
-        if (!currentMenu || meta.excluded) return;
+        if (!currentMenu) return;
         const unitType = meta.unit_type || '';
         const qty = meta.qty
           ? Number(meta.qty)
@@ -346,15 +449,17 @@
           priceEach,
           qty,
           isAddon,
+          selectable,
+          excluded: meta.excluded || false,
         };
         currentMenu.items.push(item);
+        if (selectable) currentMenu.clientSelectable = true;
       });
 
       return categories;
     }
 
-    function renderGroup(entries, mount, section, options = {}) {
-      const hideTitles = Boolean(options.hideTitles);
+    function renderGroup(entries, mount, section) {
       if (!mount || !section) return;
       mount.innerHTML = '';
       if (!entries.length) {
@@ -366,7 +471,7 @@
       entries.forEach(([categoryName, menus]) => {
         const wrapper = document.createElement('div');
         wrapper.className = 'proposal-category';
-        if (categoryName && !hideTitles) {
+        if (categoryName) {
           wrapper.innerHTML = `<h5 class="proposal-category__title">${categoryName}</h5>`;
         }
 
@@ -402,11 +507,25 @@
           menu.items.forEach((item) => {
             const row = document.createElement('tr');
             const label = item.isAddon ? `${item.name} (Add-on)` : item.name;
+            const includeControl =
+              clientModeFlag && item.selectable
+                ? `<input type="checkbox" class="form-check-input client-include" name="item_${item.id}_include" ${
+                    item.excluded ? "" : "checked"
+                  }>`
+                : '';
+            const qtyControl = clientModeFlag && item.selectable
+              ? `<input type="number" class="form-control form-control-sm client-qty" name="item_${item.id}_qty" value="${item.qty || 1}" min="1">`
+              : item.qty || 1;
+            const priceEach = formatCurrency(item.priceEach);
+            const priceTotal = formatCurrency(item.price);
             row.innerHTML = `
-              <td class="proposal-cell proposal-cell--item">${label}</td>
-              <td class="proposal-cell proposal-cell--qty">${item.qty || 1}</td>
-              <td class="proposal-cell proposal-cell--price">${formatCurrency(item.priceEach)}</td>
-              <td class="proposal-cell proposal-cell--total">${formatCurrency(item.price)}</td>
+              <td class="proposal-cell proposal-cell--item d-flex align-items-center gap-2">
+                ${includeControl}
+                <span>${label}</span>
+              </td>
+              <td class="proposal-cell proposal-cell--qty">${qtyControl}</td>
+              <td class="proposal-cell proposal-cell--price">${priceEach}</td>
+              <td class="proposal-cell proposal-cell--total" data-base="${item.priceEach}" data-qty="${item.qty || 1}">${priceTotal}</td>
             `;
             tbody.appendChild(row);
           });
@@ -419,26 +538,91 @@
 
     function render() {
       const categories = buildModel();
-      if (!categories.size) {
-        [roomSection, cateringSection, otherSection]
-          .filter(Boolean)
-          .forEach((section) => section.classList.add('d-none'));
+      const entries = Array.from(categories.entries());
+
+      // Fallback: if no categories were built but we have items, render a flat list
+      if (!entries.length) {
+        if (!itemsSection || !itemsMount) return;
+        const table = document.createElement('table');
+        table.className = 'proposal-table__grid';
+        table.innerHTML = `
+          <thead>
+            <tr>
+              <th class="proposal-cell--item">Item</th>
+              <th class="proposal-cell--qty">Qty</th>
+              <th class="proposal-cell--price">Price Each</th>
+              <th class="proposal-cell--total">Total</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        `;
+        const tbody = table.querySelector('tbody');
+        source.querySelectorAll('li').forEach((li) => {
+          const price = Number(li.dataset.price || 0);
+          const qty = 1;
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td class="proposal-cell proposal-cell--item">${cleanLabel(li.textContent || '')}</td>
+            <td class="proposal-cell proposal-cell--qty">${qty}</td>
+            <td class="proposal-cell proposal-cell--price">${formatCurrency(price)}</td>
+            <td class="proposal-cell proposal-cell--total" data-base="${price}" data-qty="${qty}">${formatCurrency(price)}</td>
+          `;
+          tbody.appendChild(row);
+        });
+        itemsMount.innerHTML = '';
+        itemsMount.appendChild(table);
+        itemsSection.classList.remove('d-none');
         return;
       }
 
-      const entries = Array.from(categories.entries());
-      const normalize = (name = '') => name.trim().toLowerCase();
-      const roomEntries = entries.filter(([name]) => normalize(name) === 'room hire');
-      const cateringEntries = entries.filter(([name]) => normalize(name) === 'catering');
-      const otherEntries = entries.filter(
-        ([name]) => normalize(name) !== 'room hire' && normalize(name) !== 'catering'
-      );
-
-      renderGroup(roomEntries, roomMount, roomSection, { hideTitles: true });
-      renderGroup(cateringEntries, cateringMount, cateringSection, { hideTitles: true });
-      renderGroup(otherEntries, otherMount, otherSection);
+      renderGroup(entries, itemsMount, itemsSection);
     }
 
     render();
+
+    if (clientModeFlag) {
+      const form = document.getElementById('clientProposalForm');
+      const refreshBtn = document.getElementById('refreshClientTotals');
+      const refreshBtnTerms = document.getElementById('refreshClientTotalsTerms');
+      const clientAlert = document.getElementById('clientFormAlert');
+      const updateTotals = () => {
+        let subtotal = 0;
+        document.querySelectorAll('.proposal-cell--total').forEach((cell) => {
+          const row = cell.closest('tr');
+          const include = row.querySelector('.client-include');
+          if (include && !include.checked) return;
+          const qtyInput = row.querySelector('.client-qty');
+          const base = Number(cell.dataset.base || 0);
+          let qty = qtyInput ? Number(qtyInput.value || 0) : Number(cell.dataset.qty || 1);
+          if (!Number.isFinite(qty) || qty <= 0) qty = 1;
+          subtotal += base * qty;
+          cell.textContent = formatCurrency(base * qty);
+        });
+        const discount = Number(<%- baseDiscount.toFixed(2) %>);
+        const deposit = Number(<%- baseDeposit.toFixed(2) %>);
+        const remaining = subtotal - discount - deposit;
+        const upd = (id, value) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = value;
+        };
+        upd('fs-subtotal', formatCurrency(subtotal));
+        upd('fs-discount', `-${formatCurrency(discount)}`);
+        upd('fs-deposit', `-${formatCurrency(deposit)}`);
+        upd('fs-total', formatCurrency(subtotal - discount));
+        upd('fs-remaining', formatCurrency(remaining));
+      };
+      const handle = (e) => {
+        if (e.target.classList.contains('client-include') || e.target.classList.contains('client-qty')) {
+          updateTotals();
+        }
+      };
+      form?.addEventListener('input', handle);
+      form?.addEventListener('change', handle);
+      itemsTable?.addEventListener('input', handle);
+      itemsTable?.addEventListener('change', handle);
+      refreshBtn?.addEventListener('click', updateTotals);
+      refreshBtnTerms?.addEventListener('click', updateTotals);
+      updateTotals();
+    }
   });
 </script>
