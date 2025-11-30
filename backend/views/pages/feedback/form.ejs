@@ -11,6 +11,62 @@
     max-width: 720px;
     width: 100%;
   }
+  .rating-pills {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .rating-pill {
+    border: 1px solid #d9e2ec;
+    background: #f8fafc;
+    color: #0f172a;
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .rating-pill input {
+    display: none;
+  }
+  .rating-pill.active {
+    background: #e8f5fc;
+    border-color: #6bb4de;
+    color: #0b5c7a;
+    box-shadow: 0 0 0 2px rgba(107, 180, 222, 0.25);
+  }
+  .nps-scale {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(42px, 1fr));
+    gap: 0.35rem;
+  }
+  .issue-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .issue-chip {
+    border: 1px solid #d9e2ec;
+    background: #f8fafc;
+    color: #0f172a;
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease;
+  }
+  .issue-chip input {
+    display: none;
+  }
+  .issue-chip.active {
+    background: #fdf4f5;
+    border-color: #e25b5b;
+    color: #8b1b1b;
+    box-shadow: 0 0 0 2px rgba(226, 91, 91, 0.2);
+  }
 </style>
 
 <div class="feedback-shell">
@@ -33,7 +89,7 @@
       <% } %>
 
       <% if (preview) { %>
-        <div class="alert alert-info">Preview mode — this link is not tracked.</div>
+        <div class="alert alert-info">Preview mode - this link is not tracked.</div>
       <% } %>
 
       <% if (errorMessage) { %>
@@ -61,41 +117,58 @@
           </div>
 
           <div>
-            <label class="form-label fw-semibold"><%= resolvedQuestionConfig.overallLabel %></label>
-            <div class="d-flex gap-3 flex-wrap">
+            <label class="form-label fw-semibold d-block mb-2"><%= resolvedQuestionConfig.overallLabel %></label>
+            <div class="rating-pills" data-rating-group="overall">
+              <% const overallLabels = ['Very poor','Poor','Okay','Good','Excellent']; %>
               <% for (let i = 1; i <= 5; i += 1) { %>
-                <div class="form-check">
-                  <input class="form-check-input" type="radio" name="rating_overall" id="ratingOverall<%= i %>" value="<%= i %>" required>
-                  <label class="form-check-label" for="ratingOverall<%= i %>"><%= i %> / 5</label>
-                </div>
+                <label class="rating-pill" data-value="<%= i %>">
+                  <input type="radio" name="rating_overall" value="<%= i %>" required>
+                  <span class="fw-semibold"><%= i %></span>
+                  <span class="text-muted small"><%= overallLabels[i-1] %></span>
+                </label>
               <% } %>
             </div>
           </div>
 
           <% if (resolvedQuestionConfig.showService) { %>
             <div>
-              <label class="form-label"><%= resolvedQuestionConfig.serviceLabel %></label>
-              <select class="form-select" name="rating_service">
-                <option value="">Select…</option>
+              <label class="form-label d-block mb-2"><%= resolvedQuestionConfig.serviceLabel %></label>
+              <div class="rating-pills" data-rating-group="service">
+                <% const serviceLabels = ['Very poor','Poor','Okay','Good','Excellent']; %>
                 <% for (let i = 1; i <=5; i += 1) { %>
-                  <option value="<%= i %>"><%= i %> / 5</option>
+                  <label class="rating-pill" data-value="<%= i %>">
+                    <input type="radio" name="rating_service" value="<%= i %>">
+                    <span class="fw-semibold"><%= i %></span>
+                    <span class="text-muted small"><%= serviceLabels[i-1] %></span>
+                  </label>
                 <% } %>
-              </select>
+              </div>
             </div>
           <% } %>
 
           <% if (resolvedQuestionConfig.showRecommend) { %>
             <div>
-              <label class="form-label"><%= resolvedQuestionConfig.recommendLabel %></label>
-              <div class="d-flex gap-3">
-                <div class="form-check">
-                  <input class="form-check-input" type="radio" name="recommend" id="recommendYes" value="yes">
-                  <label class="form-check-label" for="recommendYes">Yes</label>
-                </div>
-                <div class="form-check">
-                  <input class="form-check-input" type="radio" name="recommend" id="recommendNo" value="no">
-                  <label class="form-check-label" for="recommendNo">No</label>
-                </div>
+              <label class="form-label fw-semibold d-block mb-2"><%= resolvedQuestionConfig.recommendLabel %></label>
+              <div class="nps-scale">
+                <% for (let i = 0; i <= 10; i += 1) { %>
+                  <label class="rating-pill w-100 text-center" data-nps-value="<%= i %>">
+                    <input type="radio" name="nps_score" value="<%= i %>">
+                    <span class="fw-semibold"><%= i %></span>
+                  </label>
+                <% } %>
+              </div>
+              <small class="text-muted d-block mt-1">0 = Not at all likely, 10 = Extremely likely</small>
+              <div class="mt-2 rating-pills" data-rating-group="recommend">
+                <label class="rating-pill" data-value="yes">
+                  <input type="radio" name="recommend" value="yes">
+                  <span class="fw-semibold">Yes</span>
+                  <span class="text-muted small">I would recommend</span>
+                </label>
+                <label class="rating-pill" data-value="no">
+                  <input type="radio" name="recommend" value="no">
+                  <span class="fw-semibold">No</span>
+                  <span class="text-muted small">I wouldn’t recommend</span>
+                </label>
               </div>
             </div>
           <% } %>
@@ -103,9 +176,23 @@
           <% if (resolvedQuestionConfig.showComments) { %>
             <div>
               <label class="form-label"><%= resolvedQuestionConfig.commentsLabel %></label>
-              <textarea class="form-control" name="comments" rows="4" placeholder="Share your thoughts…"></textarea>
+              <textarea class="form-control" name="comments" rows="4" placeholder="Share your thoughts."></textarea>
             </div>
           <% } %>
+
+          <div>
+            <label class="form-label d-block">If something wasn’t right, what stood out?</label>
+            <div class="issue-chips">
+              <% const baseIssues = ['Food quality','Service','Speed','Value','Cleanliness','Communication','Other']; %>
+              <% baseIssues.forEach(function(issue) { %>
+                <label class="issue-chip" data-issue="<%= issue %>">
+                  <input type="checkbox" name="issue_tags[]" value="<%= issue %>">
+                  <span><%= issue %></span>
+                </label>
+              <% }); %>
+            </div>
+            <small class="text-muted d-block mt-1">Choose any that apply (optional).</small>
+          </div>
 
           <div class="d-flex justify-content-end">
             <button type="submit" class="btn btn-primary">Send feedback</button>
@@ -115,3 +202,35 @@
     </div>
   </div>
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const pillGroups = document.querySelectorAll('.rating-pills');
+    pillGroups.forEach(function(group) {
+      group.addEventListener('click', function(e) {
+        const pill = e.target.closest('.rating-pill');
+        if (!pill) return;
+        const input = pill.querySelector('input');
+        if (!input) return;
+        const isRadio = input.type === 'radio';
+        if (isRadio) {
+          const siblings = group.querySelectorAll('.rating-pill');
+          siblings.forEach(function(sib) { sib.classList.remove('active'); });
+        }
+        pill.classList.toggle('active', true);
+        input.checked = true;
+      });
+    });
+
+    const issueChips = document.querySelectorAll('.issue-chip');
+    issueChips.forEach(function(chip) {
+      chip.addEventListener('click', function(e) {
+        const input = chip.querySelector('input');
+        if (!input) return;
+        const nowChecked = !input.checked;
+        input.checked = nowChecked;
+        chip.classList.toggle('active', nowChecked);
+      });
+    });
+  });
+</script>

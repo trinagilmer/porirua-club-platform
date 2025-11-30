@@ -12,7 +12,21 @@
       <div class="card shadow-sm">
         <div class="card-body">
           <h2 class="mb-2"><%= booking.party_name %></h2>
-          <p class="text-muted mb-4"><%= booking.booking_date ? new Date(booking.booking_date).toLocaleDateString('en-NZ') : '' %> · <%= booking.booking_time || 'TBC' %></p>
+          <p class="text-muted mb-2">
+            <%= booking.booking_date ? new Date(booking.booking_date).toLocaleDateString('en-NZ') : '' %>
+            &middot;
+            <%= booking.booking_time || 'TBC' %>
+          </p>
+          <p class="text-muted small mb-4">
+            Received: <%= booking.created_at ? new Date(booking.created_at).toLocaleString('en-NZ') : 'n/a' %><br>
+            <% if (booking.confirmation_sent_at) { %>
+              Confirmation sent: <%= new Date(booking.confirmation_sent_at).toLocaleString('en-NZ') %>
+            <% } else if (booking.status === 'confirmed') { %>
+              Confirmation sent when status was confirmed.
+            <% } else { %>
+              Confirmation will be sent when marked confirmed.
+            <% } %>
+          </p>
 
           <dl class="row">
             <dt class="col-sm-4">Guests</dt>
@@ -26,6 +40,14 @@
 
             <dt class="col-sm-4">Service</dt>
             <dd class="col-sm-8"><%= booking.service_name || 'Auto detected' %></dd>
+            <% if (booking.special_menu_label && booking.booking_date && new Date(booking.booking_date) >= new Date(booking.special_menu_start || booking.booking_date) && (!booking.special_menu_end || new Date(booking.booking_date) <= new Date(booking.special_menu_end))) { %>
+              <dt class="col-sm-4">Menu</dt>
+              <dd class="col-sm-8">
+                <%= booking.special_menu_label %>
+                <% if (booking.special_menu_price) { %> ($<%= Number(booking.special_menu_price).toFixed(2) %>)<% } %>
+                <% if (booking.special_menu_only) { %> <span class="badge bg-info text-dark ms-1">Menu only</span><% } %>
+              </dd>
+            <% } %>
 
             <dt class="col-sm-4">Zone</dt>
             <dd class="col-sm-8"><%= booking.zone_name || 'Unassigned' %></dd>
@@ -36,8 +58,8 @@
 
           <hr>
           <h5>Contact</h5>
-          <p class="mb-1"><strong>Email:</strong> <%= booking.contact_email || '—' %></p>
-          <p class="mb-1"><strong>Phone:</strong> <%= booking.contact_phone || '—' %></p>
+          <p class="mb-1"><strong>Email:</strong> <%= booking.contact_email || '-' %></p>
+          <p class="mb-1"><strong>Phone:</strong> <%= booking.contact_phone || '-' %></p>
 
           <hr>
           <h5>Notes</h5>

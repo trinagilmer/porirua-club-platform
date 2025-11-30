@@ -160,14 +160,26 @@
           <label class="form-label">Guests</label>
           <input type="number" name="size" class="form-control" min="1" required>
         </div>
+        <% const specialServices = serviceList.filter(s => s.special_menu_label); %>
         <div>
           <label class="form-label">Service</label>
           <select name="service_id" class="form-select">
             <option value="">Any available</option>
-            <% serviceList.forEach(function(service) { %>
-              <option value="<%= service.id %>"><%= service.name %></option>
+            <% specialServices.forEach(function(service) { 
+                 const start = service.special_menu_start ? new Date(service.special_menu_start).toLocaleDateString('en-NZ') : null;
+                 const end = service.special_menu_end ? new Date(service.special_menu_end).toLocaleDateString('en-NZ') : null;
+                 const window = start && end ? `${start} - ${end}` : (start ? `From ${start}` : (end ? `Until ${end}` : ''));
+                 const price = service.special_menu_price ? ` ($${Number(service.special_menu_price).toFixed(2)})` : '';
+            %>
+              <option value="<%= service.id %>">
+                <%= service.special_menu_label %><%= price %>
+                <% if (window) { %> - <%= window %><% } %>
+              </option>
             <% }) %>
           </select>
+          <% if (specialServices.length) { %>
+            <small class="text-muted">Special menus only appear when available.</small>
+          <% } %>
         </div>
         <div>
           <label class="form-label">Notes / requests</label>

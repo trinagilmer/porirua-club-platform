@@ -300,17 +300,16 @@ router.get("/:contactId/full", async (req, res) => {
         `,
         [contact.id]
       ),
-      contact.email
-        ? pool.query(
-            `
-            SELECT id, party_name, booking_date, booking_time, status
-              FROM restaurant_bookings
-             WHERE LOWER(contact_email) = LOWER($1)
-             ORDER BY booking_date DESC, booking_time DESC NULLS LAST;
-            `,
-            [contact.email]
-          )
-        : Promise.resolve({ rows: [] }),
+      pool.query(
+        `
+        SELECT id, party_name, booking_date, booking_time, status
+          FROM restaurant_bookings
+         WHERE contact_id = $1
+            OR (contact_id IS NULL AND LOWER(contact_email) = LOWER($2))
+         ORDER BY booking_date DESC, booking_time DESC NULLS LAST;
+        `,
+        [contact.id, contact.email || ""]
+      ),
     ]);
 
     res.json({

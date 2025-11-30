@@ -18,8 +18,9 @@ const fetch = require("node-fetch");
  * @param {string} mailData.subject - Email subject
  * @param {string} mailData.body - HTML or plain text body
  * @param {Array} [mailData.attachments] - Optional attachments
+ * @param {string} [mailData.fromMailbox] - Optional mailbox to send from (overrides SHARED_MAILBOX)
  */
-async function sendMail(accessToken, { to, cc = [], bcc = [], subject, body, attachments = [] }) {
+async function sendMail(accessToken, { to, cc = [], bcc = [], subject, body, attachments = [], fromMailbox }) {
   if (!accessToken) throw new Error("Missing Microsoft Graph access token");
   if (!to || (Array.isArray(to) && to.length === 0))
     throw new Error("Recipient email missing");
@@ -78,7 +79,7 @@ async function sendMail(accessToken, { to, cc = [], bcc = [], subject, body, att
   };
 
   // ✅ Correct Graph endpoint syntax
-  const sharedMailbox = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
+  const sharedMailbox = fromMailbox || process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
   const graphUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sharedMailbox)}/sendMail`;
 
   console.log("📡 Sending mail via Graph:", graphUrl);

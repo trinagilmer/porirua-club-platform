@@ -579,14 +579,22 @@ async function recalcTotals(client, proposalId, userId = null) {
   );
   let subtotal = 0;
   let costTotal = 0;
-  const costRegex = /\[cost:([0-9.\-]+)\]/i;
   itemRows.forEach((row) => {
-    subtotal += Number(row.unit_price) || 0;
-    const match = costRegex.exec(row.description || "");
-    if (match) {
-      const value = Number(match[1]);
-      if (Number.isFinite(value)) costTotal += value;
+    const meta = extractMetadata(row.description || "");
+    const excluded = parseBoolean(meta.excluded);
+    const linePrice = excluded ? 0 : Number(row.unit_price) || 0;
+    subtotal += linePrice;
+    if (excluded) return;
+    const qty = Number(meta.qty) || 1;
+    let lineCost = 0;
+    if (meta.cost_each !== undefined) {
+      const ce = Number(meta.cost_each);
+      if (Number.isFinite(ce)) lineCost = ce * (qty > 0 ? qty : 1);
+    } else if (meta.cost !== undefined) {
+      const ct = Number(meta.cost);
+      if (Number.isFinite(ct)) lineCost = ct;
     }
+    costTotal += lineCost;
   });
 
   const {
@@ -1524,7 +1532,7 @@ router.post("/:proposalId/totals/update", async (req, res) => {
 // ------------------------------------------------------
 router.post("/proposal-items/:id/price", async (req, res) => {
   const id = Number(req.params.id);
-  const { unit_price, include = true, cost_total } = req.body || {};
+  const { unit_price, include = true, cost_total, cost_each } = req.body || {};
   if (!Number.isInteger(id) || id <= 0 || unit_price === undefined) {
     return res.status(400).json({ success: false, error: "Invalid input" });
   }
@@ -1557,16 +1565,29 @@ router.post("/proposal-items/:id/price", async (req, res) => {
       description = includeMetadata(description, "excluded", "true");
     }
 
-    if (cost_total !== undefined) {
+    if (cost_each !== undefined || cost_total !== undefined) {
+      // Prefer cost_each; fallback to cost_total
       description = stripMetadata(description, "cost");
-      const numericCost =
-        cost_total === null || cost_total === ""
+      description = stripMetadata(description, "cost_each");
+      const numericCostEach =
+        cost_each === null || cost_each === ""
           ? null
-          : Number(cost_total);
-      if (Number.isFinite(numericCost)) {
-        description = includeMetadata(description, "cost", numericCost);
+          : Number(cost_each);
+      if (Number.isFinite(numericCostEach)) {
+        description = includeMetadata(description, "cost_each", numericCostEach);
+      } else if (cost_total !== undefined) {
+        const numericCostTotal =
+          cost_total === null || cost_total === ""
+            ? null
+            : Number(cost_total);
+        if (Number.isFinite(numericCostTotal)) {
+          description = includeMetadata(description, "cost", numericCostTotal);
+        }
       }
     }
+
+    const numericUnitPrice = Number(unit_price);
+    const storedUnitPrice = parseBoolean(include) && Number.isFinite(numericUnitPrice) ? numericUnitPrice : 0;
 
     await client.query(
       `UPDATE proposal_items
@@ -1575,7 +1596,7 @@ router.post("/proposal-items/:id/price", async (req, res) => {
               updated_at = NOW(),
               updated_by = COALESCE($4, updated_by)
         WHERE id = $3`,
-      [Number(unit_price) || 0, description, id, userId]
+      [storedUnitPrice, description, id, userId]
     );
     const meta = extractMetadata(description);
     if (meta.menu_id) {
@@ -1623,7 +1644,7 @@ router.post("/proposal-items/:id/qty", async (req, res) => {
     const {
       rows,
     } = await client.query(
-      `SELECT description, proposal_id
+      `SELECT description, proposal_id, unit_price
          FROM proposal_items
         WHERE id = $1
         LIMIT 1`,
@@ -1633,24 +1654,48 @@ router.post("/proposal-items/:id/qty", async (req, res) => {
       await client.query("ROLLBACK");
       return res.status(404).json({ success: false, error: "Item not found" });
     }
-    let description = rows[0].description || "";
-    description = stripMetadata(description, "qty");
-    description = includeMetadata(description, "qty", qty);
-    description = description.replace(/ x \d+/, "").trim();
-    const metaIdx = description.indexOf(" [");
-    let head = metaIdx >= 0 ? description.slice(0, metaIdx) : description;
-    const meta = metaIdx >= 0 ? description.slice(metaIdx) : "";
-    head = head.replace(/ x \d+$/i, "").trim();
-    head = `${head} x ${qty}`.trim();
-    const updatedDescription = `${head}${meta}`.trim();
+    const currentDescription = rows[0].description || "";
+    const baseLabel = stripAllMetadata(currentDescription || "").replace(/ x \d+$/i, "").trim();
+    const meta = extractMetadata(currentDescription || "");
+    const previousQty = Number(meta.qty || 1) || 1;
+    const perUnitPrice =
+      previousQty > 0 ? (Number(rows[0].unit_price) || 0) / previousQty : Number(rows[0].unit_price) || 0;
+    let perUnitCost = null;
+    if (meta.cost_each !== undefined) {
+      const ce = Number(meta.cost_each);
+      if (Number.isFinite(ce)) perUnitCost = ce;
+    } else if (meta.cost !== undefined) {
+      const ct = Number(meta.cost);
+      if (Number.isFinite(ct) && previousQty > 0) {
+        perUnitCost = ct / previousQty;
+      }
+    }
+
+    meta.qty = qty;
+    if (perUnitCost !== null && meta.cost_each === undefined) {
+      const newCost = perUnitCost * qty;
+      if (Number.isFinite(newCost)) {
+        meta.cost = Number(newCost.toFixed(2));
+      }
+    }
+
+    const metaString = Object.entries(meta)
+      .filter(([, val]) => val !== undefined && val !== null && val !== "")
+      .map(([k, v]) => `[${k}:${v}]`)
+      .join(" ");
+    const updatedDescription = `${baseLabel ? `${baseLabel} x ${qty}` : `Item x ${qty}`}${
+      metaString ? " " + metaString : ""
+    }`.trim();
+    const updatedUnitPrice = Number.isFinite(perUnitPrice) ? perUnitPrice * qty : 0;
 
     await client.query(
       `UPDATE proposal_items
           SET description = $1,
+              unit_price = $2,
               updated_at = NOW(),
-              updated_by = COALESCE($3, updated_by)
-        WHERE id = $2`,
-      [updatedDescription, id, userId]
+              updated_by = COALESCE($4, updated_by)
+        WHERE id = $3`,
+      [updatedDescription, updatedUnitPrice, id, userId]
     );
 
     const metaMap = extractMetadata(updatedDescription);
@@ -1665,6 +1710,7 @@ router.post("/proposal-items/:id/qty", async (req, res) => {
       }
     }
 
+    await recalcTotals(client, rows[0].proposal_id, userId);
     await client.query("COMMIT");
     res.json({ success: true });
   } catch (err) {

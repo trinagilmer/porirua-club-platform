@@ -173,6 +173,7 @@ function stripProposalMetadata(description = "") {
 
 function cleanLabelFromDescription(description = "") {
   return stripProposalMetadata(description)
+    .replace(/\s+x\s+\d+(?:\.\d+)?\s*$/i, "")
     .replace(/^menu:\s*/i, "")
     .replace(/^choice:\s*/i, "")
     .trim();
@@ -214,6 +215,7 @@ function summarizeProposalMenus(items = []) {
     const meta = extractProposalMetadata(item.description);
     if (!meta.menu_id) return;
     const menuId = String(meta.menu_id);
+    const excluded = String(meta.excluded || "").toLowerCase() === "true";
     const entry = map.get(menuId) || {
       id: Number(menuId),
       name: "",
@@ -225,9 +227,24 @@ function summarizeProposalMenus(items = []) {
       audit: null,
     };
 
-    entry.total_price += Number(item.unit_price) || 0;
-    if (meta.cost) {
-      entry.total_cost += Number(meta.cost) || 0;
+    const qty = Number(meta.qty || item.qty || 1);
+    const qtySafe = Number.isFinite(qty) && qty > 0 ? qty : 1;
+    const priceLine = excluded ? 0 : Number(item.unit_price) || 0;
+
+    const rawCostEach = meta.cost_each !== undefined ? Number(meta.cost_each) : null;
+    const rawCostTotal = meta.cost !== undefined ? Number(meta.cost) : null;
+    let costLine = 0;
+    if (excluded) {
+      costLine = 0;
+    } else if (Number.isFinite(rawCostEach)) {
+      costLine = rawCostEach * qtySafe;
+    } else if (Number.isFinite(rawCostTotal)) {
+      costLine = rawCostTotal;
+    }
+
+    entry.total_price += priceLine;
+    if (Number.isFinite(costLine)) {
+      entry.total_cost += costLine;
     }
     if (meta.qty && !entry.qty) entry.qty = Number(meta.qty);
     if (!entry.unit) entry.unit = friendlyUnit(meta);
@@ -260,14 +277,29 @@ function buildMenuItemsByMenu(items = []) {
     const menuId = meta.menu_id;
     if (!menuId) return;
     const label = cleanLabelFromDescription(item.description);
-    const qty = Number(meta.qty) || 1;
+    const qty = Number(meta.qty || item.qty || 1);
+    const qtySafe = Number.isFinite(qty) && qty > 0 ? qty : 1;
     const unit = friendlyUnit(meta);
+    const rawCostEach = meta.cost_each !== undefined ? Number(meta.cost_each) : null;
+    const rawCostTotal = meta.cost !== undefined ? Number(meta.cost) : null;
+    let costEach = null;
+    if (Number.isFinite(rawCostEach) && rawCostEach >= 0) {
+      costEach = rawCostEach;
+    } else if (Number.isFinite(rawCostTotal) && rawCostTotal >= 0 && qtySafe > 0) {
+      costEach = rawCostTotal / qtySafe;
+    }
+    const costTotal = costEach != null ? costEach * qtySafe : null;
+    const priceTotal = Number(item.unit_price) || 0;
+    const priceEach = qtySafe > 0 ? priceTotal / qtySafe : priceTotal;
     const entry = {
       label,
-      qty,
+      qty: qtySafe,
       unit: unit || "",
-      price: Number(item.unit_price) || 0,
-      cost: meta.cost !== undefined ? Number(meta.cost) : null,
+      price: priceTotal,
+      price_each: priceEach,
+      cost: costTotal,
+      cost_total: costTotal,
+      cost_each: costEach,
       excluded: String(meta.excluded || "").toLowerCase() === "true",
     };
     const key = String(menuId);
@@ -973,14 +1005,14 @@ router.post("/:id/edit", async (req, res) => {
         attendees    = $6,
         budget       = $7,
         totals_price = $8,
-      totals_cost  = $9,
-      room_id      = $10,
-      event_type   = $11,
-      status       = $12,
-      owner_id     = $13,
-      updated_at   = NOW(),
-      updated_by   = COALESCE($15, updated_by)
-    WHERE id_uuid = $16;`,
+        totals_cost  = $9,
+        room_id      = $10,
+        event_type   = $11,
+        status       = $12,
+        owner_id     = $13,
+        updated_at   = NOW(),
+        updated_by   = COALESCE($14, updated_by)
+    WHERE id_uuid = $15;`,
     [
       event_name,
       event_date || null,
@@ -1016,6 +1048,7 @@ router.get("/:id/run-sheet", async (req, res) => {
     const functionId = req.params.id.trim();
     const notesParam = req.query.notes;
     const menusParam = req.query.menus;
+    const includeCosts = String(req.query.costs || "").toLowerCase() === "true";
     const skipNotes = typeof notesParam === "string" && notesParam.toLowerCase() === "none";
     const skipMenus = typeof menusParam === "string" && menusParam.toLowerCase() === "none";
     const noteFilters = skipNotes
@@ -1104,6 +1137,7 @@ router.get("/:id/run-sheet", async (req, res) => {
       roomName: fn.room_name,
       notes: selectedNotes,
       menus: selectedMenus,
+      includeCosts,
     });
   } catch (err) {
     console.error("[Run Sheet] Error:", err);
@@ -1425,6 +1459,18 @@ router.get("/:id", async (req, res) => {
         }
       : null;
 
+    const { rows: feedbackRows } = await pool.query(
+      `
+      SELECT rating_overall, rating_service, nps_score, recommend, comments, issue_tags, status, completed_at, sent_at, updated_at
+        FROM feedback_responses
+       WHERE entity_type = 'function'
+         AND entity_id = $1
+       ORDER BY completed_at DESC NULLS LAST, sent_at DESC NULLS LAST, updated_at DESC
+       LIMIT 5;
+      `,
+      [functionId]
+    );
+
     const grouped = allEntries.reduce((acc, entry) => {
       const dateKey = new Date(entry.entry_date).toISOString().split("T")[0];
       if (!acc[dateKey]) acc[dateKey] = [];
@@ -1447,6 +1493,7 @@ router.get("/:id", async (req, res) => {
       overviewMenus,
       totals,
       communications,
+      feedbackEntries: feedbackRows,
       proposalId: activeProposal?.id || null,
       proposalPreviewLink: activeProposal ? `/functions/${fn.id_uuid}/proposal/preview` : null,
       proposalAuditData: proposalAudit,

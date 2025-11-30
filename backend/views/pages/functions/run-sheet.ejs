@@ -17,6 +17,41 @@
   const safeMenus = Array.isArray(menus) ? menus : [];
 %>
 
+<style>
+  .run-sheet table {
+    font-size: 12.5px;
+  }
+  .run-sheet table th,
+  .run-sheet table td {
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+  }
+  .run-sheet__totals {
+    text-align: right;
+    margin-left: auto;
+    margin-right: 0;
+    display: block;
+    min-width: 220px;
+  }
+  @media print {
+    .run-sheet table {
+      font-size: 12.5px;
+    }
+    .run-sheet table th,
+    .run-sheet table td {
+      padding-top: 0.25rem;
+      padding-bottom: 0.25rem;
+    }
+    .run-sheet__totals {
+      text-align: right;
+      margin-left: auto;
+      margin-right: 0;
+      display: block;
+      min-width: 220px;
+    }
+  }
+</style>
+
 <div class="run-sheet container py-4">
   <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
     <div>
@@ -65,6 +100,8 @@
     </section>
   <% } %>
 
+  <div style="page-break-before: always;"></div>
+
   <% if (safeMenus.length) { %>
     <section class="card shadow-sm">
       <div class="card-body">
@@ -81,18 +118,19 @@
                     <p class="mb-0 fw-semibold"><%= menu.name %></p>
                     <small class="text-muted"><%= menu.category || 'Catering' %></small>
                   </div>
-                  <div class="text-muted small">
-                    Qty <strong><%= menu.qty || 0 %></strong> · <%= menu.unit || 'each' %>
-                  </div>
                 </div>
               </header>
               <div class="table-responsive">
                 <table class="table mb-0">
                   <thead>
                     <tr>
-                      <th scope="col">Item</th>
-                      <th scope="col" style="width: 120px;">Quantity</th>
-                      <th scope="col" style="width: 120px;">Unit</th>
+                      <th scope="col" style="min-width: 240px;">Item</th>
+                      <th scope="col" style="width: 90px;">Quantity</th>
+                      <th scope="col" style="width: 90px;">Unit</th>
+                      <% if (typeof includeCosts !== 'undefined' && includeCosts) { %>
+                        <th scope="col" style="width: 110px;">Cost</th>
+                        <th scope="col" style="width: 110px;">Line Total</th>
+                      <% } %>
                     </tr>
                   </thead>
                   <tbody>
@@ -101,11 +139,25 @@
                         <td><%= item.label || 'Item' %></td>
                         <td><%= item.qty || 0 %></td>
                         <td><%= item.unit || '' %></td>
+                        <% if (typeof includeCosts !== 'undefined' && includeCosts) { 
+                             const qtyVal = (item.qty && !isNaN(Number(item.qty))) ? Number(item.qty) : 0;
+                             const unitCost = Number.isFinite(Number(item.cost_each))
+                               ? Number(item.cost_each)
+                               : (Number.isFinite(Number(item.cost_total || item.cost)) && qtyVal > 0
+                                   ? Number(item.cost_total || item.cost) / qtyVal
+                                   : 0);
+                             const lineCost = Number.isFinite(Number(item.cost_total || item.cost))
+                               ? Number(item.cost_total || item.cost)
+                               : unitCost * qtyVal;
+                        %>
+                          <td><%= '$' + unitCost.toFixed(2) %></td>
+                          <td><%= '$' + lineCost.toFixed(2) %></td>
+                        <% } %>
                       </tr>
                     <% }) %>
                     <% if (!(menu.items || []).length) { %>
                       <tr>
-                        <td colspan="3" class="text-muted text-center">No items recorded for this menu.</td>
+                        <td colspan="<%= (includeCosts ? 5 : 3) %>" class="text-muted text-center">No items recorded for this menu.</td>
                       </tr>
                     <% } %>
                   </tbody>
@@ -113,6 +165,37 @@
               </div>
             </article>
           <% }) %>
+
+          <% 
+            let totalPriceAll = 0;
+            let totalCostAll = 0;
+            safeMenus.forEach(function(menu) {
+              (menu.items || []).forEach(function(item) {
+                const linePrice = Number(item.price);
+                if (!isNaN(linePrice)) totalPriceAll += linePrice;
+                if (typeof includeCosts !== 'undefined' && includeCosts) {
+                  const lineCost = item.cost_total != null ? Number(item.cost_total) : Number(item.cost);
+                  if (!isNaN(lineCost)) totalCostAll += lineCost;
+                }
+              });
+            });
+          %>
+          <table class="table mb-0 border-0">
+            <tbody>
+              <tr>
+                <td class="border-0"></td>
+                <td class="border-0 text-end run-sheet__totals" style="width: 220px;">
+                  <div class="fw-semibold mb-1" style="font-size: 13.5px;">Totals</div>
+                  <div style="font-size: 12.5px;">
+                    <div>Price: $<%= totalPriceAll.toFixed(2) %></div>
+                    <% if (typeof includeCosts !== 'undefined' && includeCosts) { %>
+                      <div>Cost: $<%= totalCostAll.toFixed(2) %></div>
+                    <% } %>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </section>

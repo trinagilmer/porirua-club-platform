@@ -469,14 +469,25 @@
           : 1;
         const priceEach =
           meta.base != null ? Number(meta.base) : qty > 0 ? price / qty : price;
-        const rawCost =
-          meta.cost !== undefined && meta.cost !== null
-            ? Number(meta.cost)
+          const costEachMeta =
+            meta.cost_each !== undefined && meta.cost_each !== null
+              ? Number(meta.cost_each)
+              : null;
+          const costTotalMeta =
+            meta.cost !== undefined && meta.cost !== null
+              ? Number(meta.cost)
+              : null;
+          const costEach = Number.isFinite(costEachMeta)
+            ? costEachMeta
+            : costTotalMeta != null && Number.isFinite(costTotalMeta) && qty > 0
+            ? costTotalMeta / qty
             : null;
-        const costTotal =
-          rawCost !== null && Number.isFinite(rawCost) ? rawCost : null;
-        const costEach =
-          costTotal != null && qty > 0 ? costTotal / qty : costTotal;
+          const costTotal =
+            costEach != null && Number.isFinite(costEach) && qty > 0
+              ? costEach * qty
+              : Number.isFinite(costTotalMeta)
+              ? costTotalMeta
+              : null;
         const item = {
           id,
           name: text.replace(/^(Choice:|Add-on:)\s*/i, '').replace(/\s+x\s+\d+.*/, '').trim(),
@@ -518,9 +529,10 @@
       }
     }
 
-    async function saveLineTotal(itemId, total, include, costTotal) {
-      const payload = { unit_price: total, include };
+    async function saveLineTotal(itemId, lineTotal, include, costTotal, costEach) {
+      const payload = { unit_price: lineTotal, include };
       if (costTotal !== undefined) payload.cost_total = costTotal;
+      if (costEach !== undefined) payload.cost_each = costEach;
       await fetch(`/functions/proposal-items/${itemId}/price`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -583,6 +595,7 @@
                       <th>Item</th>
                       <th style="width: 100px;">Qty</th>
                       <th style="width: 110px;">Price</th>
+                      <th style="width: 110px;">Cost</th>
                       <th class="text-end" style="width: 120px;">Total</th>
                     </tr>
                   </thead>
@@ -613,6 +626,9 @@
             <td>
               <input type="number" class="form-control form-control-sm price-input" step="0.01" min="0" value="${(menu.basePrice || 0).toFixed(2)}">
             </td>
+            <td>
+              <input type="number" class="form-control form-control-sm cost-input" step="0.01" min="0" value="${Number.isFinite(menu.baseCost) && menu.baseCost !== null ? menu.baseCost.toFixed(2) : '0.00'}">
+            </td>
             <td class="text-end">
               <span class="line-total">${formatCurrency(menu.basePrice || 0)}</span>
             </td>
@@ -634,6 +650,9 @@
                 </td>
                 <td>
                   <input type="number" class="form-control form-control-sm price-input" step="0.01" min="0" value="${(item.priceEach || 0).toFixed(2)}">
+              </td>
+              <td>
+                <input type="number" class="form-control form-control-sm cost-input" step="0.01" min="0" value="${item.costEach != null && Number.isFinite(item.costEach) ? item.costEach.toFixed(2) : '0.00'}">
               </td>
               <td class="text-end">
                 <span class="line-total">${formatCurrency(includeChecked ? item.price : 0)}</span>
@@ -681,6 +700,7 @@
       const include = row.querySelector('.include-toggle').checked;
       const qtyInput = row.querySelector('.qty-input');
       const priceInput = row.querySelector('.price-input');
+      const costInput = row.querySelector('.cost-input');
 
       let qty = Number(qtyInput.value);
       if (!Number.isFinite(qty) || qty <= 0) {
@@ -688,6 +708,7 @@
         qty = placeholder > 0 ? placeholder : 1;
       }
       const priceEach = Number(priceInput.value || 0);
+      const costEach = costInput ? Number(costInput.value || 0) : undefined;
       const total = include ? qty * priceEach : 0;
       const lineTotalEl = row.querySelector('.line-total');
       if (lineTotalEl) lineTotalEl.textContent = formatCurrency(total);
@@ -695,14 +716,18 @@
       if (item) {
         item.qty = qty;
         item.priceEach = priceEach;
+        item.price = total;
+        if (costInput) {
+          item.costEach = Number.isFinite(costEach) ? costEach : null;
+          item.costTotal = item.costEach != null ? item.costEach * qty : null;
+        }
       }
 
       let costTotal;
-      if (item && item.costEach != null && Number.isFinite(item.costEach)) {
+      if (costInput && Number.isFinite(costEach)) {
+        costTotal = include ? costEach * qty : 0;
+      } else if (item && item.costEach != null && Number.isFinite(item.costEach)) {
         costTotal = include ? item.costEach * qty : 0;
-      }
-      if (item && costTotal !== undefined) {
-        item.costTotal = costTotal;
       }
 
       if (include) {
@@ -711,7 +736,7 @@
         window.quoteActiveItemIds.delete(itemId);
       }
 
-      await saveLineTotal(itemId, total, include, costTotal);
+      await saveLineTotal(itemId, total, include, costTotal, costEach);
       await saveQty(itemId, qty);
       updateMenuSubtotal(row);
       await fetchTotals();

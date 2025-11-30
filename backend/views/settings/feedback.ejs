@@ -55,6 +55,49 @@
     <div class="card-body">
       <div class="d-flex justify-content-between flex-wrap gap-2 align-items-center mb-3">
         <div>
+          <h5 class="mb-1">Send a survey now</h5>
+          <p class="text-muted mb-0">Pick a specific function or restaurant booking to send the survey immediately.</p>
+        </div>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <form action="/settings/feedback/send-now" method="POST" class="d-flex gap-2 align-items-end">
+            <input type="hidden" name="type" value="function">
+            <div class="flex-grow-1">
+              <label class="form-label">Function</label>
+              <select class="form-select" name="function_id">
+                <option value="">Select a function...</option>
+                <% (recentFunctions || []).forEach(function(fn) { %>
+                  <option value="<%= fn.id_uuid %>"><%= fn.event_name %> (<%= fn.event_date ? new Date(fn.event_date).toLocaleDateString('en-NZ') : 'No date' %>)</option>
+                <% }) %>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Send</button>
+          </form>
+        </div>
+        <div class="col-md-6">
+          <form action="/settings/feedback/send-now" method="POST" class="d-flex gap-2 align-items-end">
+            <input type="hidden" name="type" value="restaurant">
+            <div class="flex-grow-1">
+              <label class="form-label">Restaurant booking</label>
+              <select class="form-select" name="booking_id">
+                <option value="">Select a booking...</option>
+                <% (recentBookings || []).forEach(function(bk) { %>
+                  <option value="<%= bk.id %>"><%= bk.party_name %> (<%= bk.booking_date ? new Date(bk.booking_date).toLocaleDateString('en-NZ') : 'No date' %>)</option>
+                <% }) %>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Send</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card shadow-sm mb-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between flex-wrap gap-2 align-items-center mb-3">
+        <div>
           <h5 class="mb-1">Templates</h5>
           <p class="text-muted mb-0">Email, survey, and entertainment templates now live on dedicated pages.</p>
         </div>

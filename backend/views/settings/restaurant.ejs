@@ -70,11 +70,35 @@
                   <label class="form-label">Max Covers / Slot</label>
                   <input type="number" name="max_covers_per_slot" class="form-control" value="<%= service.max_covers_per_slot ?? '' %>" min="1">
                 </div>
-                <div class="col-md-3">
-                  <label class="form-label">Max Online Covers</label>
-                  <input type="number" name="max_online_covers" class="form-control" value="<%= service.max_online_covers ?? '' %>" min="1">
+               <div class="col-md-3">
+                 <label class="form-label">Max Online Covers</label>
+                 <input type="number" name="max_online_covers" class="form-control" value="<%= service.max_online_covers ?? '' %>" min="1">
+               </div>
+                <div class="col-md-4">
+                  <label class="form-label">Special menu label</label>
+                  <input type="text" name="special_menu_label" class="form-control" value="<%= service.special_menu_label || '' %>" placeholder="e.g. Buffet $30, Bar snacks">
                 </div>
-                <div class="col-md-2 d-flex align-items-end gap-2">
+                <div class="col-md-2">
+                  <label class="form-label">Menu price</label>
+                  <input type="number" step="0.01" name="special_menu_price" class="form-control" value="<%= service.special_menu_price || '' %>">
+                </div>
+              </div>
+              <div class="row g-3 mt-2">
+                <div class="col-md-3">
+                  <label class="form-label">Menu start date</label>
+                  <input type="date" name="special_menu_start" class="form-control" value="<%= service.special_menu_start ? service.special_menu_start.toISOString().slice(0,10) : '' %>">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Menu end date</label>
+                  <input type="date" name="special_menu_end" class="form-control" value="<%= service.special_menu_end ? service.special_menu_end.toISOString().slice(0,10) : '' %>">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="special_menu_only" <%= service.special_menu_only ? 'checked' : '' %>>
+                    <label class="form-check-label">Special menu only</label>
+                  </div>
+                </div>
+                <div class="col-md-3 d-flex align-items-end gap-2">
                   <button type="submit" class="btn btn-primary w-100">Save</button>
                 </div>
               </div>
@@ -125,6 +149,28 @@
         <div class="col-md-3">
           <label class="form-label">Max Online</label>
           <input type="number" name="max_online_covers" class="form-control" min="1">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Special menu label</label>
+          <input type="text" name="special_menu_label" class="form-control" placeholder="e.g. Buffet $30, Bar snacks">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Menu price</label>
+          <input type="number" step="0.01" name="special_menu_price" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Menu start date</label>
+          <input type="date" name="special_menu_start" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Menu end date</label>
+          <input type="date" name="special_menu_end" class="form-control">
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="special_menu_only">
+            <label class="form-check-label">Special menu only</label>
+          </div>
         </div>
         <div class="col-md-2 d-flex align-items-end">
           <div class="form-check">

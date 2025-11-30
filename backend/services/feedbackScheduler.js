@@ -10,7 +10,19 @@ function formatDate(value) {
   if (!value) return "";
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-NZ", { weekday: "long", month: "long", day: "numeric" });
+  const day = date.getDate();
+  const suffix =
+    day % 10 === 1 && day !== 11
+      ? "st"
+      : day % 10 === 2 && day !== 12
+      ? "nd"
+      : day % 10 === 3 && day !== 13
+      ? "rd"
+      : "th";
+  const weekday = date.toLocaleDateString("en-NZ", { weekday: "long" });
+  const month = date.toLocaleDateString("en-NZ", { month: "long" });
+  const year = date.getFullYear();
+  return `${weekday}, ${day}${suffix} ${month} ${year}`;
 }
 
 function formatISODate(value) {
@@ -136,13 +148,32 @@ async function markReminderSent(responseId) {
   );
 }
 
-async function sendEmail(accessToken, settings, responseRow, context) {
+function selectFeedbackMailbox(entityType = "function") {
+  const type = (entityType || "function").toLowerCase();
+  const fallback = process.env.FEEDBACK_MAILBOX || process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
+  if (type === "restaurant") {
+    return (
+      process.env.RESTAURANT_FEEDBACK_MAILBOX ||
+      process.env.RESTAURANT_MAILBOX ||
+      process.env.SHARED_MAILBOX ||
+      "bookings@poriruaclub.co.nz"
+    );
+  }
+  return process.env.FUNCTION_FEEDBACK_MAILBOX || fallback;
+}
+
+async function sendEmail(accessToken, settings, responseRow, context, entityType = "function") {
   const subject = renderTemplate(settings.email_subject, context);
-  const body = renderTemplate(settings.email_body_html, context);
+  let body = renderTemplate(settings.email_body_html, context);
+  if (!/feedback/i.test(body) || !/http(s)?:\/\/\S+\/feedback\//i.test(body)) {
+    const link = context.SURVEY_LINK || "";
+    body += `<p><a href="${link}">Share your feedback</a></p>`;
+  }
   await sendMail(accessToken, {
     to: responseRow.contact_email,
     subject,
     body,
+    fromMailbox: selectFeedbackMailbox(entityType),
   });
 }
 
@@ -163,8 +194,31 @@ async function processCandidates(list, entityType, settings, accessToken) {
       SURVEY_LINK: `${APP_URL}/feedback/${response.token}`,
     };
     try {
-      await sendEmail(accessToken, settings, response, context);
+      await sendEmail(accessToken, settings, response, context, entityType);
       await markSent(response.id);
+      // Log to messages/outbox for visibility
+      try {
+        const subject = renderTemplate(settings.email_subject, context);
+        const body = renderTemplate(settings.email_body_html, context);
+        await pool.query(
+          `
+          INSERT INTO messages
+            (related_function, from_email, to_email, subject, body, body_html, created_at, message_type)
+          VALUES
+            ($1, $2, $3, $4, $5, $6, NOW(), 'feedback');
+          `,
+          [
+            entityType === "function" ? entry.id_uuid : null,
+            selectFeedbackMailbox(entityType),
+            response.contact_email,
+            subject,
+            body.replace(/<[^>]+>/g, ""),
+            body,
+          ]
+        );
+      } catch (logErr) {
+        console.warn("[FeedbackScheduler] Message log skipped:", logErr.message);
+      }
       console.log(`[FeedbackScheduler] Sent survey for ${entityType} ${response.entity_id}`);
     } catch (err) {
       console.error("[FeedbackScheduler] Failed to send email:", err.message);
@@ -206,7 +260,7 @@ async function sendReminders(settings, accessToken) {
       SURVEY_LINK: `${APP_URL}/feedback/${response.token}`,
     };
     try {
-      await sendEmail(accessToken, settings, response, context);
+      await sendEmail(accessToken, settings, response, context, response.entity_type);
       await markReminderSent(response.id);
       console.log(`[FeedbackScheduler] Sent reminder for ${response.entity_type} ${response.entity_id}`);
     } catch (err) {
@@ -217,6 +271,11 @@ async function sendReminders(settings, accessToken) {
 
 let schedulerToken = null;
 let running = false;
+
+async function runFeedbackJobOnce() {
+  if (running) return;
+  await runFeedbackJob();
+}
 
 async function runFeedbackJob() {
   if (running) return;
@@ -267,4 +326,5 @@ function startFeedbackScheduler() {
 
 module.exports = {
   startFeedbackScheduler,
+  runFeedbackJobOnce,
 };

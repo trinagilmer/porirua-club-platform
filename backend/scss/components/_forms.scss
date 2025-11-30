@@ -7,9 +7,9 @@
 
 .form-label {
   font-weight: 500;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: $neutral-700;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.2rem;
   display: inline-block;
 }
 
@@ -18,12 +18,12 @@
 textarea,
 input {
   width: 100%;
-  padding: 0.5rem 0.75rem;
+  padding: 0.4rem 0.65rem;
   border: 1px solid $neutral-200;
   border-radius: $radius;
   background-color: $white;
   color: $neutral-900;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 
   &:focus {
@@ -82,13 +82,13 @@ form.card {
 // 🧮 Spacing Utilities
 // ===========================================================
 .form-group {
-  margin-bottom: $spacer * 1.25;
+  margin-bottom: $spacer * 0.75;
 }
 
 input,
 select,
 textarea {
-  margin-bottom: $spacer;
+  margin-bottom: $spacer * 0.5;
 }
 
 // ===========================================================

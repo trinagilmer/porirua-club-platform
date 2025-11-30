@@ -3,6 +3,7 @@ const { randomUUID } = require("crypto");
 const { pool } = require("../db");
 const { sendMail } = require("../services/graphService");
 const { cca } = require("../auth/msal");
+const { getValidGraphToken } = require("../utils/graphAuth");
 const recurrenceService = require("../services/recurrenceService");
 
 const router = express.Router();
@@ -29,6 +30,25 @@ const RESTAURANT_STATUS_COLOURS = {
 const RESTAURANT_STATUSES = new Set(["pending", "confirmed", "seated", "completed", "cancelled"]);
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
+
+function formatDateNZ(value) {
+  if (!value) return "";
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const day = d.getDate();
+  const suffix =
+    day % 10 === 1 && day !== 11
+      ? "st"
+      : day % 10 === 2 && day !== 12
+      ? "nd"
+      : day % 10 === 3 && day !== 13
+      ? "rd"
+      : "th";
+  const weekday = d.toLocaleDateString("en-NZ", { weekday: "long" });
+  const month = d.toLocaleDateString("en-NZ", { month: "long" });
+  const year = d.getFullYear();
+  return `${weekday}, ${day}${suffix} ${month} ${year}`;
+}
 
 function slugify(value) {
   return String(value || "")
@@ -188,12 +208,25 @@ async function fetchOverrideForService(serviceId, bookingDate, db = pool) {
   return rows[0] || null;
 }
 
+function isSpecialMenuActive(service = {}, bookingDate = null) {
+  if (!service || !service.special_menu_label) return false;
+  if (!bookingDate) return true;
+  const d = new Date(bookingDate);
+  if (Number.isNaN(d.getTime())) return true;
+  const start = service.special_menu_start ? new Date(service.special_menu_start) : null;
+  const end = service.special_menu_end ? new Date(service.special_menu_end) : null;
+  if (start && d < start) return false;
+  if (end && d > end) return false;
+  return true;
+}
+
 async function fetchServiceById(serviceId, db = pool) {
   const { rows } = await db.query(
     `
     SELECT id, name, day_of_week, start_time, end_time,
            slot_minutes, turn_minutes,
-           max_covers_per_slot, max_online_covers
+           max_covers_per_slot, max_online_covers,
+           special_menu_label, special_menu_price, special_menu_start, special_menu_end, special_menu_only
       FROM restaurant_services
      WHERE id = $1 AND active = TRUE
      LIMIT 1;
@@ -226,7 +259,8 @@ async function findServiceForSlot(bookingDate, bookingTime, explicitServiceId, d
     `
     SELECT id, name, start_time, end_time,
            slot_minutes, turn_minutes,
-           max_covers_per_slot, max_online_covers
+           max_covers_per_slot, max_online_covers,
+           special_menu_label, special_menu_price, special_menu_start, special_menu_end, special_menu_only
       FROM restaurant_services
      WHERE day_of_week = $1
        AND active = TRUE
@@ -399,6 +433,14 @@ async function createRestaurantBooking(payload, options = {}) {
     throw new Error("No service matches the requested time.");
   }
 
+  const contactId =
+    options.contactId ||
+    (await ensureContactFromBooking(
+      partyName,
+      payload.contactEmail || payload.contact_email,
+      payload.contactPhone || payload.contact_phone
+    ));
+
   const { slotStart, slotEnd } = computeSlotBounds(service, bookingTime);
   await ensureRestaurantCapacity(
     {
@@ -417,8 +459,8 @@ async function createRestaurantBooking(payload, options = {}) {
     INSERT INTO restaurant_bookings
       (party_name, booking_date, booking_time, size, status, menu_type, price,
        owner_id, service_id, zone_id, table_id, channel,
-       contact_email, contact_phone, notes, created_at, updated_at)
-    VALUES ($1,$2,$3,$4,$5,NULL,NULL,$6,$7,$8,$9,$10,$11,$12,$13,NOW(),NOW())
+       contact_email, contact_phone, contact_id, notes, created_at, updated_at)
+    VALUES ($1,$2,$3,$4,$5,NULL,NULL,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW(),NOW())
     RETURNING *;
     `,
     [
@@ -434,17 +476,18 @@ async function createRestaurantBooking(payload, options = {}) {
       payload.channel || "internal",
       payload.contactEmail || null,
       payload.contactPhone || null,
+      contactId || null,
       payload.notes || null,
     ]
   );
 
   const booking = result.rows[0];
   if (!options.suppressEmail) {
-    notifyRestaurantTeam(booking, service).catch((err) => {
+    notifyRestaurantTeam(booking, service, options.req).catch((err) => {
       console.error("[Restaurant Calendar] Failed to send booking email:", err.message);
     });
     if (booking.contact_email) {
-      notifyRestaurantCustomer(booking, service, "request").catch((err) => {
+      notifyRestaurantCustomer(booking, service, "request", options.req).catch((err) => {
         console.error("[Restaurant Calendar] Failed to send customer email:", err.message);
       });
     }
@@ -453,21 +496,25 @@ async function createRestaurantBooking(payload, options = {}) {
   return { booking, service };
 }
 
-async function notifyRestaurantTeam(booking, service) {
+async function notifyRestaurantTeam(booking, service, req = null) {
   try {
-    const accessToken = await acquireGraphToken();
-    if (!accessToken) throw new Error("Missing Graph token");
+    const accessToken = (req && (await tryGetDelegatedToken(req))) || (await acquireGraphToken());
+    if (!accessToken) throw new Error("Missing Graph token (delegated)");
     const to = process.env.RESTAURANT_NOTIFICATIONS || "events@poriruaclub.co.nz";
     const subject = `🍽️ New Restaurant Booking: ${booking.party_name} (${booking.size || 0})`;
     const details = [
       `<strong>Name:</strong> ${booking.party_name}`,
-      `<strong>Date:</strong> ${booking.booking_date}`,
+      `<strong>Date:</strong> ${formatDateNZ(booking.booking_date)}`,
       `<strong>Time:</strong> ${booking.booking_time || "TBC"}`,
       `<strong>Guests:</strong> ${booking.size || 0}`,
       `<strong>Status:</strong> ${booking.status || "pending"}`,
       `<strong>Channel:</strong> ${booking.channel || "internal"}`,
       `<strong>Service:</strong> ${service?.name || "Auto"}`,
     ];
+    if (isSpecialMenuActive(service, booking.booking_date)) {
+      const price = service?.special_menu_price ? ` ($${Number(service.special_menu_price).toFixed(2)})` : "";
+      details.push(`<strong>Menu:</strong> ${service.special_menu_label}${price}`);
+    }
     if (booking.contact_email) details.push(`<strong>Email:</strong> ${booking.contact_email}`);
     if (booking.contact_phone) details.push(`<strong>Phone:</strong> ${booking.contact_phone}`);
     if (booking.notes) details.push(`<strong>Notes:</strong> ${booking.notes}`);
@@ -482,15 +529,16 @@ async function notifyRestaurantTeam(booking, service) {
       to,
       subject,
       body,
+      fromMailbox: process.env.RESTAURANT_MAILBOX || process.env.SHARED_MAILBOX || "bookings@poriruaclub.co.nz",
     });
   } catch (err) {
     console.error("[Restaurant Calendar] Booking email skipped:", err.message);
   }
 }
 
-async function notifyRestaurantCustomer(booking, service, template = "request") {
+async function notifyRestaurantCustomer(booking, service, template = "request", req = null) {
   try {
-    const accessToken = await acquireGraphToken();
+    const accessToken = (req && (await tryGetDelegatedToken(req))) || (await acquireGraphToken());
     if (!accessToken || !booking?.contact_email) return;
     const subject =
       template === "confirm"
@@ -498,11 +546,15 @@ async function notifyRestaurantCustomer(booking, service, template = "request") 
         : "Restaurant booking request received";
     const details = [
       `<strong>Name:</strong> ${booking.party_name}`,
-      `<strong>Date:</strong> ${booking.booking_date}`,
+      `<strong>Date:</strong> ${formatDateNZ(booking.booking_date)}`,
       `<strong>Time:</strong> ${booking.booking_time || "TBC"}`,
       `<strong>Guests:</strong> ${booking.size || 0}`,
       `<strong>Service:</strong> ${service?.name || "Restaurant"}`,
     ];
+    if (isSpecialMenuActive(service, booking.booking_date)) {
+      const price = service?.special_menu_price ? ` ($${Number(service.special_menu_price).toFixed(2)})` : "";
+      details.push(`<strong>Menu:</strong> ${service.special_menu_label}${price}`);
+    }
     const intro =
       template === "confirm"
         ? "<p>Your restaurant booking has been confirmed. We look forward to seeing you.</p>"
@@ -518,6 +570,7 @@ async function notifyRestaurantCustomer(booking, service, template = "request") 
       to: booking.contact_email,
       subject,
       body,
+      fromMailbox: process.env.RESTAURANT_MAILBOX || process.env.SHARED_MAILBOX || "bookings@poriruaclub.co.nz",
     });
   } catch (err) {
     console.error("[Restaurant Calendar] Customer email skipped:", err.message);
@@ -593,6 +646,46 @@ async function fetchCalendarSettings() {
   } catch (err) {
     console.warn("[Calendar] Unable to load settings, using default:", err.message);
     return DEFAULT_DAY_SLOT_MINUTES;
+  }
+}
+
+async function ensureContactFromBooking(name, email, phone) {
+  if (!email) return null;
+  const emailTrim = String(email || "").trim();
+  if (!emailTrim) return null;
+  const { rows } = await pool.query(
+    `SELECT id FROM contacts WHERE LOWER(email) = LOWER($1) LIMIT 1;`,
+    [emailTrim]
+  );
+  if (rows.length) return rows[0].id;
+  const {
+    rows: [inserted],
+  } = await pool.query(
+    `
+    INSERT INTO contacts (name, email, phone, created_at, updated_at)
+    VALUES ($1, $2, $3, NOW(), NOW())
+    RETURNING id;
+    `,
+    [name || emailTrim, emailTrim, phone || null]
+  );
+  return inserted?.id || null;
+}
+
+async function tryGetDelegatedToken(req) {
+  try {
+    if (!req || !req.session) return null;
+    const now = Date.now();
+    const expMs = req.session.graphTokenExpires ? req.session.graphTokenExpires * 1000 : null;
+    const isFresh = expMs ? expMs > now : true;
+    const token =
+      req.session.graphAccessToken ||
+      req.session.graphToken ||
+      (req.session.graph && req.session.graph.accessToken);
+    if (token && isFresh) return token;
+    return await getValidGraphToken(req);
+  } catch (err) {
+    console.warn("[Calendar] Delegated token fetch failed:", err.message);
+    return null;
   }
 }
 
@@ -715,9 +808,10 @@ router.get("/events", async (req, res) => {
 
 router.get("/restaurant", async (req, res) => {
   try {
-    const [servicesRes, zonesRes, tablesRes] = await Promise.all([
+    const [servicesRes, zonesRes, tablesRes, bookingsRes] = await Promise.all([
       pool.query(
-        `SELECT id, name, day_of_week, start_time, end_time, slot_minutes, max_covers_per_slot
+        `SELECT id, name, day_of_week, start_time, end_time, slot_minutes, max_covers_per_slot,
+                special_menu_label, special_menu_price, special_menu_start, special_menu_end, special_menu_only
            FROM restaurant_services
           WHERE active = TRUE
           ORDER BY day_of_week, start_time;`
@@ -733,6 +827,31 @@ router.get("/restaurant", async (req, res) => {
           WHERE active = TRUE
           ORDER BY label ASC;`
       ),
+      pool.query(
+        `
+        SELECT b.id,
+               b.party_name,
+               b.booking_date,
+               b.booking_time,
+               b.size,
+               b.status,
+               b.created_at,
+               s.name AS service_name,
+               s.special_menu_label,
+               s.special_menu_price,
+               s.special_menu_start,
+               s.special_menu_end,
+               s.special_menu_only
+          FROM restaurant_bookings b
+     LEFT JOIN restaurant_services s ON s.id = b.service_id
+         WHERE b.booking_date >= CURRENT_DATE - INTERVAL '1 day'
+         ORDER BY CASE WHEN LOWER(b.status) = 'pending' THEN 0 ELSE 1 END,
+                  b.booking_date ASC,
+                  b.booking_time ASC,
+                  b.id ASC
+         LIMIT 20;
+        `
+      ),
     ]);
 
     res.render("pages/calendar/restaurant", {
@@ -743,6 +862,7 @@ router.get("/restaurant", async (req, res) => {
       services: servicesRes.rows,
       zones: zonesRes.rows,
       tables: tablesRes.rows,
+      upcomingBookings: bookingsRes.rows,
       canManage: isPrivileged(req),
       message: req.query.success ? "Booking saved." : null,
       errorMessage: req.query.error || null,
@@ -846,7 +966,8 @@ router.get("/restaurant/book", async (req, res) => {
   try {
     const embed = req.query.embed === "1";
     const { rows: services } = await pool.query(
-      `SELECT id, name, day_of_week, start_time, end_time
+      `SELECT id, name, day_of_week, start_time, end_time,
+              special_menu_label, special_menu_price, special_menu_start, special_menu_end, special_menu_only
          FROM restaurant_services
         WHERE active = TRUE
         ORDER BY day_of_week, start_time;`
@@ -907,6 +1028,11 @@ router.get("/restaurant/bookings/:id", async (req, res) => {
              s.day_of_week,
              s.start_time AS service_start,
              s.end_time AS service_end,
+             s.special_menu_label,
+             s.special_menu_price,
+             s.special_menu_start,
+             s.special_menu_end,
+             s.special_menu_only,
              z.name AS zone_name,
              t.label AS table_label
         FROM restaurant_bookings b
@@ -957,6 +1083,7 @@ router.post("/restaurant/bookings/:id/status", async (req, res) => {
       UPDATE restaurant_bookings
          SET status = $1,
              notes = COALESCE($2, notes),
+             confirmation_sent_at = CASE WHEN $1 = 'confirmed' THEN NOW() ELSE confirmation_sent_at END,
              updated_at = NOW()
        WHERE id = $3;
       `,

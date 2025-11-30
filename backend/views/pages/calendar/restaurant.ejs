@@ -5,6 +5,12 @@
   window.restaurantCanManage = <%= canManage ? 'true' : 'false' %>;
   window.restaurantServices = <%- JSON.stringify(services || []) %>;
 </script>
+<style>
+  .upcoming-list {
+    max-height: 420px;
+    overflow-y: auto;
+  }
+</style>
 
 <div class="calendar-page px-4 py-4">
   <div class="d-flex justify-content-between flex-wrap gap-2 mb-4">
@@ -41,30 +47,96 @@
     <div class="col-lg-4">
       <section class="card shadow-sm">
         <div class="card-body">
-      <section class="card shadow-sm">
-        <div class="card-body">
-          <h5 class="mb-3">Service windows</h5>
-          <% if (!services || !services.length) { %>
-            <p class="text-muted mb-0">No services configured. Set them up under Settings → Restaurant Bookings.</p>
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Upcoming bookings</h5>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#serviceWindowsModal">
+              Service windows
+            </button>
+          </div>
+          <div class="mb-2">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text"><i class="bi bi-search"></i></span>
+              <input type="text" class="form-control" id="upcomingFilter" placeholder="Search bookings">
+            </div>
+          </div>
+          <% if (!upcomingBookings || !upcomingBookings.length) { %>
+            <p class="text-muted small mb-0">No upcoming bookings.</p>
           <% } else { %>
-            <ul class="list-unstyled mb-0">
-              <% services.forEach(function(service) { %>
-                <li class="mb-2">
-                  <strong><%= service.name %></strong><br>
-                  <small class="text-muted">
-                    <%= dayNames[service.day_of_week] %>,
-                    <%= service.start_time ? service.start_time.slice(0,5) : "--:--" %>
-                    -
-                    <%= service.end_time ? service.end_time.slice(0,5) : "--:--" %>
-                  </small>
-                </li>
+            <div class="list-group list-group-flush upcoming-list" id="upcomingList">
+              <% upcomingBookings.forEach(function(b) { %>
+                <% 
+                  const dateStr = b.booking_date 
+                    ? new Date(b.booking_date).toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'short', year: '2-digit' })
+                    : '';
+                  const timeStr = (b.booking_time || '').slice(0,5);
+                  const receivedStr = b.created_at
+                    ? new Date(b.created_at).toLocaleString('en-NZ', { weekday: 'long', day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+                    : '';
+                  const linkUrl = `/calendar/restaurant/bookings/${b.id}`;
+                %>
+                <a href="<%= linkUrl %>" class="list-group-item px-0 d-flex justify-content-between align-items-start text-decoration-none upcoming-item">
+                  <div>
+                    <div class="fw-semibold text-primary"><%= b.party_name %></div>
+                    <small class="text-muted d-block"><%= dateStr %> <% if (timeStr) { %> @ <%= timeStr %><% } %></small>
+                    <small class="text-muted d-block">Guests: <%= b.size || 0 %><% if (b.service_name) { %> • <%= b.service_name %><% } %></small>
+                  </div>
+                  <span class="badge <%= (b.status || '').toLowerCase() === 'pending' ? 'bg-warning text-dark' : 'bg-success' %> text-uppercase align-self-center">
+                    <%= (b.status || '').toLowerCase() === 'pending' ? 'Pending' : 'Confirmed' %>
+                  </span>
+                </a>
               <% }) %>
-            </ul>
+            </div>
           <% } %>
           <hr>
           <p class="text-muted small mb-0">Click a calendar slot to add a booking.</p>
         </div>
       </section>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const filterInput = document.getElementById('upcomingFilter');
+    const list = document.getElementById('upcomingList');
+    if (!filterInput || !list) return;
+    filterInput.addEventListener('input', () => {
+      const term = (filterInput.value || '').toLowerCase().trim();
+      list.querySelectorAll('.upcoming-item').forEach((item) => {
+        const text = item.textContent.toLowerCase();
+        item.classList.toggle('d-none', term && !text.includes(term));
+      });
+    });
+  })();
+</script>
+
+<!-- Service Windows Modal -->
+<div class="modal fade" id="serviceWindowsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Service windows</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <% if (!services || !services.length) { %>
+          <p class="text-muted mb-0">No services configured. Set them up under Settings → Restaurant Bookings.</p>
+        <% } else { %>
+          <ul class="list-unstyled mb-0">
+            <% services.forEach(function(service) { %>
+              <li class="mb-3">
+                <strong><%= service.name %></strong><br>
+                <small class="text-muted">
+                  <%= dayNames[service.day_of_week] %>,
+                  <%= service.start_time ? service.start_time.slice(0,5) : "--:--" %>
+                  -
+                  <%= service.end_time ? service.end_time.slice(0,5) : "--:--" %>
+                </small>
+              </li>
+            <% }) %>
+          </ul>
+        <% } %>
+      </div>
     </div>
   </div>
 </div>
@@ -102,8 +174,13 @@
               <label class="form-label">Service</label>
               <select name="service_id" id="rb-service" class="form-select form-select-sm">
                 <option value="">Auto detect</option>
-                <% (services || []).forEach(function(service) { %>
-                  <option value="<%= service.id %>"><%= service.name %> - <%= dayNames[service.day_of_week] %></option>
+                <% (services || []).filter(function(s){ return s.special_menu_label; }).forEach(function(service) { 
+                     const start = service.special_menu_start ? new Date(service.special_menu_start).toLocaleDateString('en-NZ') : null;
+                     const end = service.special_menu_end ? new Date(service.special_menu_end).toLocaleDateString('en-NZ') : null;
+                     const window = start && end ? `${start} - ${end}` : (start ? `From ${start}` : (end ? `Until ${end}` : ''));
+                     const price = service.special_menu_price ? ` ($${Number(service.special_menu_price).toFixed(2)})` : '';
+                %>
+                  <option value="<%= service.id %>"><%= service.special_menu_label %><%= price %><% if (window) { %> - <%= window %><% } %></option>
                 <% }) %>
               </select>
             </div>

@@ -21,7 +21,11 @@ const {
   DEFAULT_EVENT_HEADER,
   DEFAULT_FUNCTION_QUESTIONS,
   DEFAULT_RESTAURANT_QUESTIONS,
+  renderTemplate,
 } = require("../services/feedbackService");
+const { runFeedbackJobOnce } = require("../services/feedbackScheduler");
+const { sendMail } = require("../services/graphService");
+const { cca } = require("../auth/msal");
 
 const CALENDAR_SLOT_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
 const DEFAULT_CALENDAR_SLOT = 30;
@@ -117,6 +121,154 @@ function parseOptionalInteger(value) {
   if (value === undefined || value === null || value === "") return null;
   const parsed = parseInt(value, 10);
   return Number.isNaN(parsed) ? null : parsed;
+}
+
+async function acquireGraphToken() {
+  if (!cca) return null;
+  try {
+    const response = await cca.acquireTokenByClientCredential({
+      scopes: ["https://graph.microsoft.com/.default"],
+    });
+    return response?.accessToken || null;
+  } catch (err) {
+    console.error("[Settings] Failed to acquire Graph token:", err.message);
+    return null;
+  }
+}
+
+async function sendSurveyNow(entityType, entityId, settings) {
+  const token = await acquireGraphToken();
+  if (!token) throw new Error("Graph token unavailable");
+  const type = entityType === "restaurant" ? "restaurant" : "function";
+  let entry = null;
+  if (type === "function") {
+    const { rows } = await pool.query(
+      `
+      SELECT f.id_uuid,
+             f.event_name,
+             f.event_date,
+             c.id AS contact_id,
+             c.name AS contact_name,
+             c.email AS contact_email
+        FROM functions f
+        LEFT JOIN LATERAL (
+          SELECT c.id, c.name, c.email, c.feedback_opt_out
+            FROM function_contacts fc
+            JOIN contacts c ON c.id = fc.contact_id
+           WHERE fc.function_id = f.id_uuid
+           ORDER BY COALESCE(fc.is_primary, FALSE) DESC, fc.created_at ASC
+           LIMIT 1
+        ) c ON TRUE
+       WHERE f.id_uuid = $1
+       LIMIT 1;
+      `,
+      [entityId]
+    );
+    entry = rows[0] || null;
+  } else {
+    const { rows } = await pool.query(
+      `
+      SELECT b.id,
+             b.party_name,
+             b.booking_date,
+             COALESCE(c.id, NULL) AS contact_id,
+             COALESCE(c.name, b.party_name) AS contact_name,
+             COALESCE(c.email, b.contact_email) AS contact_email
+        FROM restaurant_bookings b
+        LEFT JOIN contacts c ON LOWER(c.email) = LOWER(b.contact_email)
+       WHERE b.id = $1
+       LIMIT 1;
+      `,
+      [entityId]
+    );
+    entry = rows[0] || null;
+  }
+  if (!entry) throw new Error("Record not found");
+  const contactEmail = (entry.contact_email || "").trim();
+  if (!contactEmail) throw new Error("No contact email available");
+
+  // ensure feedback_response exists
+  const entityKey = String(type === "function" ? entry.id_uuid : entry.id);
+  let responseRow = null;
+  const existing = await pool.query(
+    `SELECT * FROM feedback_responses WHERE entity_type = $1 AND entity_id = $2 LIMIT 1;`,
+    [type, entityKey]
+  );
+  if (existing.rows[0]) {
+    responseRow = existing.rows[0];
+  } else {
+    const insert = await pool.query(
+      `
+      INSERT INTO feedback_responses
+        (entity_type, entity_id, contact_id, contact_email, contact_name, status, created_at, updated_at)
+      VALUES ($1,$2,$3,$4,$5,'pending',NOW(),NOW())
+      RETURNING *;
+      `,
+      [
+        type,
+        entityKey,
+        entry.contact_id || null,
+        contactEmail,
+        entry.contact_name || entry.party_name || entry.event_name || contactEmail,
+      ]
+    );
+    responseRow = insert.rows[0];
+  }
+
+  const context = {
+    NAME: entry.contact_name || entry.party_name || "there",
+    EVENT_NAME: type === "function" ? entry.event_name : entry.party_name,
+    EVENT_DATE: formatDate(entry.event_date || entry.booking_date || ""),
+    SURVEY_LINK: `${(process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "")}/feedback/${responseRow.token}`,
+  };
+  const subject = renderTemplate(settings.email_subject, context);
+  let body = renderTemplate(settings.email_body_html, context);
+  if (!/feedback/i.test(body) || !/http(s)?:\/\/\S+\/feedback\//i.test(body)) {
+    body += `<p><a href="${context.SURVEY_LINK}">Share your feedback</a></p>`;
+  }
+
+  await sendMail(token, {
+    to: contactEmail,
+    subject,
+    body,
+    fromMailbox:
+      type === "function"
+        ? process.env.FUNCTION_FEEDBACK_MAILBOX ||
+          process.env.FEEDBACK_MAILBOX ||
+          process.env.SHARED_MAILBOX ||
+          "events@poriruaclub.co.nz"
+        : process.env.RESTAURANT_FEEDBACK_MAILBOX ||
+          process.env.RESTAURANT_MAILBOX ||
+          process.env.FEEDBACK_MAILBOX ||
+          process.env.SHARED_MAILBOX ||
+          "bookings@poriruaclub.co.nz",
+  });
+
+  await pool.query(
+    `UPDATE feedback_responses SET status = 'sent', sent_at = NOW(), updated_at = NOW() WHERE id = $1;`,
+    [responseRow.id]
+  );
+
+  // log to messages
+  try {
+    await pool.query(
+      `
+      INSERT INTO messages
+        (related_function, from_email, to_email, subject, body, body_html, created_at, message_type)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), 'feedback');
+      `,
+      [
+        type === "function" ? entityKey : null,
+        process.env.FEEDBACK_MAILBOX || process.env.SHARED_MAILBOX || "bookings@poriruaclub.co.nz",
+        contactEmail,
+        subject,
+        body.replace(/<[^>]+>/g, ""),
+        body,
+      ]
+    );
+  } catch (err) {
+    console.warn("[Settings] Feedback message log skipped:", err.message);
+  }
 }
 
 function parseIdArray(value) {
@@ -230,12 +382,44 @@ router.get("/overview", async (req, res) => {
 router.get("/feedback", ensurePrivileged, async (req, res) => {
   try {
     const feedbackSettings = await getFeedbackSettings();
+    const { rows: statsRows } = await pool.query(
+      `SELECT status, COUNT(*)::int AS count FROM feedback_responses GROUP BY status;`
+    );
+    const { rows: recentFunctions } = await pool.query(
+      `
+      SELECT f.id_uuid, f.event_name, f.event_date, c.email AS contact_email
+        FROM functions f
+        LEFT JOIN LATERAL (
+          SELECT c.email
+            FROM function_contacts fc
+            JOIN contacts c ON c.id = fc.contact_id
+           WHERE fc.function_id = f.id_uuid
+           ORDER BY COALESCE(fc.is_primary, FALSE) DESC, fc.created_at ASC
+           LIMIT 1
+        ) c ON TRUE
+       WHERE f.event_date IS NOT NULL
+       ORDER BY f.event_date DESC NULLS LAST, f.updated_at DESC
+       LIMIT 30;
+      `
+    );
+    const { rows: recentBookings } = await pool.query(
+      `
+      SELECT b.id, b.party_name, b.booking_date, b.contact_email
+        FROM restaurant_bookings b
+       WHERE b.booking_date IS NOT NULL
+       ORDER BY b.booking_date DESC, b.updated_at DESC
+       LIMIT 30;
+      `
+    );
     res.render("settings/feedback", {
       layout: "layouts/settings",
-      title: "Settings — Feedback Automation",
+      title: "Settings - Feedback Automation",
       pageType: "settings",
       activeTab: "feedback-automation",
       feedbackSettings,
+      stats: statsRows,
+      recentFunctions,
+      recentBookings,
       templateLinks: FEEDBACK_TEMPLATE_LINKS,
       user: req.session.user || null,
       flashMessage: req.flash?.("flashMessage"),
@@ -253,8 +437,34 @@ router.get("/feedback", ensurePrivileged, async (req, res) => {
   }
 });
 
+router.post("/feedback/send-now", ensurePrivileged, async (req, res) => {
+  try {
+    const { type, function_id, booking_id } = req.body || {};
+    const targetType = (type || (function_id ? "function" : "restaurant")).toLowerCase();
+    const id = targetType === "function" ? function_id : booking_id;
+    if (!id) throw new Error("Select a function or booking to send a survey.");
+    const settings = await getFeedbackSettings();
+    await sendSurveyNow(targetType, id, settings);
+    req.flash("flashMessage", "✅ Survey sent.");
+    req.flash("flashType", "success");
+  } catch (err) {
+    console.error("❌ Feedback send-now failed:", err);
+    req.flash("flashMessage", err.message || "Unable to trigger surveys.");
+    req.flash("flashType", "error");
+  }
+  res.redirect("/settings/feedback");
+});
+
 router.get("/feedback/activity", ensurePrivileged, async (req, res) => {
   try {
+    const {
+      type = "",
+      status = "",
+      min_rating = "",
+      max_rating = "",
+      from = "",
+      to = "",
+    } = req.query || {};
     const { rows: optOutRows } = await pool.query(
       `SELECT COUNT(*)::int AS count FROM contacts WHERE feedback_opt_out = TRUE;`
     );
@@ -265,26 +475,140 @@ router.get("/feedback/activity", ensurePrivileged, async (req, res) => {
       acc[row.status] = row.count;
       return acc;
     }, {});
+    const conditions = [];
+    const params = [];
+    if (type) {
+      params.push(type);
+      conditions.push(`r.entity_type = $${params.length}`);
+    }
+    if (status) {
+      params.push(status);
+      conditions.push(`r.status = $${params.length}`);
+    }
+    if (min_rating) {
+      params.push(Number(min_rating));
+      conditions.push(`r.rating_overall >= $${params.length}`);
+    }
+    if (max_rating) {
+      params.push(Number(max_rating));
+      conditions.push(`r.rating_overall <= $${params.length}`);
+    }
+    if (from) {
+      params.push(from);
+      conditions.push(`COALESCE(r.completed_at, r.sent_at, r.created_at) >= $${params.length}`);
+    }
+    if (to) {
+      params.push(to);
+      conditions.push(`COALESCE(r.completed_at, r.sent_at, r.created_at) <= $${params.length}`);
+    }
+    const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     const { rows: responses } = await pool.query(
       `
       SELECT r.*,
              CASE WHEN r.entity_type = 'function' THEN f.event_name ELSE rb.party_name END AS event_name,
-             CASE WHEN r.entity_type = 'function' THEN f.event_date ELSE rb.booking_date END AS event_date
+             CASE WHEN r.entity_type = 'function' THEN f.event_date ELSE rb.booking_date END AS event_date,
+             stats.contact_avg_overall,
+             stats.contact_avg_nps,
+             stats.contact_count
         FROM feedback_responses r
         LEFT JOIN functions f ON r.entity_type = 'function' AND f.id_uuid::text = r.entity_id
         LEFT JOIN restaurant_bookings rb ON r.entity_type = 'restaurant' AND rb.id::text = r.entity_id
+        LEFT JOIN LATERAL (
+          SELECT AVG(r2.rating_overall)::numeric(10,2) AS contact_avg_overall,
+                 AVG(r2.nps_score)::numeric(10,2) AS contact_avg_nps,
+                 COUNT(*)::int AS contact_count
+            FROM feedback_responses r2
+           WHERE r2.status = 'completed'
+             AND (
+                  (r.contact_id IS NOT NULL AND r2.contact_id = r.contact_id)
+               OR (COALESCE(r.contact_email, '') <> '' AND LOWER(r2.contact_email) = LOWER(r.contact_email))
+             )
+        ) stats ON TRUE
+       ${whereClause}
        ORDER BY r.updated_at DESC
-       LIMIT 25;
-      `
+       LIMIT 50;
+      `,
+      params
     );
+    const completed = responses.filter((r) => r.status === "completed");
+    const summary = {
+      count: completed.length,
+      avgOverall:
+        completed.length > 0
+          ? Number(
+              (
+                completed.reduce((sum, r) => sum + (Number(r.rating_overall) || 0), 0) /
+                completed.length
+              ).toFixed(2)
+            )
+          : null,
+      avgService:
+        completed.length > 0
+          ? Number(
+              (
+                completed.reduce((sum, r) => sum + (Number(r.rating_service) || 0), 0) /
+                completed.filter((r) => r.rating_service !== null && r.rating_service !== undefined).length ||
+                0
+              ).toFixed(2)
+            )
+          : null,
+      recommendRate:
+        completed.length > 0
+          ? Math.round(
+              (completed.filter((r) => r.recommend === true).length / completed.length) * 100
+            )
+          : null,
+      nps: null,
+    };
+    const npsScores = completed
+      .map((r) =>
+        typeof r.nps_score === "number" && !Number.isNaN(r.nps_score)
+          ? r.nps_score
+          : r.rating_overall
+          ? Math.max(0, Math.min(10, Math.round((Number(r.rating_overall) / 5) * 10)))
+          : null
+      )
+      .filter((v) => v !== null);
+    if (npsScores.length) {
+      const promoters = npsScores.filter((v) => v >= 9).length;
+      const detractors = npsScores.filter((v) => v <= 6).length;
+      summary.nps = Math.round(((promoters - detractors) / npsScores.length) * 100);
+    }
+
+    // Lightweight keyword / tag aggregation
+    const issueCounts = {};
+    completed.forEach((r) => {
+      const tags = Array.isArray(r.issue_tags) ? r.issue_tags : [];
+      tags.forEach((t) => {
+        const key = String(t).trim();
+        if (!key) return;
+        issueCounts[key] = (issueCounts[key] || 0) + 1;
+      });
+      if (r.comments) {
+        const text = String(r.comments).toLowerCase();
+        ["service", "food", "speed", "value", "clean", "communication", "staff"].forEach((kw) => {
+          if (text.includes(kw)) {
+            issueCounts[kw] = (issueCounts[kw] || 0) + 1;
+          }
+        });
+      }
+    });
+    const topIssues = Object.entries(issueCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([label, count]) => ({ label, count }));
+
     res.render("settings/feedback-activity", {
       layout: "layouts/settings",
-      title: "Settings — Feedback Activity",
+      title: "Settings - Feedback Activity",
       pageType: "settings",
       activeTab: "feedback-activity",
       contactStats: { optOutCount: optOutRows[0]?.count || 0 },
       statusCounts,
       responses,
+      summary,
+      topIssues,
+      filters: { type, status, min_rating, max_rating, from, to },
       user: req.session.user || null,
       flashMessage: req.flash?.("flashMessage"),
       flashType: req.flash?.("flashType"),
@@ -298,6 +622,117 @@ router.get("/feedback/activity", ensurePrivileged, async (req, res) => {
       error: err.message,
       stack: err.stack,
     });
+  }
+});
+
+router.get("/feedback/export", ensurePrivileged, async (req, res) => {
+  try {
+    const {
+      type = "",
+      status = "",
+      min_rating = "",
+      max_rating = "",
+      from = "",
+      to = "",
+    } = req.query || {};
+    const conditions = [];
+    const params = [];
+    if (type) {
+      params.push(type);
+      conditions.push(`r.entity_type = $${params.length}`);
+    }
+    if (status) {
+      params.push(status);
+      conditions.push(`r.status = $${params.length}`);
+    }
+    if (min_rating) {
+      params.push(Number(min_rating));
+      conditions.push(`r.rating_overall >= $${params.length}`);
+    }
+    if (max_rating) {
+      params.push(Number(max_rating));
+      conditions.push(`r.rating_overall <= $${params.length}`);
+    }
+    if (from) {
+      params.push(from);
+      conditions.push(`COALESCE(r.completed_at, r.sent_at, r.created_at) >= $${params.length}`);
+    }
+    if (to) {
+      params.push(to);
+      conditions.push(`COALESCE(r.completed_at, r.sent_at, r.created_at) <= $${params.length}`);
+    }
+    const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const { rows } = await pool.query(
+      `
+      SELECT r.entity_type,
+             r.entity_id,
+             r.contact_name,
+             r.contact_email,
+             r.status,
+             r.rating_overall,
+             r.rating_service,
+             r.nps_score,
+             r.recommend,
+             r.comments,
+             r.issue_tags,
+             r.sent_at,
+             r.completed_at,
+             CASE WHEN r.entity_type = 'function' THEN f.event_name ELSE rb.party_name END AS event_name,
+             CASE WHEN r.entity_type = 'function' THEN f.event_date ELSE rb.booking_date END AS event_date
+        FROM feedback_responses r
+        LEFT JOIN functions f ON r.entity_type = 'function' AND f.id_uuid::text = r.entity_id
+        LEFT JOIN restaurant_bookings rb ON r.entity_type = 'restaurant' AND rb.id::text = r.entity_id
+       ${whereClause}
+       ORDER BY r.updated_at DESC;
+      `,
+      params
+    );
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=\"feedback-export.csv\"");
+    const header = [
+      "Type",
+      "Entity ID",
+      "Name",
+      "Email",
+      "Status",
+      "Rating",
+      "Service",
+      "NPS",
+      "Recommend",
+      "Comments",
+      "Issues",
+      "Sent",
+      "Completed",
+      "Event Name",
+      "Event Date",
+    ];
+    const lines = [header.join(",")];
+    rows.forEach((r) => {
+      const line = [
+        r.entity_type,
+        `"${r.entity_id}"`,
+        `"${(r.contact_name || "").replace(/"/g, '""')}"`,
+        `"${(r.contact_email || "").replace(/"/g, '""')}"`,
+        r.status,
+        r.rating_overall || "",
+        r.rating_service || "",
+        r.nps_score || "",
+        r.recommend === null ? "" : r.recommend ? "Yes" : "No",
+        `"${(r.comments || "").replace(/"/g, '""')}"`,
+        `"${Array.isArray(r.issue_tags) ? r.issue_tags.join("; ").replace(/"/g, '""') : ""}"`,
+        r.sent_at || "",
+        r.completed_at || "",
+        `"${(r.event_name || "").replace(/"/g, '""')}"`,
+        r.event_date || "",
+      ];
+      lines.push(line.join(","));
+    });
+    res.send(lines.join("\n"));
+  } catch (err) {
+    console.error("❌ Feedback export failed:", err);
+    req.flash("flashMessage", "Failed to export feedback.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/feedback/activity");
   }
 });
 
@@ -1138,10 +1573,26 @@ router.post("/restaurant/services/add", ensurePrivileged, async (req, res) => {
     await pool.query(
       `
       INSERT INTO restaurant_services
-        (name, day_of_week, start_time, end_time, slot_minutes, turn_minutes, max_covers_per_slot, max_online_covers, active)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+        (name, day_of_week, start_time, end_time, slot_minutes, turn_minutes, max_covers_per_slot, max_online_covers, active,
+         special_menu_label, special_menu_price, special_menu_start, special_menu_end, special_menu_only)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
       `,
-      [name.trim(), day, start_time, end_time, slot, turn, maxCovers, maxOnline, parseBooleanField(active)]
+      [
+        name.trim(),
+        day,
+        start_time,
+        end_time,
+        slot,
+        turn,
+        maxCovers,
+        maxOnline,
+        parseBooleanField(active),
+        req.body.special_menu_label?.trim() || null,
+        req.body.special_menu_price ? parseFloat(req.body.special_menu_price) : null,
+        req.body.special_menu_start || null,
+        req.body.special_menu_end || null,
+        parseBooleanField(req.body.special_menu_only),
+      ]
     );
 
     req.flash("flashMessage", "✅ Service added.");
@@ -1198,8 +1649,13 @@ router.post("/restaurant/services/edit", ensurePrivileged, async (req, res) => {
              max_covers_per_slot = $7,
              max_online_covers = $8,
              active = $9,
+             special_menu_label = $10,
+             special_menu_price = $11,
+             special_menu_start = $12,
+             special_menu_end = $13,
+             special_menu_only = $14,
              updated_at = NOW()
-       WHERE id = $10;
+       WHERE id = $15;
       `,
       [
         name.trim(),
@@ -1211,6 +1667,11 @@ router.post("/restaurant/services/edit", ensurePrivileged, async (req, res) => {
         parseOptionalInteger(max_covers_per_slot),
         parseOptionalInteger(max_online_covers),
         parseBooleanField(active),
+        req.body.special_menu_label?.trim() || null,
+        req.body.special_menu_price ? parseFloat(req.body.special_menu_price) : null,
+        req.body.special_menu_start || null,
+        req.body.special_menu_end || null,
+        parseBooleanField(req.body.special_menu_only),
         id,
       ]
     );
@@ -1512,7 +1973,8 @@ router.get("/restaurant", ensurePrivileged, async (req, res) => {
     const [servicesRes, zonesRes, tablesRes, overridesRes, blackoutsRes] = await Promise.all([
       pool.query(`
         SELECT id, name, day_of_week, start_time, end_time, slot_minutes, turn_minutes,
-               max_covers_per_slot, max_online_covers, active, created_at, updated_at
+               max_covers_per_slot, max_online_covers, active, created_at, updated_at,
+               special_menu_label, special_menu_price, special_menu_start, special_menu_end, special_menu_only
           FROM restaurant_services
          ORDER BY day_of_week, start_time;
       `),

@@ -327,6 +327,54 @@
     </div>
   </div>
 
+  <!-- Feedback -->
+  <section class="overview-card overview-feedback">
+    <div class="overview-card__header">
+      <div>
+        <p class="overview-card__title mb-1">Recent Feedback</p>
+        <p class="overview-card__subtitle mb-0">Latest survey responses for this function</p>
+      </div>
+      <a href="/settings/feedback" class="btn btn-sm btn-outline-secondary">View surveys</a>
+    </div>
+    <div class="feedback-feed">
+      <% const feedbackList = Array.isArray(feedbackEntries) ? feedbackEntries : []; %>
+      <% if (!feedbackList.length) { %>
+        <div class="empty-state">No feedback received yet.</div>
+      <% } else { %>
+        <% feedbackList.forEach(function(entry) { %>
+          <article class="feedback-entry">
+            <div class="feedback-entry__icon">
+              <i class="bi bi-emoji-smile"></i>
+            </div>
+            <div class="feedback-entry__body">
+              <p class="mb-1 fw-semibold">
+                Overall <%= entry.rating_overall || '—' %> / Service <%= entry.rating_service || '—' %>
+                <% if (entry.nps_score || entry.nps_score === 0) { %>
+                  <span class="badge bg-light text-dark ms-2">NPS <%= entry.nps_score %></span>
+                <% } %>
+                <% if (typeof entry.recommend !== 'undefined' && entry.recommend !== null) { %>
+                  <span class="badge bg-light text-dark ms-2"><%= entry.recommend ? 'Would recommend' : 'Would not recommend' %></span>
+                <% } %>
+              </p>
+              <% if (entry.comments) { %>
+                <small class="text-muted d-block text-break"><%= entry.comments %></small>
+              <% } else { %>
+                <small class="text-muted d-block">No comments left.</small>
+              <% } %>
+            </div>
+            <div class="feedback-entry__meta text-end">
+              <span class="d-block"><%= entry.completed_at ? nzDate(entry.completed_at) : (entry.sent_at ? 'Sent ' + nzDate(entry.sent_at) : '-') %></span>
+              <% if (entry.completed_at) { %>
+                <small class="text-muted d-block"><%= nzTime(entry.completed_at) %></small>
+              <% } %>
+              <span class="badge bg-<%= entry.status === 'completed' ? 'success' : 'secondary' %> text-uppercase mt-2"><%= entry.status || 'pending' %></span>
+            </div>
+          </article>
+        <% }); %>
+      <% } %>
+    </div>
+  </section>
+
   <!-- Communications -->
   <section class="overview-card overview-communications">
     <div class="overview-card__header">
@@ -425,6 +473,10 @@
                     </span>
                   </label>
                 <% }) %>
+              </div>
+              <div class="form-check mt-2">
+                <input class="form-check-input" type="checkbox" id="runSheetIncludeCosts" name="include_costs" value="true">
+                <label class="form-check-label small" for="runSheetIncludeCosts">Show costs on run sheet</label>
               </div>
             <% } %>
           </div>
@@ -558,6 +610,7 @@
         var formData = new FormData(runSheetForm);
         var noteIds = formData.getAll('notes').filter(Boolean);
         var menuIds = formData.getAll('menus').filter(Boolean);
+        var includeCosts = formData.get('include_costs') === 'true';
         var params = new URLSearchParams();
         if (noteIds.length) {
           params.set('notes', noteIds.join(','));
@@ -568,6 +621,9 @@
           params.set('menus', menuIds.join(','));
         } else {
           params.set('menus', 'none');
+        }
+        if (includeCosts) {
+          params.set('costs', 'true');
         }
         var url = `/functions/${fnId}/run-sheet` + (params.toString() ? `?${params.toString()}` : '');
         window.open(url, '_blank');
