@@ -54,9 +54,25 @@
             </button>
           </div>
           <div class="mb-2">
-            <div class="input-group input-group-sm">
-              <span class="input-group-text"><i class="bi bi-search"></i></span>
-              <input type="text" class="form-control" id="upcomingFilter" placeholder="Search bookings">
+            <div class="row g-2">
+              <div class="col-12">
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text"><i class="bi bi-search"></i></span>
+                  <input type="text" class="form-control" id="upcomingFilter" placeholder="Search bookings">
+                </div>
+              </div>
+              <div class="col-6">
+                <select id="upcomingMode" class="form-select form-select-sm">
+                  <option value="all" selected>All bookings</option>
+                  <option value="date">Bookings by date</option>
+                </select>
+              </div>
+              <div class="col-6">
+                <input type="date" id="upcomingDate" class="form-control form-control-sm" aria-label="Filter by date">
+              </div>
+              <div class="col-12 d-flex justify-content-between align-items-center">
+                <small class="text-muted" id="bookingTotalsLabel">Totals: -</small>
+              </div>
             </div>
           </div>
           <% if (!upcomingBookings || !upcomingBookings.length) { %>
@@ -65,8 +81,13 @@
             <div class="list-group list-group-flush upcoming-list" id="upcomingList">
               <% upcomingBookings.forEach(function(b) { %>
                 <% 
-                  const dateStr = b.booking_date 
-                    ? new Date(b.booking_date).toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'short', year: '2-digit' })
+                  const rawDate = b.booking_date || "";
+                  const dateObj = rawDate ? new Date(rawDate) : null;
+                  const dateAttr = dateObj
+                    ? new Date(dateObj.getTime() - dateObj.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+                    : (typeof rawDate === 'string' ? rawDate.slice(0, 10) : '');
+                  const dateStr = dateObj
+                    ? dateObj.toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'short', year: '2-digit' })
                     : '';
                   const timeStr = (b.booking_time || '').slice(0,5);
                   const receivedStr = b.created_at
@@ -74,7 +95,7 @@
                     : '';
                   const linkUrl = `/calendar/restaurant/bookings/${b.id}`;
                 %>
-                <a href="<%= linkUrl %>" class="list-group-item px-0 d-flex justify-content-between align-items-start text-decoration-none upcoming-item">
+                <a href="<%= linkUrl %>" data-booking-date="<%= dateAttr %>" data-size="<%= b.size || 0 %>" class="list-group-item px-0 d-flex justify-content-between align-items-start text-decoration-none upcoming-item">
                   <div>
                     <div class="fw-semibold text-primary"><%= b.party_name %></div>
                     <small class="text-muted d-block"><%= dateStr %> <% if (timeStr) { %> @ <%= timeStr %><% } %></small>
@@ -98,15 +119,51 @@
 <script>
   (function() {
     const filterInput = document.getElementById('upcomingFilter');
+    const modeSelect = document.getElementById('upcomingMode');
+    const dateInput = document.getElementById('upcomingDate');
     const list = document.getElementById('upcomingList');
-    if (!filterInput || !list) return;
-    filterInput.addEventListener('input', () => {
+    const totalsLabel = document.getElementById('bookingTotalsLabel');
+    if (!filterInput || !list || !modeSelect || !dateInput) return;
+
+    function applyFilters() {
       const term = (filterInput.value || '').toLowerCase().trim();
+      const mode = modeSelect.value;
+      const dateVal = (dateInput.value || "").trim();
+      let count = 0;
+      let guests = 0;
       list.querySelectorAll('.upcoming-item').forEach((item) => {
         const text = item.textContent.toLowerCase();
-        item.classList.toggle('d-none', term && !text.includes(term));
+        const matchesTerm = !term || text.includes(term);
+        const itemDate = (item.getAttribute('data-booking-date') || '').slice(0,10);
+        const matchesDate =
+          mode === 'all' || !dateVal
+            ? true
+            : itemDate === dateVal;
+        const show = matchesTerm && matchesDate;
+        item.classList.toggle('d-none', !show);
+        if (show) {
+          count += 1;
+          guests += Number(item.getAttribute('data-size')) || 0;
+        }
       });
-    });
+      if (totalsLabel) {
+        totalsLabel.textContent = count
+          ? `Totals: ${count} booking${count === 1 ? '' : 's'} • ${guests} guest${guests === 1 ? '' : 's'}`
+          : 'Totals: 0 bookings';
+      }
+    }
+
+    filterInput.addEventListener('input', applyFilters);
+    modeSelect.addEventListener('change', applyFilters);
+    dateInput.addEventListener('change', applyFilters);
+
+    // Preselect date if provided via data attribute (e.g., day view)
+    const prefillDate = document.body.getAttribute('data-selected-date');
+    if (prefillDate) {
+      modeSelect.value = 'date';
+      dateInput.value = prefillDate;
+    }
+    applyFilters();
   })();
 </script>
 

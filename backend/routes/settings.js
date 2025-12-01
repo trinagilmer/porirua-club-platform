@@ -11,6 +11,8 @@ const { pool } = require("../db");
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
+const crypto = require("crypto");
+const bcrypt = require("bcrypt");
 const recurrenceService = require("../services/recurrenceService");
 const {
   getFeedbackSettings,
@@ -25,7 +27,7 @@ const {
 } = require("../services/feedbackService");
 const { runFeedbackJobOnce } = require("../services/feedbackScheduler");
 const { sendMail } = require("../services/graphService");
-const { cca } = require("../auth/msal");
+const { getAppToken } = require("../utils/graphAuth");
 
 const CALENDAR_SLOT_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
 const DEFAULT_CALENDAR_SLOT = 30;
@@ -123,17 +125,27 @@ function parseOptionalInteger(value) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+function formatDate(value) {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const day = date.getDate();
+  const suffix =
+    day % 10 === 1 && day !== 11
+      ? "st"
+      : day % 10 === 2 && day !== 12
+      ? "nd"
+      : day % 10 === 3 && day !== 13
+      ? "rd"
+      : "th";
+  const weekday = date.toLocaleDateString("en-NZ", { weekday: "long" });
+  const month = date.toLocaleDateString("en-NZ", { month: "long" });
+  const year = date.getFullYear();
+  return `${weekday}, ${day}${suffix} ${month} ${year}`;
+}
+
 async function acquireGraphToken() {
-  if (!cca) return null;
-  try {
-    const response = await cca.acquireTokenByClientCredential({
-      scopes: ["https://graph.microsoft.com/.default"],
-    });
-    return response?.accessToken || null;
-  } catch (err) {
-    console.error("[Settings] Failed to acquire Graph token:", err.message);
-    return null;
-  }
+  return await getAppToken();
 }
 
 async function sendSurveyNow(entityType, entityId, settings) {
@@ -530,52 +542,64 @@ router.get("/feedback/activity", ensurePrivileged, async (req, res) => {
       `,
       params
     );
-    const completed = responses.filter((r) => r.status === "completed");
-    const summary = {
-      count: completed.length,
-      avgOverall:
-        completed.length > 0
-          ? Number(
-              (
-                completed.reduce((sum, r) => sum + (Number(r.rating_overall) || 0), 0) /
-                completed.length
-              ).toFixed(2)
-            )
-          : null,
-      avgService:
-        completed.length > 0
-          ? Number(
-              (
-                completed.reduce((sum, r) => sum + (Number(r.rating_service) || 0), 0) /
-                completed.filter((r) => r.rating_service !== null && r.rating_service !== undefined).length ||
-                0
-              ).toFixed(2)
-            )
-          : null,
-      recommendRate:
-        completed.length > 0
-          ? Math.round(
-              (completed.filter((r) => r.recommend === true).length / completed.length) * 100
-            )
-          : null,
-      nps: null,
-    };
-    const npsScores = completed
-      .map((r) =>
-        typeof r.nps_score === "number" && !Number.isNaN(r.nps_score)
-          ? r.nps_score
-          : r.rating_overall
-          ? Math.max(0, Math.min(10, Math.round((Number(r.rating_overall) / 5) * 10)))
-          : null
-      )
-      .filter((v) => v !== null);
-    if (npsScores.length) {
-      const promoters = npsScores.filter((v) => v >= 9).length;
-      const detractors = npsScores.filter((v) => v <= 6).length;
-      summary.nps = Math.round(((promoters - detractors) / npsScores.length) * 100);
+    function computeSummary(list) {
+      const completed = list.filter((r) => r.status === "completed");
+      const summary = {
+        count: completed.length,
+        avgOverall:
+          completed.length > 0
+            ? Number(
+                (
+                  completed.reduce((sum, r) => sum + (Number(r.rating_overall) || 0), 0) /
+                  completed.length
+                ).toFixed(2)
+              )
+            : null,
+        avgService:
+          completed.filter((r) => r.rating_service !== null && r.rating_service !== undefined).length >
+          0
+            ? Number(
+                (
+                  completed.reduce((sum, r) => sum + (Number(r.rating_service) || 0), 0) /
+                  completed.filter(
+                    (r) => r.rating_service !== null && r.rating_service !== undefined
+                  ).length
+                ).toFixed(2)
+              )
+            : null,
+        recommendRate:
+          completed.length > 0
+            ? Math.round(
+                (completed.filter((r) => r.recommend === true).length / completed.length) * 100
+              )
+            : null,
+        nps: null,
+      };
+      const npsScores = completed
+        .map((r) =>
+          typeof r.nps_score === "number" && !Number.isNaN(r.nps_score)
+            ? r.nps_score
+            : r.rating_overall
+            ? Math.max(0, Math.min(10, Math.round((Number(r.rating_overall) / 5) * 10)))
+            : null
+        )
+        .filter((v) => v !== null);
+      if (npsScores.length) {
+        const promoters = npsScores.filter((v) => v >= 9).length;
+        const detractors = npsScores.filter((v) => v <= 6).length;
+        summary.nps = Math.round(((promoters - detractors) / npsScores.length) * 100);
+      }
+      return summary;
     }
 
+    const summaryOverall = computeSummary(responses);
+    const summaryFunctions = computeSummary(responses.filter((r) => r.entity_type === "function"));
+    const summaryRestaurant = computeSummary(
+      responses.filter((r) => r.entity_type === "restaurant")
+    );
+
     // Lightweight keyword / tag aggregation
+    const completed = responses.filter((r) => r.status === "completed");
     const issueCounts = {};
     completed.forEach((r) => {
       const tags = Array.isArray(r.issue_tags) ? r.issue_tags : [];
@@ -598,6 +622,60 @@ router.get("/feedback/activity", ensurePrivileged, async (req, res) => {
       .slice(0, 6)
       .map(([label, count]) => ({ label, count }));
 
+    // Trend / segmentation datasets for charts
+    const trendMap = new Map();
+    responses
+      .filter((r) => r.completed_at || r.sent_at)
+      .forEach((r) => {
+        const dateKey = new Date(r.completed_at || r.sent_at || r.updated_at || r.created_at)
+          .toISOString()
+          .slice(0, 10);
+        const entry = trendMap.get(dateKey) || { total: 0, count: 0, lows: 0 };
+        const rating = Number(r.rating_overall) || 0;
+        entry.total += rating;
+        entry.count += 1;
+        if (rating && rating <= 2) entry.lows += 1;
+        trendMap.set(dateKey, entry);
+      });
+    const trendLabels = Array.from(trendMap.keys()).sort();
+    const trendAvg = trendLabels.map((d) => {
+      const item = trendMap.get(d);
+      return item && item.count ? Number((item.total / item.count).toFixed(2)) : null;
+    });
+    const trendLows = trendLabels.map((d) => {
+      const item = trendMap.get(d);
+      return item?.lows || 0;
+    });
+
+    const typeCounts = responses.reduce(
+      (acc, r) => {
+        const key = r.entity_type || "unknown";
+        if (!acc[key]) acc[key] = { total: 0, completed: 0, low: 0 };
+        acc[key].total += 1;
+        if (r.status === "completed") acc[key].completed += 1;
+        const rating = Number(r.rating_overall) || 0;
+        if (rating && rating <= 2) acc[key].low += 1;
+        return acc;
+      },
+      {}
+    );
+
+    const chartData = {
+      trendLabels,
+      trendAvg,
+      trendLows,
+      issueLabels: topIssues.map((i) => i.label),
+      issueCounts: topIssues.map((i) => i.count),
+      typeLabels: Object.keys(typeCounts),
+      typeCompleted: Object.keys(typeCounts).map((k) => typeCounts[k].completed),
+      typeLow: Object.keys(typeCounts).map((k) => typeCounts[k].low),
+    };
+
+    const completedCount = responses.filter((r) => r.status === "completed").length;
+    const positive = responses.filter((r) => Number(r.rating_overall) >= 4).length;
+    const negative = responses.filter((r) => Number(r.rating_overall) > 0 && Number(r.rating_overall) <= 2).length;
+    const completionRate = responses.length ? Math.round((completedCount / responses.length) * 100) : null;
+
     res.render("settings/feedback-activity", {
       layout: "layouts/settings",
       title: "Settings - Feedback Activity",
@@ -606,8 +684,14 @@ router.get("/feedback/activity", ensurePrivileged, async (req, res) => {
       contactStats: { optOutCount: optOutRows[0]?.count || 0 },
       statusCounts,
       responses,
-      summary,
+      summaryOverall,
+      summaryFunctions,
+      summaryRestaurant,
       topIssues,
+      chartData,
+      completionRate,
+      positiveCount: positive,
+      negativeCount: negative,
       filters: { type, status, min_rating, max_rating, from, to },
       user: req.session.user || null,
       flashMessage: req.flash?.("flashMessage"),
@@ -734,6 +818,25 @@ router.get("/feedback/export", ensurePrivileged, async (req, res) => {
     req.flash("flashType", "error");
     res.redirect("/settings/feedback/activity");
   }
+});
+
+router.post("/feedback/clear", ensurePrivileged, async (req, res) => {
+  try {
+    const { confirm } = req.body || {};
+    if (confirm !== "yes") {
+      req.flash("flashMessage", "Confirmation required to delete feedback data.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/feedback/activity");
+    }
+    await pool.query("DELETE FROM feedback_responses;");
+    req.flash("flashMessage", "All feedback requests and responses deleted.");
+    req.flash("flashType", "success");
+  } catch (err) {
+    console.error("❌ Error clearing feedback responses:", err);
+    req.flash("flashMessage", "Failed to delete feedback data.");
+    req.flash("flashType", "error");
+  }
+  res.redirect("/settings/feedback/activity");
 });
 
 router.post("/feedback", ensurePrivileged, async (req, res) => {
@@ -1000,13 +1103,42 @@ router.post("/users/add", ensurePrivileged, async (req, res) => {
       req.flash("flashType", "warning");
       return res.redirect("/settings/users");
     }
-    await pool.query(
-      `INSERT INTO users (name, email, role)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name, role = EXCLUDED.role;`,
-      [name.trim(), email.trim().toLowerCase(), (role || "staff").toLowerCase()]
+    const { rows: columnRows } = await pool.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND table_schema = 'public';`
     );
-    req.flash("flashMessage", "? User stored.");
+    const columns = columnRows.map((r) => r.column_name);
+    const hasPassword = columns.includes("password_hash");
+    const tempPassword = hasPassword ? crypto.randomBytes(6).toString("base64") : null;
+    const passwordHash = hasPassword ? await bcrypt.hash(tempPassword, 10) : null;
+
+    if (hasPassword) {
+      await pool.query(
+        `INSERT INTO users (name, email, role, password_hash)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (email) DO UPDATE
+           SET name = EXCLUDED.name,
+               role = EXCLUDED.role,
+               password_hash = COALESCE(EXCLUDED.password_hash, users.password_hash);`,
+        [name.trim(), email.trim().toLowerCase(), (role || "staff").toLowerCase(), passwordHash]
+      );
+      req.flash(
+        "flashMessage",
+        `? User stored. Temp password: ${tempPassword} (ask them to log in and change it).`
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO users (name, email, role)
+           VALUES ($1, $2, $3)
+         ON CONFLICT (email) DO UPDATE
+           SET name = EXCLUDED.name,
+               role = EXCLUDED.role;`,
+        [name.trim(), email.trim().toLowerCase(), (role || "staff").toLowerCase()]
+      );
+      req.flash(
+        "flashMessage",
+        "? User stored. (Password-less schema detected; uses external auth only.)"
+      );
+    }
     req.flash("flashType", "success");
     res.redirect("/settings/users");
   } catch (err) {

@@ -20,6 +20,22 @@
   <!-- 🎨 Core Styles -->
   <link rel="stylesheet" href="/css/main.css?v=2.0" />
   <link rel="stylesheet" href="/css/settings.css?v=1.1" />
+  <style>
+    @media print {
+      .settings-sidebar {
+        display: none !important;
+      }
+      .settings-layout {
+        padding-top: 0 !important;
+        min-height: auto !important;
+      }
+      .settings-content {
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+    }
+  </style>
 
   <!-- 💬 Page-specific CSS/SCSS -->
   <% 

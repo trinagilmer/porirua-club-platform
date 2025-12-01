@@ -2,8 +2,7 @@ const express = require("express");
 const { randomUUID } = require("crypto");
 const { pool } = require("../db");
 const { sendMail } = require("../services/graphService");
-const { cca } = require("../auth/msal");
-const { getValidGraphToken } = require("../utils/graphAuth");
+const { getAppToken } = require("../utils/graphAuth");
 const recurrenceService = require("../services/recurrenceService");
 
 const router = express.Router();
@@ -498,7 +497,7 @@ async function createRestaurantBooking(payload, options = {}) {
 
 async function notifyRestaurantTeam(booking, service, req = null) {
   try {
-    const accessToken = (req && (await tryGetDelegatedToken(req))) || (await acquireGraphToken());
+    const accessToken = await acquireGraphToken();
     if (!accessToken) throw new Error("Missing Graph token (delegated)");
     const to = process.env.RESTAURANT_NOTIFICATIONS || "events@poriruaclub.co.nz";
     const subject = `🍽️ New Restaurant Booking: ${booking.party_name} (${booking.size || 0})`;
@@ -538,7 +537,7 @@ async function notifyRestaurantTeam(booking, service, req = null) {
 
 async function notifyRestaurantCustomer(booking, service, template = "request", req = null) {
   try {
-    const accessToken = (req && (await tryGetDelegatedToken(req))) || (await acquireGraphToken());
+    const accessToken = await acquireGraphToken();
     if (!accessToken || !booking?.contact_email) return;
     const subject =
       template === "confirm"
@@ -671,33 +670,11 @@ async function ensureContactFromBooking(name, email, phone) {
   return inserted?.id || null;
 }
 
-async function tryGetDelegatedToken(req) {
-  try {
-    if (!req || !req.session) return null;
-    const now = Date.now();
-    const expMs = req.session.graphTokenExpires ? req.session.graphTokenExpires * 1000 : null;
-    const isFresh = expMs ? expMs > now : true;
-    const token =
-      req.session.graphAccessToken ||
-      req.session.graphToken ||
-      (req.session.graph && req.session.graph.accessToken);
-    if (token && isFresh) return token;
-    return await getValidGraphToken(req);
-  } catch (err) {
-    console.warn("[Calendar] Delegated token fetch failed:", err.message);
-    return null;
-  }
-}
-
 async function acquireGraphToken() {
-  if (!cca) return null;
   try {
-    const response = await cca.acquireTokenByClientCredential({
-      scopes: ["https://graph.microsoft.com/.default"],
-    });
-    return response?.accessToken || null;
+    return await getAppToken();
   } catch (err) {
-    console.error("[Restaurant Calendar] Failed to acquire Graph token:", err.message);
+    console.error("[Calendar] Failed to acquire Graph token:", err.message);
     return null;
   }
 }
@@ -854,11 +831,13 @@ router.get("/restaurant", async (req, res) => {
       ),
     ]);
 
+    const embed = req.query.embed === "1";
     res.render("pages/calendar/restaurant", {
-      layout: "layouts/main",
+      layout: embed ? false : "layouts/main",
       title: "Restaurant Calendar",
       active: "restaurant",
       pageType: "calendar",
+      embed,
       services: servicesRes.rows,
       zones: zonesRes.rows,
       tables: tablesRes.rows,

@@ -5,18 +5,8 @@ const router = express.Router();
 const { sendMail: graphSendMail } = require("../services/graphService");
 const { sendTaskAssignmentEmail } = require("../services/taskMailer");
 const recurrenceService = require("../services/recurrenceService");
+const { getAppToken } = require("../utils/graphAuth");
 
-// === MSAL for app-token fallback (if no delegated token in session) ===
-const { ConfidentialClientApplication } = require("@azure/msal-node");
-
-// 🔧 Initialize MSAL Client
-const cca = new ConfidentialClientApplication({
-  auth: {
-    clientId: process.env.AZURE_CLIENT_ID,
-    authority: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}`,
-    clientSecret: process.env.AZURE_CLIENT_SECRET,
-  },
-});
 
 // 🧩 Utility: normalizeRecipients
 function normalizeRecipients(v) {
@@ -28,50 +18,9 @@ function normalizeRecipients(v) {
     .filter(Boolean);
 }
 
-/**
- * 🔐 getAppAccessToken()
- * Acquires an application-only Graph token (client credential flow)
- */
-// eslint-disable-next-line no-unused-vars
-async function getAppAccessToken() {
-  try {
-    const tokenResponse = await cca.acquireTokenByClientCredential({
-      scopes: ["https://graph.microsoft.com/.default"],
-    });
-
-    console.log(
-      "🔑 App Access Token (partial):",
-      tokenResponse.accessToken.substring(0, 80) + "..."
-    );
-    console.log("🕒 Token expires:", tokenResponse.expiresOn?.toISOString());
-
-    return tokenResponse.accessToken;
-  } catch (err) {
-    console.error("❌ Failed to acquire app access token:", err.message);
-    throw err;
-  }
-}
-
-/**
- * 🧠 getGraphAccessToken(req)
- * Requires a valid delegated Microsoft Graph token (user login)
- */
-async function getGraphAccessToken(req, res) {
-  const s = req.session || {};
-  const delegated =
-    s.graphToken ||
-    s.graphAccessToken ||
-    s.accessToken ||
-    (s.graph && s.graph.accessToken);
-
-  if (delegated) {
-    console.log("🧩 Using delegated (session) Graph token ✅");
-    return delegated;
-  }
-
-  console.warn("⚠️ No delegated Graph token in session — prompting re-auth.");
-  if (res) return res.status(401).json({ error: "Session expired. Please sign in again." });
-  throw new Error("no_delegated_token");
+// App-only Graph token
+async function getGraphAccessToken() {
+  return await getAppToken();
 }
 
 function isTruthy(value) {
@@ -99,7 +48,7 @@ async function maybeSendTaskAssignmentEmail(req, task, assignedUserId, shouldNot
 
     let token;
     try {
-      token = await getGraphAccessToken(req);
+      token = await getGraphAccessToken();
     } catch (tokenErr) {
       console.warn("[Tasks EMAIL] Unable to acquire Graph token for assignment email:", tokenErr.message);
       return;
@@ -858,8 +807,8 @@ router.post("/:id/communications/send", async (req, res) => {
   const body = req.body.body || "";
 
   try {
-    const accessToken = await getGraphAccessToken(req, res);
-    if (!accessToken) return; // 401 already sent
+    const accessToken = await getGraphAccessToken();
+    if (!accessToken) return;
 
     await graphSendMail(accessToken, { to, cc, bcc, subject, body });
 
@@ -900,8 +849,8 @@ router.post("/:id/communications/:messageId/reply", async (req, res) => {
 
     if (!orig.length) return res.status(404).send("Original message not found");
 
-    const accessToken = await getGraphAccessToken(req, res);
-    if (!accessToken) return; // 401 already sent
+    const accessToken = await getGraphAccessToken();
+    if (!accessToken) return;
 
     await graphSendMail(accessToken, { to, cc, bcc, subject, body });
 
@@ -1466,10 +1415,47 @@ router.get("/:id", async (req, res) => {
        WHERE entity_type = 'function'
          AND entity_id = $1
        ORDER BY completed_at DESC NULLS LAST, sent_at DESC NULLS LAST, updated_at DESC
-       LIMIT 5;
+      LIMIT 5;
       `,
       [functionId]
     );
+
+    // Contact feedback aggregates (per contact/email)
+    const { rows: contactFeedbackRows } = await pool.query(
+      `
+      SELECT
+        COALESCE(contact_id::text, LOWER(contact_email)) AS contact_key,
+        COUNT(*) FILTER (WHERE status = 'completed') AS responses,
+        AVG(rating_overall) FILTER (WHERE status = 'completed') AS avg_overall,
+        AVG(rating_service) FILTER (WHERE status = 'completed') AS avg_service,
+        AVG(CASE WHEN recommend IS NULL THEN NULL ELSE (CASE WHEN recommend THEN 1 ELSE 0 END) END)
+          FILTER (WHERE status = 'completed') AS recommend_rate
+      FROM feedback_responses
+      WHERE status = 'completed'
+        AND (
+          contact_id IN (SELECT contact_id FROM function_contacts WHERE function_id = $1)
+          OR LOWER(contact_email) IN (
+            SELECT LOWER(c.email) FROM contacts c
+            JOIN function_contacts fc ON fc.contact_id = c.id
+            WHERE fc.function_id = $1
+          )
+        )
+      GROUP BY contact_key;
+      `,
+      [functionId]
+    );
+    const contactFeedbackMap = contactFeedbackRows.reduce((acc, row) => {
+      acc[row.contact_key] = {
+        responses: Number(row.responses) || 0,
+        avg_overall: row.avg_overall ? Number(row.avg_overall).toFixed(2) : null,
+        avg_service: row.avg_service ? Number(row.avg_service).toFixed(2) : null,
+        recommend_rate:
+          row.recommend_rate === null || typeof row.recommend_rate === "undefined"
+            ? null
+            : Math.round(Number(row.recommend_rate) * 100),
+      };
+      return acc;
+    }, {});
 
     const grouped = allEntries.reduce((acc, entry) => {
       const dateKey = new Date(entry.entry_date).toISOString().split("T")[0];
@@ -1494,6 +1480,7 @@ router.get("/:id", async (req, res) => {
       totals,
       communications,
       feedbackEntries: feedbackRows,
+      contactFeedback: contactFeedbackMap,
       proposalId: activeProposal?.id || null,
       proposalPreviewLink: activeProposal ? `/functions/${fn.id_uuid}/proposal/preview` : null,
       proposalAuditData: proposalAudit,

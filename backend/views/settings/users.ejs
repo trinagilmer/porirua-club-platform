@@ -4,34 +4,40 @@
       <h2 class="h4 mb-1">Staff Users</h2>
       <p class="text-muted small mb-0">Configure Porirua Club staff accounts and assign roles.</p>
     </div>
-    <button class="btn btn-sm btn-outline-primary" type="button" <%= !canManage ? 'disabled' : 'data-bs-toggle="collapse" data-bs-target="#newUserCollapse"' %>>
-      <i class="bi bi-person-plus me-1"></i> Add staff account
-    </button>
+    <% if (canManage) { %>
+      <button class="btn btn-sm btn-outline-primary" type="button" data-action="toggle-new-user">
+        <i class="bi bi-person-plus me-1"></i> Add staff account
+      </button>
+    <% } %>
   </div>
 
-  <div class="collapse mb-4" id="newUserCollapse">
-    <form class="row g-3 align-items-end" method="POST" action="/settings/users/add">
-      <div class="col-md-3">
-        <label class="form-label">Full name</label>
-        <input type="text" name="name" class="form-control form-control-sm" placeholder="e.g. Taylor Green" required>
+  <% if (canManage) { %>
+    <div class="card border mb-4" id="newUserCard" style="display: none;">
+      <div class="card-body">
+        <form class="row g-3 align-items-end" method="POST" action="/settings/users/add">
+          <div class="col-md-3">
+            <label class="form-label">Full name</label>
+            <input type="text" name="name" class="form-control form-control-sm" placeholder="e.g. Taylor Green" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Email</label>
+            <input type="email" name="email" class="form-control form-control-sm" placeholder="name@poriruaclub.co.nz" required>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Role</label>
+            <select name="role" class="form-select form-select-sm">
+              <option value="owner">Owner</option>
+              <option value="admin">Admin</option>
+              <option value="staff" selected>Staff</option>
+            </select>
+          </div>
+          <div class="col-md-2 d-grid">
+            <button type="submit" class="btn btn-sm btn-success">Create / update</button>
+          </div>
+        </form>
       </div>
-      <div class="col-md-3">
-        <label class="form-label">Email</label>
-        <input type="email" name="email" class="form-control form-control-sm" placeholder="name@poriruaclub.co.nz" required>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Role</label>
-        <select name="role" class="form-select form-select-sm">
-          <option value="owner">Owner</option>
-          <option value="admin">Admin</option>
-          <option value="staff" selected>Staff</option>
-        </select>
-      </div>
-      <div class="col-md-2 d-grid">
-        <button type="submit" class="btn btn-sm btn-success">Create / update</button>
-      </div>
-    </form>
-  </div>
+    </div>
+  <% } %>
 
   <% if (!canManage) { %>
     <div class="alert alert-warning mb-3">
@@ -77,8 +83,21 @@
       </div>
     <% }) %>
   <% } %>
-  </div>
+</div>
 
     <% if (!canManage) { %>\n    <div class="card border rounded-3 p-3 bg-light mt-4">\n      <p class="fw-semibold mb-2">Need admin access?</p>\n      <% if (secretConfigured) { %>\n        <p class="text-muted small mb-3">Enter the promotion code (the same secret used for archive/delete actions) to elevate your account.</p>\n        <form class="row g-2 align-items-end" method="POST" action="/settings/users/promote">\n          <div class="col-md-4">\n            <label class="form-label small text-muted">Admin code</label>\n            <input type="password" name="secret" class="form-control form-control-sm" required>\n          </div>\n          <div class="col-md-3">\n            <label class="form-label small text-muted">Role</label>\n            <select name="role" class="form-select form-select-sm">\n              <option value="admin">Admin</option>\n              <option value="owner">Owner</option>\n            </select>\n          </div>\n          <div class="col-md-2">\n            <button type="submit" class="btn btn-sm btn-success w-100">Promote</button>\n          </div>\n        </form>\n      <% } else { %>\n        <p class="text-muted small mb-0">Set the ADMIN_SECRET (or BUILD_ADMIN_SECRET) environment variable to enable this promotion form.</p>\n      <% } %>\n    </div>\n  <% } %>
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const toggleBtn = document.querySelector('[data-action="toggle-new-user"]');
+    const card = document.getElementById('newUserCard');
+    if (toggleBtn && card) {
+      toggleBtn.addEventListener('click', function() {
+        const isHidden = card.style.display === 'none' || card.style.display === '';
+        card.style.display = isHidden ? 'block' : 'none';
+      });
+    }
+  });
+</script>
 

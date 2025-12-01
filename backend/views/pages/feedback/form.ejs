@@ -67,6 +67,12 @@
     color: #8b1b1b;
     box-shadow: 0 0 0 2px rgba(226, 91, 91, 0.2);
   }
+  .issue-section {
+    display: none;
+  }
+  .issue-section.is-visible {
+    display: block;
+  }
 </style>
 
 <div class="feedback-shell">
@@ -180,8 +186,8 @@
             </div>
           <% } %>
 
-          <div>
-            <label class="form-label d-block">If something wasn’t right, what stood out?</label>
+          <div id="issueSection" class="issue-section">
+            <label class="form-label d-block">If something wasn’t right, what needs improvement?</label>
             <div class="issue-chips">
               <% const baseIssues = ['Food quality','Service','Speed','Value','Cleanliness','Communication','Other']; %>
               <% baseIssues.forEach(function(issue) { %>
@@ -191,7 +197,7 @@
                 </label>
               <% }); %>
             </div>
-            <small class="text-muted d-block mt-1">Choose any that apply (optional).</small>
+            <small class="text-muted d-block mt-1">Choose any that apply (optional). If everything was great, you can leave this blank.</small>
           </div>
 
           <div class="d-flex justify-content-end">
@@ -206,6 +212,41 @@
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     const pillGroups = document.querySelectorAll('.rating-pills');
+    const issueSection = document.getElementById('issueSection');
+    const recommendInputs = document.querySelectorAll('input[name="recommend"]');
+    const npsInputs = document.querySelectorAll('input[name="nps_score"]');
+
+    function computeShowIssues() {
+      // show if overall <=3, recommend no, or nps <=6
+      const overallChecked = document.querySelector('input[name="rating_overall"]:checked');
+      const overallVal = overallChecked ? parseInt(overallChecked.value, 10) : null;
+      const recommendVal = Array.from(recommendInputs).find((el) => el.checked)?.value;
+      const npsVal = Array.from(npsInputs).find((el) => el.checked)?.value;
+      return (
+        (overallVal !== null && overallVal <= 3) ||
+        recommendVal === 'no' ||
+        (npsVal !== undefined && npsVal !== null && npsVal !== '' && Number(npsVal) <= 6)
+      );
+    }
+
+    function syncIssueVisibility() {
+      if (!issueSection) return;
+      const shouldShow = computeShowIssues();
+      issueSection.classList.toggle('is-visible', shouldShow);
+      if (!shouldShow) {
+        issueSection.querySelectorAll('.issue-chip.active').forEach(function(chip) {
+          chip.classList.remove('active');
+          const input = chip.querySelector('input');
+          if (input) input.checked = false;
+        });
+      }
+    }
+
+    document.querySelectorAll('input[name="rating_overall"], input[name="recommend"], input[name="nps_score"]').forEach(function(el) {
+      el.addEventListener('change', syncIssueVisibility);
+    });
+    syncIssueVisibility();
+
     pillGroups.forEach(function(group) {
       group.addEventListener('click', function(e) {
         const pill = e.target.closest('.rating-pill');
@@ -219,6 +260,7 @@
         }
         pill.classList.toggle('active', true);
         input.checked = true;
+        syncIssueVisibility();
       });
     });
 

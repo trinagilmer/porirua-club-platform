@@ -1,7 +1,7 @@
 const { pool } = require("../db");
-const { cca } = require("../auth/msal");
 const { sendMail } = require("./graphService");
 const { getFeedbackSettings, renderTemplate } = require("./feedbackService");
+const { getAppToken } = require("../utils/graphAuth");
 
 const APP_URL = (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
 const JOB_INTERVAL = Number(process.env.FEEDBACK_JOB_INTERVAL_MS) || 1000 * 60 * 30;
@@ -32,16 +32,7 @@ function formatISODate(value) {
 }
 
 async function acquireGraphToken() {
-  if (!cca) return null;
-  try {
-    const response = await cca.acquireTokenByClientCredential({
-      scopes: ["https://graph.microsoft.com/.default"],
-    });
-    return response?.accessToken || null;
-  } catch (err) {
-    console.error("[FeedbackScheduler] Failed to acquire Graph token:", err.message);
-    return null;
-  }
+  return await getAppToken();
 }
 
 async function findFunctionCandidates(targetDate) {

@@ -858,6 +858,55 @@ textarea {
   font-size: 0.875rem;
 }
 
+.contact-panel .contact-edit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+.contact-panel .contact-edit-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.contact-panel .contact-edit-header .close {
+  background: #e8f5fc;
+  border: 1px solid #d1e8f6;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: #256891;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.contact-panel .contact-panel-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.contact-panel .tab-btn {
+  flex: 1;
+  border: 1px solid #d1e8f6;
+  background: #f4f9fd;
+  color: #256891;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.contact-panel .tab-btn.active {
+  background: #6bb4de;
+  color: #fff;
+  border-color: #6bb4de;
+  box-shadow: 0 4px 12px rgba(107, 180, 222, 0.25);
+}
+
 .proposal-panel {
   border: 1px solid #e9edf5;
   border-radius: 14px;
@@ -1642,7 +1691,7 @@ textarea {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 .function-sidebar .function-meta h2 {
-  font-size: 1.1rem;
+  font-size: 0.90625rem;
   font-weight: 600;
   color: #2b3a4a;
   margin-bottom: 0.5rem;
@@ -1651,7 +1700,7 @@ textarea {
 }
 .function-sidebar .function-meta .status-select {
   width: 100%;
-  font-size: 0.9rem;
+  font-size: 0.90625rem;
   border-radius: 6px;
 }
 .function-sidebar .function-contact-block h4 {
@@ -3034,6 +3083,10 @@ textarea {
   z-index: 1050;
   width: 100%;
   background-color: #212529 !important; /* ensure dark header stays dark */
+}
+
+.navbar-nav .nav-link {
+  font-size: 14.5px;
 }
 
 /* Burger button visibility and alignment */

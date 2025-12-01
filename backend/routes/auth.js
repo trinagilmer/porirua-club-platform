@@ -43,8 +43,8 @@ router.post("/login", async (req, res, next) => {
       role: user.role,
     };
 
-    // Automatically start Microsoft Graph login  
-    res.redirect(`/auth/graph/login?next=/dashboard`);
+    // Go straight to dashboard (app-only mail auth now)
+    res.redirect("/dashboard");
   } catch (err) {
     next(err);
   }

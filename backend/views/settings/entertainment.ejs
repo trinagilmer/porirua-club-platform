@@ -471,3 +471,23 @@
   });
 </script>
 <% } %>
+
+<section class="card shadow-sm mt-4">
+  <div class="card-body">
+    <h5 class="mb-2">Embeds for your website</h5>
+    <p class="text-muted small mb-3">Use these URLs to embed the entertainment app without headers/navigation.</p>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Entertainment calendar (embed)</label>
+        <input type="text" class="form-control form-control-sm" readonly value="/entertainment?embed=1">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Entertainment list (embed)</label>
+        <input type="text" class="form-control form-control-sm" readonly value="/entertainment?embed=1&view=list">
+      </div>
+      <div class="col-12">
+        <small class="text-muted">Prefix with your domain (e.g. https://yourdomain.com) and place inside an &lt;iframe&gt; on your site.</small>
+      </div>
+    </div>
+  </div>
+</section>

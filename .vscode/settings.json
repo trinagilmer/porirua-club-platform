@@ -1,0 +1,10 @@
+{
+    "early.coverageFileNames": [
+    all
+        "lcov.info",
+        "cov.xml",
+        "clover.xml DISABLED because we @cvrg-report/clover-json is buggy; it returns file name instead of file path + it doesnt get all files",
+        "coverage.xml",
+        "jacoco.xml"
+    ]
+}

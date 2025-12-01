@@ -9,8 +9,7 @@ const router = express.Router();
 const multer = require("multer");
 const upload = multer();
 const { pool } = require("../db");
-const { ensureGraphToken } = require("../middleware/graphTokenMiddleware");
-const { getValidGraphToken } = require("../utils/graphAuth");
+const { getAppToken } = require("../utils/graphAuth");
 const graphService = require("../services/graphService");
 const { createClient } = require("@supabase/supabase-js");
 
@@ -66,10 +65,10 @@ function dedupeMessages(messages) {
 /* ---------------------------------------------------------
    🟢 Unified Inbox (with Follow-Up + Leads + Sent + Deleted)
 --------------------------------------------------------- */
-router.get("/", ensureGraphToken, async (req, res) => {
+router.get("/", async (req, res) => {
   try {
-    const accessToken = req.session.graphToken;
-    if (!accessToken) throw new Error("Missing Graph token — please log in");
+    const accessToken = await getAppToken();
+    if (!accessToken) throw new Error("Missing Graph token - please log in");
 
     // --- Sync from Microsoft Graph ---
     console.log("🔄 Fetching from Microsoft Graph...");
@@ -324,7 +323,7 @@ router.get("/:id", async (req, res, next) => {
 /* ---------------------------------------------------------
    3️⃣ Reply to Message (with Supabase Upload)
 --------------------------------------------------------- */
-router.post("/reply/:id", ensureGraphToken, upload.single("attachment"), async (req, res) => {
+router.post("/reply/:id", upload.single("attachment"), async (req, res) => {
   const messageId = req.params.id;
   const { subject, body_html, body, to_email, cc_email, bcc_email } = req.body;
   const file = req.file;
@@ -337,7 +336,7 @@ router.post("/reply/:id", ensureGraphToken, upload.single("attachment"), async (
     const original = rows[0];
     if (!original) throw new Error("Original message not found");
 
-    let accessToken = req.session.graphToken || (await getValidGraphToken(req));
+    let accessToken = await getAppToken();
     if (!accessToken) throw new Error("No Graph token available.");
 
     // Optional Supabase attachment

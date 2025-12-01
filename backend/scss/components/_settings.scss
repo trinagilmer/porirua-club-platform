@@ -35,13 +35,14 @@ $porirua-blue: #6bb4de;
   flex-shrink: 0;
 
   h5 {
-    font-size: 1rem;
+    font-size: 1.125rem !important; // ensure override
     font-weight: 600;
     margin-bottom: 1.25rem;
     color: #333;
   }
 
   .nav-link {
+    font-size: 1.125rem !important; // +2px
     color: #555;
     padding: 0.5rem 0.75rem;
     border-radius: 6px;

@@ -78,7 +78,7 @@ $sidebar-text: #556173;
 
   .function-meta {
     h2 {
-      font-size: 1.1rem;
+      font-size: 0.90625rem; // 14.5px to match main menu
       font-weight: 600;
       color: $sidebar-heading;
       margin-bottom: 0.5rem;
@@ -88,7 +88,7 @@ $sidebar-text: #556173;
 
     .status-select {
       width: 100%;
-      font-size: 0.9rem;
+      font-size: 0.90625rem; // 14.5px
       border-radius: 6px;
     }
   }

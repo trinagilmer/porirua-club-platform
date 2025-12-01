@@ -134,6 +134,10 @@
   background-color: #212529 !important; /* ensure dark header stays dark */
 }
 
+.navbar-nav .nav-link {
+  font-size: 14.5px;
+}
+
 /* Burger button visibility and alignment */
 .navbar-toggler {
   background-color: #fff !important;

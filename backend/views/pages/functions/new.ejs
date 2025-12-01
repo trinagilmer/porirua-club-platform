@@ -15,22 +15,17 @@
   <% const selectedWeekdaysRaw = v.recurrence_weekdays ?? v["recurrence_weekdays[]"] ?? []; %>
   <% const selectedWeekdays = Array.isArray(selectedWeekdaysRaw) ? selectedWeekdaysRaw.map(String) : String(selectedWeekdaysRaw || "").split(",").map(function(x){return x.trim();}).filter(Boolean); %>
 
-  <form method="POST" action="/functions/new" class="card p-4 shadow-sm">
-    <div class="row g-3">
+  <form method="POST" action="/functions/new" class="card p-3 shadow-sm">
+    <div class="row g-2">
       <div class="col-md-6">
         <label class="form-label">Event Name</label>
         <input type="text" name="event_name" class="form-control" value="<%= v.event_name || '' %>" required />
       </div>
 
-      <div class="col-md-3">
+      <div class="col-md-4">
         <label class="form-label">Date</label>
         <input type="date" name="event_date" class="form-control"
                value="<%= v.event_date || '' %>" />
-      </div>
-
-      <div class="col-md-3">
-        <label class="form-label">Event Time</label>
-        <input type="time" name="event_time" class="form-control" value="<%= v.event_time || '' %>" />
       </div>
 
       <div class="col-md-4">
@@ -51,16 +46,6 @@
       <div class="col-md-4">
         <label class="form-label">Budget ($)</label>
         <input type="number" step="0.01" name="budget" class="form-control" value="<%= v.budget || '' %>" />
-      </div>
-
-      <div class="col-md-4">
-        <label class="form-label">Total Price ($)</label>
-        <input type="number" step="0.01" name="totals_price" class="form-control" value="<%= v.totals_price || '' %>" />
-      </div>
-
-      <div class="col-md-4">
-        <label class="form-label">Total Cost ($)</label>
-        <input type="number" step="0.01" name="totals_cost" class="form-control" value="<%= v.totals_cost || '' %>" />
       </div>
 
       <div class="col-md-6">
@@ -109,14 +94,14 @@
       </div>
     </div>
 
-    <div class="border rounded-3 p-3 mt-4 bg-light">
+    <div class="border rounded-3 p-3 mt-3 bg-light">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
           <h5 class="mb-0">Recurrence</h5>
           <small class="text-muted">Optionally repeat this function on a cadence.</small>
         </div>
       </div>
-      <div class="row g-3">
+      <div class="row g-2">
         <div class="col-md-4">
           <label class="form-label">Repeats</label>
           <select name="recurrence_frequency" class="form-select">

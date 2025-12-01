@@ -109,6 +109,7 @@
 
     const calendar = new FullCalendar.Calendar(calendarEl, {
       initialView: "timeGridWeek",
+      locale: "en-nz",
       slotDuration: { minutes: slotMinutes },
       slotLabelInterval: { minutes: slotMinutes },
       slotMinTime,
@@ -119,6 +120,8 @@
         center: "title",
         right: "dayGridMonth,timeGridWeek,timeGridDay",
       },
+      dayHeaderFormat: { weekday: "short", day: "numeric", month: "numeric" },
+      titleFormat: { year: "numeric", month: "long" },
       events: "/calendar/restaurant/events",
       eventDisplay: "block",
       displayEventTime: true,
@@ -192,6 +195,23 @@
         }
 
         modal.show();
+
+        // Sync upcoming list to this date if "Bookings by date" is selected
+        try {
+          const modeSelect = document.getElementById("upcomingMode");
+          const dateInput = document.getElementById("upcomingDate");
+          if (modeSelect && dateInput) {
+            modeSelect.value = "date";
+            dateInput.value = isoDate;
+            const event = new Event("change");
+            modeSelect.dispatchEvent(event);
+            dateInput.dispatchEvent(event);
+          }
+          // Also set data-selected-date for other consumers
+          document.body.setAttribute("data-selected-date", isoDate);
+        } catch (e) {
+          console.warn("Upcoming list sync skipped:", e);
+        }
       },
     });
 

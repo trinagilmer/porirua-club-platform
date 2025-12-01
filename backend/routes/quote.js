@@ -4,6 +4,7 @@ const router = express.Router();
 const { pool } = require("../db");
 const { renderNote } = require("../services/templateRenderer");
 const { sendMail: graphSendMail } = require("../services/graphService");
+const { getAppToken } = require("../utils/graphAuth");
 
 const PROPOSAL_STATUSES = [
   "draft",
@@ -20,16 +21,8 @@ function getAppUrl(req) {
   return `${proto}://${req.get("host")}`;
 }
 
-// Reuse delegated Graph token from session (same logic as routes/functions.js)
-function getGraphAccessTokenFromSession(req) {
-  const s = req.session || {};
-  const delegated =
-    s.graphToken ||
-    s.graphAccessToken ||
-    s.accessToken ||
-    (s.graph && s.graph.accessToken);
-  if (delegated) return delegated;
-  return null;
+async function getGraphAccessTokenFromSession() {
+  return await getAppToken();
 }
 
 // ------------------------------------------------------
@@ -308,7 +301,7 @@ router.post("/proposal/client/:token/accept", async (req, res) => {
 
     // Notify via email + communications log if possible
     try {
-      const accessToken = getGraphAccessTokenFromSession(req);
+      const accessToken = await getGraphAccessTokenFromSession();
       if (accessToken) {
         const link = `${getAppUrl(req)}/functions/proposal/client/${proposal.client_token}`;
         const summaryLines = selections
@@ -2317,9 +2310,9 @@ router.post("/:functionId/quote/send-client-email", async (req, res) => {
   const { functionId } = req.params;
   const { contactId, email, name, linkType = "client", message } = req.body || {};
 
-  const accessToken = getGraphAccessTokenFromSession(req);
+  const accessToken = await getGraphAccessTokenFromSession();
   if (!accessToken) {
-    return res.status(401).json({ success: false, error: "Please sign in again to send email." });
+    return res.status(401).json({ success: false, error: "Unable to acquire mail token." });
   }
 
   const client = await pool.connect();

@@ -2,7 +2,7 @@ const express = require("express");
 const { pool } = require("../db");
 const { getFeedbackSettings, getQuestionConfig } = require("../services/feedbackService");
 const { sendMail: graphSendMail } = require("../services/graphService");
-const { cca } = require("../auth/msal");
+const { getAppToken } = require("../utils/graphAuth");
 
 const router = express.Router();
 
@@ -16,16 +16,7 @@ function formatDisplayDate(value) {
 }
 
 async function acquireGraphToken() {
-  if (!cca) return null;
-  try {
-    const response = await cca.acquireTokenByClientCredential({
-      scopes: ["https://graph.microsoft.com/.default"],
-    });
-    return response?.accessToken || null;
-  } catch (err) {
-    console.error("[Feedback] Failed to acquire Graph token:", err.message);
-    return null;
-  }
+  return await getAppToken();
 }
 
 router.get("/:token", async (req, res) => {
