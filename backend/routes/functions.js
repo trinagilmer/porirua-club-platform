@@ -1721,6 +1721,65 @@ router.delete("/tasks/:taskId", async (req, res) => {
   }
 });
 
+// ------------------------------------------------------
+// Delete a function and related records
+// ------------------------------------------------------
+router.delete("/:functionId", async (req, res) => {
+  const { functionId } = req.params;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const { rows: fnRows } = await client.query(
+      `SELECT id_uuid FROM functions WHERE id_uuid = $1 LIMIT 1;`,
+      [functionId]
+    );
+    if (!fnRows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ success: false, error: "Function not found" });
+    }
+
+    await client.query(
+      `DELETE FROM proposal_acceptance_events
+         WHERE proposal_id IN (SELECT id FROM proposals WHERE function_id = $1);`,
+      [functionId]
+    );
+    await client.query(
+      `DELETE FROM proposal_items
+         WHERE proposal_id IN (SELECT id FROM proposals WHERE function_id = $1);`,
+      [functionId]
+    );
+    await client.query(
+      `DELETE FROM proposal_totals
+         WHERE proposal_id IN (SELECT id FROM proposals WHERE function_id = $1);`,
+      [functionId]
+    );
+    await client.query(`DELETE FROM proposals WHERE function_id = $1;`, [functionId]);
+    await client.query(`DELETE FROM function_contacts WHERE function_id = $1;`, [functionId]);
+    await client.query(`DELETE FROM function_notes WHERE function_id = $1;`, [functionId]);
+    await client.query(`DELETE FROM tasks WHERE function_id = $1;`, [functionId]);
+    await client.query(`DELETE FROM communications WHERE function_id = $1;`, [functionId]);
+    await client.query(`DELETE FROM messages WHERE related_function = $1;`, [functionId]);
+    await client.query(`DELETE FROM function_menu_updates WHERE function_id = $1;`, [functionId]);
+    await client.query(
+      `DELETE FROM feedback_responses WHERE entity_type = 'function' AND entity_id::text = $1::text;`,
+      [functionId]
+    );
+
+    await client.query(`DELETE FROM functions WHERE id_uuid = $1;`, [functionId]);
+
+    await client.query("COMMIT");
+    console.log(`🗑️ [Function DELETE] Function ${functionId} deleted`);
+    res.json({ success: true });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("❌ [Function DELETE] Error:", err.message);
+    res.status(500).json({ success: false, error: err.message || "Failed to delete function" });
+  } finally {
+    client.release();
+  }
+});
+
 
 /* =========================================================
    🕒 FUNCTION FIELD UPDATE (UUID-SAFE, TYPE-SAFE VERSION)

@@ -52,14 +52,20 @@
           </div>
 
           <div class="msg-body">
-            <% const htmlBody = (message.body_html || "").trim(); %>
-            <% const plainBody = (message.body || "").trim(); %>
-            <% if (htmlBody) { %>
-              <div class="message-body-html">
-                <%- htmlBody %>
-              </div>
+            <%
+              const rawBody = (message.body_html || message.body || "");
+              const plainBody = rawBody.replace(/<[^>]+>/g, "").trim();
+              const proposalLink = (rawBody.match(/https?:\/\/[^\s"']*\/functions\/proposal\/client\/[A-Za-z0-9-]+/i) || [null])[0];
+            %>
+            <% if (plainBody) { %>
+              <pre class="message-body-plain"><%= plainBody %></pre>
             <% } else { %>
-              <div class="message-body-plain"><%= plainBody %></div>
+              <em class="text-muted">No message body</em>
+            <% } %>
+            <% if (proposalLink) { %>
+              <div class="d-flex flex-wrap gap-2 mt-3">
+                <a class="btn btn-sm btn-primary" href="<%= proposalLink %>" target="_blank" rel="noopener">View submitted proposal</a>
+              </div>
             <% } %>
           </div>
         </div>

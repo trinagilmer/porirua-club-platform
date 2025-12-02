@@ -646,7 +646,7 @@
   document.addEventListener('DOMContentLoaded', function () {
     var fnId = "<%= fn.id_uuid %>";
     var fnName = <%- JSON.stringify(fn.event_name || '') %>;
-    var canManage = window.fnContext && (window.fnContext.canManage === true || window.fnContext.canManage === 'true');
+    var canManage = !(window.fnContext && window.fnContext.canManage === false);
     var archiveBtn = document.querySelector('[data-action="archive-function"]');
     var deleteBtn = document.querySelector('[data-action="delete-function"]');
     var menuItemsModalEl = document.getElementById('menuItemsModal');
@@ -730,8 +730,6 @@
         goToQuote(menuId, "edit");
       });
     });
-
-    if (!canManage) return;
 
     async function handleRequest(url, options, successMessage) {
       try {

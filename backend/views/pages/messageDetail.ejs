@@ -169,10 +169,20 @@
 
 <!-- Message Body -->
 <div class="message-body">
-  <% if (message.body_html) { %>
-    <div class="formatted-body"><%- message.body_html %></div>
+  <%
+    const rawBody = (message.body_html || message.body || "");
+    const plainBody = rawBody.replace(/<[^>]+>/g, "").trim();
+    const proposalLink = (rawBody.match(/https?:\/\/[^\s"']*\/functions\/proposal\/client\/[A-Za-z0-9-]+/i) || [null])[0];
+  %>
+  <% if (plainBody) { %>
+    <pre><%= plainBody %></pre>
   <% } else { %>
-    <pre><%= message.body || '(No message body)' %></pre>
+    <em class="text-muted">(No message body)</em>
+  <% } %>
+  <% if (proposalLink) { %>
+    <div class="d-flex flex-wrap gap-2 mt-2">
+      <a class="btn btn-sm btn-primary" href="<%= proposalLink %>" target="_blank" rel="noopener">View submitted proposal</a>
+    </div>
   <% } %>
 </div>
 
@@ -213,14 +223,22 @@
         </div>
 
         <div class="bubble-body mt-2">
-          <% if (t.body_html) { %>
-            <div class="formatted-body collapse <%= idx === thread.length - 1 ? 'show' : '' %>" id="msgBody-<%= t.id %>">
-              <%- t.body_html %>
-            </div>
-          <% } else { %>
+          <%
+            const threadRaw = (t.body_html || t.body || "");
+            const threadPlain = threadRaw.replace(/<[^>]+>/g, "").trim();
+            const threadLink = (threadRaw.match(/https?:\/\/[^\s"']*\/functions\/proposal\/client\/[A-Za-z0-9-]+/i) || [null])[0];
+          %>
+          <% if (threadPlain) { %>
             <pre class="collapse <%= idx === thread.length - 1 ? 'show' : '' %>" id="msgBody-<%= t.id %>">
-              <%= t.body || '(No content)' %>
+              <%= threadPlain %>
             </pre>
+          <% } else { %>
+            <em class="text-muted collapse <%= idx === thread.length - 1 ? 'show' : '' %>" id="msgBody-<%= t.id %>">(No content)</em>
+          <% } %>
+          <% if (threadLink) { %>
+            <div class="mt-2">
+              <a class="btn btn-sm btn-outline-primary" href="<%= threadLink %>" target="_blank" rel="noopener">View submitted proposal</a>
+            </div>
           <% } %>
         </div>
 

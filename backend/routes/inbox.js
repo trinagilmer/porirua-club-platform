@@ -88,7 +88,21 @@ router.get("/", async (req, res) => {
     for (const m of data.value || []) {
       if (!m.id || !m.from?.emailAddress?.address) continue;
 
-      const fromEmail = m.from.emailAddress.address;
+      // Prefer sender/reply-to if "from" is our shared mailbox (e.g., forwarded/replies)
+      let fromEmail = m.from.emailAddress.address;
+      const senderEmail = m.sender?.emailAddress?.address;
+      const replyToEmail = Array.isArray(m.replyTo) && m.replyTo[0]?.emailAddress?.address;
+      if (
+        fromEmail &&
+        SHARED_MAILBOX &&
+        fromEmail.toLowerCase() === SHARED_MAILBOX.toLowerCase()
+      ) {
+        if (senderEmail && senderEmail.toLowerCase() !== fromEmail.toLowerCase()) {
+          fromEmail = senderEmail;
+        } else if (replyToEmail && replyToEmail.toLowerCase() !== fromEmail.toLowerCase()) {
+          fromEmail = replyToEmail;
+        }
+      }
       const subject = m.subject || "(No Subject)";
       const body = m.bodyPreview || "";
       const receivedAt = m.receivedDateTime || null;
@@ -134,6 +148,70 @@ router.get("/", async (req, res) => {
         }
         skipped++;
         continue;
+      }
+
+      // Try to reuse conversation linkage first
+      if (conversationId && (!relatedContact || !relatedFunction)) {
+        const convo = await pool.query(
+          `SELECT related_contact, related_function
+             FROM messages
+            WHERE conversation_id = $1
+              AND (related_contact IS NOT NULL OR related_function IS NOT NULL)
+            ORDER BY created_at DESC
+            LIMIT 1;`,
+          [conversationId]
+        );
+        if (convo.rows[0]) {
+          relatedContact = relatedContact || convo.rows[0].related_contact;
+          relatedFunction = relatedFunction || convo.rows[0].related_function;
+        }
+      }
+
+      // Auto-link contact & function from participants if possible
+      const candidateEmails = [
+        fromEmail,
+        ...(Array.isArray(toRecipients) ? toRecipients.map((r) => r.address || r) : []),
+        ...(Array.isArray(ccRecipients) ? ccRecipients.map((r) => r.address || r) : []),
+      ]
+        .filter(Boolean)
+        .map((e) => e.toLowerCase());
+
+      if (!relatedContact && candidateEmails.length) {
+        const contactMatch = await pool.query(
+          `SELECT id FROM contacts WHERE LOWER(email) = ANY($1::text[]) LIMIT 1;`,
+          [candidateEmails]
+        );
+        if (contactMatch.rows[0]) {
+          relatedContact = contactMatch.rows[0].id;
+        }
+      }
+
+      if (relatedContact && !relatedFunction) {
+        const fnMatch = await pool.query(
+          `SELECT f.id_uuid
+             FROM functions f
+             LEFT JOIN function_contacts fc ON fc.function_id = f.id_uuid
+            WHERE f.contact_id = $1 OR fc.contact_id = $1
+            ORDER BY f.event_date DESC NULLS LAST, f.updated_at DESC NULLS LAST
+            LIMIT 1;`,
+          [relatedContact]
+        );
+        if (fnMatch.rows[0]) relatedFunction = fnMatch.rows[0].id_uuid;
+      }
+
+      // If still unlinked, try any function whose primary contact email matches sender
+      if (!relatedFunction && fromEmail) {
+        const fnByEmail = await pool.query(
+          `SELECT f.id_uuid
+             FROM functions f
+        LEFT JOIN function_contacts fc ON fc.function_id = f.id_uuid AND fc.is_primary = true
+        LEFT JOIN contacts c ON c.id = fc.contact_id
+            WHERE LOWER(c.email) = LOWER($1)
+            ORDER BY f.updated_at DESC NULLS LAST
+            LIMIT 1;`,
+          [fromEmail]
+        );
+        if (fnByEmail.rows[0]) relatedFunction = fnByEmail.rows[0].id_uuid;
       }
 
       // Insert inbound message
@@ -286,18 +364,22 @@ router.get("/:id", async (req, res, next) => {
     // 🧩 Prefer functions linked to the contact; otherwise provide recent functions as a fallback
     const functionsRes = message.related_contact
       ? await pool.query(
-          `SELECT DISTINCT f.id_uuid AS id, f.event_name
-           FROM functions f
-           LEFT JOIN function_contacts fc ON fc.function_id = f.id_uuid
-           WHERE f.contact_id::text = $1 OR fc.contact_id::text = $1
-           ORDER BY f.updated_at DESC NULLS LAST, f.event_date DESC NULLS LAST;`,
+          `SELECT DISTINCT ON (f.id_uuid)
+                  f.id_uuid AS id,
+                  f.event_name,
+                  f.updated_at,
+                  f.event_date
+             FROM functions f
+             LEFT JOIN function_contacts fc ON fc.function_id = f.id_uuid
+            WHERE f.contact_id::text = $1 OR fc.contact_id::text = $1
+            ORDER BY f.id_uuid, f.updated_at DESC NULLS LAST, f.event_date DESC NULLS LAST;`,
           [message.related_contact]
         )
       : await pool.query(
-          `SELECT f.id_uuid AS id, f.event_name
-           FROM functions f
-           ORDER BY f.updated_at DESC NULLS LAST, f.event_date DESC NULLS LAST
-           LIMIT 50;`
+          `SELECT f.id_uuid AS id, f.event_name, f.updated_at, f.event_date
+             FROM functions f
+         ORDER BY f.updated_at DESC NULLS LAST, f.event_date DESC NULLS LAST
+            LIMIT 50;`
         );
 
     // 🧩 Debug check

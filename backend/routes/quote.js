@@ -205,6 +205,8 @@ router.get("/proposal/client/:token", async (req, res) => {
       saved,
       itemsFallbackNote,
       clientMode: true,
+      acceptedDisplayDate: proposal.client_accepted_at || null,
+      hideChrome: true,
     });
   } catch (err) {
     console.error("[Client Proposal] Failed to load:", err);
@@ -244,6 +246,8 @@ router.post("/proposal/client/:token/accept", async (req, res) => {
         clientMode: true,
         successMessage: null,
         errorMessage: "You must agree to the Terms & Conditions to confirm.",
+        acceptedDisplayDate: proposal.client_accepted_at || null,
+        hideChrome: true,
       });
     }
 
@@ -271,15 +275,16 @@ router.post("/proposal/client/:token/accept", async (req, res) => {
       submitted_at: new Date().toISOString(),
     };
 
+    const acceptedAt = new Date();
     await pool.query(
       `UPDATE proposals
           SET client_status = $1,
-              client_accepted_at = NOW(),
-              client_accepted_by = $2,
-              client_ip = $3,
-              client_selection = $4
-        WHERE id = $5;`,
-      [action, clientName || proposal.client_accepted_by || null, req.ip, JSON.stringify(payload), proposal.id]
+              client_accepted_at = $2,
+              client_accepted_by = $3,
+              client_ip = $4,
+              client_selection = $5
+        WHERE id = $6;`,
+      [action, acceptedAt, clientName || proposal.client_accepted_by || null, req.ip, JSON.stringify(payload), proposal.id]
     );
 
     await pool.query(
@@ -305,18 +310,20 @@ router.post("/proposal/client/:token/accept", async (req, res) => {
       if (accessToken) {
         const link = `${getAppUrl(req)}/functions/proposal/client/${proposal.client_token}`;
         const summaryLines = selections
-          .map((s) => `• ${s.description} x${s.qty} (${s.include ? "included" : "excluded"})`)
-          .join("<br>");
+          .filter((s) => s.include)
+          .map((s) => `<li>${s.description} x${s.qty}</li>`)
+          .join("");
         const body = `
-          <p>Client submission received for <strong>${proposal.event_name || "Function"}</strong>.</p>
+          <p>${clientName || "Client"} submitted selections for <strong>${proposal.event_name || "Function"}</strong>.</p>
           <p><strong>Name:</strong> ${clientName || "n/a"}<br>
              <strong>IP:</strong> ${req.ip || "n/a"}</p>
-          <p><strong>Selections:</strong><br>${summaryLines || "No selections"}</p>
-          <p><a href="${link}">View proposal link</a></p>
+          <p><strong>Selections:</strong></p>
+          ${summaryLines ? `<ul>${summaryLines}</ul>` : "<p>No selections provided</p>"}
+          <p><a href="${link}">View proposal</a></p>
         `;
         await graphSendMail(accessToken, {
           to: process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz",
-          subject: `Client submission: ${proposal.event_name || "Function"}`,
+          subject: `${clientName || "Client"} - Porirua Club Events | Proposal submission`,
           body,
         });
         // Optional: log to communications if table exists
@@ -324,7 +331,7 @@ router.post("/proposal/client/:token/accept", async (req, res) => {
           await pool.query(
             `INSERT INTO communications (function_id, subject, body, direction, created_at)
                VALUES ($1, $2, $3, 'outbound', NOW())`,
-            [proposal.function_id, `Client submission: ${proposal.event_name || "Function"}`, body]
+            [proposal.function_id, `${clientName || "Client"} - Porirua Club Events | Proposal submission`, body]
           );
         } catch (e) {
           console.warn("Communications log skipped:", e.message);
@@ -391,7 +398,12 @@ router.post("/proposal/client/:token/accept", async (req, res) => {
         room_id: proposal.room_id,
       },
       proposalId: proposal.id,
-      proposal: { ...proposal, client_status: action },
+      proposal: {
+        ...proposal,
+        client_status: action,
+        client_accepted_by: clientName || proposal.client_accepted_by || null,
+        client_accepted_at: acceptedAt,
+      },
       items: itemsWithSelection,
       totals: totals || null,
       contacts: contactsRows,
@@ -399,11 +411,13 @@ router.post("/proposal/client/:token/accept", async (req, res) => {
       terms: termsContent,
       saved: { includeItemIds: [], includeContactIds: [], sections: [], terms: "" },
       clientMode: true,
+      acceptedDisplayDate: acceptedAt,
       successMessage:
         action === "accepted-final"
           ? "Thanks! Your selections have been submitted."
           : "Thanks! Your booking is confirmed. You can update menu selections later using this link.",
       errorMessage: null,
+      hideChrome: true,
     });
   } catch (err) {
     console.error("[Client Proposal] Failed to accept:", err);
@@ -469,8 +483,12 @@ router.post("/:functionId/proposal/apply-client", async (req, res) => {
       const meta = extractMetadata(row.description || "");
       const originalQty = Number(meta.qty || 1) || 1;
       const perUnit = (Number(row.unit_price) || 0) / originalQty || 0;
-      const newQty = Number(sel.qty || meta.qty || 1);
-      const includeFlag = Boolean(sel.include);
+      const newQty = Number(
+        sel.qty !== undefined && sel.qty !== null ? sel.qty : meta.qty || 1
+      );
+      // Default to included unless the client explicitly unchecked it
+      const includeFlag =
+        sel.include === undefined || sel.include === null ? true : Boolean(sel.include);
 
       meta.qty = newQty;
       meta.excluded = includeFlag ? false : true;
@@ -736,12 +754,17 @@ function applySelectionsToItems(items = [], selections = []) {
   return items.map((item) => {
     const sel = selMap.get(Number(item.id));
     if (!sel) return item;
-    const include = Boolean(sel.include);
+    // Default to included unless client explicitly unchecked
+    const include = sel.include === false ? false : true;
     const qty = Number(sel.qty || 1) || 1;
     // adjust description metadata for view only
     const baseLabel = stripAllMetadata(item.description || "");
     const meta = extractMetadata(item.description || "");
-    if (!include) meta.excluded = true;
+    if (!include) {
+      meta.excluded = true;
+    } else {
+      delete meta.excluded;
+    }
     meta.qty = qty;
     const metaString = Object.entries(meta)
       .filter(([, val]) => val !== undefined && val !== null && val !== "")
@@ -1002,6 +1025,21 @@ router.get("/:functionId/quote", async (req, res) => {
       proposalItems = itemsRes.rows;
       payments = payRes.rows;
       totals = totalsRes.rows[0] || null;
+
+      // Apply saved client selections so the quote UI reflects the client's choices
+      if (activeProposal.client_selection) {
+        let savedSel = activeProposal.client_selection;
+        if (typeof savedSel === "string") {
+          try {
+            savedSel = JSON.parse(savedSel);
+          } catch (e) {
+            savedSel = null;
+          }
+        }
+        if (savedSel?.selections) {
+          proposalItems = applySelectionsToItems(proposalItems, savedSel.selections);
+        }
+      }
     }
 
     if (!totals) {
@@ -1152,6 +1190,7 @@ router.get("/:functionId/quote", async (req, res) => {
       functionNotes,
       proposalStatus: activeProposal?.status || "draft",
       proposalStatusOptions: PROPOSAL_STATUSES,
+      hideChrome: false,
     });
   } catch (err) {
     console.error("[Quote] Error loading quote page:", err);
@@ -2357,7 +2396,7 @@ router.post("/:functionId/quote/send-client-email", async (req, res) => {
       (message && message.trim()) ||
       `Here is your proposal for ${fnName}${fnDate ? ` on ${fnDate}` : ""}. Please review and confirm using the link below.`;
 
-    const subject = `[Porirua Club – System] Proposal for ${fnName}`;
+    const subject = `${recipientName || fnName} - Porirua Club Events | Proposal`;
     const html = `
       <p>Hi ${recipientName || "there"},</p>
       <p>${bodyMessage}</p>
@@ -2375,11 +2414,12 @@ router.post("/:functionId/quote/send-client-email", async (req, res) => {
     await client.query(
       `
       INSERT INTO messages
-        (related_function, from_email, to_email, subject, body, body_html, created_at, message_type)
-      VALUES ($1, $2, $3, $4, $5, $6, NOW(), 'proposal');
+        (related_function, related_contact, from_email, to_email, subject, body, body_html, created_at, message_type)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), 'outbound');
       `,
       [
         fn?.id_uuid || functionId,
+        contact?.id || null,
         process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz",
         recipientEmail,
         subject,

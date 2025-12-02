@@ -354,20 +354,27 @@ router.post("/link/:fnId", async (req, res) => {
   const { fnId } = req.params;
   const { contact_id } = req.body;
 
-  if (!fnId || !contact_id)
+  if (!fnId || !contact_id) {
     return res.status(400).json({ success: false, message: "Missing function or contact ID" });
+  }
 
   try {
+    // Resolve contact whether the client sent id or id_uuid
+    const contact = await fetchContactRecord(contact_id);
+    if (!contact) {
+      return res.status(404).json({ success: false, message: "Contact not found" });
+    }
+
     await pool.query(
       `INSERT INTO function_contacts (function_id, contact_id, is_primary, created_at)
        VALUES ($1, $2, false, NOW())
        ON CONFLICT (function_id, contact_id) DO NOTHING;`,
-      [fnId, contact_id]
+      [fnId, contact.id]
     );
-    console.log(`🔗 [Contact LINK] Contact ${contact_id} linked to function ${fnId}`);
+    console.log(`[Contact LINK] Contact ${contact.id} linked to function ${fnId}`);
     res.json({ success: true });
   } catch (err) {
-    console.error("❌ [Contact LINK] Error:", err);
+    console.error("[Contact LINK] Error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -378,22 +385,29 @@ router.post("/link/:fnId", async (req, res) => {
 router.post("/:fnId/remove-contact", async (req, res) => {
   const { fnId } = req.params;
   const { contact_id } = req.body;
-  if (!fnId || !contact_id)
+  if (!fnId || !contact_id) {
     return res.status(400).json({ success: false, message: "Missing IDs" });
+  }
 
   try {
+    const contact = await fetchContactRecord(contact_id);
+    if (!contact) {
+      return res.status(404).json({ success: false, message: "Contact not found" });
+    }
+
     const { rowCount } = await pool.query(
       `DELETE FROM function_contacts WHERE function_id = $1 AND contact_id = $2;`,
-      [fnId, contact_id]
+      [fnId, contact.id]
     );
 
-    if (rowCount === 0)
+    if (rowCount === 0) {
       return res.status(404).json({ success: false, message: "Link not found" });
+    }
 
-    console.log(`🗑️ [Contact REMOVE] Contact ${contact_id} unlinked from function ${fnId}`);
+    console.log(`[Contact REMOVE] Contact ${contact.id} unlinked from function ${fnId}`);
     res.json({ success: true });
   } catch (err) {
-    console.error("❌ [Contact REMOVE] Error:", err);
+    console.error("[Contact REMOVE] Error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -473,3 +487,4 @@ router.delete("/:contactId", async (req, res) => {
 });
 
 module.exports = router;
+

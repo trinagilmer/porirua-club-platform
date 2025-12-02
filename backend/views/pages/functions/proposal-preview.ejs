@@ -8,6 +8,22 @@
       ? clientMode
       : false;
 
+  const formatFriendlyDate = (value) => {
+    if (!value) return '';
+    try {
+      return new Date(value).toLocaleDateString('en-NZ', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+    } catch (err) {
+      return '';
+    }
+  };
+
+  const acceptedDateDisplay = formatFriendlyDate(typeof acceptedDisplayDate !== 'undefined' ? acceptedDisplayDate : null);
+
   const successMessage =
     typeof locals.successMessage !== 'undefined'
       ? locals.successMessage
@@ -335,11 +351,11 @@
         <div class="row g-2 align-items-end mb-2">
           <div class="col-md-6">
             <label class="form-label">Your name</label>
-            <input type="text" class="form-control" name="client_name" form="clientProposalForm" required>
+            <input type="text" class="form-control" name="client_name" form="clientProposalForm" value="<%= proposal?.client_accepted_by || '' %>" required>
           </div>
           <div class="col-md-6 d-flex flex-column flex-sm-row gap-2 align-items-sm-center">
             <div class="form-check mb-0">
-              <input class="form-check-input" type="checkbox" value="yes" id="acceptTerms" name="accept_terms" form="clientProposalForm" required>
+              <input class="form-check-input" type="checkbox" value="yes" id="acceptTerms" name="accept_terms" form="clientProposalForm" <%= (proposal?.client_status || '').startsWith('accepted') ? 'checked' : '' %> required>
               <label class="form-check-label" for="acceptTerms">
                 I agree to the Terms &amp; Conditions.
               </label>
@@ -355,6 +371,9 @@
             </div>
           </div>
         </div>
+        <% if (acceptedDateDisplay) { %>
+          <div class="text-muted small mt-1">Agreement date: <%= acceptedDateDisplay %></div>
+        <% } %>
       </div>
     <% } %>
     <section class="proposal-terms card shadow-sm page-break" id="termsSection">
@@ -504,28 +523,40 @@
             tbody.appendChild(baseRow);
           }
 
+          const extractMeta = (desc) => {
+            const meta = {};
+            const re = /\[([a-z_]+):([^\]]+)\]/gi;
+            let m;
+            while ((m = re.exec(desc || ""))) {
+              meta[m[1].toLowerCase()] = m[2];
+            }
+            return meta;
+          };
+
           menu.items.forEach((item) => {
+            const meta = extractMeta(item.description || "");
+            const excluded = String(meta.excluded || item.excluded || "").toLowerCase() === "true";
+            if (excluded) return; // hide excluded items
+            const qtyVal = Number(meta.qty || item.qty || 1) || 1;
+
             const row = document.createElement('tr');
             const label = item.isAddon ? `${item.name} (Add-on)` : item.name;
             const includeControl =
               clientModeFlag && item.selectable
                 ? `<input type="checkbox" class="form-check-input client-include" name="item_${item.id}_include" ${
-                    item.excluded ? "" : "checked"
+                    excluded ? "" : "checked"
                   }>`
                 : '';
-            const qtyControl = clientModeFlag && item.selectable
-              ? `<input type="number" class="form-control form-control-sm client-qty" name="item_${item.id}_qty" value="${item.qty || 1}" min="1">`
-              : item.qty || 1;
             const priceEach = formatCurrency(item.priceEach);
-            const priceTotal = formatCurrency(item.price);
+            const priceTotal = formatCurrency(item.priceEach * qtyVal);
             row.innerHTML = `
               <td class="proposal-cell proposal-cell--item d-flex align-items-center gap-2">
                 ${includeControl}
                 <span>${label}</span>
               </td>
-              <td class="proposal-cell proposal-cell--qty">${qtyControl}</td>
+              <td class="proposal-cell proposal-cell--qty">${qtyVal}</td>
               <td class="proposal-cell proposal-cell--price">${priceEach}</td>
-              <td class="proposal-cell proposal-cell--total" data-base="${item.priceEach}" data-qty="${item.qty || 1}">${priceTotal}</td>
+              <td class="proposal-cell proposal-cell--total" data-base="${item.priceEach}" data-qty="${qtyVal}">${priceTotal}</td>
             `;
             tbody.appendChild(row);
           });
@@ -591,9 +622,8 @@
           const row = cell.closest('tr');
           const include = row.querySelector('.client-include');
           if (include && !include.checked) return;
-          const qtyInput = row.querySelector('.client-qty');
           const base = Number(cell.dataset.base || 0);
-          let qty = qtyInput ? Number(qtyInput.value || 0) : Number(cell.dataset.qty || 1);
+          let qty = Number(cell.dataset.qty || 1);
           if (!Number.isFinite(qty) || qty <= 0) qty = 1;
           subtotal += base * qty;
           cell.textContent = formatCurrency(base * qty);
@@ -612,7 +642,7 @@
         upd('fs-remaining', formatCurrency(remaining));
       };
       const handle = (e) => {
-        if (e.target.classList.contains('client-include') || e.target.classList.contains('client-qty')) {
+        if (e.target.classList.contains('client-include')) {
           updateTotals();
         }
       };

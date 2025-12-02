@@ -40,6 +40,11 @@
   .quote-menu-base-row { background: #eef2f6 !important; }
   .quote-menu-title { font-weight: 700; font-size: 0.95rem; }
   .quote-menu-item { font-size: 0.95rem; }
+  .quote-item-excluded { color: #c1121f !important; }
+  .quote-badge-show { background: #2f9d5d; color: #fff; }
+  .quote-badge-hide { background: #f1f3f5; color: #6c757d; border: 1px solid #d0d5db; }
+  .quote-badge-client { background: #4c6ef5; color: #fff; }
+  .quote-badge-locked { background: #f1f3f5; color: #6c757d; border: 1px solid #d0d5db; }
 </style>
 
 <div class="function-body py-4 px-4 quote-page">
@@ -71,29 +76,29 @@
         <div class="d-flex justify-content-between align-items-center mb-3">
           <span class="fw-semibold">Quote Totals</span>
           <div class="quote-actions d-flex gap-2 flex-wrap sticky-top bg-white border rounded p-2 shadow-sm">
-            <button id="saveQuoteBtn" class="btn btn-sm btn-outline-secondary">Save</button>
-            <button id="resetQuoteBtn" class="btn btn-sm btn-outline-danger">Reset</button>
-            <button id="editTotalsBtn" class="btn btn-sm btn-outline-primary" <%= proposals.length ? '' : 'disabled' %>>Edit</button>
-            <button id="resyncQuoteBtn" class="btn btn-sm btn-warning" <%= proposals.length ? '' : 'disabled' %>>
-              Refresh from menus
-            </button>
-            <span class="badge bg-light text-dark text-uppercase align-self-center">
-              Client: <%= clientStatus || 'draft' %>
-            </span>
-            <button id="sendClientLinkBtn" class="btn btn-sm btn-outline-success" <%= proposals.length ? '' : 'disabled' %>>
-              Email client link
-            </button>
-            <button id="copyClientLinkBtn" type="button" class="btn btn-sm btn-outline-secondary" data-link="<%= clientLink || '' %>" <%= clientLink ? '' : 'disabled' %>>
-              Copy client link
-            </button>
-            <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#quoteProposalBuilderCollapse" aria-expanded="false" aria-controls="quoteProposalBuilderCollapse">
-              Open builder
-            </button>
             <% if (proposals[0]?.client_selection) { %>
               <button id="applyClientSelectionBtn" class="btn btn-sm btn-success">
                 Apply client selections
               </button>
             <% } %>
+            <div class="dropdown">
+              <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                Actions
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                <li><a class="dropdown-item" href="#" id="saveQuoteDropdown">Save</a></li>
+                <li><a class="dropdown-item <%= proposals.length ? '' : 'disabled' %>" href="#" id="editTotalsDropdown">Edit totals</a></li>
+                <li><a class="dropdown-item <%= proposals.length ? '' : 'disabled' %>" href="#" id="resyncQuoteDropdown">Refresh from menus</a></li>
+                <li><a class="dropdown-item <%= clientLink ? '' : 'disabled' %>" href="#" id="copyClientLinkDropdown" data-link="<%= clientLink || '' %>">Copy client link</a></li>
+                <li><a class="dropdown-item <%= proposals.length ? '' : 'disabled' %>" href="#" id="sendClientLinkDropdown">Email client link</a></li>
+                <li><a class="dropdown-item" href="#" id="openBuilderDropdown">Open builder</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item text-danger <%= proposals.length ? '' : 'disabled' %>" href="#" id="resetQuoteDropdown">Reset quote</a></li>
+              </ul>
+            </div>
+            <span class="badge bg-light text-dark text-uppercase align-self-center">
+              Client: <%= clientStatus || 'draft' %>
+            </span>
           </div>
         </div>
         <dl class="row gy-2 gx-0 small">
@@ -121,7 +126,7 @@
           <p class="text-muted small mb-0">Open the builder to choose which menus, notes, contacts, and terms flow through to the customer proposal.</p>
         </div>
       </div>
-      <div class="collapse mt-3" id="quoteProposalBuilderCollapse">
+      <div class="collapse show mt-3" id="quoteProposalBuilderCollapse">
         <%- include('../../partials/proposal/builder', {
           fn,
           proposalId: proposals[0]?.id || null,
@@ -332,9 +337,17 @@
     categories: <%- JSON.stringify(categories || []) %>,
     units: <%- JSON.stringify(units || []) %>
   };
+  const existingMenuIds = Array.isArray(<%- JSON.stringify((proposalItems || []).map((item) => {
+    const match = String(item.description || "").match(/\\[menu_id:(\\d+)\\]/i);
+    return match ? Number(match[1]) : null;
+  }).filter(Boolean)) %>) ? <%- JSON.stringify((proposalItems || []).map((item) => {
+    const match = String(item.description || "").match(/\\[menu_id:(\\d+)\\]/i);
+    return match ? Number(match[1]) : null;
+  }).filter(Boolean)) %> : [];
   window.quoteMenuData = {
     categories: <%- JSON.stringify(categories || []) %>,
-    menus: <%- JSON.stringify(menus || []) %>
+    menus: <%- JSON.stringify(menus || []) %>,
+    existingMenuIds: existingMenuIds
   };
 </script>
 
@@ -370,6 +383,7 @@
     const addMenuBtn = document.getElementById('addMenuToQuoteBtn');
     const openDrawerBtn = document.getElementById('openMenuDrawerBtn');
     const createMenuBtn = document.getElementById('createMenuFromModalBtn');
+    const existingMenuIds = Array.isArray(window.quoteMenuData?.existingMenuIds) ? window.quoteMenuData.existingMenuIds : [];
 
     const fnId = window.fnContext?.id;
     const proposalId = window.fnContext?.proposalId;
@@ -575,17 +589,22 @@
                       <div class="fw-semibold">${menu.title}</div>
                       <div class="text-muted small">Menu ID: ${menu.menuId || 'n/a'}</div>
                       <div class="d-flex flex-wrap gap-2 mt-1">
-                        <span class="badge ${menu.baseExcluded ? 'bg-light text-muted border border-secondary' : 'bg-success text-white'}">${menu.baseExcluded ? 'Hidden from proposal' : 'Shown in proposal'}</span>
-                        <span class="badge ${menu.clientSelectable ? 'bg-primary text-white' : 'bg-light text-muted border border-secondary'}">${menu.clientSelectable ? 'Client can choose' : 'Client view locked'}</span>
-                        <span class="badge ${menu.clientAllowQty ? 'bg-info text-dark' : 'bg-light text-muted border border-secondary'}">${menu.clientAllowQty ? 'Client qty editable' : 'Client qty locked'}</span>
+                        <span class="badge ${menu.baseExcluded ? 'quote-badge-hide' : 'quote-badge-show'}">${menu.baseExcluded ? 'Hidden from proposal' : 'Shown in proposal'}</span>
+                        <span class="badge ${menu.clientSelectable ? 'quote-badge-client' : 'quote-badge-locked'}">${menu.clientSelectable ? 'Client can choose' : 'Client view locked'}</span>
                       </div>
                     </div>
-                    <div class="btn-group btn-group-sm">
-                      <button class="btn btn-outline-secondary menu-edit" data-menu-id="${menu.menuId || ''}">Edit</button>
-                      <button class="btn btn-outline-primary menu-resync" data-menu-id="${menu.menuId || ''}">Resync</button>
-                      <button class="btn btn-outline-success menu-client-select" data-menu-id="${menu.menuId || ''}" data-selectable="${menu.clientSelectable ? 'true' : 'false'}">${menu.clientSelectable ? 'Client selectable' : 'Client locked'}</button>
-                      <button class="btn btn-outline-dark menu-hide-proposal" data-menu-id="${menu.menuId || ''}" data-hidden="${menu.baseExcluded ? 'true' : 'false'}">${menu.baseExcluded ? 'Show in proposal' : 'Hide from proposal'}</button>
-                      <button class="btn btn-outline-danger menu-remove" data-menu-id="${menu.menuId || ''}">Remove</button>
+                    <div class="dropdown">
+                      <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        Menu options
+                      </button>
+                      <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                        <li><a class="dropdown-item menu-edit" href="#" data-menu-id="${menu.menuId || ''}">Edit menu</a></li>
+                        <li><a class="dropdown-item menu-resync" href="#" data-menu-id="${menu.menuId || ''}">Resync prices</a></li>
+                        <li><a class="dropdown-item menu-client-select" href="#" data-menu-id="${menu.menuId || ''}" data-selectable="${menu.clientSelectable ? 'true' : 'false'}">${menu.clientSelectable ? 'Lock client view' : 'Allow client selection'}</a></li>
+                        <li><a class="dropdown-item menu-hide-proposal" href="#" data-menu-id="${menu.menuId || ''}" data-hidden="${menu.baseExcluded ? 'true' : 'false'}">${menu.baseExcluded ? 'Show in proposal' : 'Hide from proposal'}</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger menu-remove" href="#" data-menu-id="${menu.menuId || ''}">Remove menu</a></li>
+                      </ul>
                     </div>
                   </div>
                 </caption>
@@ -619,7 +638,7 @@
             <td class="text-center">
               <input class="form-check-input include-toggle" type="checkbox" ${menu.baseExcluded ? '' : 'checked'}>
             </td>
-            <td class="quote-menu-title"><strong>${menu.title}</strong>${(menu.basePrice || 0) === 0 ? ' <span class="badge bg-light text-muted border border-secondary ms-1">Included</span>' : ''}</td>
+            <td class="quote-menu-title ${menu.baseExcluded ? 'quote-item-excluded' : ''}"><strong>${menu.title}</strong></td>
             <td>
               <input type="number" class="form-control form-control-sm qty-input" min="1" value="1">
             </td>
@@ -644,7 +663,7 @@
                 <td class="text-center">
                   <input class="form-check-input include-toggle" type="checkbox" ${includeChecked ? 'checked' : ''}>
                 </td>
-                <td class="quote-menu-item">${item.name}${(item.priceEach || 0) === 0 ? ' <span class="badge bg-light text-muted border border-secondary ms-1">Included</span>' : ''}</td>
+                <td class="quote-menu-item ${item.excluded ? 'quote-item-excluded' : ''}">${item.name}</td>
                 <td>
                   <input type="number" class="form-control form-control-sm qty-input" min="1" value="${qtyValue}">
                 </td>
@@ -701,6 +720,10 @@
       const qtyInput = row.querySelector('.qty-input');
       const priceInput = row.querySelector('.price-input');
       const costInput = row.querySelector('.cost-input');
+      const nameCell = row.querySelector('.quote-menu-title, .quote-menu-item');
+      if (nameCell) {
+        nameCell.classList.toggle('quote-item-excluded', !include);
+      }
 
       let qty = Number(qtyInput.value);
       if (!Number.isFinite(qty) || qty <= 0) {
@@ -745,6 +768,7 @@
     mount.addEventListener('click', async (event) => {
       const removeBtn = event.target.closest('.menu-remove');
       if (removeBtn) {
+        event.preventDefault();
         const menuId = removeBtn.dataset.menuId;
         if (!menuId) return;
         if (!confirm('Remove this menu (and related choices) from the quote?')) return;
@@ -766,6 +790,7 @@
 
       const resyncBtn = event.target.closest('.menu-resync');
       if (resyncBtn) {
+        event.preventDefault();
         const menuId = resyncBtn.dataset.menuId;
         if (!menuId) return;
         resyncBtn.disabled = true;
@@ -789,6 +814,7 @@
 
       const editBtn = event.target.closest('.menu-edit');
       if (editBtn) {
+        event.preventDefault();
         const menuId = editBtn.dataset.menuId;
         if (!menuId) return;
         try {
@@ -853,6 +879,23 @@
         menuSelect.appendChild(option);
       });
       menuSelect.disabled = menus.length === 0;
+      addMenuBtn.disabled = menuSelect.value === '';
+      if (openDrawerBtn) openDrawerBtn.disabled = menuSelect.value === '';
+    }
+
+    function preselectExistingMenu() {
+      if (!categorySelect || !menuSelect) return;
+      if (!existingMenuIds.length) return;
+      const firstMenuId = existingMenuIds[0];
+      const menus = window.quoteMenuData?.menus || [];
+      const found = menus.find((m) => Number(m.id) === Number(firstMenuId));
+      if (!found) return;
+      const catId = found.category_id;
+      if (catId != null) {
+        categorySelect.value = String(catId);
+      }
+      populateMenus();
+      menuSelect.value = String(firstMenuId);
       addMenuBtn.disabled = menuSelect.value === '';
       if (openDrawerBtn) openDrawerBtn.disabled = menuSelect.value === '';
     }
@@ -932,6 +975,15 @@
     const sendClientEmailSubmit = document.getElementById('sendClientEmailSubmit');
     const applyClientSelectionBtn = document.getElementById('applyClientSelectionBtn');
 
+    async function readJsonSafe(res) {
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        return { success: false, error: text || 'Unexpected response from server' };
+      }
+    }
+
     function formatEventDateForEmail(value) {
       if (!value) return '';
       try {
@@ -965,13 +1017,14 @@
       clientNameInput.value = name || clientNameInput.value;
     }
 
-    sendClientLinkBtn?.addEventListener('click', () => {
+    const triggerSendClient = () => {
       if (!fnId) return;
       applySelectedContact();
       seedEmailDraft();
       const modal = bootstrap.Modal.getOrCreateInstance(sendClientEmailModalEl);
       modal.show();
-    });
+    };
+    sendClientLinkBtn?.addEventListener('click', triggerSendClient);
 
     clientEmailSelect?.addEventListener('change', () => {
       applySelectedContact();
@@ -995,7 +1048,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
-        const data = await res.json();
+        const data = await readJsonSafe(res);
         if (!data.success) throw new Error(data.error || 'Failed to send email');
         quoteToast(`Email sent to ${data.sentTo || 'recipient'}. Saved to Sent Items.`, 'success');
         bootstrap.Modal.getInstance(sendClientEmailModalEl)?.hide();
@@ -1018,10 +1071,66 @@
       }
     });
 
-    resetQuoteBtn?.addEventListener('click', async () => {
+    // Dropdown mirrors for actions
+    const sendClientLinkDropdown = document.getElementById('sendClientLinkDropdown');
+    const copyClientLinkDropdown = document.getElementById('copyClientLinkDropdown');
+    const saveQuoteDropdown = document.getElementById('saveQuoteDropdown');
+    const editTotalsDropdown = document.getElementById('editTotalsDropdown');
+    const resyncQuoteDropdown = document.getElementById('resyncQuoteDropdown');
+    const resetQuoteDropdown = document.getElementById('resetQuoteDropdown');
+    const openBuilderDropdown = document.getElementById('openBuilderDropdown');
+
+    sendClientLinkDropdown?.addEventListener('click', (e) => { e.preventDefault(); triggerSendClient(); });
+    copyClientLinkDropdown?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const link = (copyClientLinkBtn?.dataset?.link || copyClientLinkDropdown?.dataset?.link || '').trim();
+      if (!link) return;
+      try {
+        await navigator.clipboard.writeText(link);
+        quoteToast('Client link copied to clipboard.', 'success');
+      } catch (err) {
+        console.error(err);
+        quoteToast('Failed to copy link.', 'danger');
+      }
+    });
+    saveQuoteDropdown?.addEventListener('click', (e) => { e.preventDefault(); window.location.reload(); });
+
+    const resyncQuoteBtn = document.getElementById('resyncQuoteBtn');
+    resyncQuoteDropdown?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (!fnId) return;
+      if (!confirm('Refresh prices from current menus? This will overwrite manual price edits on this quote.')) return;
+      if (resyncQuoteBtn) resyncQuoteBtn.disabled = true;
+      try {
+        const res = await fetch(`/functions/${fnId}/quote/resync-all`, { method: 'POST' });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to refresh pricing');
+        location.reload();
+      } catch (err) {
+        console.error(err);
+        quoteToast(err.message || 'Refresh failed.', 'danger');
+      } finally {
+        if (resyncQuoteBtn) resyncQuoteBtn.disabled = false;
+      }
+    });
+
+    editTotalsDropdown?.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (!editTotalsBtn) return;
+      const drawer = new bootstrap.Offcanvas(document.getElementById('totalsDrawer'));
+      drawer.show();
+    });
+
+    resetQuoteDropdown?.addEventListener('click', (e) => { e.preventDefault(); handleResetQuote(); });
+    openBuilderDropdown?.addEventListener('click', (e) => {
+      e.preventDefault();
+      const btn = document.querySelector('[data-bs-target="#quoteProposalBuilderCollapse"]');
+      if (btn) btn.click();
+    });
+    async function handleResetQuote() {
       if (!fnId) return;
       if (!confirm('Reset quote totals and remove all menu items?')) return;
-      resetQuoteBtn.disabled = true;
+      if (resetQuoteBtn) resetQuoteBtn.disabled = true;
       try {
         const res = await fetch(`/functions/${fnId}/quote/reset`, {
           method: 'POST',
@@ -1033,36 +1142,17 @@
         console.error(err);
         quoteToast(err.message || 'Reset failed.', 'danger');
       } finally {
-        resetQuoteBtn.disabled = false;
+        if (resetQuoteBtn) resetQuoteBtn.disabled = false;
       }
-    });
-
-    const resyncQuoteBtn = document.getElementById('resyncQuoteBtn');
-    resyncQuoteBtn?.addEventListener('click', async () => {
-      if (!fnId) return;
-      if (!confirm('Refresh prices from current menus? This will overwrite manual price edits on this quote.')) return;
-      resyncQuoteBtn.disabled = true;
-      try {
-        const res = await fetch(`/functions/${fnId}/quote/resync-all`, {
-          method: 'POST',
-        });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'Failed to refresh pricing');
-        location.reload();
-      } catch (err) {
-        console.error(err);
-        quoteToast(err.message || 'Refresh failed.', 'danger');
-      } finally {
-        resyncQuoteBtn.disabled = false;
-      }
-    });
+    }
+    resetQuoteBtn?.addEventListener('click', handleResetQuote);
 
     applyClientSelectionBtn?.addEventListener('click', async () => {
       if (!fnId) return;
       applyClientSelectionBtn.disabled = true;
       try {
         const res = await fetch(`/functions/${fnId}/proposal/apply-client`, { method: 'POST' });
-        const data = await res.json();
+        const data = await readJsonSafe(res);
         if (!data.success) throw new Error(data.error || 'Failed to apply client selections');
         quoteToast('Client selections applied to quote.', 'success');
         setTimeout(() => window.location.reload(), 500);
@@ -1077,6 +1167,7 @@
     mount.addEventListener('click', async (event) => {
       const clientSelectBtn = event.target.closest('.menu-client-select');
       if (clientSelectBtn) {
+        event.preventDefault();
         const menuId = clientSelectBtn.dataset.menuId;
         if (!menuId) return;
         const currentlySelectable = clientSelectBtn.dataset.selectable === 'true';
@@ -1091,10 +1182,10 @@
           const data = await res.json();
           if (!data.success) throw new Error(data.error || 'Failed to mark menu client-selectable');
           clientSelectBtn.dataset.selectable = desiredFlag ? 'true' : 'false';
-          clientSelectBtn.textContent = desiredFlag ? 'Client selectable' : 'Client locked';
+          clientSelectBtn.textContent = desiredFlag ? 'Lock client view' : 'Allow client selection';
           const badges = clientSelectBtn.closest('caption')?.querySelectorAll('.badge');
           if (badges && badges[1]) {
-            badges[1].className = desiredFlag ? 'badge bg-primary text-white' : 'badge bg-light text-muted border border-secondary';
+            badges[1].className = desiredFlag ? 'badge quote-badge-client' : 'badge quote-badge-locked';
             badges[1].textContent = desiredFlag ? 'Client can choose' : 'Client view locked';
           }
           quoteToast(desiredFlag ? 'Menu marked client-selectable.' : 'Client selection disabled for this menu.', desiredFlag ? 'primary' : 'secondary');
@@ -1109,6 +1200,7 @@
 
       const hideBtn = event.target.closest('.menu-hide-proposal');
       if (hideBtn) {
+        event.preventDefault();
         const menuId = hideBtn.dataset.menuId;
         if (!menuId) return;
         const currentlyHidden = hideBtn.dataset.hidden === 'true';
@@ -1128,10 +1220,10 @@
           const badge = caption?.querySelector('.badge');
           if (badge) {
             if (desiredHide) {
-              badge.className = 'badge bg-light text-muted border border-secondary';
+              badge.className = 'badge quote-badge-hide';
               badge.textContent = 'Hidden from proposal';
             } else {
-              badge.className = 'badge bg-success text-white';
+              badge.className = 'badge quote-badge-show';
               badge.textContent = 'Shown in proposal';
             }
           }
@@ -1150,6 +1242,7 @@
     populateMenus();
     if (list) render();
     if (proposalId) fetchTotals();
+    preselectExistingMenu();
   });
 </script>
 
