@@ -2416,90 +2416,154 @@ router.post(
   ensurePrivileged,
   entertainmentImageUpload.single("image_file"),
   async (req, res) => {
-  try {
-    const {
-      id,
-      title,
-      start_date,
-      start_time,
-      end_date,
-      end_time,
-      adjunct_name,
-      external_url,
-      organiser,
-      room_id,
-      price,
-      description,
-      image_url,
-      status,
-      display_type,
-    } = req.body;
-
-    if (!id || !title?.trim()) {
-      req.flash("flashMessage", "⚠️ Missing event details.");
-      req.flash("flashType", "warning");
-      return res.redirect("/settings/entertainment");
-    }
-
-    const startAt = start_date && start_time ? combineDateAndTime(start_date, start_time) : null;
-    const endAt = end_date && end_time ? combineDateAndTime(end_date, end_time) : null;
-    const statusValue = (status || "draft").toLowerCase();
-    const userId = req.session.user?.id || null;
-    const acts = parseIdArray(req.body.acts);
-    const imagePath = req.file ? `/uploads/entertainment/${req.file.filename}` : image_url || null;
-    const roomId = parseOptionalInteger(room_id);
-
-    await pool.query(
-      `
-      UPDATE entertainment_events
-         SET title = $1,
-             adjunct_name = $2,
-             external_url = $3,
-             organiser = $4,
-             room_id = $5,
-             price = $6,
-             description = $7,
-             display_type = $8,
-             image_url = $9,
-             start_at = COALESCE($10, start_at),
-             end_at = $11,
-             status = $12,
-             updated_by = $13,
-             updated_at = NOW()
-       WHERE id = $14;
-      `,
-      [
-        title.trim(),
-        adjunct_name || null,
-        external_url || null,
-        organiser || null,
-        roomId,
-        price || null,
-        description || null,
-        display_type === "regularevents" ? "regularevents" : "entertainment",
-        imagePath,
-        startAt,
-        endAt,
-        statusValue,
-        userId,
+    let client;
+    try {
+      const {
         id,
-      ]
-    );
+        title,
+        start_date,
+        start_time,
+        end_date,
+        end_time,
+        adjunct_name,
+        external_url,
+        organiser,
+        room_id,
+        price,
+        description,
+        image_url,
+        status,
+        display_type,
+        series_scope,
+      } = req.body;
 
-    await syncEntertainmentEventActs(id, acts);
+      if (!id || !title?.trim()) {
+        req.flash("flashMessage", "⚠️ Missing event details.");
+        req.flash("flashType", "warning");
+        return res.redirect("/settings/entertainment");
+      }
 
-    req.flash("flashMessage", "✅ Entertainment event updated.");
-    req.flash("flashType", "success");
-    res.redirect("/settings/entertainment");
-  } catch (err) {
-    console.error("❌ Error updating entertainment event:", err);
-    req.flash("flashMessage", "❌ Failed to update entertainment event.");
-    req.flash("flashType", "error");
-    res.redirect("/settings/entertainment");
-  }
+      const startTimeClean = typeof start_time === "string" ? start_time.trim() : "";
+      const endTimeClean = typeof end_time === "string" ? end_time.trim() : "";
+      const statusValue = (status || "draft").toLowerCase();
+      const userId = req.session.user?.id || null;
+      const acts = parseIdArray(req.body.acts);
+      const imagePath = req.file ? `/uploads/entertainment/${req.file.filename}` : image_url || null;
+      const roomId = parseOptionalInteger(room_id);
+      const displayTypeValue = display_type === "regularevents" ? "regularevents" : "entertainment";
+      const scopeRaw = (series_scope || "").toLowerCase();
+
+      const startAtSingle = start_date && startTimeClean ? combineDateAndTime(start_date, startTimeClean) : null;
+      const endAtSingle = end_date && endTimeClean ? combineDateAndTime(end_date, endTimeClean) : null;
+
+      const toDateOnly = (value) => {
+        if (!value) return null;
+        const d = value instanceof Date ? value : new Date(value);
+        return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+      };
+
+      const updateOne = async (db, eventId, startAtValue, endAtValue) => {
+        await db.query(
+          `
+          UPDATE entertainment_events
+             SET title = $1,
+                 adjunct_name = $2,
+                 external_url = $3,
+                 organiser = $4,
+                 room_id = $5,
+                 price = $6,
+                 description = $7,
+                 display_type = $8,
+                 image_url = $9,
+                 start_at = COALESCE($10, start_at),
+                 end_at = $11,
+                 status = $12,
+                 updated_by = $13,
+                 updated_at = NOW()
+           WHERE id = $14;
+          `,
+          [
+            title.trim(),
+            adjunct_name || null,
+            external_url || null,
+            organiser || null,
+            roomId,
+            price || null,
+            description || null,
+            displayTypeValue,
+            imagePath,
+            startAtValue,
+            endAtValue,
+            statusValue,
+            userId,
+            eventId,
+          ]
+        );
+        await syncEntertainmentEventActs(eventId, acts, db);
+      };
+
+      client = await pool.connect();
+      await client.query("BEGIN");
+
+      const { rows: currentRows } = await client.query(
+        `SELECT id, series_id, series_order, start_at, end_at FROM entertainment_events WHERE id = $1 LIMIT 1;`,
+        [id]
+      );
+      const current = currentRows[0];
+      if (!current) throw new Error("Event not found");
+
+      const hasSeries = current.series_id !== null && current.series_id !== undefined;
+      const effectiveScope = hasSeries && ["single", "all", "future"].includes(scopeRaw) ? scopeRaw : "single";
+
+      if (effectiveScope === "single") {
+        await updateOne(client, id, startAtSingle, endAtSingle);
+      } else {
+        const params = effectiveScope === "future" ? [current.series_id, current.series_order] : [current.series_id];
+        const whereClause = effectiveScope === "future" ? "AND series_order >= $2" : "";
+        const { rows: seriesEvents } = await client.query(
+          `
+          SELECT id, start_at, end_at, series_order
+            FROM entertainment_events
+           WHERE series_id = $1 ${whereClause}
+           ORDER BY series_order ASC;
+          `,
+          params
+        );
+
+        for (const ev of seriesEvents) {
+          const dateIso = toDateOnly(ev.start_at);
+          const startValue = startTimeClean && dateIso
+            ? combineDateAndTime(dateIso, startTimeClean)
+            : ev.start_at;
+          let endValue = ev.end_at;
+          if (endTimeClean === "") {
+            endValue = null;
+          } else if (endTimeClean && dateIso) {
+            endValue = combineDateAndTime(dateIso, endTimeClean);
+          }
+          await updateOne(client, ev.id, startValue, endValue);
+        }
+      }
+
+      await client.query("COMMIT");
+      req.flash("flashMessage", "Entertainment event updated.");
+      req.flash("flashType", "success");
+      res.redirect("/settings/entertainment");
+    } catch (err) {
+      console.error("❌ Error updating entertainment event:", err);
+      try {
+        if (client) await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("❌ Failed to rollback entertainment update:", rollbackErr);
+      }
+      req.flash("flashMessage", "❌ Failed to update entertainment event.");
+      req.flash("flashType", "error");
+      res.redirect("/settings/entertainment");
+    } finally {
+      if (client) client.release();
+    }
   }
 );
-
 router.post("/entertainment/delete", ensurePrivileged, async (req, res) => {
   try {
     const { id } = req.body;
@@ -2521,33 +2585,44 @@ router.post("/entertainment/delete", ensurePrivileged, async (req, res) => {
 });
 
 router.post("/entertainment/acts/add", ensurePrivileged, async (req, res) => {
+  const wantsJson =
+    req.xhr ||
+    (req.headers.accept || "").includes("application/json") ||
+    (req.headers["content-type"] || "").includes("application/json");
   try {
     const name = (req.body.name || "").trim();
     const externalUrl = req.body.external_url || null;
     if (!name) {
+      if (wantsJson) return res.status(400).json({ success: false, message: "Act name is required." });
       req.flash("flashMessage", "⚠️ Act name is required.");
       req.flash("flashType", "warning");
       return res.redirect("/settings/entertainment");
     }
-    await pool.query(
+    const { rows } = await pool.query(
       `
       INSERT INTO entertainment_acts (name, external_url, created_at, updated_at)
       VALUES ($1, $2, NOW(), NOW())
-      ON CONFLICT (name) DO UPDATE SET external_url = EXCLUDED.external_url, updated_at = NOW();
+      ON CONFLICT (name) DO UPDATE
+        SET external_url = EXCLUDED.external_url,
+            updated_at = NOW()
+      RETURNING id, name, external_url;
       `,
       [name, externalUrl]
     );
+    if (wantsJson) {
+      return res.json({ success: true, act: rows[0] });
+    }
     req.flash("flashMessage", "✅ Act saved.");
     req.flash("flashType", "success");
     res.redirect("/settings/entertainment");
   } catch (err) {
     console.error("❌ Error saving act:", err);
+    if (wantsJson) return res.status(500).json({ success: false, message: "Failed to save act." });
     req.flash("flashMessage", "❌ Failed to save act.");
     req.flash("flashType", "error");
     res.redirect("/settings/entertainment");
   }
 });
-
 router.post("/entertainment/acts/delete", ensurePrivileged, async (req, res) => {
   try {
     const { id } = req.body;

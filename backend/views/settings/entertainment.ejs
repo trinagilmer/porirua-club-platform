@@ -193,6 +193,35 @@
           </div>
           <div class="col-12">
             <div class="border rounded-3 p-3 bg-light-subtle">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <div class="fw-semibold small mb-1">Quick add act</div>
+                  <div class="text-muted small">Create a new act without leaving this form.</div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleQuickAct">
+                  Add act
+                </button>
+              </div>
+              <div class="mt-3 d-none" id="quickActForm">
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <label class="form-label form-label-sm">Act name</label>
+                    <input type="text" class="form-control form-control-sm" id="quickActName" placeholder="e.g. The Originals">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label form-label-sm">External URL (optional)</label>
+                    <input type="url" class="form-control form-control-sm" id="quickActUrl" placeholder="https://...">
+                  </div>
+                  <div class="col-12 d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-primary" id="quickActSubmit">Save act</button>
+                    <span class="small text-muted" id="quickActStatus"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="border rounded-3 p-3 bg-light-subtle">
               <h6 class="mb-2">Repeat event</h6>
               <div class="row g-3">
                 <div class="col-md-4">
@@ -349,6 +378,22 @@
             <label class="form-label">Description</label>
             <textarea name="description" id="entEditDescription" rows="4" class="form-control"></textarea>
           </div>
+          <div class="col-12 d-none" id="entEditSeriesScopeWrap">
+            <label class="form-label">Apply changes to</label>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="series_scope" id="entScopeSingle" value="single" checked>
+              <label class="form-check-label" for="entScopeSingle">Only this event</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="series_scope" id="entScopeFuture" value="future">
+              <label class="form-check-label" for="entScopeFuture">This and all future events in the series</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="series_scope" id="entScopeAll" value="all">
+              <label class="form-check-label" for="entScopeAll">All events in the series</label>
+            </div>
+            <small class="text-muted">Shown for repeating events.</small>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -411,6 +456,88 @@
 
 <script>
   document.addEventListener("DOMContentLoaded", () => {
+    const addActsSelect = document.querySelector('select[name="acts[]"]');
+    const editActsSelect = document.getElementById("entEditActs");
+    const quickToggle = document.getElementById("toggleQuickAct");
+    const quickForm = document.getElementById("quickActForm");
+    const quickName = document.getElementById("quickActName");
+    const quickUrl = document.getElementById("quickActUrl");
+    const quickSubmit = document.getElementById("quickActSubmit");
+    const quickStatus = document.getElementById("quickActStatus");
+    const seriesScopeWrap = document.getElementById("entEditSeriesScopeWrap");
+    const seriesScopeSingle = document.getElementById("entScopeSingle");
+    const seriesScopeFuture = document.getElementById("entScopeFuture");
+    const seriesScopeAll = document.getElementById("entScopeAll");
+
+    const setScopeVisibility = (visible) => {
+      if (!seriesScopeWrap) return;
+      seriesScopeWrap.classList.toggle("d-none", !visible);
+      const target = seriesScopeSingle || seriesScopeFuture || seriesScopeAll;
+      if (target) target.checked = true;
+    };
+
+    const upsertActOption = (select, act, selectIt = false) => {
+      if (!select || !act) return;
+      const existing = Array.from(select.options).find((opt) => Number(opt.value) === Number(act.id));
+      if (existing) {
+        existing.textContent = act.name;
+        if (selectIt) existing.selected = true;
+        return;
+      }
+      const opt = document.createElement("option");
+      opt.value = act.id;
+      opt.textContent = act.name;
+      if (selectIt) opt.selected = true;
+      select.appendChild(opt);
+    };
+
+    const showQuickStatus = (message, isError = false) => {
+      if (!quickStatus) return;
+      quickStatus.textContent = message || "";
+      quickStatus.classList.toggle("text-danger", Boolean(isError));
+    };
+
+    quickToggle?.addEventListener("click", () => {
+      if (!quickForm) return;
+      quickForm.classList.toggle("d-none");
+      if (!quickForm.classList.contains("d-none")) {
+        quickName?.focus();
+      }
+    });
+
+    quickSubmit?.addEventListener("click", async () => {
+      const name = (quickName?.value || "").trim();
+      const external_url = (quickUrl?.value || "").trim();
+      if (!name) {
+        showQuickStatus("Act name is required", true);
+        quickName?.focus();
+        return;
+      }
+      showQuickStatus("Saving...");
+      try {
+        const resp = await fetch("/settings/entertainment/acts/add", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ name, external_url: external_url || null }),
+        });
+        const data = await resp.json().catch(() => null);
+        if (!resp.ok || !data?.success || !data.act) {
+          throw new Error(data?.message || "Failed to save act");
+        }
+        upsertActOption(addActsSelect, data.act, true);
+        upsertActOption(editActsSelect, data.act, false);
+        if (quickName) quickName.value = "";
+        if (quickUrl) quickUrl.value = "";
+        showQuickStatus("Added and selected.");
+      } catch (err) {
+        console.error("Quick add act failed", err);
+        showQuickStatus(err.message || "Failed to save act", true);
+      }
+    });
+
     const editModal = document.getElementById("editEntertainmentModal");
     editModal?.addEventListener("show.bs.modal", (event) => {
       const button = event.relatedTarget;
@@ -453,6 +580,11 @@
           Array.from(select.options).forEach((option) => {
             option.selected = selectedIds.includes(Number(option.value));
           });
+        }
+        if (record.series_id) {
+          setScopeVisibility(true);
+        } else {
+          setScopeVisibility(false);
         }
       } catch (err) {
         console.error("Failed to load event data", err);
