@@ -19,6 +19,7 @@
 @use 'components/dashboard'; 
 @use "components/menu";
 @use "components/calendar";
+@use "components/entertainment";
 
 
 // Panels & overlay should be AFTER the place where `.hidden` is defined

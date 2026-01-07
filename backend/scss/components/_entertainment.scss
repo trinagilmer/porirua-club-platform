@@ -1,0 +1,201 @@
+@use "../core/variables" as *;
+
+.entertainment-page {
+  .ent-calendar-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+  }
+
+  .ent-toggle .btn,
+  .ent-view-toggle .btn {
+    border-radius: 999px;
+    font-weight: 600;
+  }
+
+  .ent-view-toggle .btn.active {
+    background: $brand;
+    border-color: $brand;
+    color: #fff;
+  }
+}
+
+.ent-calendar-shell {
+  border-radius: 1.25rem;
+  background: #fff;
+  overflow: hidden;
+  box-shadow: $shadow-md;
+}
+
+.ent-calendar-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid $neutral-200;
+  background: linear-gradient(135deg, #f8fbff 0%, #ffffff 60%);
+}
+
+.ent-calendar-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: $neutral-900;
+  letter-spacing: -0.01em;
+}
+
+.ent-calendar-subtitle {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: $neutral-500;
+}
+
+.ent-calendar-nav {
+  display: flex;
+  gap: 0.5rem;
+
+  .btn {
+    border-radius: 999px;
+    border: 1px solid $neutral-200;
+    background: #f8fafc;
+    color: $neutral-700;
+    font-weight: 600;
+    padding: 0.35rem 0.9rem;
+
+    &:hover {
+      border-color: $brand;
+      color: $brand-dark;
+      background: #fff;
+    }
+  }
+}
+
+.ent-calendar {
+  padding: 1rem 1.25rem 1.5rem;
+
+  .fc {
+    --fc-border-color: #e5e7eb;
+    --fc-page-bg-color: #ffffff;
+    --fc-event-text-color: #0f172a;
+    --fc-today-bg-color: #f0f7ff;
+    font-family: $font-family-base;
+  }
+
+  .fc .fc-toolbar-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+
+  .fc .fc-col-header-cell-cushion {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.65rem;
+    color: $neutral-500;
+    padding: 0.6rem 0;
+  }
+
+  .fc .fc-daygrid-day-number {
+    font-weight: 700;
+    color: $brand-dark;
+    padding: 0.35rem 0.5rem 0;
+  }
+
+  .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+    color: $neutral-900;
+  }
+
+  .fc .fc-daygrid-event,
+  .fc .fc-timegrid-event {
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+    border: 0;
+    box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08);
+  }
+
+  .fc-dayGridMonth-view .fc-event {
+    background-color: $brand-light !important;
+    border-color: $brand-light !important;
+    color: #0f172a !important;
+  }
+
+  .fc-dayGridMonth-view .fc-event .fc-event-title,
+  .fc-dayGridMonth-view .fc-event .fc-event-time {
+    color: #0f172a !important;
+  }
+
+  .fc .fc-event-title {
+    font-weight: 600;
+  }
+
+  .fc .fc-list {
+    border: 1px solid $neutral-200;
+    border-radius: 0.85rem;
+    overflow: hidden;
+  }
+
+  .fc .fc-list-day-cushion {
+    background: #f8fafc;
+    font-weight: 600;
+    color: $neutral-700;
+  }
+
+  .fc .fc-list-event:hover td {
+    background: #f8fbff;
+  }
+
+  .fc .fc-list-event-time {
+    color: $neutral-600;
+    font-weight: 600;
+  }
+}
+
+.ent-pinboard-shell {
+  margin-top: 1.5rem;
+}
+
+.ent-card {
+  border: none;
+  border-radius: 1.25rem;
+  overflow: hidden;
+  background: #0f172a;
+  color: #fff;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 18px 35px rgba(15, 23, 42, 0.35);
+  }
+
+  .card-body {
+    background: linear-gradient(160deg, rgba(15, 23, 42, 0.95), rgba(30, 64, 175, 0.9));
+  }
+}
+
+.regular-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 18px 35px rgba(15, 23, 42, 0.15);
+  }
+}
+
+.entertainment-card-img {
+  width: 100%;
+  height: auto;
+  max-height: 240px;
+  object-fit: contain;
+  background: #0b1220;
+  display: block;
+}
+
+.ent-date {
+  display: inline-block;
+  padding: 0;
+  background: transparent;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}

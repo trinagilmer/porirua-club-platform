@@ -1,8 +1,10 @@
-<div class="entertainment-hero d-flex flex-column align-items-center text-center py-4 position-relative overflow-hidden" style="background: linear-gradient(120deg, #0f172a, #1d4ed8);">
-  <div class="hero-content text-white position-relative">
-    <%- entertainmentHeaderHtml || '<p class="text-uppercase fw-semibold tracking-wide mb-1">Porirua Club</p><h1 class="display-5 fw-bold mb-2">Live entertainment &amp; events</h1>' %>
+<% if (showEntertainmentHeader) { %>
+  <div class="entertainment-hero d-flex flex-column align-items-center text-center py-4 position-relative overflow-hidden" style="background: linear-gradient(120deg, #0f172a, #1d4ed8);">
+    <div class="hero-content text-white position-relative">
+      <%- entertainmentHeaderHtml || '<p class="text-uppercase fw-semibold tracking-wide mb-1">Porirua Club</p><h1 class="display-5 fw-bold mb-2">Live entertainment &amp; events</h1>' %>
+    </div>
   </div>
-</div>
+<% } %>
 
 <div class="container py-5">
   <div class="mb-4">

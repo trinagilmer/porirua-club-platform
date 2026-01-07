@@ -301,6 +301,20 @@ function slugify(value) {
     .substring(0, 80);
 }
 
+function normalizeHexColor(value) {
+  const cleaned = String(value || "").trim();
+  if (!cleaned) return null;
+  if (/^#[0-9a-fA-F]{6}$/.test(cleaned)) return cleaned;
+  if (/^[0-9a-fA-F]{6}$/.test(cleaned)) return `#${cleaned}`;
+  return null;
+}
+
+async function ensureEntertainmentColorColumn() {
+  await pool.query(
+    "ALTER TABLE entertainment_events ADD COLUMN IF NOT EXISTS event_color TEXT;"
+  );
+}
+
 function combineDateAndTime(dateValue, timeValue) {
   if (!dateValue) return null;
   const datePart = String(dateValue).trim();
@@ -374,7 +388,7 @@ router.get("/", (req, res) => res.redirect("/settings/overview"));
 // Manuals
 // ------------------------------------------------------
 router.get("/manuals/functions", (req, res) => {
-  res.render("settings/manuals/functions", {
+  res.render("settings/manuals/functions-white-paper", {
     layout: "layouts/settings",
     title: "Functions Manual",
     pageType: "settings",
@@ -2232,6 +2246,7 @@ router.post("/calendar", ensurePrivileged, async (req, res) => {
 ========================================================= */
 router.get("/entertainment", ensurePrivileged, async (req, res) => {
   try {
+    await ensureEntertainmentColorColumn();
     const eventsRes = await pool.query(
       `
       SELECT e.*,
@@ -2261,6 +2276,7 @@ router.get("/entertainment", ensurePrivileged, async (req, res) => {
     const roomsRes = await pool.query(
       `SELECT id, name FROM rooms ORDER BY name ASC;`
     );
+    const feedbackSettings = await getFeedbackSettings();
     const prefillEntertainment = {
       title: req.query.title || "",
       start_date: req.query.prefill_date || req.query.start_date || "",
@@ -2276,6 +2292,9 @@ router.get("/entertainment", ensurePrivileged, async (req, res) => {
       rooms: roomsRes.rows,
       user: req.session.user || null,
       prefillEntertainment,
+      showEntertainmentHeader: feedbackSettings.show_entertainment_header,
+      flashMessage: req.flash?.("flashMessage"),
+      flashType: req.flash?.("flashType"),
     });
   } catch (err) {
     console.error("❌ Error loading entertainment events:", err);
@@ -2283,6 +2302,29 @@ router.get("/entertainment", ensurePrivileged, async (req, res) => {
     req.flash("flashType", "error");
     res.redirect("/settings");
   }
+});
+
+router.post("/entertainment/header", ensurePrivileged, async (req, res) => {
+  try {
+    const settings = await getFeedbackSettings();
+    const showHeader = parseBooleanField(req.body.show_entertainment_header);
+    await pool.query(
+      `
+      UPDATE feedback_settings
+         SET show_entertainment_header = $1,
+             updated_at = NOW()
+       WHERE id = $2;
+      `,
+      [showHeader, settings.id]
+    );
+    req.flash("flashMessage", "Entertainment header updated.");
+    req.flash("flashType", "success");
+  } catch (err) {
+    console.error("? Error updating entertainment header toggle:", err);
+    req.flash("flashMessage", "Failed to update entertainment header.");
+    req.flash("flashType", "error");
+  }
+  res.redirect("/settings/entertainment");
 });
 
 async function loadRecurrence(seriesId) {
@@ -2367,6 +2409,7 @@ router.post(
       image_url,
       status,
       display_type,
+      event_color,
     } = req.body;
 
     if (!title?.trim() || !start_date || !start_time) {
@@ -2383,19 +2426,21 @@ router.post(
     const acts = parseIdArray(req.body.acts);
     const imagePath = req.file ? `/uploads/entertainment/${req.file.filename}` : req.body.image_url || null;
     const displayTypeValue = display_type === "regularevents" ? "regularevents" : "entertainment";
+    const eventColorValue = normalizeHexColor(event_color);
     const roomId = parseOptionalInteger(room_id);
 
     const recurrence = recurrenceService.parseRecurrenceForm(req.body);
     client = await pool.connect();
+    await ensureEntertainmentColorColumn();
     await client.query("BEGIN");
     const insert = await client.query(
       `
       INSERT INTO entertainment_events
-        (title, slug, adjunct_name, external_url, organiser, room_id, display_type, price, description,
+        (title, slug, adjunct_name, external_url, organiser, room_id, display_type, event_color, price, description,
          image_url, start_at, end_at, status, series_id, series_order,
          created_by, updated_by, created_at, updated_at)
       VALUES
-        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NULL,NULL,$14,$15,NOW(),NOW())
+        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NULL,NULL,$15,$16,NOW(),NOW())
       RETURNING *;
       `,
       [
@@ -2406,6 +2451,7 @@ router.post(
         organiser || null,
         roomId,
         displayTypeValue,
+        eventColorValue,
         price || null,
         description || null,
         imagePath,
@@ -2447,11 +2493,11 @@ router.post(
           const cloneInsert = await client.query(
             `
             INSERT INTO entertainment_events
-              (title, slug, adjunct_name, external_url, organiser, room_id, display_type, price, description,
+              (title, slug, adjunct_name, external_url, organiser, room_id, display_type, event_color, price, description,
                image_url, start_at, end_at, status, series_id, series_order,
                created_by, updated_by, created_at, updated_at)
             VALUES
-              ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW(),NOW())
+              ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),NOW())
             RETURNING id;
             `,
             [
@@ -2462,6 +2508,7 @@ router.post(
               organiser || null,
               roomId,
               displayTypeValue,
+              eventColorValue,
               price || null,
               description || null,
               imagePath,
@@ -2510,6 +2557,7 @@ router.post(
   async (req, res) => {
     let client;
     try {
+      await ensureEntertainmentColorColumn();
       const {
         id,
         title,
@@ -2521,11 +2569,12 @@ router.post(
         external_url,
         organiser,
         room_id,
-        price,
-        description,
+      price,
+      description,
       image_url,
       status,
       display_type,
+      event_color,
       recurrence_frequency,
       recurrence_interval,
       recurrence_end_date,
@@ -2550,6 +2599,7 @@ router.post(
     const imagePath = req.file ? `/uploads/entertainment/${req.file.filename}` : image_url || null;
     const roomId = parseOptionalInteger(room_id);
     const displayTypeValue = display_type === "regularevents" ? "regularevents" : "entertainment";
+    const eventColorValue = normalizeHexColor(event_color);
     const scopeRaw = (series_scope || "").toLowerCase();
     const recurrence = recurrenceService.parseRecurrenceForm({
       recurrence_frequency,
@@ -2573,16 +2623,17 @@ router.post(
                  external_url = $3,
                  organiser = $4,
                  room_id = $5,
-                 price = $6,
-                 description = $7,
-                 display_type = $8,
-                 image_url = $9,
-                 start_at = COALESCE($10, start_at),
-                 end_at = $11,
-                 status = $12,
-                 updated_by = $13,
+                 event_color = $6,
+                 price = $7,
+                 description = $8,
+                 display_type = $9,
+                 image_url = $10,
+                 start_at = COALESCE($11, start_at),
+                 end_at = $12,
+                 status = $13,
+                 updated_by = $14,
                  updated_at = NOW()
-           WHERE id = $14;
+           WHERE id = $15;
           `,
           [
             title.trim(),
@@ -2590,6 +2641,7 @@ router.post(
             external_url || null,
             organiser || null,
             roomId,
+            eventColorValue,
             price || null,
             description || null,
             displayTypeValue,
@@ -2645,18 +2697,19 @@ router.post(
                  external_url = $3,
                  organiser = $4,
                  room_id = $5,
-                 price = $6,
-                 description = $7,
-                 display_type = $8,
-                 image_url = $9,
-                 start_at = COALESCE($10, start_at),
-                 end_at = $11,
-                 status = $12,
-                 updated_by = $13,
+                 event_color = $6,
+                 price = $7,
+                 description = $8,
+                 display_type = $9,
+                 image_url = $10,
+                 start_at = COALESCE($11, start_at),
+                 end_at = $12,
+                 status = $13,
+                 updated_by = $14,
                  updated_at = NOW(),
-                 series_id = $14,
+                 series_id = $15,
                  series_order = 1
-           WHERE id = $15;
+           WHERE id = $16;
           `,
           [
             title.trim(),
@@ -2664,6 +2717,7 @@ router.post(
             external_url || null,
             organiser || null,
             roomId,
+            eventColorValue,
             price || null,
             description || null,
             displayTypeValue,
@@ -2688,11 +2742,11 @@ router.post(
           } = await client.query(
             `
             INSERT INTO entertainment_events
-              (title, slug, adjunct_name, external_url, organiser, room_id, display_type, price, description,
+              (title, slug, adjunct_name, external_url, organiser, room_id, display_type, event_color, price, description,
                image_url, start_at, end_at, status, series_id, series_order,
                created_by, updated_by, created_at, updated_at)
             VALUES
-              ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW(),NOW())
+              ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),NOW())
             RETURNING id;
             `,
             [
@@ -2703,6 +2757,7 @@ router.post(
               organiser || null,
               roomId,
               displayTypeValue,
+              eventColorValue,
               price || null,
               description || null,
               imagePath,

@@ -23,6 +23,29 @@
     </div>
   <% } %>
 
+  <form class="card shadow-sm mb-3" action="/settings/entertainment/header" method="POST">
+    <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+      <div>
+        <h5 class="mb-1">Public entertainment header</h5>
+        <p class="text-muted small mb-0">Toggle the hero banner on the public entertainment page. Hidden by default.</p>
+      </div>
+      <div class="d-flex align-items-center gap-3">
+        <div class="form-check form-switch mb-0">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            name="show_entertainment_header"
+            id="showEntertainmentHeader"
+            value="1"
+            <%= showEntertainmentHeader ? 'checked' : '' %>
+          >
+          <label class="form-check-label" for="showEntertainmentHeader">Show header banner</label>
+        </div>
+        <button type="submit" class="btn btn-outline-primary btn-sm">Save</button>
+      </div>
+    </div>
+  </form>
+
   <div class="card shadow-sm">
     <div class="table-responsive">
       <table class="table align-middle mb-0">
@@ -145,6 +168,11 @@
               <option value="regularevents">Regular events</option>
             </select>
             <small class="text-muted">Controls which tab the event appears under.</small>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Event color</label>
+            <input type="color" name="event_color" class="form-control form-control-color" value="#6bb4de">
+            <small class="text-muted">Used in week and agenda views.</small>
           </div>
           <div class="col-md-6">
             <label class="form-label">Date</label>
@@ -334,6 +362,11 @@
               <option value="entertainment">Entertainment</option>
               <option value="regularevents">Regular events</option>
             </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Event color</label>
+            <input type="color" name="event_color" id="entEditColor" class="form-control form-control-color" value="#6bb4de">
+            <small class="text-muted">Used in week and agenda views.</small>
           </div>
           <div class="col-md-6">
             <label class="form-label">Date</label>
@@ -637,9 +670,8 @@
       const button = event.relatedTarget;
       if (!button) return;
       const eventData = button.getAttribute("data-event");
-      if (!eventData) return;
-      try {
-        const record = JSON.parse(eventData);
+      const eventId = button.getAttribute("data-event-id");
+      const applyRecord = (record) => {
         // Reset recurrence inputs
         if (recFreq) recFreq.value = "none";
         if (recInterval) recInterval.value = "1";
@@ -662,6 +694,8 @@
         document.getElementById("entEditPrice").value = record.price || "";
         document.getElementById("entEditImage").value = record.image_url || "";
         document.getElementById("entEditDescription").value = record.description || "";
+        const colorInput = document.getElementById("entEditColor");
+        if (colorInput) colorInput.value = record.event_color || "#6bb4de";
         if (record.start_at) {
           document.getElementById("entEditDate").value = nzDate(record.start_at);
           document.getElementById("entEditTime").value = nzTime(record.start_at);
@@ -688,9 +722,26 @@
         } else {
           setScopeVisibility(false);
         }
-      } catch (err) {
-        console.error("Failed to load event data", err);
+      };
+      if (eventData) {
+        try {
+          const record = JSON.parse(eventData);
+          applyRecord(record);
+        } catch (err) {
+          console.error("Failed to parse event data", err);
+        }
+        return;
       }
+      if (!eventId) return;
+      fetch(`/settings/entertainment/${eventId}/json`)
+        .then((resp) => resp.json())
+        .then((payload) => {
+          if (!payload?.success || !payload.event) throw new Error("No event data");
+          applyRecord(payload.event);
+        })
+        .catch((err) => {
+          console.error("Failed to load event data", err);
+        });
     });
   });
 </script>
@@ -714,6 +765,12 @@
       <div class="col-md-6">
         <label class="form-label">Entertainment calendar (embed)</label>
         <input type="text" class="form-control form-control-sm" readonly value="/entertainment?embed=1">
+        <div class="mt-2 small text-muted d-flex flex-column gap-1">
+          <span>Month: <span class="text-dark">/entertainment?embed=1&amp;view=month</span></span>
+          <span>Week: <span class="text-dark">/entertainment?embed=1&amp;view=week</span></span>
+          <span>Agenda: <span class="text-dark">/entertainment?embed=1&amp;view=agenda</span></span>
+          <span>Pinboard: <span class="text-dark">/entertainment?embed=1&amp;view=pinboard</span></span>
+        </div>
       </div>
       <div class="col-md-6">
         <label class="form-label">Entertainment list (embed)</label>

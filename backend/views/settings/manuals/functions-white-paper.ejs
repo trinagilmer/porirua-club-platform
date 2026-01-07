@@ -1,0 +1,231 @@
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-4">
+  <div>
+    <h1 class="h4 mb-1">Functions Manual</h1>
+    <p class="text-muted mb-0">End-to-end guide with detailed steps, decisions, and workflow intent.</p>
+  </div>
+  <button class="btn btn-outline-secondary no-print" type="button" onclick="window.print()">
+    Print / Save PDF
+  </button>
+</div>
+
+<section class="manual-section mb-4">
+  <h2 class="h5">Purpose and Audience</h2>
+  <p class="mb-0">
+    This white paper is for admin staff, event coordinators, and managers. It explains how to manage a function
+    from first enquiry to completion, including menus, quotes, proposals, communications, payments, and reporting.
+  </p>
+</section>
+
+<section class="manual-section mb-4">
+  <h2 class="h5">Workflow Overview</h2>
+  <ol class="manual-list">
+    <li>Create or open a function record.</li>
+    <li>Attach contacts and capture notes.</li>
+    <li>Add menus and build the quote.</li>
+    <li>Build and send a proposal to the client.</li>
+    <li>Track payments and remaining balance.</li>
+    <li>Finalize tasks and close out the function.</li>
+  </ol>
+</section>
+
+<section class="manual-section mb-4">
+  <h2 class="h5">Function Details (Sidebar)</h2>
+  <ol class="manual-list">
+    <li>Open a function from the Functions list.</li>
+    <li>In the left sidebar, click the event name to edit it (the title is editable).</li>
+    <li>Use the Status dropdown to set the stage: lead, qualified, confirmed, balance due, completed.</li>
+    <li>Set Event Date using the date picker.</li>
+    <li>Set Start Time and End Time using the time buttons.</li>
+    <li>Enter Group Size (used for per-person menu quantities).</li>
+    <li>Select Room / Space and Event Type from the dropdowns.</li>
+    <li>Changes auto-save when you leave a field.</li>
+  </ol>
+  <div class="manual-callout mt-3">
+    Screenshot: Function sidebar with key fields highlighted.
+  </div>
+</section>
+
+<section class="manual-section mb-4">
+  <h2 class="h5">Contacts</h2>
+  <ol class="manual-list">
+    <li>In the sidebar, click <strong>+ Add</strong> in the Contacts block.</li>
+    <li>Search for an existing contact or create a new one.</li>
+    <li>Use the contact menu (three-dot/burger) to Edit, Make Primary, or Remove.</li>
+    <li>The primary contact is used for proposal delivery and client links.</li>
+  </ol>
+  <div class="manual-callout mt-3">
+    Screenshot: Contacts section with add/edit actions.
+  </div>
+</section>
+
+<section class="manual-section mb-4">
+  <h2 class="h5">Notes</h2>
+  <ol class="manual-list">
+    <li>Open the <strong>Notes</strong> tab.</li>
+    <li>Click <strong>New Note</strong>.</li>
+    <li>Select the note type: Proposal, Internal, or Call.</li>
+    <li>Write the note and click <strong>Save</strong>.</li>
+    <li>Proposal-type notes can be included in the Proposal Builder.</li>
+  </ol>
+  <div class="manual-callout mt-3">
+    Screenshot: Notes tab with proposal note type selected.
+  </div>
+</section>
+
+<section class="manual-section mb-4">
+  <h2 class="h5">Tasks</h2>
+  <ol class="manual-list">
+    <li>Open the <strong>Tasks</strong> tab.</li>
+    <li>Click <strong>Add Task</strong> and enter the task name.</li>
+    <li>Set due date, owner, and priority if required.</li>
+    <li>Tick the checkbox to mark a task complete.</li>
+  </ol>
+  <div class="manual-callout mt-3">
+    Screenshot: Tasks tab with a checklist in progress.
+  </div>
+</section>
+
+<section class="manual-section mb-4">
+  <h2 class="h5">Menus (Settings)</h2>
+  <ol class="manual-list">
+    <li>Go to <strong>Settings → Menus</strong>.</li>
+    <li><strong>Menu Categories:</strong> Create categories to group menus (e.g., Catering, Room Hire).</li>
+    <li><strong>Menus:</strong> Create a menu with base price and description.</li>
+    <li><strong>Menu Choices:</strong> Add default items that appear when a menu is selected.</li>
+    <li><strong>Menu Options:</strong> Price each choice option and attach a Sales Unit.</li>
+    <li><strong>Sales Units:</strong> Define per-person or fixed quantity behaviour.</li>
+  </ol>
+  <div class="manual-callout mt-3">
+    Screenshot: Menu settings with categories, menus, and choices.
+  </div>
+</section>
+
+<section class="manual-section mb-4">
+  <h2 class="h5">Quote Builder (Menus)</h2>
+  <ol class="manual-list">
+    <li>Open the <strong>Quote</strong> tab.</li>
+    <li>Click <strong>Add Menu</strong>.</li>
+    <li>Select a Menu Category and Menu, then click <strong>Add</strong>.</li>
+    <li>If the menu does not exist, click <strong>Create New Menu</strong>, build it, then return and add it.</li>
+    <li>Adjust Qty and Price Each per item as needed.</li>
+    <li>The Total column is Qty × Price Each.</li>
+    <li>Subtotal at the bottom is the sum of all line totals.</li>
+  </ol>
+  <div class="manual-callout mt-3">
+    Screenshot: Quote menu table with qty/price/total columns.
+  </div>
+</section>
+
+<section class="manual-section mb-4">
+  <h2 class="h5">Quote Menu Options (Dropdown)</h2>
+  <ol class="manual-list">
+    <li>Click the <strong>Menu options</strong> dropdown on a menu.</li>
+    <li><strong>Edit menu:</strong> Opens the menu editor for this menu.</li>
+    <li><strong>Resync prices:</strong> Resets all menu prices and quantities to menu defaults.</li>
+    <li><strong>Client can choose:</strong> Lets the client select items on the proposal.</li>
+    <li><strong>Hide from proposal:</strong> Hides this menu from the proposal view.</li>
+    <li><strong>Remove menu:</strong> Deletes the menu from the quote.</li>
+  </ol>
+  <div class="manual-callout mt-3">
+    Screenshot: Menu options dropdown expanded.
+  </div>
+</section>
+
+<section class="manual-section mb-4">
+  <h2 class="h5">Refresh vs Save (Quote)</h2>
+  <ol class="manual-list">
+    <li>Click <strong>Actions → Save</strong> to keep all current edits.</li>
+    <li>Click <strong>Actions → Refresh from menus</strong> to reset prices and quantities.</li>
+    <li>Use Refresh when you need to re-sync with menu settings.</li>
+  </ol>
+  <div class="manual-callout mt-3">
+    Screenshot: Quote actions dropdown showing Save and Refresh.
+  </div>
+</section>
+
+<section class="manual-section mb-4">
+  <h2 class="h5">Proposal Builder</h2>
+  <ol class="manual-list">
+    <li>Scroll to <strong>Proposal Builder</strong> in the Quote screen.</li>
+    <li>Select menus and notes to include in the proposal.</li>
+    <li>Choose proposal terms and any template text.</li>
+    <li>Click <strong>Open builder</strong> or Preview.</li>
+    <li>Use <strong>Email client link</strong> to send the proposal.</li>
+    <li>If the client updates selections, click <strong>Apply client selections</strong>.</li>
+  </ol>
+  <div class="manual-callout mt-3">
+    Screenshot: Proposal builder with selections ticked.
+  </div>
+</section>
+
+<section class="manual-section mb-4">
+  <h2 class="h5">Payments and Discounts</h2>
+  <ol class="manual-list">
+    <li>In Quote totals, click <strong>Actions → Edit totals</strong>.</li>
+    <li>Add a discount by clicking <strong>Add discount</strong> and saving.</li>
+    <li>Add a payment with description, method, date paid, and amount.</li>
+    <li>Discounts appear as a negative line under Payments.</li>
+    <li>Totals show: total ex GST, GST portion, total incl GST, total payments, and remaining due.</li>
+  </ol>
+  <div class="manual-callout mt-3">
+    Screenshot: Quote totals with payments and remaining due.
+  </div>
+</section>
+
+<section class="manual-section mb-4">
+  <h2 class="h5">Communications</h2>
+  <ol class="manual-list">
+    <li>Open the <strong>Communications</strong> tab to view emails.</li>
+    <li>Open a message to read and reply.</li>
+    <li>Use this tab to keep all client contact in the same thread.</li>
+  </ol>
+  <div class="manual-callout mt-3">
+    Screenshot: Communications view with message thread.
+  </div>
+</section>
+
+<section class="manual-section mb-4">
+  <h2 class="h5">Reports</h2>
+  <ol class="manual-list">
+    <li>Go to <strong>Reports</strong> from the main navigation.</li>
+    <li>Select a date range and filter by status if needed.</li>
+    <li>Use the totals to review revenue, costs, and profit.</li>
+  </ol>
+  <div class="manual-callout mt-3">
+    Screenshot: Reports dashboard with filters.
+  </div>
+</section>
+
+<section class="manual-section mb-4">
+  <h2 class="h5">Setup Checklist</h2>
+  <ol class="manual-list">
+    <li>Settings → Rooms / Spaces: add spaces and capacities.</li>
+    <li>Settings → Event Types: add event types used by staff.</li>
+    <li>Settings → Menus: add categories, menus, choices, and units.</li>
+    <li>Settings → Proposal Terms: update default proposal content.</li>
+    <li>Settings → Note Templates: create reusable notes.</li>
+    <li>Settings → Calendar: confirm slot size and defaults.</li>
+  </ol>
+  <div class="manual-callout mt-3">
+    Screenshot: Settings overview showing key setup areas.
+  </div>
+</section>
+
+<section class="manual-section mb-4">
+  <h2 class="h5">Screenshot Checklist</h2>
+  <ul class="manual-list">
+    <li>Function sidebar with key fields.</li>
+    <li>Contacts block with add/edit menu.</li>
+    <li>Notes tab with Proposal note selected.</li>
+    <li>Tasks list with due dates.</li>
+    <li>Menu settings (categories, menus, choices, units).</li>
+    <li>Quote menu table with totals.</li>
+    <li>Quote menu options dropdown.</li>
+    <li>Quote actions dropdown (Save / Refresh).</li>
+    <li>Proposal Builder selection screen.</li>
+    <li>Quote totals with payments + remaining.</li>
+    <li>Communications view with message thread.</li>
+    <li>Reports screen with filters.</li>
+    <li>Settings overview for setup list.</li>
+  </ul>
+</section>

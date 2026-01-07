@@ -37,6 +37,7 @@ const DEFAULT_SETTINGS = {
   email_body_html: DEFAULT_TEMPLATE_BODY,
   survey_header_html: DEFAULT_SURVEY_HEADER,
   events_header_html: DEFAULT_EVENT_HEADER,
+  show_entertainment_header: false,
   function_question_config: DEFAULT_FUNCTION_QUESTIONS,
   restaurant_question_config: DEFAULT_RESTAURANT_QUESTIONS,
 };
@@ -54,20 +55,27 @@ function normalizeSettings(row = {}) {
     email_body_html: row.email_body_html || DEFAULT_SETTINGS.email_body_html,
     survey_header_html: row.survey_header_html || DEFAULT_SETTINGS.survey_header_html,
     events_header_html: row.events_header_html || DEFAULT_SETTINGS.events_header_html,
+    show_entertainment_header:
+      row.show_entertainment_header !== undefined
+        ? Boolean(row.show_entertainment_header)
+        : DEFAULT_SETTINGS.show_entertainment_header,
     function_question_config: row.function_question_config || DEFAULT_FUNCTION_QUESTIONS,
     restaurant_question_config: row.restaurant_question_config || DEFAULT_RESTAURANT_QUESTIONS,
   };
 }
 
 async function getFeedbackSettings() {
+  await pool.query(
+    "ALTER TABLE feedback_settings ADD COLUMN IF NOT EXISTS show_entertainment_header BOOLEAN DEFAULT FALSE;"
+  );
   const existing = await pool.query(
     "SELECT * FROM feedback_settings ORDER BY id DESC LIMIT 1;"
   );
   if (!existing.rows[0]) {
     const insert = await pool.query(
       `INSERT INTO feedback_settings
-        (auto_functions, auto_restaurant, send_delay_days, reminder_days, email_subject, email_body_html, survey_header_html, events_header_html, function_question_config, restaurant_question_config)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        (auto_functions, auto_restaurant, send_delay_days, reminder_days, email_subject, email_body_html, survey_header_html, events_header_html, show_entertainment_header, function_question_config, restaurant_question_config)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        RETURNING *;`,
       [
         DEFAULT_SETTINGS.auto_functions,
@@ -78,6 +86,7 @@ async function getFeedbackSettings() {
         DEFAULT_SETTINGS.email_body_html,
         DEFAULT_SETTINGS.survey_header_html,
         DEFAULT_SETTINGS.events_header_html,
+        DEFAULT_SETTINGS.show_entertainment_header,
         JSON.stringify(DEFAULT_FUNCTION_QUESTIONS),
         JSON.stringify(DEFAULT_RESTAURANT_QUESTIONS),
       ]

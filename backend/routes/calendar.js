@@ -390,7 +390,7 @@ function mapRestaurantBookingRow(row) {
 function mapEntertainmentEventRow(row) {
   const start = row.start_at ? new Date(row.start_at).toISOString() : null;
   const end = row.end_at ? new Date(row.end_at).toISOString() : null;
-  const colour = "#fbcfe8";
+  const colour = row.event_color || "#fbcfe8";
   const priceValue = row.price !== null && row.price !== undefined ? Number(row.price) : null;
   return {
     id: `entertainment-${row.id}`,

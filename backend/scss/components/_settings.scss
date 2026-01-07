@@ -50,6 +50,12 @@ $porirua-blue: #6bb4de;
   }
 }
 
+@media (min-width: 769px) {
+  .settings-mobile-nav {
+    display: none !important;
+  }
+}
+
 .settings-sidebar {
   width: 250px;
   background: #ffffff;
@@ -297,6 +303,15 @@ $porirua-blue: #6bb4de;
 
 .manual-list li {
   margin-bottom: 0.5rem;
+}
+
+.manual-callout {
+  border: 1px dashed #cbd5f5;
+  background: #f8fafc;
+  color: #475569;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
 }
 
 /* ------------------------------------------

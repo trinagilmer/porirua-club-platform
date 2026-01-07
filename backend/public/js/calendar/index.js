@@ -216,7 +216,7 @@
       headerToolbar: {
         left: "prev,next today",
         center: "title",
-        right: "dayGridMonth,dayGridWeek,timeGridDay",
+        right: "dayGridMonth,dayGridWeek,timeGridDay,listWeek",
       },
       eventDisplay: "block",
       slotDuration,
@@ -230,6 +230,10 @@
           slotLabelInterval: slotDuration,
         },
         dayGridWeek: {
+          dayHeaderFormat: { weekday: "short" },
+        },
+        listWeek: {
+          buttonText: "Agenda",
           dayHeaderFormat: { weekday: "short" },
         },
       },
@@ -424,7 +428,7 @@
       if (!start) return view.title || "";
       if (view.type === "dayGridMonth") return monthFormatter.format(start);
       if (view.type === "timeGridDay") return dayFormatter.format(start);
-      if (view.type === "dayGridWeek") return formatWeekRange(start, end || start);
+      if (view.type === "dayGridWeek" || view.type === "listWeek") return formatWeekRange(start, end || start);
       return view.title || "";
     }
 
@@ -464,7 +468,7 @@
       if (view.type === "dayGridMonth") {
         populatePrintMonth(view, eventsByDate);
         printWrapper.classList.add("print-mode-month");
-      } else if (view.type === "dayGridWeek") {
+      } else if (view.type === "dayGridWeek" || view.type === "listWeek") {
         populatePrintWeek(view, eventsByDate);
         printWrapper.classList.add("print-mode-week");
       } else if (view.type === "timeGridDay") {

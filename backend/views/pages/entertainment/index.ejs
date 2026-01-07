@@ -1,169 +1,168 @@
-<style>
-.entertainment-card-img {
-    width: 100%;
-    height: auto;
-    max-height: 240px;
-    object-fit: contain;
-    background: #0b1220;
-    display: block;
-  }
-  .ent-card {
-    border: none;
-    border-radius: 1.25rem;
-    overflow: hidden;
-    background: #0f172a;
-    color: #fff;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-  .regular-card {
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-  .regular-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 18px 35px rgba(15, 23, 42, 0.15);
-  }
-  .ent-card:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 18px 35px rgba(15, 23, 42, 0.35);
-  }
-  .ent-card .card-body {
-    background: linear-gradient(160deg, rgba(15,23,42,0.95), rgba(30,64,175,0.9));
-  }
-  .ent-toggle .btn {
-    border-radius: 999px;
-  }
-</style>
+<% const entertainmentList = entertainmentEvents || []; const regularList = regularEvents || []; const pastList = pastEvents || []; %>
 
-<div class="entertainment-hero d-flex flex-column align-items-center text-center py-5 position-relative overflow-hidden" style="background: linear-gradient(120deg, #0f172a, #1d4ed8);">
-  <div class="hero-content text-white position-relative">
-    <%- entertainmentHeaderHtml || '<p class="text-uppercase fw-semibold tracking-wide mb-1">Porirua Club</p><h1 class="display-4 fw-bold mb-3">Live entertainment &amp; events</h1><p class="lead mb-0">Discover upcoming music, comedy, and special nights at the Club.</p>' %>
+<% if (showEntertainmentHeader) { %>
+  <div class="entertainment-hero d-flex flex-column align-items-center text-center py-5 position-relative overflow-hidden" style="background: linear-gradient(120deg, #0f172a, #1d4ed8);">
+    <div class="hero-content text-white position-relative">
+      <%- entertainmentHeaderHtml || '<p class="text-uppercase fw-semibold tracking-wide mb-1">Porirua Club</p><h1 class="display-4 fw-bold mb-3">Live entertainment &amp; events</h1><p class="lead mb-0">Discover upcoming music, comedy, and special nights at the Club.</p>' %>
+    </div>
   </div>
-</div>
+<% } %>
 
-<div class="container py-5">
+<div class="container py-5 entertainment-page">
   <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
     <div>
       <p class="text-uppercase small text-muted mb-1">Browse schedule</p>
-      <h2 class="h4 mb-0">What’s on at the Club</h2>
+      <h2 class="h4 mb-0">What's on at the Club</h2>
     </div>
-    <div class="btn-group ent-toggle" role="group" aria-label="Event filter">
-      <input type="radio" class="btn-check" name="ent-mode" id="entToggleEntertainment" value="entertainment" autocomplete="off" checked>
-      <label class="btn btn-outline-primary px-4" for="entToggleEntertainment">
-        Entertainment
-      </label>
-      <input type="radio" class="btn-check" name="ent-mode" id="entToggleRegular" value="regularevents" autocomplete="off">
-      <label class="btn btn-outline-primary px-4" for="entToggleRegular">
-        Regular events
-      </label>
+    <div class="ent-calendar-controls">
+      <div class="btn-group ent-toggle" role="group" aria-label="Event filter">
+        <input
+          type="radio"
+          class="btn-check"
+          name="ent-mode"
+          id="entToggleEntertainment"
+          value="entertainment"
+          autocomplete="off"
+          <%= initialCalendarType === 'entertainment' ? 'checked' : '' %>
+        >
+        <label class="btn btn-outline-primary px-4" for="entToggleEntertainment">
+          Entertainment
+        </label>
+        <input
+          type="radio"
+          class="btn-check"
+          name="ent-mode"
+          id="entToggleRegular"
+          value="regularevents"
+          autocomplete="off"
+          <%= initialCalendarType === 'regularevents' ? 'checked' : '' %>
+        >
+        <label class="btn btn-outline-primary px-4" for="entToggleRegular">
+          Regular events
+        </label>
+      </div>
+      <div class="btn-group ent-view-toggle" role="group" aria-label="Calendar view">
+        <button type="button" class="btn btn-outline-secondary px-3" data-ent-view="month">Month</button>
+        <button type="button" class="btn btn-outline-secondary px-3" data-ent-view="week">Week</button>
+        <button type="button" class="btn btn-outline-secondary px-3" data-ent-view="agenda">Agenda</button>
+        <button type="button" class="btn btn-outline-secondary px-3" data-ent-view="pinboard">Pinboard</button>
+      </div>
     </div>
   </div>
 
-  <% const entertainmentList = entertainmentEvents || []; const regularList = regularEvents || []; const pastList = pastEvents || []; %>
+  <section class="ent-calendar-shell card shadow-sm border-0">
+    <div class="ent-calendar-header">
+      <div>
+        <p class="ent-calendar-subtitle mb-1">Entertainment calendar</p>
+        <h3 class="ent-calendar-title mb-0" id="entCalendarTitle"></h3>
+      </div>
+      <div class="ent-calendar-nav">
+        <button type="button" class="btn btn-light" data-cal-nav="prev" aria-label="Previous">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <button type="button" class="btn btn-light" data-cal-nav="today">Today</button>
+        <button type="button" class="btn btn-light" data-cal-nav="next" aria-label="Next">
+          <i class="bi bi-chevron-right"></i>
+        </button>
+      </div>
+    </div>
+    <div
+      id="entertainmentCalendar"
+      class="ent-calendar"
+      data-initial-view="<%= initialCalendarView %>"
+      data-initial-type="<%= initialCalendarType %>"
+    ></div>
+  </section>
 
-  <div class="event-grid" data-mode="entertainment">
-    <% if (!entertainmentList.length) { %>
-      <div class="alert alert-light border text-center py-5">
-        <h4 class="mb-2">New entertainment schedule coming soon</h4>
-        <p class="text-muted mb-0">Check back shortly for upcoming performances and events.</p>
-      </div>
-    <% } else { %>
-      <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-        <% entertainmentList.forEach(function(event) { %>
-          <div class="col">
-            <article class="card ent-card h-100 shadow-sm">
-              <% if (event.image_url) { %>
-                <img src="<%= event.image_url %>" class="entertainment-card-img" alt="<%= event.title %>" loading="lazy">
-              <% } else { %>
-                <div class="entertainment-card-img bg-dark d-flex align-items-center justify-content-center text-secondary">
-                  <span class="small text-uppercase tracking-wide">Porirua Club</span>
-                </div>
-              <% } %>
-              <div class="card-body">
-                <span class="badge bg-light text-dark text-uppercase small mb-2"><%= new Date(event.start_at).toLocaleDateString('en-NZ', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Pacific/Auckland' }) %></span>
-                <h3 class="h5 mb-2"><a href="/entertainment/<%= event.slug || event.id %>" class="stretched-link text-decoration-none text-white"><%= event.title %></a></h3>
-              <% if (event.room_name) { %>
-                <p class="text-white-50 small mb-1"><i class="bi bi-geo-alt me-1"></i><%= event.room_name %></p>
-              <% } %>
-              <% if (event.acts && event.acts.length) { %>
-                <p class="text-white-50 small mb-2">Acts: <%= event.acts.map(function(act) { return act.name; }).join(", ") %></p>
-              <% } %>
-                <% if (event.description) { %>
-                  <p class="text-white-50 mb-0"><%= event.description.replace(/<[^>]+>/g, '').slice(0, 130) %>...</p>
+  <section class="ent-pinboard-shell d-none">
+    <div class="ent-pinboard" data-mode="entertainment">
+      <% if (!entertainmentList.length) { %>
+        <div class="alert alert-light border text-center py-5">
+          <h4 class="mb-2">New entertainment schedule coming soon</h4>
+          <p class="text-muted mb-0">Check back shortly for upcoming performances and events.</p>
+        </div>
+      <% } else { %>
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+          <% entertainmentList.forEach(function(event) { %>
+            <div class="col">
+              <article class="card ent-card h-100 shadow-sm">
+                <% if (event.image_url) { %>
+                  <img src="<%= event.image_url %>" class="entertainment-card-img" alt="<%= event.title %>" loading="lazy">
+                <% } else { %>
+                  <div class="entertainment-card-img bg-dark d-flex align-items-center justify-content-center text-secondary">
+                    <span class="small text-uppercase tracking-wide">Porirua Club</span>
+                  </div>
                 <% } %>
-              </div>
-              <div class="card-footer bg-transparent d-flex justify-content-between align-items-center text-white-50">
-                <span class="small"><i class="bi bi-clock me-1"></i><%= event.start_at ? new Date(event.start_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', timeZone: 'Pacific/Auckland' }) : '' %></span>
-                <% if (event.external_url) { %>
-                  <a href="<%= event.external_url %>" target="_blank" rel="noopener" class="small text-decoration-none text-white">More info</a>
-                <% } %>
-              </div>
-            </article>
-          </div>
-        <% }) %>
-      </div>
-    <% } %>
-  </div>
-
-  <div class="event-grid d-none" data-mode="regularevents">
-    <% if (!regularList.length) { %>
-      <div class="alert alert-light border text-center py-5">
-        <h4 class="mb-2">No regular club events listed yet</h4>
-        <p class="text-muted mb-0">Check back as adjunct nights and club happenings are published.</p>
-      </div>
-    <% } else { %>
-      <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-        <% regularList.forEach(function(event) { %>
-          <div class="col">
-            <article class="card h-100 shadow-sm border-0 rounded-4 bg-white regular-card">
-              <% if (event.image_url) { %>
-                <img src="<%= event.image_url %>" class="entertainment-card-img" alt="<%= event.title %>" loading="lazy">
-              <% } %>
-              <div class="card-body">
-                <span class="badge bg-primary-subtle text-primary text-uppercase small mb-2"><%= new Date(event.start_at).toLocaleDateString('en-NZ', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Pacific/Auckland' }) %></span>
-                <h3 class="h5 mb-2"><a href="/entertainment/<%= event.slug || event.id %>" class="stretched-link text-decoration-none"><%= event.title %></a></h3>
+                <div class="card-body">
+                  <span class="ent-date text-primary text-uppercase small mb-2"><%= new Date(event.start_at).toLocaleDateString('en-NZ', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Pacific/Auckland' }) %></span>
+                  <h3 class="h5 mb-2"><a href="/entertainment/<%= event.slug || event.id %>" class="stretched-link text-decoration-none text-white"><%= event.title %></a></h3>
                 <% if (event.room_name) { %>
-                  <p class="text-muted small mb-1"><i class="bi bi-geo-alt me-1"></i><%= event.room_name %></p>
+                  <p class="text-white-50 small mb-1"><i class="bi bi-geo-alt me-1"></i><%= event.room_name %></p>
                 <% } %>
-                <% if (event.adjunct_name) { %>
-                  <p class="text-muted small mb-1">Adjunct: <%= event.adjunct_name %></p>
+                <% if (event.acts && event.acts.length) { %>
+                  <p class="text-white-50 small mb-2">Acts: <%= event.acts.map(function(act) { return act.name; }).join(", ") %></p>
                 <% } %>
-                <% if (event.description) { %>
-                  <p class="text-muted mb-0"><%= event.description.replace(/<[^>]+>/g, '').slice(0, 120) %>...</p>
+                  <% if (event.description) { %>
+                    <p class="text-white-50 mb-0"><%= event.description.replace(/<[^>]+>/g, '').slice(0, 130) %>...</p>
+                  <% } %>
+                </div>
+                <div class="card-footer bg-transparent d-flex justify-content-between align-items-center text-white-50">
+                  <span class="small"><i class="bi bi-clock me-1"></i><%= event.start_at ? new Date(event.start_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', timeZone: 'Pacific/Auckland' }) : '' %></span>
+                  <% if (event.external_url) { %>
+                    <a href="<%= event.external_url %>" target="_blank" rel="noopener" class="small text-decoration-none text-white">More info</a>
+                  <% } %>
+                </div>
+              </article>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+
+    <div class="ent-pinboard d-none" data-mode="regularevents">
+      <% if (!regularList.length) { %>
+        <div class="alert alert-light border text-center py-5">
+          <h4 class="mb-2">No regular club events listed yet</h4>
+          <p class="text-muted mb-0">Check back as adjunct nights and club happenings are published.</p>
+        </div>
+      <% } else { %>
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+          <% regularList.forEach(function(event) { %>
+            <div class="col">
+              <article class="card h-100 shadow-sm border-0 rounded-4 bg-white regular-card">
+                <% if (event.image_url) { %>
+                  <img src="<%= event.image_url %>" class="entertainment-card-img" alt="<%= event.title %>" loading="lazy">
                 <% } %>
-              </div>
-              <div class="card-footer bg-transparent d-flex justify-content-between align-items-center">
-                <span class="small text-muted"><i class="bi bi-clock me-1"></i><%= event.start_at ? new Date(event.start_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', timeZone: 'Pacific/Auckland' }) : '' %></span>
-                <% if (event.external_url) { %>
-                  <a href="<%= event.external_url %>" target="_blank" rel="noopener" class="small text-decoration-none">More info</a>
-                <% } %>
-              </div>
-            </article>
-          </div>
-        <% }) %>
-      </div>
-    <% } %>
-  </div>
+                <div class="card-body">
+                  <span class="ent-date text-primary text-uppercase small mb-2"><%= new Date(event.start_at).toLocaleDateString('en-NZ', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Pacific/Auckland' }) %></span>
+                  <h3 class="h5 mb-2"><a href="/entertainment/<%= event.slug || event.id %>" class="stretched-link text-decoration-none"><%= event.title %></a></h3>
+                  <% if (event.room_name) { %>
+                    <p class="text-muted small mb-1"><i class="bi bi-geo-alt me-1"></i><%= event.room_name %></p>
+                  <% } %>
+                  <% if (event.adjunct_name) { %>
+                    <p class="text-muted small mb-1">Adjunct: <%= event.adjunct_name %></p>
+                  <% } %>
+                  <% if (event.description) { %>
+                    <p class="text-muted mb-0"><%= event.description.replace(/<[^>]+>/g, '').slice(0, 120) %>...</p>
+                  <% } %>
+                </div>
+                <div class="card-footer bg-transparent d-flex justify-content-between align-items-center">
+                  <span class="small text-muted"><i class="bi bi-clock me-1"></i><%= event.start_at ? new Date(event.start_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', timeZone: 'Pacific/Auckland' }) : '' %></span>
+                  <% if (event.external_url) { %>
+                    <a href="<%= event.external_url %>" target="_blank" rel="noopener" class="small text-decoration-none">More info</a>
+                  <% } %>
+                </div>
+              </article>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+  </section>
 </div>
 
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const toggles = document.querySelectorAll('input[name="ent-mode"]');
-    const grids = document.querySelectorAll(".event-grid");
-    toggles.forEach((toggle) => {
-      toggle.addEventListener("change", () => {
-        const mode = toggle.value;
-        grids.forEach((grid) => {
-          if (grid.dataset.mode === mode) {
-            grid.classList.remove("d-none");
-          } else {
-            grid.classList.add("d-none");
-          }
-        });
-      });
-    });
-  });
-</script>
-  <% if (pastList.length) { %>
+<% if (pastList.length) { %>
+  <div class="container">
     <div class="mt-5 pt-4 border-top">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
@@ -180,7 +179,7 @@
                 <img src="<%= event.image_url %>" alt="<%= event.title %>" class="entertainment-card-img rounded-top-4">
               <% } %>
               <div class="card-body">
-                <span class="badge bg-light text-dark text-uppercase small mb-2">
+                <span class="ent-date text-primary text-uppercase small mb-2">
                   <%= new Date(event.start_at).toLocaleDateString('en-NZ', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Pacific/Auckland' }) %>
                 </span>
                 <h3 class="h6 mb-2">
@@ -200,8 +199,5 @@
         <% }) %>
       </div>
     </div>
-  <% } %>
-    const defaultMode = document.querySelector('.btn-check[name="ent-mode"]:checked')?.value || "entertainment";
-    grids.forEach((grid) => {
-      grid.classList.toggle("d-none", grid.dataset.mode !== defaultMode);
-    });
+  </div>
+<% } %>
