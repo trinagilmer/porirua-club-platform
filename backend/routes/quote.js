@@ -163,6 +163,13 @@ router.get("/proposal/client/:token", async (req, res) => {
       `,
       [proposal.id]
     );
+    const { rows: payments } = await pool.query(
+      `SELECT id, payment_type, amount, method, paid_on
+         FROM payments
+        WHERE proposal_id = $1
+        ORDER BY paid_on ASC`,
+      [proposal.id]
+    );
     const totals = totalsRes[0] || {
       subtotal: 0,
       gratuity_percent: 0,
@@ -188,6 +195,8 @@ router.get("/proposal/client/:token", async (req, res) => {
       }
     }
 
+    const menuMetaLookup = await fetchMenuMetaLookup(items);
+
     res.render("pages/functions/proposal-preview", {
       layout: "layouts/main",
       title: "Confirm Proposal",
@@ -196,6 +205,8 @@ router.get("/proposal/client/:token", async (req, res) => {
       proposal,
       items,
       totals,
+      menuMetaLookup,
+      payments,
       contacts: contactsRes.rows,
       sections: saved.sections.length ? saved.sections : functionNotes.map((n) => ({ content: n.rendered_content })),
       terms:
@@ -239,6 +250,8 @@ router.post("/proposal/client/:token/accept", async (req, res) => {
         proposal,
         items: [],
         totals: null,
+        menuMetaLookup: {},
+        payments: [],
         contacts: [],
         sections: [],
         terms: null,
@@ -365,6 +378,13 @@ router.post("/proposal/client/:token/accept", async (req, res) => {
         total_paid: 0,
         remaining_due: 0,
       };
+    const { rows: payments } = await pool.query(
+      `SELECT id, payment_type, amount, method, paid_on
+         FROM payments
+        WHERE proposal_id = $1
+        ORDER BY paid_on ASC`,
+      [proposal.id]
+    );
     const {
       rows: contactsRows,
     } = await pool.query(
@@ -406,6 +426,8 @@ router.post("/proposal/client/:token/accept", async (req, res) => {
       },
       items: itemsWithSelection,
       totals: totals || null,
+      menuMetaLookup,
+      payments,
       contacts: contactsRows,
       sections: [],
       terms: termsContent,
@@ -611,9 +633,7 @@ async function recalcTotals(client, proposalId, userId = null) {
   const {
     rows: [currentTotals],
   } = await client.query(
-    `SELECT gratuity_percent,
-            discount_amount,
-            deposit_amount
+    `SELECT discount_amount
        FROM proposal_totals
       WHERE proposal_id = $1
       LIMIT 1`,
@@ -628,24 +648,23 @@ async function recalcTotals(client, proposalId, userId = null) {
     [proposalId]
   );
 
-  const gratuityPercent = Number(currentTotals?.gratuity_percent) || 0;
   const discountAmount = Number(currentTotals?.discount_amount) || 0;
-  const depositAmount = Number(currentTotals?.deposit_amount) || 0;
   const totalPaid = Number(paymentRow?.total_paid) || 0;
-  const gratuityAmount = (subtotal * gratuityPercent) / 100;
-  const finalTotal = subtotal + gratuityAmount - discountAmount;
-  const remaining = finalTotal - depositAmount - totalPaid;
+  const finalTotal = subtotal - discountAmount;
+  const remaining = finalTotal - totalPaid;
 
   await client.query(
     `UPDATE proposal_totals
         SET subtotal = $1,
             gratuity_amount = $2,
+            gratuity_percent = 0,
+            deposit_amount = 0,
             total_paid = $3,
             remaining_due = $4,
             updated_at = NOW(),
             updated_by = COALESCE($5, updated_by)
       WHERE proposal_id = $6`,
-    [subtotal, gratuityAmount, totalPaid, remaining, userId, proposalId]
+    [subtotal, 0, totalPaid, remaining, userId, proposalId]
   );
 
   await client.query(
@@ -743,6 +762,33 @@ async function markMenuUpdated(client, functionId, menuId, userId) {
                updated_by = EXCLUDED.updated_by`,
     [functionId, menuId, userId || null]
   );
+}
+
+async function fetchMenuMetaLookup(items = []) {
+  const ids = Array.from(
+    new Set(
+      (items || [])
+        .map((item) => Number(extractMetadata(item.description || "").menu_id || 0))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )
+  );
+  if (!ids.length) return {};
+  const { rows } = await pool.query(
+    `SELECT m.id,
+            m.name,
+            c.name AS category_name
+       FROM menus m
+  LEFT JOIN menu_categories c ON c.id = m.category_id
+      WHERE m.id = ANY($1::int[])`,
+    [ids]
+  );
+  return rows.reduce((acc, row) => {
+    acc[row.id] = {
+      name: row.name,
+      category: row.category_name || "",
+    };
+    return acc;
+  }, {});
 }
 
 // Apply client selection (include/qty) to a local items array for rendering
@@ -1002,7 +1048,7 @@ router.get("/:functionId/quote", async (req, res) => {
           [activeProposal.id]
         ),
         pool.query(
-          `SELECT id, amount, status, method, paid_on
+          `SELECT id, payment_type, amount, status, method, paid_on
              FROM payments
             WHERE proposal_id = $1
             ORDER BY paid_on ASC`,
@@ -1489,62 +1535,29 @@ router.post("/:functionId/quote/resync-all", async (req, res) => {
 });
 
 // ------------------------------------------------------
-// Update totals (gratuity/discount/deposit)
+// Update totals (discount only)
 // ------------------------------------------------------
 router.post("/:proposalId/totals/update", async (req, res) => {
   const { proposalId } = req.params;
-  const {
-    gratuity_percent = 0,
-    discount_amount = 0,
-    deposit_amount = 0,
-    override_total = null,
-  } = req.body || {};
+  const { discount_amount = 0 } = req.body || {};
 
   const userId = req.session.user?.id || null;
+  const discountValue = Math.max(0, Number(discount_amount) || 0);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
     await client.query(
       `UPDATE proposal_totals
-          SET gratuity_percent = $1,
-              discount_amount = $2,
-              deposit_amount = $3,
+          SET discount_amount = $1,
+              gratuity_percent = 0,
+              gratuity_amount = 0,
+              deposit_amount = 0,
               updated_at = NOW(),
-              updated_by = COALESCE($5, updated_by)
-        WHERE proposal_id = $4`,
-      [
-        Number(gratuity_percent) || 0,
-        Number(discount_amount) || 0,
-        Number(deposit_amount) || 0,
-        proposalId,
-        userId,
-      ]
+              updated_by = COALESCE($3, updated_by)
+        WHERE proposal_id = $2`,
+      [discountValue, proposalId, userId]
     );
-
-    let discountValue = Number(discount_amount) || 0;
-    if (override_total !== null && override_total !== "") {
-      const {
-        rows: [{ subtotal }],
-      } = await client.query(
-        `SELECT COALESCE(SUM(unit_price), 0) AS subtotal
-           FROM proposal_items
-          WHERE proposal_id = $1`,
-        [proposalId]
-      );
-      const gratuityAmount = (subtotal * (Number(gratuity_percent) || 0)) / 100;
-      const desired = Number(override_total) || 0;
-      const neededDiscount = subtotal + gratuityAmount - desired;
-      discountValue = Math.max(0, neededDiscount);
-      await client.query(
-        `UPDATE proposal_totals
-            SET discount_amount = $1,
-                updated_at = NOW(),
-                updated_by = COALESCE($3, updated_by)
-          WHERE proposal_id = $2`,
-        [discountValue, proposalId, userId]
-      );
-    }
 
     await recalcTotals(client, proposalId, userId);
 
@@ -1553,6 +1566,54 @@ router.post("/:proposalId/totals/update", async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("Error updating proposal totals:", err);
+    res.status(500).json({ success: false, error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// ------------------------------------------------------
+// Add a payment
+// ------------------------------------------------------
+router.post("/:proposalId/payments", async (req, res) => {
+  const { proposalId } = req.params;
+  const { payment_type, amount, paid_on, method } = req.body || {};
+
+  const parsedAmount = Number(amount);
+  if (!proposalId || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+    return res.status(400).json({ success: false, error: "Invalid payment data" });
+  }
+
+  let paidOnValue = null;
+  if (paid_on) {
+    const dateValue = new Date(paid_on);
+    if (Number.isNaN(dateValue.getTime())) {
+      return res.status(400).json({ success: false, error: "Invalid paid_on date" });
+    }
+    paidOnValue = paid_on;
+  }
+
+  const description = String(payment_type || "Payment").trim() || "Payment";
+  const methodValue = String(method || "other").toLowerCase();
+  const statusValue = "completed";
+  const userId = req.session.user?.id || null;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `INSERT INTO payments (proposal_id, payment_type, amount, method, status, paid_on)
+       VALUES ($1, $2, $3, $4, $5, COALESCE($6, NOW()))
+       RETURNING id`,
+      [proposalId, description, parsedAmount, methodValue, statusValue, paidOnValue]
+    );
+
+    await recalcTotals(client, proposalId, userId);
+    await client.query("COMMIT");
+    res.json({ success: true });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Error adding payment:", err);
     res.status(500).json({ success: false, error: err.message });
   } finally {
     client.release();
@@ -2132,21 +2193,32 @@ router.get("/:functionId/proposal/preview", async (req, res) => {
     const combinedTerms = dedupedBlocks.join("\n\n");
 
     let totalsData = null;
+    let payments = [];
     if (proposalId) {
-      const { rows } = await pool.query(
-        `SELECT subtotal,
-                gratuity_percent,
-                gratuity_amount,
-                discount_amount,
-                deposit_amount,
-                total_paid,
-                remaining_due
-           FROM proposal_totals
-          WHERE proposal_id = $1
-          LIMIT 1`,
-        [proposalId]
-      );
-      totalsData = rows[0] || null;
+      const [{ rows: totalsRows }, { rows: paymentRows }] = await Promise.all([
+        pool.query(
+          `SELECT subtotal,
+                  gratuity_percent,
+                  gratuity_amount,
+                  discount_amount,
+                  deposit_amount,
+                  total_paid,
+                  remaining_due
+             FROM proposal_totals
+            WHERE proposal_id = $1
+            LIMIT 1`,
+          [proposalId]
+        ),
+        pool.query(
+          `SELECT id, payment_type, amount, method, paid_on
+             FROM payments
+            WHERE proposal_id = $1
+            ORDER BY paid_on ASC`,
+          [proposalId]
+        ),
+      ]);
+      totalsData = totalsRows[0] || null;
+      payments = paymentRows || [];
     }
     if (!totalsData) {
       totalsData = {
@@ -2159,6 +2231,8 @@ router.get("/:functionId/proposal/preview", async (req, res) => {
         remaining_due: 0,
       };
     }
+
+    const menuMetaLookup = await fetchMenuMetaLookup(items);
 
     res.render("pages/functions/proposal-preview", {
       layout: "layouts/main",
@@ -2173,6 +2247,8 @@ router.get("/:functionId/proposal/preview", async (req, res) => {
       sections: saved.sections || [],
       terms: combinedTerms,
       totals: totalsData,
+      menuMetaLookup,
+      payments,
     });
   } catch (err) {
     console.error("preview error:", err);

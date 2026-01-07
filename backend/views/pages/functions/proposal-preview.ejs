@@ -105,17 +105,20 @@
     remaining_due: 0,
   };
   const subtotal = Number(safeTotals.subtotal || 0);
-  const gratuityAmount = Number(safeTotals.gratuity_amount || 0);
-  const gratuityPercent = Number(safeTotals.gratuity_percent || 0);
   const discountAmount = Number(safeTotals.discount_amount || 0);
-  const depositAmount = Number(safeTotals.deposit_amount || 0);
   const totalPaid = Number(safeTotals.total_paid || 0);
-  const remainingDue = Number(safeTotals.remaining_due || 0);
-  const finalTotal = subtotal + gratuityAmount - discountAmount;
-  const gstPortion = finalTotal > 0 ? finalTotal - finalTotal / 1.15 : 0;
-  const currency = (val) => `$${(Number(val) || 0).toFixed(2)}`;
+  const paymentRows = Array.isArray(payments) ? payments : [];
+  const totalPayments = totalPaid + (discountAmount > 0 ? discountAmount : 0);
+  const remainingDue = subtotal - totalPayments;
+  const totalExGst = subtotal / 1.15;
+  const gstPortion = subtotal - totalExGst;
+  const currency = (val) => {
+    const amount = Number(val) || 0;
+    const sign = amount < 0 ? "-" : "";
+    return `${sign}$${Math.abs(amount).toFixed(2)}`;
+  };
   const baseDiscount = Number(totals?.discount_amount || 0);
-  const baseDeposit = Number(totals?.deposit_amount || 0);
+  const baseTotalPaid = Number(totals?.total_paid || 0);
 %>
 
 <style>
@@ -187,9 +190,10 @@
   <% } else { %>
     <form class="mb-4">
   <% } %>
+    <% const hasContacts = (orderedContacts || []).length > 0; %>
     <div class="row g-3">
-      <div class="col-lg-6">
-        <div class="proposal-summary-card card shadow-sm h-100">
+      <div class="<%= hasContacts ? 'col-lg-6' : 'col-12' %>">
+        <div class="proposal-summary-card card shadow-sm h-100 <%= hasContacts ? '' : 'proposal-summary-card--single' %>">
           <div class="card-body">
             <h5 class="proposal-summary__title">Function Details</h5>
             <dl class="proposal-summary__list">
@@ -221,11 +225,11 @@
           </div>
         </div>
       </div>
-      <div class="col-lg-6">
-        <div class="proposal-summary-card card shadow-sm h-100">
-          <div class="card-body">
-            <h5 class="proposal-summary__title">Contacts</h5>
-            <% if ((orderedContacts || []).length) { %>
+      <% if (hasContacts) { %>
+        <div class="col-lg-6">
+          <div class="proposal-summary-card card shadow-sm h-100">
+            <div class="card-body">
+              <h5 class="proposal-summary__title">Contacts</h5>
               <ul class="proposal-contact-list">
                 <% orderedContacts.forEach((contact) => { %>
                   <li>
@@ -239,14 +243,10 @@
                   </li>
                 <% }) %>
               </ul>
-            <% } else { %>
-              <div class="d-flex align-items-center justify-content-center text-muted small h-100">
-                No contacts linked to this function yet.
-              </div>
-            <% } %>
+            </div>
           </div>
         </div>
-      </div>
+      <% } %>
     </div>
   <% if (clientModeFlag) { %>
     <div id="clientFormAlert" class="alert alert-warning d-none" role="alert">
@@ -260,7 +260,7 @@
   </section>
 
   <section class="proposal-run-sheet proposal-flat proposal-content-rail">
-    <h5 class="proposal-run-sheet__title">Function Run Sheet</h5>
+    <h5 class="proposal-run-sheet__title">Function Information</h5>
     <% if ((sections || []).length) { %>
       <div class="proposal-run-sheet__notes vstack gap-3">
         <% sections.forEach((section) => { %>
@@ -294,40 +294,44 @@
     <table class="proposal-table__grid proposal-financial__table">
       <tbody>
         <tr>
-          <td>Subtotal</td>
-          <td class="text-end" id="fs-subtotal"><%= currency(subtotal) %></td>
+          <td>Total excl. GST</td>
+          <td class="text-end" id="fs-total-ex"><%= currency(totalExGst) %></td>
         </tr>
-        <% if (gratuityAmount > 0) { %>
-          <tr>
-            <td>Gratuity (<%= gratuityPercent.toFixed(2) %>%)</td>
-            <td class="text-end" id="fs-gratuity"><%= currency(gratuityAmount) %></td>
-          </tr>
+        <tr>
+          <td>GST (15%)</td>
+          <td class="text-end" id="fs-gst"><%= currency(gstPortion) %></td>
+        </tr>
+        <tr class="proposal-financial__highlight">
+          <td>Total incl. GST</td>
+          <td class="text-end" id="fs-total-inc"><%= currency(subtotal) %></td>
+        </tr>
+        <% if (paymentRows.length) { %>
+          <% paymentRows.forEach((payment) => { %>
+            <tr>
+              <td>Payment: <%= payment.payment_type || 'Payment' %><% if (payment.paid_on) { %> <span class="text-muted">(<%= new Date(payment.paid_on).toLocaleDateString('en-NZ') %>)</span><% } %></td>
+              <td class="text-end"><%= currency(payment.amount) %></td>
+            </tr>
+          <% }) %>
         <% } %>
         <% if (discountAmount > 0) { %>
           <tr>
             <td>Discount</td>
-            <td class="text-end" id="fs-discount">-<%= currency(discountAmount) %></td>
+            <td class="text-end" id="fs-discount"><%= currency(-discountAmount) %></td>
           </tr>
         <% } %>
-        <tr class="proposal-financial__highlight">
-          <td>Total (incl. GST)</td>
-          <td class="text-end" id="fs-total"><%= currency(finalTotal) %></td>
-        </tr>
+        <% if (!paymentRows.length && discountAmount <= 0) { %>
+          <tr>
+            <td>Payments</td>
+            <td class="text-end"><%= currency(0) %></td>
+          </tr>
+        <% } %>
         <tr>
-          <td>GST (included)</td>
-          <td class="text-end"><%= currency(gstPortion) %></td>
-        </tr>
-        <tr>
-          <td>Deposit Paid</td>
-          <td class="text-end" id="fs-deposit">-<%= currency(depositAmount) %></td>
-        </tr>
-        <tr>
-          <td>Payments</td>
-          <td class="text-end">-<%= currency(totalPaid) %></td>
+          <td>Total payments</td>
+          <td class="text-end" id="fs-total-payments"><%= currency(totalPayments) %></td>
         </tr>
         <tr class="proposal-financial__total-due">
-          <td>Total Owing</td>
-          <td class="text-end" id="fs-remaining"><%= currency(remainingDue) %></td>
+          <td>Total to pay</td>
+          <td class="text-end" id="fs-total-due"><%= currency(remainingDue) %></td>
         </tr>
       </tbody>
     </table>
@@ -399,6 +403,7 @@
   window.previewContext = {
     proposalId: <%= proposalId ? Number(proposalId) : 'null' %>
   };
+  const menuMetaLookup = <%- JSON.stringify(menuMetaLookup || {}) %>;
 </script>
 
 <script>
@@ -423,10 +428,15 @@
 
     const cleanLabel = (text) => text.replace(/\[[^\]]+\]/g, '').replace(/\s{2,}/g, ' ').trim();
     const isChild = (text) => /^\s*(Choice:|Add-on:)/i.test(text);
-    const formatCurrency = (value) => `$${(Number(value) || 0).toFixed(2)}`;
+    const formatCurrency = (value) => {
+      const amount = Number(value) || 0;
+      const sign = amount < 0 ? "-" : "";
+      return `${sign}$${Math.abs(amount).toFixed(2)}`;
+    };
 
     function buildModel() {
       const categories = new Map();
+      const menuIndex = new Map();
       let currentMenu = null;
 
       source.querySelectorAll('li').forEach((li) => {
@@ -437,11 +447,14 @@
         const selectable = String(li.dataset.selectable || '').toLowerCase() === 'true';
         const text = cleanLabel(rawText);
         const isAddon = /^\s*Add-on:/i.test(rawText);
+        const menuId = meta.menu_id ? Number(meta.menu_id) : null;
+        const menuMeta = menuId ? menuMetaLookup[menuId] || null : null;
 
         if (!isChild(text)) {
-          const categoryName = meta.category || 'Uncategorised';
+          const categoryName = meta.category || menuMeta?.category || 'Uncategorised';
           if (!categories.has(categoryName)) categories.set(categoryName, []);
           currentMenu = {
+            menuId,
             title: text.replace(/^Menu:\s*/i, '').trim(),
             basePrice: price,
             baseQty: meta.qty ? Number(meta.qty) : 1,
@@ -449,11 +462,30 @@
             clientSelectable: selectable,
             items: [],
           };
+          if (menuId) menuIndex.set(menuId, currentMenu);
           categories.get(categoryName).push(currentMenu);
           return;
         }
 
-        if (!currentMenu) return;
+        if (!currentMenu || (menuId && currentMenu.menuId && currentMenu.menuId !== menuId)) {
+          const categoryName = meta.category || menuMeta?.category || 'Uncategorised';
+          if (!categories.has(categoryName)) categories.set(categoryName, []);
+          currentMenu =
+            (menuId && menuIndex.get(menuId)) ||
+            {
+              menuId,
+              title: menuMeta?.name || 'Menu',
+              basePrice: 0,
+              baseQty: 1,
+              baseExcluded: true,
+              clientSelectable: selectable,
+              items: [],
+            };
+          if (menuId && !menuIndex.has(menuId)) menuIndex.set(menuId, currentMenu);
+          if (!categories.get(categoryName).includes(currentMenu)) {
+            categories.get(categoryName).push(currentMenu);
+          }
+        }
         const unitType = meta.unit_type || '';
         const qty = meta.qty
           ? Number(meta.qty)
@@ -470,6 +502,7 @@
           isAddon,
           selectable,
           excluded: meta.excluded || false,
+          menuId,
         };
         currentMenu.items.push(item);
         if (selectable) currentMenu.clientSelectable = true;
@@ -510,6 +543,13 @@
         const tbody = table.querySelector('tbody');
 
         menus.forEach((menu) => {
+          const menuRow = document.createElement('tr');
+          menuRow.className = 'proposal-table__menu';
+          menuRow.innerHTML = `
+            <td colspan="4">${menu.title || 'Menu'}</td>
+          `;
+          tbody.appendChild(menuRow);
+
           if (!menu.baseExcluded) {
             const baseLabel = menu.title || 'Package';
             const baseQty = menu.baseQty || 1;
@@ -518,7 +558,9 @@
               <td class="proposal-cell proposal-cell--item">${baseLabel}</td>
               <td class="proposal-cell proposal-cell--qty">${baseQty}</td>
               <td class="proposal-cell proposal-cell--price">${formatCurrency(menu.basePrice)}</td>
-              <td class="proposal-cell proposal-cell--total">${formatCurrency((menu.basePrice || 0) * baseQty)}</td>
+              <td class="proposal-cell proposal-cell--total" data-base="${menu.basePrice || 0}" data-qty="${baseQty}">
+                ${formatCurrency((menu.basePrice || 0) * baseQty)}
+              </td>
             `;
             tbody.appendChild(baseRow);
           }
@@ -629,17 +671,21 @@
           cell.textContent = formatCurrency(base * qty);
         });
         const discount = Number(<%- baseDiscount.toFixed(2) %>);
-        const deposit = Number(<%- baseDeposit.toFixed(2) %>);
-        const remaining = subtotal - discount - deposit;
+        const totalPaid = Number(<%- baseTotalPaid.toFixed(2) %>);
+        const totalPayments = totalPaid + (discount > 0 ? discount : 0);
+        const remaining = subtotal - totalPayments;
+        const totalEx = subtotal / 1.15;
+        const gst = subtotal - totalEx;
         const upd = (id, value) => {
           const el = document.getElementById(id);
           if (el) el.textContent = value;
         };
-        upd('fs-subtotal', formatCurrency(subtotal));
-        upd('fs-discount', `-${formatCurrency(discount)}`);
-        upd('fs-deposit', `-${formatCurrency(deposit)}`);
-        upd('fs-total', formatCurrency(subtotal - discount));
-        upd('fs-remaining', formatCurrency(remaining));
+        upd('fs-total-ex', formatCurrency(totalEx));
+        upd('fs-gst', formatCurrency(gst));
+        upd('fs-total-inc', formatCurrency(subtotal));
+        if (discount > 0) upd('fs-discount', formatCurrency(-discount));
+        upd('fs-total-payments', formatCurrency(totalPayments));
+        upd('fs-total-due', formatCurrency(remaining));
       };
       const handle = (e) => {
         if (e.target.classList.contains('client-include')) {

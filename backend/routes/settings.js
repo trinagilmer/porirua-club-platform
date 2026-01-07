@@ -370,6 +370,18 @@ router.use(express.json({ limit: "5mb" })); // if any JSON posts too
 ========================================================= */
 router.get("/", (req, res) => res.redirect("/settings/overview"));
 
+// ------------------------------------------------------
+// Manuals
+// ------------------------------------------------------
+router.get("/manuals/functions", (req, res) => {
+  res.render("settings/manuals/functions", {
+    layout: "layouts/settings",
+    title: "Functions Manual",
+    pageType: "settings",
+    activeTab: "manuals-functions",
+  });
+});
+
 /* =========================================================
    🧩 SETTINGS OVERVIEW
 ========================================================= */

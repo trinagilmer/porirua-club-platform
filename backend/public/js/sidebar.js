@@ -76,6 +76,49 @@ console.log("?? Sidebar script loaded");
 
   bindEditableFields();
 
+  const closeSidebar = () => {
+    sidebar.classList.remove("is-open");
+    document.getElementById("sidebarOverlay")?.classList.remove("active");
+    document.body.classList.remove("sidebar-open");
+  };
+
+  const openSidebar = () => {
+    sidebar.classList.add("is-open");
+    document.getElementById("sidebarOverlay")?.classList.add("active");
+    document.body.classList.add("sidebar-open");
+  };
+
+  document.addEventListener("click", (event) => {
+    const toggle = event.target.closest(".sidebar-toggle");
+    if (toggle) {
+      event.preventDefault();
+      if (sidebar.classList.contains("is-open")) {
+        closeSidebar();
+      } else {
+        openSidebar();
+      }
+      return;
+    }
+
+    const close = event.target.closest(".sidebar-close");
+    if (close) {
+      event.preventDefault();
+      closeSidebar();
+      return;
+    }
+
+    if (event.target.id === "sidebarOverlay") {
+      closeSidebar();
+    }
+  });
+
+  document.addEventListener("change", (event) => {
+    const select = event.target.closest(".tabs-select");
+    if (!select) return;
+    const next = select.value;
+    if (next) window.location.href = next;
+  });
+
   /* =========================================================
      ? BURGER MENU - Stable toggle (no flicker, portal-safe)
   ========================================================= */

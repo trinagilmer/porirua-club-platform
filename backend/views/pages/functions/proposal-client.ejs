@@ -1,4 +1,23 @@
-<% function stripMeta(desc) { return String(desc || '').replace(/\[[^\]]+\]/g, '').trim(); } %>
+<%
+  function stripMeta(desc) {
+    return String(desc || '').replace(/\[[^\]]+\]/g, '').trim();
+  }
+  function parseMeta(desc) {
+    const meta = {};
+    const regex = /\[([a-z_]+):([^\]]+)\]/gi;
+    let match;
+    while ((match = regex.exec(desc || ''))) {
+      meta[match[1].toLowerCase()] = match[2];
+    }
+    const qtyMatch = String(desc || '').match(/ x (\d+)/i);
+    if (qtyMatch) meta.qty = Number(qtyMatch[1]);
+    return meta;
+  }
+  function formatCurrency(value) {
+    const amount = Number(value) || 0;
+    return amount.toLocaleString('en-NZ', { style: 'currency', currency: 'NZD' });
+  }
+%>
 
 <style>
   .client-shell {
@@ -23,7 +42,25 @@
 
 <main class="client-shell">
   <div class="card shadow-lg client-card">
-    <div class="card-body client-header">
+    <div class="print-only">
+      <header class="proposal-header card shadow-sm mb-4">
+        <div class="proposal-header__logo proposal-header__logo--pc">
+          <img src="/img/Pclogotext.png" alt="Porirua Club" class="proposal-logo proposal-logo--primary">
+        </div>
+        <div class="proposal-header__meta">
+          <div class="proposal-header__date">
+            <%= proposal?.event_date ? new Date(proposal.event_date).toLocaleDateString('en-NZ') : '' %>
+          </div>
+          <div class="proposal-header__title">
+            <strong><%= proposal?.event_name || 'Function Proposal' %></strong>
+          </div>
+        </div>
+        <div class="proposal-header__logo proposal-header__logo--eastwood">
+          <img src="/img/EASTWOOD-LOGO-small.png" alt="Eastwood" class="proposal-logo proposal-logo--secondary">
+        </div>
+      </header>
+    </div>
+    <div class="card-body client-header no-print">
       <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
         <div>
           <p class="text-uppercase small mb-1">Proposal</p>
@@ -73,10 +110,19 @@
                   <th>Item</th>
                   <th style="width: 90px;">Qty</th>
                   <th style="width: 120px;">Price</th>
+                  <th style="width: 120px;">Total</th>
                 </tr>
               </thead>
               <tbody>
-                <% items.forEach(function(item) { const label = stripMeta(item.description); const selectable = item.client_selectable; %>
+                <% items.forEach(function(item) { 
+                  const label = stripMeta(item.description);
+                  const selectable = item.client_selectable;
+                  const meta = parseMeta(item.description);
+                  const qtyValue = Number(meta.qty || 1) || 1;
+                  const unitPrice = Number(item.unit_price || 0);
+                  const priceEach = meta.base ? Number(meta.base) : qtyValue > 0 ? unitPrice / qtyValue : unitPrice;
+                  const lineTotal = priceEach * qtyValue;
+                %>
                   <tr>
                     <td class="text-center">
                       <% if (selectable) { %>
@@ -86,10 +132,13 @@
                     <td><%= label || 'Item' %></td>
                     <td>
                       <% if (selectable) { %>
-                        <input type="number" name="item_<%= item.id %>_qty" class="form-control form-control-sm client-qty" value="1" min="1">
+                        <input type="number" name="item_<%= item.id %>_qty" class="form-control form-control-sm client-qty" value="<%= qtyValue %>" min="1" data-price="<%= priceEach %>">
+                      <% } else { %>
+                        <span><%= qtyValue %></span>
                       <% } %>
                     </td>
-                    <td><%= Number(item.unit_price || 0).toLocaleString('en-NZ', { style: 'currency', currency: 'NZD' }) %></td>
+                    <td><%= formatCurrency(priceEach) %></td>
+                    <td class="client-line-total"><%= formatCurrency(lineTotal) %></td>
                   </tr>
                 <% }) %>
               </tbody>
@@ -110,3 +159,22 @@
     </div>
   </div>
 </main>
+
+<script>
+  document.querySelectorAll('.client-qty').forEach((input) => {
+    const row = input.closest('tr');
+    const totalCell = row?.querySelector('.client-line-total');
+    const priceEach = Number(input.dataset.price || 0);
+    const update = () => {
+      let qty = Number(input.value || 1);
+      if (!Number.isFinite(qty) || qty <= 0) qty = 1;
+      const total = priceEach * qty;
+      if (totalCell) {
+        totalCell.textContent = total.toLocaleString('en-NZ', { style: 'currency', currency: 'NZD' });
+      }
+    };
+    input.addEventListener('input', update);
+    input.addEventListener('change', update);
+    update();
+  });
+</script>

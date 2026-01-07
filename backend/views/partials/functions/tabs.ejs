@@ -1,5 +1,13 @@
 <!-- ===== Function Tabs ===== -->
 <div class="tabs-bar mb-4">
+  <select class="tabs-select" aria-label="Function navigation">
+    <option value="/functions/<%= fn.id_uuid %>" <%= activeTab === 'info' ? 'selected' : '' %>>Info</option>
+    <option value="/functions/<%= fn.id_uuid %>/tasks" <%= activeTab === 'tasks' ? 'selected' : '' %>>Tasks</option>
+    <option value="/functions/<%= fn.id_uuid %>/notes" <%= activeTab === 'notes' ? 'selected' : '' %>>Notes</option>
+    <option value="/functions/<%= fn.id_uuid %>/communications" <%= activeTab === 'communications' ? 'selected' : '' %>>Communications</option>
+    <option value="/functions/<%= fn.id_uuid %>/quote" <%= activeTab === 'quote' ? 'selected' : '' %>>Quote</option>
+    <option value="/functions/<%= fn.id_uuid %>/edit" <%= activeTab === 'edit' ? 'selected' : '' %>>Edit</option>
+  </select>
   <a href="/functions/<%= fn.id_uuid %>"
      class="<%= activeTab === 'info' ? 'active' : '' %>">Info</a>
 
@@ -17,6 +25,9 @@
 
   <a href="/functions/<%= fn.id_uuid %>/edit"
      class="<%= activeTab === 'edit' ? 'active' : '' %>">Edit</a>
+  <button type="button" class="sidebar-toggle" aria-label="Open function details">
+    Details
+  </button>
 </div>
 
 

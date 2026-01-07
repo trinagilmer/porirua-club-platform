@@ -20,22 +20,6 @@
   <!-- 🎨 Core Styles -->
   <link rel="stylesheet" href="/css/main.css?v=2.0" />
   <link rel="stylesheet" href="/css/settings.css?v=1.1" />
-  <style>
-    @media print {
-      .settings-sidebar {
-        display: none !important;
-      }
-      .settings-layout {
-        padding-top: 0 !important;
-        min-height: auto !important;
-      }
-      .settings-content {
-        width: 100% !important;
-        padding: 0 !important;
-        margin: 0 !important;
-      }
-    }
-  </style>
 
   <!-- 💬 Page-specific CSS/SCSS -->
   <% 
@@ -146,6 +130,29 @@
 
   <!-- ⚙️ Settings Layout -->
   <main class="settings-layout d-flex" style="padding-top: 5rem; min-height: calc(100vh - 5rem);">
+    <div class="settings-mobile-nav">
+      <select id="settingsNavSelect" aria-label="Settings navigation">
+        <option value="/settings/overview" <%= activeTab === 'overview' ? 'selected' : '' %>>Overview</option>
+        <option value="/settings/event-types" <%= activeTab === 'event-types' ? 'selected' : '' %>>Event Types</option>
+        <option value="/settings/spaces" <%= activeTab === 'spaces' ? 'selected' : '' %>>Rooms / Spaces</option>
+        <option value="/settings/restaurant" <%= activeTab === 'restaurant' ? 'selected' : '' %>>Restaurant Bookings</option>
+        <option value="/settings/entertainment" <%= activeTab === 'entertainment' ? 'selected' : '' %>>Entertainment Events</option>
+        <option value="/settings/feedback" <%= activeTab === 'feedback-automation' ? 'selected' : '' %>>Feedback - Automation</option>
+        <option value="/settings/feedback/templates/email" <%= activeTab === 'feedback-template-email' ? 'selected' : '' %>>Feedback - Email Invite</option>
+        <option value="/settings/feedback/templates/survey" <%= activeTab === 'feedback-template-survey' ? 'selected' : '' %>>Feedback - Survey Intro</option>
+        <option value="/settings/feedback/templates/entertainment" <%= activeTab === 'feedback-template-entertainment' ? 'selected' : '' %>>Feedback - Entertainment Header</option>
+        <option value="/settings/feedback/activity" <%= activeTab === 'feedback-activity' ? 'selected' : '' %>>Feedback - Activity</option>
+        <option value="/settings/note-templates" <%= activeTab === 'note-templates' ? 'selected' : '' %>>Note Templates</option>
+        <option value="/settings/calendar" <%= activeTab === 'calendar-settings' ? 'selected' : '' %>>Calendar Options</option>
+        <option value="/settings/proposal-terms" <%= activeTab === 'proposal-terms' ? 'selected' : '' %>>Proposal Terms</option>
+        <option value="/settings/manuals/functions" <%= activeTab === 'manuals-functions' ? 'selected' : '' %>>Manuals - Functions</option>
+        <option value="/settings/users" <%= activeTab === 'users' ? 'selected' : '' %>>Users</option>
+        <option value="/settings/menus" <%= activeTab === 'menus' ? 'selected' : '' %>>Menus - Manage Menus</option>
+        <option value="/settings/menus/categories" <%= activeTab === 'menu-categories' ? 'selected' : '' %>>Menus - Sales Categories</option>
+        <option value="/settings/menus/choices" <%= activeTab === 'menu-choices' ? 'selected' : '' %>>Menus - Menu Choices</option>
+        <option value="/settings/menus/units" <%= activeTab === 'menu-units' ? 'selected' : '' %>>Menus - Sales Units</option>
+      </select>
+    </div>
     <!-- 🧭 Sidebar -->
     <aside class="settings-sidebar border-end p-4 bg-light" style="width: 250px;">
       <h5 class="mb-3 text-uppercase text-muted fw-bold">Settings</h5>
@@ -194,6 +201,7 @@
         <a href="/settings/note-templates" class="nav-link <%= activeTab === 'note-templates' ? 'active fw-semibold' : '' %>">Note Templates</a>
         <a href="/settings/calendar" class="nav-link <%= activeTab === 'calendar-settings' ? 'active fw-semibold' : '' %>">Calendar Options</a>
         <a href="/settings/proposal-terms" class="nav-link <%= activeTab === 'proposal-terms' ? 'active fw-semibold' : '' %>">Proposal Terms</a>
+        <a href="/settings/manuals/functions" class="nav-link <%= activeTab === 'manuals-functions' ? 'active fw-semibold' : '' %>">Manuals - Functions</a>
         <a href="/settings/users" class="nav-link <%= activeTab === 'users' ? 'active fw-semibold' : '' %>">Users</a>
 <!-- Menus Group -->
 <div class="nav-item">
@@ -248,6 +256,15 @@
   <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 
   <script type="module" src="/js/settings/_shared.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const select = document.getElementById("settingsNavSelect");
+      if (!select) return;
+      select.addEventListener("change", () => {
+        if (select.value) window.location.href = select.value;
+      });
+    });
+  </script>
 
   <!-- 💬 Dynamic Page-specific JS -->
   <% 

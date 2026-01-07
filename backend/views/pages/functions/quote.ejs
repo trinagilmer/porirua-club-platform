@@ -15,7 +15,7 @@
   };
 
   const formatTime = (value) => {
-    if (!value) return '—';
+    if (!value) return '-';
     const parts = String(value).split(':');
     let hours = Number(parts[0]);
     const minutes = (parts[1] || '00').padStart(2, '0');
@@ -25,12 +25,38 @@
     return `${hours}:${minutes} ${suffix}`;
   };
 
+  const formatCurrency = (value) => {
+    const amount = Number(value) || 0;
+    const sign = amount < 0 ? '-' : '';
+    return `${sign}$${Math.abs(amount).toFixed(2)}`;
+  };
+
+  const formatShortDate = (value) => {
+    if (!value) return '';
+    try {
+      return new Date(value).toLocaleDateString('en-NZ', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch (err) {
+      return '';
+    }
+  };
+
   const contacts = Array.isArray(linkedContacts) ? linkedContacts : [];
   const primaryContact =
     contacts.find((contact) => contact.is_primary) || contacts[0] || null;
   const otherContacts = primaryContact
     ? contacts.filter((contact) => contact.id !== primaryContact.id)
     : contacts;
+
+  const safePayments = Array.isArray(payments) ? payments : [];
+  const subtotalValue = Number(totals.subtotal || 0);
+  const discountValue = Number(totals.discount_amount || 0);
+  const paidTotal = Number(totals.total_paid || 0);
+  const totalPayments = paidTotal + (discountValue > 0 ? discountValue : 0);
+  const remainingDue = subtotalValue - totalPayments;
 %>
 
 <div id="quoteToastContainer" class="toast-container position-fixed top-0 end-0 p-3"></div>
@@ -102,19 +128,43 @@
           </div>
         </div>
         <dl class="row gy-2 gx-0 small">
-          <dt class="col-6">Subtotal</dt>
-          <dd class="col-6 text-end" id="quoteSubtotal">$<%= Number(totals.subtotal || 0).toFixed(2) %></dd>
-          <dt class="col-6">Gratuity (<span id="quoteGratuityPercent"><%= Number(totals.gratuity_percent || 0).toFixed(2) %></span>%)</dt>
-          <dd class="col-6 text-end" id="quoteGratuity">$<%= Number(totals.gratuity_amount || 0).toFixed(2) %></dd>
-          <dt class="col-6">Discount</dt>
-          <dd class="col-6 text-end" id="quoteDiscount">$<%= Number(totals.discount_amount || 0).toFixed(2) %></dd>
-          <dt class="col-6">Deposit</dt>
-          <dd class="col-6 text-end" id="quoteDeposit">$<%= Number(totals.deposit_amount || 0).toFixed(2) %></dd>
-          <dt class="col-6">Total Paid</dt>
-          <dd class="col-6 text-end" id="quotePaid">$<%= Number(totals.total_paid || 0).toFixed(2) %></dd>
-          <dt class="col-6 fw-semibold">Remaining Due</dt>
-          <dd class="col-6 text-end fw-semibold" id="quoteRemaining">$<%= Number(totals.remaining_due || 0).toFixed(2) %></dd>
+          <dt class="col-6">Quote total</dt>
+          <dd class="col-6 text-end" id="quoteSubtotal"><%= formatCurrency(subtotalValue) %></dd>
         </dl>
+        <div class="border-top pt-3">
+          <div class="text-uppercase text-muted small fw-semibold mb-2">Payments</div>
+          <div id="quotePaymentsList">
+            <% if (!safePayments.length && discountValue <= 0) { %>
+              <div class="text-muted small">No payments recorded yet.</div>
+            <% } %>
+            <% safePayments.forEach((payment) => { %>
+              <div class="d-flex justify-content-between align-items-start mb-2 small">
+                <div>
+                  <div class="fw-semibold"><%= payment.payment_type || 'Payment' %></div>
+                  <div class="text-muted"><%= formatShortDate(payment.paid_on) %></div>
+                </div>
+                <div class="text-end"><%= formatCurrency(payment.amount) %></div>
+              </div>
+            <% }) %>
+            <% if (discountValue > 0) { %>
+              <div class="d-flex justify-content-between align-items-start mb-2 small">
+                <div>
+                  <div class="fw-semibold">Discount</div>
+                  <div class="text-muted">Applied</div>
+                </div>
+                <div class="text-end"><%= formatCurrency(-discountValue) %></div>
+              </div>
+            <% } %>
+          </div>
+          <div class="d-flex justify-content-between align-items-center small pt-2">
+            <span class="fw-semibold">Total payments</span>
+            <span class="fw-semibold" id="quoteTotalPayments"><%= formatCurrency(totalPayments) %></span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center small">
+            <span class="fw-semibold">Total to pay</span>
+            <span class="fw-semibold" id="quoteRemaining"><%= formatCurrency(remainingDue) %></span>
+          </div>
+        </div>
       </div>
     </section>
   </div>
@@ -260,33 +310,46 @@
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
   </div>
   <div class="offcanvas-body">
-    <form id="totalsForm" data-proposal-id="<%= proposals[0]?.id || '' %>" class="vstack gap-3">
+    <form id="discountForm" data-proposal-id="<%= proposals[0]?.id || '' %>" class="vstack gap-3">
       <div>
-        <label class="form-label">Subtotal</label>
-        <input type="number" step="0.01" name="subtotal" class="form-control" value="<%= Number(totals.subtotal || 0).toFixed(2) %>" readonly>
-        <div class="form-text">Calculated automatically based on menu selections.</div>
+        <label class="form-label">Quote total</label>
+        <input type="number" step="0.01" class="form-control" value="<%= Number(totals.subtotal || 0).toFixed(2) %>" readonly>
+        <div class="form-text">Calculated automatically from menu selections.</div>
+      </div>
+      <div id="discountInputWrap" class="<%= discountValue > 0 ? '' : 'd-none' %>">
+        <label class="form-label">Discount ($)</label>
+        <input type="number" step="0.01" name="discount_amount" class="form-control" value="<%= Number(totals.discount_amount || 0).toFixed(2) %>">
+      </div>
+      <button type="button" class="btn btn-outline-secondary" id="toggleDiscountBtn">
+        <%= discountValue > 0 ? 'Edit discount' : 'Add discount' %>
+      </button>
+      <button type="submit" class="btn btn-primary">Save discount</button>
+    </form>
+    <hr class="my-4">
+    <form id="paymentForm" data-proposal-id="<%= proposals[0]?.id || '' %>" class="vstack gap-3">
+      <div>
+        <label class="form-label">Payment description</label>
+        <input type="text" name="payment_type" class="form-control" placeholder="e.g. Room hire" required>
       </div>
       <div class="row g-2">
         <div class="col-6">
-          <label class="form-label">Gratuity %</label>
-          <input type="number" step="0.01" name="gratuity_percent" class="form-control" value="<%= Number(totals.gratuity_percent || 0).toFixed(2) %>">
+          <label class="form-label">Date paid</label>
+          <input type="date" name="paid_on" class="form-control" required>
         </div>
         <div class="col-6">
-          <label class="form-label">Discount ($)</label>
-          <input type="number" step="0.01" name="discount_amount" class="form-control" value="<%= Number(totals.discount_amount || 0).toFixed(2) %>">
+          <label class="form-label">Amount ($)</label>
+          <input type="number" step="0.01" name="amount" class="form-control" min="0" required>
         </div>
       </div>
-      <div class="row g-2">
-        <div class="col-6">
-          <label class="form-label">Deposit ($)</label>
-          <input type="number" step="0.01" name="deposit_amount" class="form-control" value="<%= Number(totals.deposit_amount || 0).toFixed(2) %>">
-        </div>
-        <div class="col-6">
-          <label class="form-label">Override Total ($)</label>
-          <input type="number" step="0.01" name="override_total" class="form-control" placeholder="Optional">
-        </div>
+      <div>
+        <label class="form-label">Payment method</label>
+        <select name="method" class="form-select">
+          <option value="online">Online</option>
+          <option value="till">Till</option>
+          <option value="other">Other</option>
+        </select>
       </div>
-      <button type="submit" class="btn btn-primary">Save Totals</button>
+      <button type="submit" class="btn btn-success">Add payment</button>
     </form>
   </div>
 </div>
@@ -374,8 +437,10 @@
   document.addEventListener('DOMContentLoaded', () => {
     const list = document.getElementById('proposalItemsList');
     const mount = document.getElementById('quoteMenuMount');
-    const totalsForm = document.getElementById('totalsForm');
-    const editTotalsBtn = document.getElementById('editTotalsBtn');
+    const discountForm = document.getElementById('discountForm');
+    const paymentForm = document.getElementById('paymentForm');
+    const toggleDiscountBtn = document.getElementById('toggleDiscountBtn');
+    const discountInputWrap = document.getElementById('discountInputWrap');
     const resetQuoteBtn = document.getElementById('resetQuoteBtn');
     const saveQuoteBtn = document.getElementById('saveQuoteBtn');
     const categorySelect = document.getElementById('quoteCategorySelect');
@@ -394,7 +459,11 @@
     window.quoteActiveItemIds = new Set();
     const itemLookup = new Map();
 
-    const formatCurrency = (value) => `$${(Number(value) || 0).toFixed(2)}`;
+    const formatCurrency = (value) => {
+      const amount = Number(value) || 0;
+      const sign = amount < 0 ? '-' : '';
+      return `${sign}$${Math.abs(amount).toFixed(2)}`;
+    };
 
     function updateModalActions() {
       const hasCategory = Boolean(categorySelect?.value);
@@ -530,13 +599,14 @@
         const payload = await res.json();
         if (payload.success && payload.data) {
           const t = payload.data;
-          document.getElementById('quoteSubtotal').textContent = formatCurrency(t.subtotal);
-          document.getElementById('quoteGratuity').textContent = formatCurrency(t.gratuity_amount);
-          document.getElementById('quoteGratuityPercent').textContent = Number(t.gratuity_percent || 0).toFixed(2);
-          document.getElementById('quoteDiscount').textContent = formatCurrency(t.discount_amount);
-          document.getElementById('quoteDeposit').textContent = formatCurrency(t.deposit_amount);
-          document.getElementById('quotePaid').textContent = formatCurrency(t.total_paid);
-          document.getElementById('quoteRemaining').textContent = formatCurrency(t.remaining_due);
+          const subtotal = Number(t.subtotal || 0);
+          const discount = Number(t.discount_amount || 0);
+          const totalPaid = Number(t.total_paid || 0);
+          const totalPayments = totalPaid + (discount > 0 ? discount : 0);
+          const remaining = subtotal - totalPayments;
+          document.getElementById('quoteSubtotal').textContent = formatCurrency(subtotal);
+          document.getElementById('quoteTotalPayments').textContent = formatCurrency(totalPayments);
+          document.getElementById('quoteRemaining').textContent = formatCurrency(remaining);
         }
       } catch (err) {
         console.error('Failed to refresh totals', err);
@@ -704,10 +774,7 @@
         if (!totalEl) return;
         subtotal += Number(totalEl.textContent.replace(/[^0-9.-]/g, '')) || 0;
       });
-      const basePrice = Number(
-        baseId.dataset.base
-      ) || Number(baseId.textContent.replace(/[^0-9.-]/g, '')) || 0;
-      baseId.textContent = formatCurrency(subtotal + basePrice);
+      baseId.textContent = formatCurrency(subtotal);
     }
 
     mount.addEventListener('change', async (event) => {
@@ -759,8 +826,8 @@
         window.quoteActiveItemIds.delete(itemId);
       }
 
-      await saveLineTotal(itemId, total, include, costTotal, costEach);
       await saveQty(itemId, qty);
+      await saveLineTotal(itemId, total, include, costTotal, costEach);
       updateMenuSubtotal(row);
       await fetchTotals();
     });
@@ -832,33 +899,52 @@
       }
     });
 
-    if (editTotalsBtn && totalsForm) {
-      editTotalsBtn.addEventListener('click', () => {
-        const drawer = new bootstrap.Offcanvas(document.getElementById('totalsDrawer'));
-        drawer.show();
-      });
+    toggleDiscountBtn?.addEventListener('click', () => {
+      discountInputWrap?.classList.remove('d-none');
+      const input = discountInputWrap?.querySelector('input[name="discount_amount"]');
+      if (input && input.value === '0.00') input.value = '';
+      input?.focus();
+    });
 
-      totalsForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const formData = new FormData(totalsForm);
-        const payload = Object.fromEntries(formData.entries());
-        const proposalId = totalsForm.dataset.proposalId;
-        try {
-          const res = await fetch(`/functions/${proposalId}/totals/update`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
-          const data = await res.json();
-          if (!data.success) throw new Error(data.error || 'Failed to update totals');
-          await fetchTotals();
-          bootstrap.Offcanvas.getInstance(document.getElementById('totalsDrawer')).hide();
-        } catch (err) {
-          console.error(err);
-          quoteToast(err.message || 'Totals update failed.', 'danger');
-        }
-      });
-    }
+    discountForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const formData = new FormData(discountForm);
+      const proposalId = discountForm.dataset.proposalId;
+      const discountAmount = Number(formData.get('discount_amount') || 0);
+      try {
+        const res = await fetch(`/functions/${proposalId}/totals/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ discount_amount: discountAmount }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to update discount');
+        location.reload();
+      } catch (err) {
+        console.error(err);
+        quoteToast(err.message || 'Discount update failed.', 'danger');
+      }
+    });
+
+    paymentForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const formData = new FormData(paymentForm);
+      const proposalId = paymentForm.dataset.proposalId;
+      const payload = Object.fromEntries(formData.entries());
+      try {
+        const res = await fetch(`/functions/${proposalId}/payments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to add payment');
+        location.reload();
+      } catch (err) {
+        console.error(err);
+        quoteToast(err.message || 'Payment update failed.', 'danger');
+      }
+    });
 
     function populateMenus() {
       updateModalActions();
@@ -1116,7 +1202,6 @@
 
     editTotalsDropdown?.addEventListener('click', (e) => {
       e.preventDefault();
-      if (!editTotalsBtn) return;
       const drawer = new bootstrap.Offcanvas(document.getElementById('totalsDrawer'));
       drawer.show();
     });
