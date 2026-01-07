@@ -63,7 +63,7 @@
                     </small>
                   <% } %>
                 </td>
-                <td><%= event.start_at ? new Date(event.start_at).toLocaleString('en-NZ') : '—' %></td>
+                <td><%= event.start_at ? new Date(event.start_at).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', dateStyle: 'medium', timeStyle: 'short' }) : '—' %></td>
                 <td class="text-capitalize"><%= event.status %></td>
                 <td><%= event.organiser || '—' %></td>
                 <td>
@@ -79,12 +79,21 @@
                     class="btn btn-sm btn-outline-secondary"
                     data-bs-toggle="modal"
                     data-bs-target="#editEntertainmentModal"
-                    data-event='<%- JSON.stringify(event) %>'
+                    data-event-id="<%= event.id %>"
                   >
                     Edit
                   </button>
                   <form action="/settings/entertainment/delete" method="POST" class="d-inline" onsubmit="return confirm('Delete <%= event.title %>?');">
                     <input type="hidden" name="id" value="<%= event.id %>">
+                    <% if (event.series_id) { %>
+                      <select name="series_scope" class="form-select form-select-sm d-inline-block w-auto me-2">
+                        <option value="single">This event only</option>
+                        <option value="future">This + future</option>
+                        <option value="all">All in series</option>
+                      </select>
+                    <% } else { %>
+                      <input type="hidden" name="series_scope" value="single">
+                    <% } %>
                     <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
                   </form>
                 </td>
@@ -378,6 +387,64 @@
             <label class="form-label">Description</label>
             <textarea name="description" id="entEditDescription" rows="4" class="form-control"></textarea>
           </div>
+          <div class="col-12">
+            <div class="border rounded-3 p-3 bg-light-subtle">
+              <h6 class="mb-2">Repeat event</h6>
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label">Frequency</label>
+                  <select name="recurrence_frequency" id="entRecFreq" class="form-select">
+                    <option value="none">Does not repeat</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly_date">Monthly (date)</option>
+                    <option value="monthly_weekday">Monthly (weekday)</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Interval</label>
+                  <input type="number" name="recurrence_interval" id="entRecInterval" class="form-control" min="1" value="1">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">End date</label>
+                  <input type="date" name="recurrence_end_date" id="entRecEndDate" class="form-control">
+                </div>
+              </div>
+              <div class="mt-2">
+                <label class="form-label">Weekdays</label>
+                <div class="d-flex flex-wrap gap-2">
+                  <% ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].forEach(function(day, idx) { %>
+                    <div class="form-check form-check-inline">
+                      <input class="form-check-input" type="checkbox" name="recurrence_weekdays[]" value="<%= idx %>" id="ent-rec-edit-<%= idx %>">
+                      <label class="form-check-label" for="ent-rec-edit-<%= idx %>"><%= day %></label>
+                    </div>
+                  <% }) %>
+                </div>
+              </div>
+              <div class="row g-3 mt-2">
+                <div class="col-md-6">
+                  <label class="form-label">Monthly day</label>
+                  <input type="number" name="recurrence_monthly_day" id="entRecMonthlyDay" class="form-control" min="1" max="31">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Monthly weekday</label>
+                  <select name="recurrence_monthly_week" id="entRecMonthlyWeek" class="form-select">
+                    <option value="">--</option>
+                    <option value="1">First</option>
+                    <option value="2">Second</option>
+                    <option value="3">Third</option>
+                    <option value="4">Fourth</option>
+                    <option value="-1">Last</option>
+                  </select>
+                </div>
+              </div>
+              <div class="mt-2">
+                <label class="form-label">Skip dates</label>
+                <textarea name="recurrence_skip_dates" id="entRecSkipDates" rows="2" class="form-control" placeholder="YYYY-MM-DD separated by commas"></textarea>
+              </div>
+              <small class="text-muted">Use these fields to turn a single draft into a series.</small>
+            </div>
+          </div>
           <div class="col-12 d-none" id="entEditSeriesScopeWrap">
             <label class="form-label">Apply changes to</label>
             <div class="form-check">
@@ -458,6 +525,27 @@
   document.addEventListener("DOMContentLoaded", () => {
     const addActsSelect = document.querySelector('select[name="acts[]"]');
     const editActsSelect = document.getElementById("entEditActs");
+    const nzDate = (value) => {
+      if (!value) return "";
+      try {
+        return new Date(value).toLocaleDateString("en-CA", { timeZone: "Pacific/Auckland" });
+      } catch {
+        return "";
+      }
+    };
+    const nzTime = (value) => {
+      if (!value) return "";
+      try {
+        return new Date(value).toLocaleTimeString("en-NZ", {
+          timeZone: "Pacific/Auckland",
+          hour12: false,
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      } catch {
+        return "";
+      }
+    };
     const quickToggle = document.getElementById("toggleQuickAct");
     const quickForm = document.getElementById("quickActForm");
     const quickName = document.getElementById("quickActName");
@@ -468,6 +556,12 @@
     const seriesScopeSingle = document.getElementById("entScopeSingle");
     const seriesScopeFuture = document.getElementById("entScopeFuture");
     const seriesScopeAll = document.getElementById("entScopeAll");
+    const recFreq = document.getElementById("entRecFreq");
+    const recInterval = document.getElementById("entRecInterval");
+    const recEndDate = document.getElementById("entRecEndDate");
+    const recMonthlyDay = document.getElementById("entRecMonthlyDay");
+    const recMonthlyWeek = document.getElementById("entRecMonthlyWeek");
+    const recSkipDates = document.getElementById("entRecSkipDates");
 
     const setScopeVisibility = (visible) => {
       if (!seriesScopeWrap) return;
@@ -546,6 +640,16 @@
       if (!eventData) return;
       try {
         const record = JSON.parse(eventData);
+        // Reset recurrence inputs
+        if (recFreq) recFreq.value = "none";
+        if (recInterval) recInterval.value = "1";
+        if (recEndDate) recEndDate.value = "";
+        if (recMonthlyDay) recMonthlyDay.value = "";
+        if (recMonthlyWeek) recMonthlyWeek.value = "";
+        if (recSkipDates) recSkipDates.value = "";
+        document.querySelectorAll('input[name="recurrence_weekdays[]"]').forEach((cb) => {
+          cb.checked = false;
+        });
         document.getElementById("entEditId").value = record.id || "";
         document.getElementById("entEditTitle").value = record.title || "";
         document.getElementById("entEditStatus").value = record.status || "draft";
@@ -559,17 +663,15 @@
         document.getElementById("entEditImage").value = record.image_url || "";
         document.getElementById("entEditDescription").value = record.description || "";
         if (record.start_at) {
-          const dateObj = new Date(record.start_at);
-          document.getElementById("entEditDate").value = dateObj.toISOString().slice(0, 10);
-          document.getElementById("entEditTime").value = dateObj.toISOString().slice(11, 16);
+          document.getElementById("entEditDate").value = nzDate(record.start_at);
+          document.getElementById("entEditTime").value = nzTime(record.start_at);
         } else {
           document.getElementById("entEditDate").value = "";
           document.getElementById("entEditTime").value = "";
         }
         if (record.end_at) {
-          const endObj = new Date(record.end_at);
-          document.getElementById("entEditEndDate").value = endObj.toISOString().slice(0, 10);
-          document.getElementById("entEditEndTime").value = endObj.toISOString().slice(11, 16);
+          document.getElementById("entEditEndDate").value = nzDate(record.end_at);
+          document.getElementById("entEditEndTime").value = nzTime(record.end_at);
         } else {
           document.getElementById("entEditEndDate").value = "";
           document.getElementById("entEditEndTime").value = "";

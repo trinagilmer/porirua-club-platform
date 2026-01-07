@@ -79,7 +79,7 @@
                 </div>
               <% } %>
               <div class="card-body">
-                <span class="badge bg-light text-dark text-uppercase small mb-2"><%= new Date(event.start_at).toLocaleDateString('en-NZ', { weekday: 'long', month: 'long', day: 'numeric' }) %></span>
+                <span class="badge bg-light text-dark text-uppercase small mb-2"><%= new Date(event.start_at).toLocaleDateString('en-NZ', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Pacific/Auckland' }) %></span>
                 <h3 class="h5 mb-2"><a href="/entertainment/<%= event.slug || event.id %>" class="stretched-link text-decoration-none text-white"><%= event.title %></a></h3>
               <% if (event.room_name) { %>
                 <p class="text-white-50 small mb-1"><i class="bi bi-geo-alt me-1"></i><%= event.room_name %></p>
@@ -92,7 +92,7 @@
                 <% } %>
               </div>
               <div class="card-footer bg-transparent d-flex justify-content-between align-items-center text-white-50">
-                <span class="small"><i class="bi bi-clock me-1"></i><%= event.start_at ? new Date(event.start_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' }) : '' %></span>
+                <span class="small"><i class="bi bi-clock me-1"></i><%= event.start_at ? new Date(event.start_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', timeZone: 'Pacific/Auckland' }) : '' %></span>
                 <% if (event.external_url) { %>
                   <a href="<%= event.external_url %>" target="_blank" rel="noopener" class="small text-decoration-none text-white">More info</a>
                 <% } %>
@@ -119,7 +119,7 @@
                 <img src="<%= event.image_url %>" class="entertainment-card-img" alt="<%= event.title %>" loading="lazy">
               <% } %>
               <div class="card-body">
-                <span class="badge bg-primary-subtle text-primary text-uppercase small mb-2"><%= new Date(event.start_at).toLocaleDateString('en-NZ', { weekday: 'long', month: 'long', day: 'numeric' }) %></span>
+                <span class="badge bg-primary-subtle text-primary text-uppercase small mb-2"><%= new Date(event.start_at).toLocaleDateString('en-NZ', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Pacific/Auckland' }) %></span>
                 <h3 class="h5 mb-2"><a href="/entertainment/<%= event.slug || event.id %>" class="stretched-link text-decoration-none"><%= event.title %></a></h3>
                 <% if (event.room_name) { %>
                   <p class="text-muted small mb-1"><i class="bi bi-geo-alt me-1"></i><%= event.room_name %></p>
@@ -132,7 +132,7 @@
                 <% } %>
               </div>
               <div class="card-footer bg-transparent d-flex justify-content-between align-items-center">
-                <span class="small text-muted"><i class="bi bi-clock me-1"></i><%= event.start_at ? new Date(event.start_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' }) : '' %></span>
+                <span class="small text-muted"><i class="bi bi-clock me-1"></i><%= event.start_at ? new Date(event.start_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', timeZone: 'Pacific/Auckland' }) : '' %></span>
                 <% if (event.external_url) { %>
                   <a href="<%= event.external_url %>" target="_blank" rel="noopener" class="small text-decoration-none">More info</a>
                 <% } %>
@@ -181,7 +181,7 @@
               <% } %>
               <div class="card-body">
                 <span class="badge bg-light text-dark text-uppercase small mb-2">
-                  <%= new Date(event.start_at).toLocaleDateString('en-NZ', { month: 'short', day: 'numeric', year: 'numeric' }) %>
+                  <%= new Date(event.start_at).toLocaleDateString('en-NZ', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Pacific/Auckland' }) %>
                 </span>
                 <h3 class="h6 mb-2">
                   <a href="/entertainment/<%= event.slug || event.id %>" class="stretched-link text-decoration-none">

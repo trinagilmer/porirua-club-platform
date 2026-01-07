@@ -13,6 +13,7 @@ const fs = require("fs");
 const multer = require("multer");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
+const { fromZonedTime, formatInTimeZone } = require("date-fns-tz");
 const recurrenceService = require("../services/recurrenceService");
 const {
   getFeedbackSettings,
@@ -303,8 +304,27 @@ function slugify(value) {
 function combineDateAndTime(dateValue, timeValue) {
   if (!dateValue) return null;
   const datePart = String(dateValue).trim();
-  if (!timeValue) return new Date(`${datePart}T00:00:00Z`).toISOString();
-  return new Date(`${datePart}T${timeValue}:00Z`).toISOString();
+  const timePart = String(timeValue || "00:00").trim() || "00:00";
+  const asLocalNz = `${datePart}T${timePart}:00`;
+  const utcDate = fromZonedTime(asLocalNz, "Pacific/Auckland"); // interpret input as NZT, store as UTC
+  return utcDate.toISOString();
+}
+
+function formatDateOnlyNz(value) {
+  if (!value) return null;
+  try {
+    return formatInTimeZone(value, "Pacific/Auckland", "yyyy-MM-dd");
+  } catch (_) {
+    return null;
+  }
+}
+
+function addDaysIso(dateIso, days) {
+  if (!dateIso || typeof days !== "number") return dateIso;
+  const d = new Date(`${dateIso}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return dateIso;
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 const entertainmentUploadsDir = path.join(__dirname, "..", "public", "uploads", "entertainment");
@@ -2216,11 +2236,11 @@ router.get("/entertainment", ensurePrivileged, async (req, res) => {
         FROM entertainment_events e
         LEFT JOIN users uc ON uc.id = e.created_by
         LEFT JOIN users uu ON uu.id = e.updated_by
-        LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
-        LEFT JOIN entertainment_acts a ON a.id = ea.act_id
-        LEFT JOIN rooms r ON r.id = e.room_id
-       GROUP BY e.id, uc.name, uu.name, r.name
-       ORDER BY e.start_at DESC;
+       LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
+       LEFT JOIN entertainment_acts a ON a.id = ea.act_id
+       LEFT JOIN rooms r ON r.id = e.room_id
+      GROUP BY e.id, uc.name, uu.name, r.name
+       ORDER BY e.start_at ASC NULLS LAST;
       `
     );
     const actsRes = await pool.query(
@@ -2250,6 +2270,66 @@ router.get("/entertainment", ensurePrivileged, async (req, res) => {
     req.flash("flashMessage", "❌ Failed to load entertainment events.");
     req.flash("flashType", "error");
     res.redirect("/settings");
+  }
+});
+
+async function loadRecurrence(seriesId) {
+  if (!seriesId) return null;
+  const { rows } = await pool.query(
+    `
+    SELECT id, frequency, interval, weekdays, monthly_day, monthly_week, start_date, end_date
+      FROM calendar_series
+     WHERE id = $1
+     LIMIT 1;
+    `,
+    [seriesId]
+  );
+  const series = rows[0];
+  if (!series) return null;
+  const { rows: skipRows } = await pool.query(
+    `SELECT exception_date FROM calendar_series_exceptions WHERE series_id = $1;`,
+    [seriesId]
+  );
+  return {
+    frequency: series.frequency,
+    interval: series.interval,
+    endDate: series.end_date,
+    weekdays: series.weekdays || [],
+    monthlyDay: series.monthly_day,
+    monthlyWeek: series.monthly_week,
+    skipDates: skipRows.map((r) => r.exception_date),
+  };
+}
+
+router.get("/entertainment/:id/json", ensurePrivileged, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await pool.query(
+      `
+      SELECT e.*,
+             COALESCE(
+               json_agg(
+                 json_build_object('id', a.id, 'name', a.name)
+                 ORDER BY a.name
+               ) FILTER (WHERE a.id IS NOT NULL),
+               '[]'
+             ) AS acts
+        FROM entertainment_events e
+        LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
+        LEFT JOIN entertainment_acts a ON a.id = ea.act_id
+       WHERE e.id = $1
+       GROUP BY e.id
+       LIMIT 1;
+      `,
+      [id]
+    );
+    const event = rows[0];
+    if (!event) return res.status(404).json({ success: false, message: "Event not found" });
+    const recurrence = event.series_id ? await loadRecurrence(event.series_id) : null;
+    return res.json({ success: true, event, recurrence });
+  } catch (err) {
+    console.error("? Error loading entertainment event JSON:", err);
+    res.status(500).json({ success: false, message: "Failed to load event" });
   }
 });
 
@@ -2431,11 +2511,18 @@ router.post(
         room_id,
         price,
         description,
-        image_url,
-        status,
-        display_type,
-        series_scope,
-      } = req.body;
+      image_url,
+      status,
+      display_type,
+      recurrence_frequency,
+      recurrence_interval,
+      recurrence_end_date,
+      recurrence_weekdays,
+      recurrence_monthly_day,
+      recurrence_monthly_week,
+      recurrence_skip_dates,
+      series_scope,
+    } = req.body;
 
       if (!id || !title?.trim()) {
         req.flash("flashMessage", "⚠️ Missing event details.");
@@ -2445,22 +2532,25 @@ router.post(
 
       const startTimeClean = typeof start_time === "string" ? start_time.trim() : "";
       const endTimeClean = typeof end_time === "string" ? end_time.trim() : "";
-      const statusValue = (status || "draft").toLowerCase();
-      const userId = req.session.user?.id || null;
-      const acts = parseIdArray(req.body.acts);
-      const imagePath = req.file ? `/uploads/entertainment/${req.file.filename}` : image_url || null;
-      const roomId = parseOptionalInteger(room_id);
-      const displayTypeValue = display_type === "regularevents" ? "regularevents" : "entertainment";
-      const scopeRaw = (series_scope || "").toLowerCase();
+    const statusValue = (status || "draft").toLowerCase();
+    const userId = req.session.user?.id || null;
+    const acts = parseIdArray(req.body.acts);
+    const imagePath = req.file ? `/uploads/entertainment/${req.file.filename}` : image_url || null;
+    const roomId = parseOptionalInteger(room_id);
+    const displayTypeValue = display_type === "regularevents" ? "regularevents" : "entertainment";
+    const scopeRaw = (series_scope || "").toLowerCase();
+    const recurrence = recurrenceService.parseRecurrenceForm({
+      recurrence_frequency,
+      recurrence_interval,
+      recurrence_end_date,
+      recurrence_weekdays,
+      recurrence_monthly_day,
+      recurrence_monthly_week,
+      recurrence_skip_dates,
+    });
 
       const startAtSingle = start_date && startTimeClean ? combineDateAndTime(start_date, startTimeClean) : null;
       const endAtSingle = end_date && endTimeClean ? combineDateAndTime(end_date, endTimeClean) : null;
-
-      const toDateOnly = (value) => {
-        if (!value) return null;
-        const d = value instanceof Date ? value : new Date(value);
-        return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
-      };
 
       const updateOne = async (db, eventId, startAtValue, endAtValue) => {
         await db.query(
@@ -2513,11 +2603,117 @@ router.post(
       if (!current) throw new Error("Event not found");
 
       const hasSeries = current.series_id !== null && current.series_id !== undefined;
-      const effectiveScope = hasSeries && ["single", "all", "future"].includes(scopeRaw) ? scopeRaw : "single";
 
-      if (effectiveScope === "single") {
-        await updateOne(client, id, startAtSingle, endAtSingle);
+      if (recurrence && !hasSeries) {
+        const baseDate = start_date ? String(start_date).trim() : formatDateOnlyNz(startAtSingle || current.start_at);
+        if (!baseDate) throw new Error("Start date required for recurrence.");
+        const baseStart = startTimeClean ? combineDateAndTime(baseDate, startTimeClean) : current.start_at;
+        let baseEnd = endAtSingle;
+        if (endTimeClean === "" || endAtSingle === null) {
+          baseEnd = null;
+        } else if (!baseEnd && current.end_at) {
+          baseEnd = current.end_at;
+        }
+
+        const series = await recurrenceService.createSeriesRecord(client, {
+          entityType: "entertainment",
+          template: { title: title.trim(), start_time: startTimeClean, end_time: endTimeClean || null },
+          startDate: baseDate,
+          recurrence,
+          createdBy: userId,
+          updatedBy: userId,
+        });
+        if (!series?.seriesId) throw new Error("Failed to create series.");
+
+        await client.query(
+          `
+          UPDATE entertainment_events
+             SET title = $1,
+                 adjunct_name = $2,
+                 external_url = $3,
+                 organiser = $4,
+                 room_id = $5,
+                 price = $6,
+                 description = $7,
+                 display_type = $8,
+                 image_url = $9,
+                 start_at = COALESCE($10, start_at),
+                 end_at = $11,
+                 status = $12,
+                 updated_by = $13,
+                 updated_at = NOW(),
+                 series_id = $14,
+                 series_order = 1
+           WHERE id = $15;
+          `,
+          [
+            title.trim(),
+            adjunct_name || null,
+            external_url || null,
+            organiser || null,
+            roomId,
+            price || null,
+            description || null,
+            displayTypeValue,
+            imagePath,
+            baseStart,
+            baseEnd,
+            statusValue,
+            userId,
+            series.seriesId,
+            id,
+          ]
+        );
+        await syncEntertainmentEventActs(id, acts, client);
+
+        let order = 2;
+        for (const date of series.occurrenceDates.slice(1)) {
+          const cloneSlug = `${slugify(title) || "event"}-${Date.now()}-${order}`;
+          const cloneStart = startTimeClean ? combineDateAndTime(date, startTimeClean) : null;
+          const cloneEnd = endTimeClean ? combineDateAndTime(date, endTimeClean) : null;
+          const {
+            rows: cloneRows,
+          } = await client.query(
+            `
+            INSERT INTO entertainment_events
+              (title, slug, adjunct_name, external_url, organiser, room_id, display_type, price, description,
+               image_url, start_at, end_at, status, series_id, series_order,
+               created_by, updated_by, created_at, updated_at)
+            VALUES
+              ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW(),NOW())
+            RETURNING id;
+            `,
+            [
+              title.trim(),
+              cloneSlug,
+              adjunct_name || null,
+              external_url || null,
+              organiser || null,
+              roomId,
+              displayTypeValue,
+              price || null,
+              description || null,
+              imagePath,
+              cloneStart,
+              cloneEnd,
+              statusValue,
+              series.seriesId,
+              order,
+              userId,
+              userId,
+            ]
+          );
+          const cloneId = cloneRows[0]?.id;
+          if (cloneId) {
+            await syncEntertainmentEventActs(cloneId, acts, client);
+          }
+          order += 1;
+        }
       } else {
+        const effectiveScope = hasSeries && ["single", "all", "future"].includes(scopeRaw) ? scopeRaw : "single";
+        if (effectiveScope === "single") {
+          await updateOne(client, id, startAtSingle, endAtSingle);
+        } else {
         const params = effectiveScope === "future" ? [current.series_id, current.series_order] : [current.series_id];
         const whereClause = effectiveScope === "future" ? "AND series_order >= $2" : "";
         const { rows: seriesEvents } = await client.query(
@@ -2530,18 +2726,37 @@ router.post(
           params
         );
 
+        const newDateIsoInput = start_date ? String(start_date).trim() : null;
+        let dateShiftDays = 0;
+        if (newDateIsoInput) {
+          const currentDateIso = formatDateOnlyNz(current.start_at);
+          if (currentDateIso) {
+            const startD = new Date(`${currentDateIso}T00:00:00Z`);
+            const newD = new Date(`${newDateIsoInput}T00:00:00Z`);
+            if (!Number.isNaN(startD.getTime()) && !Number.isNaN(newD.getTime())) {
+              const diffMs = newD.getTime() - startD.getTime();
+              dateShiftDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+            }
+          }
+        }
+
         for (const ev of seriesEvents) {
-          const dateIso = toDateOnly(ev.start_at);
-          const startValue = startTimeClean && dateIso
-            ? combineDateAndTime(dateIso, startTimeClean)
-            : ev.start_at;
+          const existingDateIso = formatDateOnlyNz(ev.start_at);
+          const targetDateIso = newDateIsoInput
+            ? addDaysIso(existingDateIso || newDateIsoInput, dateShiftDays)
+            : existingDateIso;
+          const startValue =
+            startTimeClean && targetDateIso
+              ? combineDateAndTime(targetDateIso, startTimeClean)
+              : ev.start_at;
           let endValue = ev.end_at;
           if (endTimeClean === "") {
             endValue = null;
-          } else if (endTimeClean && dateIso) {
-            endValue = combineDateAndTime(dateIso, endTimeClean);
+          } else if (endTimeClean && targetDateIso) {
+            endValue = combineDateAndTime(targetDateIso, endTimeClean);
           }
           await updateOne(client, ev.id, startValue, endValue);
+        }
         }
       }
 
@@ -2566,15 +2781,37 @@ router.post(
 );
 router.post("/entertainment/delete", ensurePrivileged, async (req, res) => {
   try {
-    const { id } = req.body;
+    const { id, series_scope } = req.body;
     if (!id) {
       req.flash("flashMessage", "⚠️ Missing event ID.");
       req.flash("flashType", "warning");
       return res.redirect("/settings/entertainment");
     }
-    await pool.query(`DELETE FROM entertainment_events WHERE id = $1;`, [id]);
-    req.flash("flashMessage", "🗑️ Entertainment event deleted.");
-    req.flash("flashType", "success");
+
+    const scope = (series_scope || "single").toLowerCase();
+    const { rows } = await pool.query(
+      `SELECT id, series_id, series_order FROM entertainment_events WHERE id = $1 LIMIT 1;`,
+      [id]
+    );
+    const current = rows[0];
+    if (!current) {
+      req.flash("flashMessage", "⚠️ Event not found.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/entertainment");
+    }
+
+    if (current.series_id && (scope === "all" || scope === "future")) {
+      const params = scope === "future" ? [current.series_id, current.series_order] : [current.series_id];
+      const whereClause = scope === "future" ? "series_id = $1 AND series_order >= $2" : "series_id = $1";
+      await pool.query(`DELETE FROM entertainment_events WHERE ${whereClause};`, params);
+      req.flash("flashMessage", "🗑️ Series events deleted.");
+      req.flash("flashType", "success");
+    } else {
+      await pool.query(`DELETE FROM entertainment_events WHERE id = $1;`, [id]);
+      req.flash("flashMessage", "🗑️ Entertainment event deleted.");
+      req.flash("flashType", "success");
+    }
+
     res.redirect("/settings/entertainment");
   } catch (err) {
     console.error("❌ Error deleting entertainment event:", err);
