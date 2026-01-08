@@ -1,7 +1,10 @@
 // backend/routes/auth.js
 const express = require("express");
 const bcrypt = require("bcrypt");
+const crypto = require("crypto");
 const { pool } = require("../db");
+const { getAppToken } = require("../utils/graphAuth");
+const { sendMail } = require("../services/graphService");
 const { cca } = require("../auth/msal"); // ✅ import the shared MSAL client
 
 const router = express.Router();
@@ -20,6 +23,55 @@ async function ensureUserInvitesTable() {
     );
     `
   );
+}
+
+async function ensurePasswordResetsTable() {
+  await pool.query(
+    `
+    CREATE TABLE IF NOT EXISTS password_resets (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token TEXT NOT NULL UNIQUE,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMP NOT NULL,
+      used_at TIMESTAMP NULL
+    );
+    `
+  );
+}
+
+function getAppBaseUrl(req) {
+  const envBase = (process.env.APP_URL || "").trim();
+  if (envBase) return envBase.replace(/\/$/, "");
+  if (req) {
+    const proto = req.headers["x-forwarded-proto"] || req.protocol;
+    const host = req.get("host");
+    if (host) return `${proto}://${host}`.replace(/\/$/, "");
+  }
+  return "http://localhost:3000";
+}
+
+async function sendPasswordResetEmail({ toEmail, toName, resetToken, baseUrl }) {
+  const accessToken = await getAppToken();
+  if (!accessToken) throw new Error("Graph token unavailable");
+  const resetLink = `${(baseUrl || "").replace(/\/$/, "")}/auth/reset-password/${resetToken}`;
+  const subject = "Reset your Porirua Club password";
+  const body = `
+    <p>Hello ${toName || "there"},</p>
+    <p>Click the link below to reset your password:</p>
+    <p><a href="${resetLink}">Reset password</a></p>
+    <p>This link expires in 2 hours.</p>
+  `;
+  await sendMail(accessToken, {
+    to: toEmail,
+    subject,
+    body,
+    fromMailbox:
+      process.env.SHARED_MAILBOX ||
+      process.env.FEEDBACK_MAILBOX ||
+      process.env.FUNCTION_FEEDBACK_MAILBOX ||
+      "events@poriruaclub.co.nz",
+  });
 }
 
 
@@ -75,7 +127,6 @@ router.post("/login", async (req, res, next) => {
       "/settings",
       "/tasks",
       "/dashboard/restaurant",
-      "/dashboard/events",
     ]);
     const safePath = (value) => {
       if (!value) return null;
@@ -90,6 +141,168 @@ router.post("/login", async (req, res, next) => {
     res.redirect(nextUrl || preferredLanding || "/dashboard");
   } catch (err) {
     next(err);
+  }
+});
+
+// --- FORGOT PASSWORD ---
+router.get("/forgot-password", (req, res) => {
+  res.render("pages/forgot-password", {
+    title: "Reset password",
+    hideChrome: true,
+    message: null,
+    error: null,
+  });
+});
+
+router.post("/forgot-password", async (req, res) => {
+  try {
+    await ensurePasswordResetsTable();
+    const email = (req.body.email || "").trim().toLowerCase();
+    if (!email) {
+      return res.render("pages/forgot-password", {
+        title: "Reset password",
+        hideChrome: true,
+        message: null,
+        error: "Email is required.",
+      });
+    }
+    const { rows } = await pool.query(`SELECT id, name, email FROM users WHERE email = $1 LIMIT 1;`, [
+      email,
+    ]);
+    const user = rows[0];
+    if (user) {
+      const token = crypto.randomBytes(24).toString("hex");
+      const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+      await pool.query(
+        `INSERT INTO password_resets (user_id, token, expires_at) VALUES ($1, $2, $3);`,
+        [user.id, token, expiresAt]
+      );
+      await sendPasswordResetEmail({
+        toEmail: user.email,
+        toName: user.name,
+        resetToken: token,
+        baseUrl: getAppBaseUrl(req),
+      });
+    }
+    res.render("pages/forgot-password", {
+      title: "Reset password",
+      hideChrome: true,
+      message: "If that email exists, a reset link has been sent.",
+      error: null,
+    });
+  } catch (err) {
+    console.error("[Auth] Forgot password failed:", err);
+    res.render("pages/forgot-password", {
+      title: "Reset password",
+      hideChrome: true,
+      message: null,
+      error: "Unable to send reset link. Please try again.",
+    });
+  }
+});
+
+router.get("/reset-password/:token", async (req, res) => {
+  try {
+    await ensurePasswordResetsTable();
+    const token = req.params.token;
+    const { rows } = await pool.query(
+      `
+      SELECT r.token, r.expires_at, r.used_at, u.email
+        FROM password_resets r
+        JOIN users u ON u.id = r.user_id
+       WHERE r.token = $1
+       LIMIT 1;
+      `,
+      [token]
+    );
+    const reset = rows[0];
+    const isValid = reset && !reset.used_at && new Date(reset.expires_at) > new Date();
+    res.render("pages/reset-password", {
+      title: "Reset password",
+      hideChrome: true,
+      error: isValid ? null : "Reset link is invalid or has expired.",
+      token: isValid ? token : null,
+    });
+  } catch (err) {
+    console.error("[Auth] Reset password load failed:", err);
+    res.status(500).render("pages/reset-password", {
+      title: "Reset password",
+      hideChrome: true,
+      error: "Unable to load reset page.",
+      token: null,
+    });
+  }
+});
+
+router.post("/reset-password/:token", async (req, res) => {
+  try {
+    await ensurePasswordResetsTable();
+    const token = req.params.token;
+    const { password, confirm_password } = req.body;
+    if (!password || password.length < 8) {
+      return res.render("pages/reset-password", {
+        title: "Reset password",
+        hideChrome: true,
+        error: "Password must be at least 8 characters.",
+        token,
+      });
+    }
+    if (password !== confirm_password) {
+      return res.render("pages/reset-password", {
+        title: "Reset password",
+        hideChrome: true,
+        error: "Passwords do not match.",
+        token,
+      });
+    }
+    const { rows } = await pool.query(
+      `
+      SELECT r.id, r.user_id, r.expires_at, r.used_at
+        FROM password_resets r
+       WHERE r.token = $1
+       LIMIT 1;
+      `,
+      [token]
+    );
+    const reset = rows[0];
+    if (!reset || reset.used_at || new Date(reset.expires_at) <= new Date()) {
+      return res.render("pages/reset-password", {
+        title: "Reset password",
+        hideChrome: true,
+        error: "Reset link is invalid or has expired.",
+        token: null,
+      });
+    }
+    const { rows: columnRows } = await pool.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND table_schema = 'public';`
+    );
+    const columns = columnRows.map((r) => r.column_name);
+    if (!columns.includes("password_hash")) {
+      return res.render("pages/reset-password", {
+        title: "Reset password",
+        hideChrome: true,
+        error: "Password reset is not available for this account type.",
+        token: null,
+      });
+    }
+    const hash = await bcrypt.hash(password, 10);
+    await pool.query(`UPDATE users SET password_hash = $1 WHERE id = $2;`, [hash, reset.user_id]);
+    await pool.query(`UPDATE password_resets SET used_at = NOW() WHERE id = $1;`, [reset.id]);
+    res.render("pages/login", {
+      error: null,
+      title: "Login",
+      hideChrome: true,
+      success: "Password reset. You can log in now.",
+      next: "",
+    });
+  } catch (err) {
+    console.error("[Auth] Reset password failed:", err);
+    res.status(500).render("pages/reset-password", {
+      title: "Reset password",
+      hideChrome: true,
+      error: "Unable to reset password.",
+      token: null,
+    });
   }
 });
 
@@ -236,146 +449,6 @@ router.post("/accept-invite/:token", async (req, res) => {
 router.get("/logout", (req, res) => {
   req.session.destroy(() => res.redirect("/login"));
 });
-/* =========================================================
-   MICROSOFT 365 LOGIN (MS GRAPH)
-========================================================= */
-
-// --- Step 1: Redirect user to Microsoft login page ---
-router.get("/graph/login", async (req, res) => {
-  try {
-    const nextUrl = req.query.next || "/inbox";
-
-    // 🧠 1️⃣ If an existing valid token is already stored in the session, skip login
-    if (req.session.graphToken && req.session.graphTokenExpires * 1000 > Date.now()) {
-      console.log("✅ [Graph Login] Existing Graph token still valid");
-      return res.redirect(nextUrl);
-    }
-
-    // 🧠 2️⃣ Attempt to silently acquire a new token if we have an MSAL account cached
-    const { getTokenSilent } = require("../auth/msal");
-    if (req.session.account) {
-      const silentResult = await getTokenSilent(req.session.account);
-      if (silentResult && silentResult.accessToken) {
-        req.session.graphToken = silentResult.accessToken;
-        req.session.graphAccessToken = silentResult.accessToken;
-        req.session.graphTokenType = "delegated";
-        req.session.graphTokenExpires = Math.floor(silentResult.expiresOn.getTime() / 1000);
-        console.log("✅ [Graph Login] Silent token refreshed");
-        return res.redirect(nextUrl);
-      }
-    }
-
-    // 🔁 3️⃣ Fallback: Start interactive Microsoft login
-    console.log("🪄 [Graph Login] Redirecting to Microsoft login");
-
-    const authCodeUrlParameters = {
-      scopes: [
-        "User.Read",
-        "Mail.ReadWrite",
-        "Mail.Send",
-        "Mail.ReadWrite.Shared",
-        "Mail.Send.Shared",
-        "offline_access",
-      ],
-      redirectUri: process.env.AZURE_REDIRECT_URI,
-      state: JSON.stringify({ next: nextUrl }),
-    };
-
-    const url = await cca.getAuthCodeUrl(authCodeUrlParameters);
-    res.redirect(url);
-  } catch (err) {
-    console.error("❌ [Graph Login] Error:", err);
-    res.status(500).send("Error starting Microsoft login.");
-  }
-}); // ✅ closes /graph/login route properly
-
-
-// --- Step 2: Handle Microsoft callback ---
-router.get("/graph/callback", async (req, res) => {
-  const tokenRequest = {
-    code: req.query.code,
-    scopes: [
-      "User.Read",
-      "Mail.ReadWrite",
-      "Mail.Send",
-      "Mail.ReadWrite.Shared",
-      "Mail.Send.Shared",
-      "offline_access",
-    ],
-    redirectUri: process.env.AZURE_REDIRECT_URI,
-  };
-
-  try {
-    const response = await cca.acquireTokenByCode(tokenRequest);
-    const msUser = response.account;
-
-    // 🔐 Store Microsoft Graph tokens in session
-    req.session.graphToken = response.accessToken;
-    req.session.graphAccessToken = response.accessToken; // ✅ make it available for both inbox/functions
-    req.session.graphTokenType = "delegated";
-    req.session.graphTokenExpires = Math.floor(response.expiresOn.getTime() / 1000);
-    req.session.account = response.account;
-
-    console.log("✅ Microsoft login success:", msUser.username);
-    console.log("🕒 Token expires at:", response.expiresOn.toISOString());
-
-    // --- Sync Microsoft user with local database ---
-    const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [msUser.username]);
-
-    let user;
-    if (rows.length) {
-      user = rows[0];
-    } else {
-      const insert = await pool.query(
-        "INSERT INTO users (name, email, role) VALUES ($1, $2, $3) RETURNING id, name, email, role",
-        [msUser.name || msUser.username.split("@")[0], msUser.username, "user"]
-      );
-      user = insert.rows[0];
-    }
-
-    // 🧭 Merge with existing session user if present
-    req.session.user = {
-      ...(req.session.user || {}),
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-    };
-
-    req.session.sharedMailbox = process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz";
-    console.log(`📨 Shared mailbox configured: ${req.session.sharedMailbox}`);
-
-    // ✅ Redirect back to original page (or inbox as fallback)
-    const allowedLandingPages = new Set([
-      "/dashboard",
-      "/functions",
-      "/calendar",
-      "/inbox",
-      "/contacts",
-      "/reports",
-      "/settings",
-      "/tasks",
-      "/dashboard/restaurant",
-      "/dashboard/events",
-    ]);
-    const safePath = (value) => {
-      if (!value) return null;
-      const cleaned = String(value).trim();
-      if (!cleaned.startsWith("/")) return null;
-      if (cleaned.startsWith("//")) return null;
-      return allowedLandingPages.has(cleaned) ? cleaned : null;
-    };
-    const preferredLanding = safePath(user.default_landing);
-    const nextUrl = req.session.next || preferredLanding || "/dashboard";
-    delete req.session.next;
-    res.redirect(nextUrl);
-  } catch (error) {
-    console.error("❌ Microsoft login error:", error);
-    res.status(500).send("Microsoft authentication failed.");
-  }
-});
-
-
 /* =========================================================
    EXPORT
 ========================================================= */

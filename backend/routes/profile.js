@@ -1,4 +1,5 @@
 const express = require("express");
+const bcrypt = require("bcrypt");
 const { pool } = require("../db");
 
 const router = express.Router();
@@ -18,7 +19,6 @@ function getLandingOptions() {
     { value: "/reports", label: "Reports" },
     { value: "/settings", label: "Settings" },
     { value: "/dashboard/restaurant", label: "Restaurant dashboard" },
-    { value: "/dashboard/events", label: "Club events dashboard" },
   ];
 }
 
@@ -79,6 +79,59 @@ router.post("/", async (req, res) => {
   } catch (err) {
     console.error("[Profile] Failed to update profile:", err);
     req.flash("flashMessage", "Failed to update profile.");
+    req.flash("flashType", "error");
+    res.redirect("/profile");
+  }
+});
+
+router.post("/password", async (req, res) => {
+  try {
+    const userId = req.session.user?.id;
+    const currentPassword = String(req.body.current_password || "");
+    const newPassword = String(req.body.new_password || "");
+    const confirmPassword = String(req.body.confirm_password || "");
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      req.flash("flashMessage", "All password fields are required.");
+      req.flash("flashType", "warning");
+      return res.redirect("/profile");
+    }
+    if (newPassword.length < 8) {
+      req.flash("flashMessage", "New password must be at least 8 characters.");
+      req.flash("flashType", "warning");
+      return res.redirect("/profile");
+    }
+    if (newPassword !== confirmPassword) {
+      req.flash("flashMessage", "New passwords do not match.");
+      req.flash("flashType", "warning");
+      return res.redirect("/profile");
+    }
+    const { rows: columnRows } = await pool.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND table_schema = 'public';`
+    );
+    const columns = columnRows.map((r) => r.column_name);
+    if (!columns.includes("password_hash")) {
+      req.flash("flashMessage", "Password updates are not available for this account type.");
+      req.flash("flashType", "warning");
+      return res.redirect("/profile");
+    }
+    const { rows } = await pool.query(`SELECT password_hash FROM users WHERE id = $1 LIMIT 1;`, [
+      userId,
+    ]);
+    const user = rows[0];
+    const valid = user?.password_hash ? await bcrypt.compare(currentPassword, user.password_hash) : false;
+    if (!valid) {
+      req.flash("flashMessage", "Current password is incorrect.");
+      req.flash("flashType", "error");
+      return res.redirect("/profile");
+    }
+    const hash = await bcrypt.hash(newPassword, 10);
+    await pool.query(`UPDATE users SET password_hash = $1 WHERE id = $2;`, [hash, userId]);
+    req.flash("flashMessage", "Password updated.");
+    req.flash("flashType", "success");
+    res.redirect("/profile");
+  } catch (err) {
+    console.error("[Profile] Failed to update password:", err);
+    req.flash("flashMessage", "Failed to update password.");
     req.flash("flashType", "error");
     res.redirect("/profile");
   }

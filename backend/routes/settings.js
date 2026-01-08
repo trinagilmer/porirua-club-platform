@@ -331,6 +331,21 @@ async function ensureUserInvitesTable() {
   );
 }
 
+async function ensurePasswordResetsTable() {
+  await pool.query(
+    `
+    CREATE TABLE IF NOT EXISTS password_resets (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token TEXT NOT NULL UNIQUE,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMP NOT NULL,
+      used_at TIMESTAMP NULL
+    );
+    `
+  );
+}
+
 async function createUserInvite(userId, createdBy) {
   const token = crypto.randomBytes(24).toString("hex");
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -370,6 +385,29 @@ async function sendUserInviteEmail({ toEmail, toName, inviteToken, baseUrl }) {
     <p>You have been invited to access the Porirua Club platform.</p>
     <p><a href="${inviteLink}">Click here to set your password</a></p>
     <p>This link expires in 7 days.</p>
+  `;
+  await sendMail(accessToken, {
+    to: toEmail,
+    subject,
+    body,
+    fromMailbox:
+      process.env.SHARED_MAILBOX ||
+      process.env.FEEDBACK_MAILBOX ||
+      process.env.FUNCTION_FEEDBACK_MAILBOX ||
+      "events@poriruaclub.co.nz",
+  });
+}
+
+async function sendPasswordResetEmail({ toEmail, toName, resetToken, baseUrl }) {
+  const accessToken = await acquireGraphToken();
+  if (!accessToken) throw new Error("Graph token unavailable");
+  const resetLink = `${(baseUrl || getAppBaseUrl()).replace(/\/$/, "")}/auth/reset-password/${resetToken}`;
+  const subject = "Reset your Porirua Club password";
+  const body = `
+    <p>Hello ${toName || "there"},</p>
+    <p>Click the link below to reset your password:</p>
+    <p><a href="${resetLink}">Reset password</a></p>
+    <p>This link expires in 2 hours.</p>
   `;
   await sendMail(accessToken, {
     to: toEmail,
@@ -2488,6 +2526,46 @@ router.post("/users/invite", ensurePrivileged, async (req, res) => {
   } catch (err) {
     console.error("? Error sending invite:", err);
     req.flash("flashMessage", "Failed to send invite.");
+    req.flash("flashType", "error");
+  }
+  res.redirect("/settings/users");
+});
+
+router.post("/users/reset-password", ensurePrivileged, async (req, res) => {
+  try {
+    const userId = parseOptionalInteger(req.body.user_id);
+    if (!userId) {
+      req.flash("flashMessage", "Missing user ID.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/users");
+    }
+    const { rows } = await pool.query(`SELECT id, name, email FROM users WHERE id = $1 LIMIT 1;`, [
+      userId,
+    ]);
+    const user = rows[0];
+    if (!user) {
+      req.flash("flashMessage", "User not found.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/users");
+    }
+    await ensurePasswordResetsTable();
+    const token = crypto.randomBytes(24).toString("hex");
+    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    await pool.query(
+      `INSERT INTO password_resets (user_id, token, expires_at) VALUES ($1, $2, $3);`,
+      [user.id, token, expiresAt]
+    );
+    await sendPasswordResetEmail({
+      toEmail: user.email,
+      toName: user.name,
+      resetToken: token,
+      baseUrl: getAppBaseUrl(req),
+    });
+    req.flash("flashMessage", "Password reset email sent.");
+    req.flash("flashType", "success");
+  } catch (err) {
+    console.error("? Error sending password reset:", err);
+    req.flash("flashMessage", "Failed to send password reset.");
     req.flash("flashType", "error");
   }
   res.redirect("/settings/users");

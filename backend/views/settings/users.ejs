@@ -106,6 +106,10 @@
             <input type="hidden" name="user_id" value="<%= userItem.id %>">
             <button type="submit" class="btn btn-sm btn-outline-primary" <%= canManage ? '' : 'disabled' %>>Invite</button>
           </form>
+          <form method="POST" action="/settings/users/reset-password">
+            <input type="hidden" name="user_id" value="<%= userItem.id %>">
+            <button type="submit" class="btn btn-sm btn-outline-warning" <%= canManage ? '' : 'disabled' %>>Reset password</button>
+          </form>
           <form method="POST" action="/settings/users/delete" onsubmit="return confirm('Remove this user?');">
             <input type="hidden" name="id" value="<%= userItem.id %>">
             <button type="submit" class="btn btn-sm btn-outline-danger" <%= canManage ? '' : 'disabled' %>>Delete</button>
