@@ -49,10 +49,21 @@
 // ==========================================================
 // 🧩 Override Bootstrap Button Colours
 // ==========================================================
-.btn-primary,
+.btn-primary {
+  --bs-btn-color: #fff;
+  --bs-btn-bg: #{$brand};
+  --bs-btn-border-color: #{$brand};
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #{$brand-dark};
+  --bs-btn-hover-border-color: #{$brand-dark};
+  --bs-btn-active-bg: #{$brand-dark};
+  --bs-btn-active-border-color: #{$brand-dark};
+  --bs-btn-disabled-color: #{$brand-light};
+}
 .btn-outline-primary {
   --bs-btn-color: #{$brand};
   --bs-btn-border-color: #{$brand};
+  --bs-btn-hover-color: #fff;
   --bs-btn-hover-bg: #{$brand};
   --bs-btn-hover-border-color: #{$brand};
   --bs-btn-active-bg: #{$brand-dark};

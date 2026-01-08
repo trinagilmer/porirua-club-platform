@@ -1,0 +1,70 @@
+<main class="settings-entertainment">
+  <div class="d-flex justify-content-between align-items-center mb-4 gap-2 flex-wrap">
+    <div>
+      <h1 class="mb-0">Entertainment Embeds</h1>
+      <p class="text-muted mb-0">Copy embed links for your website and kiosks.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-outline-secondary" href="/settings/entertainment">Back to events</a>
+    </div>
+  </div>
+
+  <% if (typeof flashMessage !== 'undefined' && flashMessage) { %>
+    <div class="alert alert-<%= flashType === 'error' ? 'danger' : flashType === 'warning' ? 'warning' : 'success' %> alert-dismissible fade show">
+      <%= flashMessage %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <% } %>
+
+  <section class="card shadow-sm">
+    <div class="card-body">
+      <h5 class="mb-2">Embeds for your website</h5>
+      <p class="text-muted small mb-3">Use these URLs to embed the entertainment app without headers/navigation.</p>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Entertainment calendar (embed)</label>
+          <div class="input-group input-group-sm">
+            <input type="text" class="form-control" readonly value="/entertainment?embed=1">
+            <button class="btn btn-outline-secondary ent-copy-link" type="button" data-copy-value="/entertainment?embed=1">Copy</button>
+          </div>
+          <div class="mt-2 small text-muted d-flex flex-column gap-1">
+            <span>Month: <span class="text-dark">/entertainment?embed=1&amp;view=month</span></span>
+            <span>Week: <span class="text-dark">/entertainment?embed=1&amp;view=week</span></span>
+            <span>Agenda: <span class="text-dark">/entertainment?embed=1&amp;view=agenda</span></span>
+            <span>Pinboard: <span class="text-dark">/entertainment?embed=1&amp;view=pinboard</span></span>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Entertainment list (embed)</label>
+          <div class="input-group input-group-sm">
+            <input type="text" class="form-control" readonly value="/entertainment?embed=1&view=list">
+            <button class="btn btn-outline-secondary ent-copy-link" type="button" data-copy-value="/entertainment?embed=1&view=list">Copy</button>
+          </div>
+        </div>
+        <div class="col-12">
+          <small class="text-muted">Prefix with your domain (e.g. https://yourdomain.com) and place inside an &lt;iframe&gt; on your site.</small>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll(".ent-copy-link").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const value = button.getAttribute("data-copy-value") || "";
+        if (!value) return;
+        try {
+          await navigator.clipboard.writeText(value);
+          button.textContent = "Copied";
+          setTimeout(() => {
+            button.textContent = "Copy";
+          }, 1200);
+        } catch (err) {
+          console.error("Copy failed", err);
+        }
+      });
+    });
+  });
+</script>

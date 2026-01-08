@@ -46,12 +46,64 @@
     </div>
   </form>
 
-  <div class="card shadow-sm">
+  <section class="card shadow-sm mt-4">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h5 class="mb-0">Acts Directory</h5>
+        <small class="text-muted">Manage performers for quick selection and reporting.</small>
+      </div>
+      <form class="d-flex gap-2" action="/settings/entertainment/acts/add" method="POST">
+        <input type="text" name="name" class="form-control form-control-sm" placeholder="New act name" required>
+        <input type="url" name="external_url" class="form-control form-control-sm" placeholder="Website (optional)">
+        <button type="submit" class="btn btn-sm btn-outline-primary">Add</button>
+      </form>
+    </div>
+    <% if (!acts || !acts.length) { %>
+      <p class="text-muted mb-0">No acts recorded yet.</p>
+    <% } else { %>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Link</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% acts.forEach(function(act) { %>
+              <tr>
+                <td><%= act.name %></td>
+                <td>
+                  <% if (act.external_url) { %>
+                    <a href="<%= act.external_url %>" target="_blank" rel="noopener"><%= act.external_url %></a>
+                  <% } else { %>
+                    <span class="text-muted">—</span>
+                  <% } %>
+                </td>
+                <td class="text-end">
+                  <form action="/settings/entertainment/acts/delete" method="POST" onsubmit="return confirm('Delete <%= act.name %>?');">
+                    <input type="hidden" name="id" value="<%= act.id %>">
+                    <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </div>
+</section>
+
+<div class="card shadow-sm">
     <div class="table-responsive">
       <table class="table align-middle mb-0">
         <thead class="table-light">
           <tr>
             <th>Title</th>
+            <th>Color</th>
             <th>Date</th>
             <th>Status</th>
             <th>Organiser</th>
@@ -86,7 +138,13 @@
                     </small>
                   <% } %>
                 </td>
-                <td><%= event.start_at ? new Date(event.start_at).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', dateStyle: 'medium', timeStyle: 'short' }) : '—' %></td>
+                <td>
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="rounded-circle border" style="width:14px;height:14px;background:<%= event.effective_event_color || event.event_color || '#6bb4de' %>;"></span>
+                    <span class="small text-muted"><%= event.effective_event_color || event.event_color || '#6bb4de' %></span>
+                  </div>
+                </td>
+                <td><%= event.start_at ? new Date(event.start_at).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', dateStyle: 'medium', timeStyle: 'short' }) : '-' %></td>
                 <td class="text-capitalize"><%= event.status %></td>
                 <td><%= event.organiser || '—' %></td>
                 <td>
@@ -207,8 +265,13 @@
             <input type="number" name="price" class="form-control" min="0" step="0.50">
           </div>
           <div class="col-md-6">
-            <label class="form-label">Image URL</label>
-            <input type="text" name="image_url" class="form-control" placeholder="https://… or /uploads/...">
+            <label class="form-label">Image</label>
+            <input type="hidden" name="image_url" id="entAddImageUrl" value="<%= (mediaSelection && mediaSelection.target === 'add') ? mediaSelection.imageUrl : '' %>">
+            <div class="d-flex gap-2">
+              <input type="text" class="form-control" id="entAddImageLabel" readonly value="<%= (mediaSelection && mediaSelection.target === 'add' && mediaSelection.imageUrl) ? mediaSelection.imageUrl.split('/').pop() : '' %>">
+              <a class="btn btn-outline-secondary" href="/settings/entertainment/media?target=add">Insert</a>
+            </div>
+            <small class="text-muted">Choose from the media library.</small>
           </div>
           <div class="col-md-6">
             <label class="form-label">Or Upload Image</label>
@@ -401,8 +464,13 @@
             <input type="number" name="price" id="entEditPrice" class="form-control" min="0" step="0.50">
           </div>
           <div class="col-md-6">
-            <label class="form-label">Image URL</label>
-            <input type="text" name="image_url" id="entEditImage" class="form-control" placeholder="https://… or /uploads/...">
+            <label class="form-label">Image</label>
+            <input type="hidden" name="image_url" id="entEditImage">
+            <div class="d-flex gap-2">
+              <input type="text" class="form-control" id="entEditImageLabel" readonly>
+              <a class="btn btn-outline-secondary" id="entEditImageInsert" href="/settings/entertainment/media?target=edit">Insert</a>
+            </div>
+            <small class="text-muted">Choose from the media library.</small>
           </div>
           <div class="col-md-6">
             <label class="form-label">Or Upload Image</label>
@@ -503,56 +571,9 @@
   </div>
 </div>
 
-<section class="card shadow-sm mt-4">
-  <div class="card-body">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <div>
-        <h5 class="mb-0">Acts Directory</h5>
-        <small class="text-muted">Manage performers for quick selection and reporting.</small>
-      </div>
-      <form class="d-flex gap-2" action="/settings/entertainment/acts/add" method="POST">
-        <input type="text" name="name" class="form-control form-control-sm" placeholder="New act name" required>
-        <input type="url" name="external_url" class="form-control form-control-sm" placeholder="Website (optional)">
-        <button type="submit" class="btn btn-sm btn-outline-primary">Add</button>
-      </form>
-    </div>
-    <% if (!acts || !acts.length) { %>
-      <p class="text-muted mb-0">No acts recorded yet.</p>
-    <% } else { %>
-      <div class="table-responsive">
-        <table class="table table-sm align-middle">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Link</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <% acts.forEach(function(act) { %>
-              <tr>
-                <td><%= act.name %></td>
-                <td>
-                  <% if (act.external_url) { %>
-                    <a href="<%= act.external_url %>" target="_blank" rel="noopener"><%= act.external_url %></a>
-                  <% } else { %>
-                    <span class="text-muted">—</span>
-                  <% } %>
-                </td>
-                <td class="text-end">
-                  <form action="/settings/entertainment/acts/delete" method="POST" onsubmit="return confirm('Delete <%= act.name %>?');">
-                    <input type="hidden" name="id" value="<%= act.id %>">
-                    <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
-                  </form>
-                </td>
-              </tr>
-            <% }) %>
-          </tbody>
-        </table>
-      </div>
-    <% } %>
-  </div>
-</section>
+
+
+<div id="entMediaSelection" class="d-none" data-target="<%= mediaSelection?.target || '' %>" data-event-id="<%= mediaSelection?.eventId || '' %>" data-image-url="<%= mediaSelection?.imageUrl || '' %>"></div>
 
 <script>
   document.addEventListener("DOMContentLoaded", () => {
@@ -692,10 +713,24 @@
         document.getElementById("entEditLink").value = record.external_url || "";
         document.getElementById("entEditOrganiser").value = record.organiser || "";
         document.getElementById("entEditPrice").value = record.price || "";
-        document.getElementById("entEditImage").value = record.image_url || "";
+        const imageUrlInput = document.getElementById("entEditImage");
+        const imageLabel = document.getElementById("entEditImageLabel");
+        if (imageUrlInput) {
+          const currentUrl = record.image_url || "";
+          imageUrlInput.value = currentUrl;
+          if (imageLabel) {
+            imageLabel.value = currentUrl ? currentUrl.split("/").pop() : "";
+          }
+        }
+        const imageInsert = document.getElementById("entEditImageInsert");
+        if (imageInsert && record.id) {
+          imageInsert.href = `/settings/entertainment/media?target=edit&event_id=${record.id}`;
+        }
         document.getElementById("entEditDescription").value = record.description || "";
         const colorInput = document.getElementById("entEditColor");
-        if (colorInput) colorInput.value = record.event_color || "#6bb4de";
+        if (colorInput) {
+          colorInput.value = record.event_color || record.effective_event_color || "#6bb4de";
+        }
         if (record.start_at) {
           document.getElementById("entEditDate").value = nzDate(record.start_at);
           document.getElementById("entEditTime").value = nzTime(record.start_at);
@@ -743,6 +778,51 @@
           console.error("Failed to load event data", err);
         });
     });
+
+    const mediaSelectionEl = document.getElementById("entMediaSelection");
+    const mediaTarget = mediaSelectionEl?.dataset.target || "";
+    const mediaEventId = mediaSelectionEl?.dataset.eventId || "";
+    const mediaImageUrl = mediaSelectionEl?.dataset.imageUrl || "";
+
+    if (mediaTarget === "add" && mediaImageUrl) {
+      const addImageInput = document.getElementById("entAddImageUrl");
+      const addImageLabel = document.getElementById("entAddImageLabel");
+      if (addImageInput) addImageInput.value = mediaImageUrl;
+      if (addImageLabel) {
+        addImageLabel.value = mediaImageUrl.split("/").pop();
+      }
+      const addModal = document.getElementById("addEntertainmentModal");
+      if (addModal && window.bootstrap) {
+        const modal = new window.bootstrap.Modal(addModal);
+        modal.show();
+      }
+    }
+
+    if (mediaTarget === "edit" && mediaEventId && mediaImageUrl) {
+      const editModalEl = document.getElementById("editEntertainmentModal");
+      if (editModalEl && window.bootstrap) {
+        editModalEl.addEventListener(
+          "shown.bs.modal",
+          () => {
+            const imageUrlInput = document.getElementById("entEditImage");
+            const imageLabel = document.getElementById("entEditImageLabel");
+            if (imageUrlInput) imageUrlInput.value = mediaImageUrl;
+            if (imageLabel) {
+              imageLabel.value = mediaImageUrl.split("/").pop();
+            }
+          },
+          { once: true }
+        );
+        const trigger = document.querySelector(`[data-event-id="${mediaEventId}"]`);
+        if (trigger) {
+          trigger.click();
+        } else {
+          const modal = new window.bootstrap.Modal(editModalEl);
+          modal.show();
+        }
+      }
+    }
+
   });
 </script>
 
@@ -757,28 +837,3 @@
 </script>
 <% } %>
 
-<section class="card shadow-sm mt-4">
-  <div class="card-body">
-    <h5 class="mb-2">Embeds for your website</h5>
-    <p class="text-muted small mb-3">Use these URLs to embed the entertainment app without headers/navigation.</p>
-    <div class="row g-3">
-      <div class="col-md-6">
-        <label class="form-label">Entertainment calendar (embed)</label>
-        <input type="text" class="form-control form-control-sm" readonly value="/entertainment?embed=1">
-        <div class="mt-2 small text-muted d-flex flex-column gap-1">
-          <span>Month: <span class="text-dark">/entertainment?embed=1&amp;view=month</span></span>
-          <span>Week: <span class="text-dark">/entertainment?embed=1&amp;view=week</span></span>
-          <span>Agenda: <span class="text-dark">/entertainment?embed=1&amp;view=agenda</span></span>
-          <span>Pinboard: <span class="text-dark">/entertainment?embed=1&amp;view=pinboard</span></span>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">Entertainment list (embed)</label>
-        <input type="text" class="form-control form-control-sm" readonly value="/entertainment?embed=1&view=list">
-      </div>
-      <div class="col-12">
-        <small class="text-muted">Prefix with your domain (e.g. https://yourdomain.com) and place inside an &lt;iframe&gt; on your site.</small>
-      </div>
-    </div>
-  </div>
-</section>

@@ -1,0 +1,86 @@
+<main class="settings-entertainment">
+  <div class="d-flex justify-content-between align-items-center mb-4 gap-2 flex-wrap">
+    <div>
+      <h1 class="mb-0">Entertainment Media Library</h1>
+      <p class="text-muted mb-0">Reuse uploaded images or remove ones you no longer need.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-outline-secondary" href="/settings/entertainment">Back to events</a>
+    </div>
+  </div>
+
+  <% if (typeof flashMessage !== 'undefined' && flashMessage) { %>
+    <div class="alert alert-<%= flashType === 'error' ? 'danger' : flashType === 'warning' ? 'warning' : 'success' %> alert-dismissible fade show">
+      <%= flashMessage %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <% } %>
+
+  <section class="card shadow-sm">
+    <div class="card-body">
+      <% if (mediaTarget) { %>
+        <div class="alert alert-info small">
+          Select an image to insert into the <%= mediaTarget === 'edit' ? 'event' : 'new event' %>.
+        </div>
+      <% } %>
+      <% if (!mediaItems || !mediaItems.length) { %>
+        <p class="text-muted mb-0">No uploaded images yet.</p>
+      <% } else { %>
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
+          <% mediaItems.forEach(function(item) { %>
+            <div class="col">
+              <div class="border rounded-4 h-100 p-3">
+                <div class="ratio ratio-4x3 mb-3">
+                  <img src="<%= item.url %>" alt="<%= item.file %>" class="img-fluid rounded-3 object-fit-contain bg-light">
+                </div>
+                <div class="small text-muted mb-2"><%= item.file %></div>
+                <div class="d-flex align-items-center justify-content-between small text-muted mb-2">
+                  <span><%= item.sizeKb %> kb</span>
+                  <span>Used: <%= item.usageCount %></span>
+                </div>
+                <div class="input-group input-group-sm mb-2">
+                  <input type="text" class="form-control" readonly value="<%= item.url %>">
+                  <button class="btn btn-outline-secondary ent-copy-link" type="button" data-copy-value="<%= item.url %>">
+                    Copy
+                  </button>
+                </div>
+                <% if (mediaTarget) { %>
+                  <a
+                    class="btn btn-outline-primary btn-sm w-100 mb-2"
+                    href="/settings/entertainment?media_target=<%= mediaTarget %><%= mediaEventId ? '&media_event_id=' + mediaEventId : '' %>&media_image_url=<%= encodeURIComponent(item.url) %>"
+                  >
+                    Insert
+                  </a>
+                <% } %>
+                <form action="/settings/entertainment/media/delete" method="POST" onsubmit="return confirm('Delete <%= item.file %>?');">
+                  <input type="hidden" name="file" value="<%= item.file %>">
+                  <button type="submit" class="btn btn-outline-danger btn-sm w-100">Delete</button>
+                </form>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+  </section>
+</main>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll(".ent-copy-link").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const value = button.getAttribute("data-copy-value") || "";
+        if (!value) return;
+        try {
+          await navigator.clipboard.writeText(value);
+          button.textContent = "Copied";
+          setTimeout(() => {
+            button.textContent = "Copy";
+          }, 1200);
+        } catch (err) {
+          console.error("Copy failed", err);
+        }
+      });
+    });
+  });
+</script>

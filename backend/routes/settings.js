@@ -346,6 +346,46 @@ if (!fs.existsSync(entertainmentUploadsDir)) {
   fs.mkdirSync(entertainmentUploadsDir, { recursive: true });
 }
 
+async function loadEntertainmentMediaItems() {
+  const mediaUsageRes = await pool.query(
+    `
+    SELECT image_url, COUNT(*)::int AS usage_count
+      FROM entertainment_events
+     WHERE image_url LIKE '/uploads/entertainment/%'
+     GROUP BY image_url
+    `
+  );
+  const mediaUsage = mediaUsageRes.rows.reduce((acc, row) => {
+    acc[row.image_url] = row.usage_count;
+    return acc;
+  }, {});
+  let mediaItems = [];
+  try {
+    const files = await fs.promises.readdir(entertainmentUploadsDir);
+    const allowed = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
+    mediaItems = await Promise.all(
+      files
+        .filter((file) => allowed.has(path.extname(file).toLowerCase()))
+        .map(async (file) => {
+          const fullPath = path.join(entertainmentUploadsDir, file);
+          const stats = await fs.promises.stat(fullPath);
+          if (!stats.isFile()) return null;
+          const url = `/uploads/entertainment/${file}`;
+          return {
+            file,
+            url,
+            sizeKb: Math.round(stats.size / 1024),
+            usageCount: mediaUsage[url] || 0,
+          };
+        })
+    );
+    mediaItems = mediaItems.filter(Boolean).sort((a, b) => b.usageCount - a.usageCount);
+  } catch (err) {
+    console.warn("[Settings] Failed to read entertainment uploads:", err.message);
+  }
+  return mediaItems;
+}
+
 const entertainmentImageStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, entertainmentUploadsDir),
   filename: (req, file, cb) => {
@@ -2249,7 +2289,15 @@ router.get("/entertainment", ensurePrivileged, async (req, res) => {
     await ensureEntertainmentColorColumn();
     const eventsRes = await pool.query(
       `
+      WITH series_colors AS (
+        SELECT DISTINCT ON (series_id) series_id, event_color AS series_color
+          FROM entertainment_events
+         WHERE series_id IS NOT NULL
+           AND event_color IS NOT NULL
+         ORDER BY series_id, series_order ASC NULLS LAST, start_at ASC
+      )
       SELECT e.*,
+             COALESCE(e.event_color, sc.series_color) AS effective_event_color,
              uc.name AS created_by_name,
              uu.name AS updated_by_name,
              r.name AS room_name,
@@ -2261,15 +2309,22 @@ router.get("/entertainment", ensurePrivileged, async (req, res) => {
                '[]'
              ) AS acts
         FROM entertainment_events e
+        LEFT JOIN series_colors sc ON sc.series_id = e.series_id
         LEFT JOIN users uc ON uc.id = e.created_by
         LEFT JOIN users uu ON uu.id = e.updated_by
-       LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
-       LEFT JOIN entertainment_acts a ON a.id = ea.act_id
-       LEFT JOIN rooms r ON r.id = e.room_id
-      GROUP BY e.id, uc.name, uu.name, r.name
+        LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
+        LEFT JOIN entertainment_acts a ON a.id = ea.act_id
+        LEFT JOIN rooms r ON r.id = e.room_id
+       WHERE e.start_at IS NULL
+          OR (e.start_at AT TIME ZONE 'Pacific/Auckland')::date >= (NOW() AT TIME ZONE 'Pacific/Auckland')::date
+       GROUP BY e.id, sc.series_color, uc.name, uu.name, r.name
        ORDER BY e.start_at ASC NULLS LAST;
       `
     );
+    const mediaTargetRaw = (req.query.media_target || "").toLowerCase();
+    const mediaTarget = ["add", "edit"].includes(mediaTargetRaw) ? mediaTargetRaw : "";
+    const mediaEventId = parseOptionalInteger(req.query.media_event_id);
+    const mediaImageUrl = typeof req.query.media_image_url === "string" ? req.query.media_image_url : "";
     const actsRes = await pool.query(
       `SELECT id, name, external_url FROM entertainment_acts ORDER BY name ASC;`
     );
@@ -2290,6 +2345,11 @@ router.get("/entertainment", ensurePrivileged, async (req, res) => {
       events: eventsRes.rows,
       acts: actsRes.rows,
       rooms: roomsRes.rows,
+      mediaSelection: {
+        target: mediaTarget,
+        eventId: mediaEventId,
+        imageUrl: mediaImageUrl,
+      },
       user: req.session.user || null,
       prefillEntertainment,
       showEntertainmentHeader: feedbackSettings.show_entertainment_header,
@@ -2360,7 +2420,15 @@ router.get("/entertainment/:id/json", ensurePrivileged, async (req, res) => {
     const { id } = req.params;
     const { rows } = await pool.query(
       `
+      WITH series_colors AS (
+        SELECT DISTINCT ON (series_id) series_id, event_color AS series_color
+          FROM entertainment_events
+         WHERE series_id IS NOT NULL
+           AND event_color IS NOT NULL
+         ORDER BY series_id, series_order ASC NULLS LAST, start_at ASC
+      )
       SELECT e.*,
+             COALESCE(e.event_color, sc.series_color) AS effective_event_color,
              COALESCE(
                json_agg(
                  json_build_object('id', a.id, 'name', a.name)
@@ -2369,10 +2437,11 @@ router.get("/entertainment/:id/json", ensurePrivileged, async (req, res) => {
                '[]'
              ) AS acts
         FROM entertainment_events e
+        LEFT JOIN series_colors sc ON sc.series_id = e.series_id
         LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
         LEFT JOIN entertainment_acts a ON a.id = ea.act_id
        WHERE e.id = $1
-       GROUP BY e.id
+       GROUP BY e.id, sc.series_color
        LIMIT 1;
       `,
       [id]
@@ -2384,6 +2453,51 @@ router.get("/entertainment/:id/json", ensurePrivileged, async (req, res) => {
   } catch (err) {
     console.error("? Error loading entertainment event JSON:", err);
     res.status(500).json({ success: false, message: "Failed to load event" });
+  }
+});
+
+router.get("/entertainment/media", ensurePrivileged, async (req, res) => {
+  try {
+    const mediaItems = await loadEntertainmentMediaItems();
+    const mediaTargetRaw = (req.query.target || "").toLowerCase();
+    const mediaTarget = ["add", "edit"].includes(mediaTargetRaw) ? mediaTargetRaw : "";
+    const mediaEventId = parseOptionalInteger(req.query.event_id);
+    res.render("settings/entertainment-media", {
+      layout: "layouts/settings",
+      title: "Settings - Entertainment Media",
+      pageType: "settings",
+      activeTab: "entertainment-media",
+      mediaItems,
+      mediaTarget,
+      mediaEventId,
+      user: req.session.user || null,
+      flashMessage: req.flash?.("flashMessage"),
+      flashType: req.flash?.("flashType"),
+    });
+  } catch (err) {
+    console.error("[Settings] Failed to load entertainment media:", err);
+    req.flash("flashMessage", "Failed to load media library.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/entertainment");
+  }
+});
+
+router.get("/entertainment/embeds", ensurePrivileged, async (req, res) => {
+  try {
+    res.render("settings/entertainment-embeds", {
+      layout: "layouts/settings",
+      title: "Settings - Entertainment Embeds",
+      pageType: "settings",
+      activeTab: "entertainment-embeds",
+      user: req.session.user || null,
+      flashMessage: req.flash?.("flashMessage"),
+      flashType: req.flash?.("flashType"),
+    });
+  } catch (err) {
+    console.error("[Settings] Failed to load entertainment embeds:", err);
+    req.flash("flashMessage", "Failed to load embed links.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/entertainment");
   }
 });
 
@@ -2623,7 +2737,7 @@ router.post(
                  external_url = $3,
                  organiser = $4,
                  room_id = $5,
-                 event_color = $6,
+                 event_color = COALESCE($6, event_color),
                  price = $7,
                  description = $8,
                  display_type = $9,
@@ -2697,7 +2811,7 @@ router.post(
                  external_url = $3,
                  organiser = $4,
                  room_id = $5,
-                 event_color = $6,
+                 event_color = COALESCE($6, event_color),
                  price = $7,
                  description = $8,
                  display_type = $9,
@@ -2886,6 +3000,41 @@ router.post("/entertainment/delete", ensurePrivileged, async (req, res) => {
     req.flash("flashType", "error");
     res.redirect("/settings/entertainment");
   }
+});
+
+router.post("/entertainment/media/delete", ensurePrivileged, async (req, res) => {
+  try {
+    const rawFile = (req.body.file || "").trim();
+    if (!rawFile) {
+      req.flash("flashMessage", "Missing media file.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/entertainment");
+    }
+    const filename = path.basename(rawFile);
+    const targetPath = path.join(entertainmentUploadsDir, filename);
+    if (!targetPath.startsWith(entertainmentUploadsDir)) {
+      req.flash("flashMessage", "Invalid media file.");
+      req.flash("flashType", "error");
+      return res.redirect("/settings/entertainment");
+    }
+    if (!fs.existsSync(targetPath)) {
+      req.flash("flashMessage", "Media file not found.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/entertainment");
+    }
+    const imageUrl = `/uploads/entertainment/${filename}`;
+    await pool.query(`UPDATE entertainment_events SET image_url = NULL WHERE image_url = $1;`, [
+      imageUrl,
+    ]);
+    await fs.promises.unlink(targetPath);
+    req.flash("flashMessage", "Media file deleted.");
+    req.flash("flashType", "success");
+  } catch (err) {
+    console.error("[Settings] Failed to delete media file:", err);
+    req.flash("flashMessage", "Failed to delete media file.");
+    req.flash("flashType", "error");
+  }
+  res.redirect("/settings/entertainment");
 });
 
 router.post("/entertainment/acts/add", ensurePrivileged, async (req, res) => {

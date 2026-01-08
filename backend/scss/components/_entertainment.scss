@@ -115,17 +115,6 @@
     box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08);
   }
 
-  .fc-dayGridMonth-view .fc-event {
-    background-color: $brand-light !important;
-    border-color: $brand-light !important;
-    color: #0f172a !important;
-  }
-
-  .fc-dayGridMonth-view .fc-event .fc-event-title,
-  .fc-dayGridMonth-view .fc-event .fc-event-time {
-    color: #0f172a !important;
-  }
-
   .fc .fc-event-title {
     font-weight: 600;
   }
@@ -149,6 +138,11 @@
   .fc .fc-list-event-time {
     color: $neutral-600;
     font-weight: 600;
+  }
+
+  .fc .fc-list-event-dot {
+    border-color: #cbd5f5 !important;
+    background: transparent !important;
   }
 }
 

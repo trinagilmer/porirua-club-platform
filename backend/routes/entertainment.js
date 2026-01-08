@@ -48,7 +48,7 @@ router.get("/", async (req, res) => {
         LEFT JOIN entertainment_acts a ON a.id = ea.act_id
         LEFT JOIN rooms r ON r.id = e.room_id
        WHERE e.status = 'published'
-         AND e.start_at >= NOW() - INTERVAL '1 day'
+         AND (e.start_at AT TIME ZONE 'Pacific/Auckland')::date >= (NOW() AT TIME ZONE 'Pacific/Auckland')::date
        GROUP BY e.id, r.name
        ORDER BY e.start_at ASC;
       `
@@ -112,14 +112,17 @@ router.get("/events", async (req, res) => {
     const endDate = normalizeDateParam(req.query.end);
     const displayType = normalizeDisplayType(req.query.type);
     const params = [];
-    const where = [`e.status = 'published'`];
+    const where = [
+      `e.status = 'published'`,
+      `(e.start_at AT TIME ZONE 'Pacific/Auckland')::date >= (NOW() AT TIME ZONE 'Pacific/Auckland')::date`,
+    ];
     if (startDate) {
       params.push(startDate);
-      where.push(`e.start_at >= $${params.length}::date`);
+      where.push(`(e.start_at AT TIME ZONE 'Pacific/Auckland')::date >= $${params.length}::date`);
     }
     if (endDate) {
       params.push(endDate);
-      where.push(`e.start_at < $${params.length}::date`);
+      where.push(`(e.start_at AT TIME ZONE 'Pacific/Auckland')::date < $${params.length}::date`);
     }
     if (displayType) {
       params.push(displayType);
@@ -127,9 +130,18 @@ router.get("/events", async (req, res) => {
     }
     const { rows } = await pool.query(
       `
-      SELECT e.*, r.name AS room_name
+      WITH series_colors AS (
+        SELECT DISTINCT ON (series_id) series_id, event_color AS series_color
+          FROM entertainment_events
+         WHERE series_id IS NOT NULL
+           AND event_color IS NOT NULL
+         ORDER BY series_id, series_order ASC NULLS LAST, start_at ASC
+      )
+      SELECT e.*, r.name AS room_name,
+             COALESCE(e.event_color, sc.series_color) AS effective_event_color
         FROM entertainment_events e
         LEFT JOIN rooms r ON r.id = e.room_id
+        LEFT JOIN series_colors sc ON sc.series_id = e.series_id
        ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
        ORDER BY e.start_at ASC;
       `,
@@ -137,18 +149,20 @@ router.get("/events", async (req, res) => {
     );
     const events = rows.map((row) => {
       const defaultColor = row.display_type === "regularevents" ? "#e8f5fc" : "#6bb4de";
-      const color = row.event_color || defaultColor;
+      const color = row.effective_event_color || row.event_color || defaultColor;
       return {
         id: row.id,
         title: row.title,
         start: row.start_at,
         end: row.end_at,
         url: `/entertainment/${row.slug || row.id}`,
+        color,
         backgroundColor: color,
         borderColor: color,
         textColor: "#0f172a",
         extendedProps: {
           display_type: row.display_type || "entertainment",
+          event_color: row.effective_event_color || row.event_color || null,
           room_name: row.room_name,
           external_url: row.external_url,
         },

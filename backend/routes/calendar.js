@@ -397,6 +397,7 @@ function mapEntertainmentEventRow(row) {
     title: row.title,
     start,
     end,
+    color: colour,
     backgroundColor: colour,
     borderColor: colour,
     extendedProps: {
