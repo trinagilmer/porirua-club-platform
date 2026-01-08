@@ -141,9 +141,12 @@
         <option value="/settings/restaurant/overrides" <%= activeTab === 'restaurant-overrides' ? 'selected' : '' %>>Restaurant - Overrides & Blackouts</option>
         <option value="/settings/restaurant/emails" <%= activeTab === 'restaurant-emails' ? 'selected' : '' %>>Restaurant - Customer Emails</option>
         <option value="/settings/restaurant/embeds" <%= activeTab === 'restaurant-embeds' ? 'selected' : '' %>>Restaurant - Embeds</option>
-        <option value="/settings/entertainment" <%= activeTab === 'entertainment' ? 'selected' : '' %>>Entertainment Events</option>
-        <option value="/settings/entertainment/media" <%= activeTab === 'entertainment-media' ? 'selected' : '' %>>Entertainment Media Library</option>
-        <option value="/settings/entertainment/embeds" <%= activeTab === 'entertainment-embeds' ? 'selected' : '' %>>Entertainment Embeds</option>
+        <option value="/settings/entertainment" <%= activeTab === 'entertainment' ? 'selected' : '' %>>Entertainment - Overview</option>
+        <option value="/settings/entertainment/events" <%= activeTab === 'entertainment-events' ? 'selected' : '' %>>Entertainment - Events</option>
+        <option value="/settings/entertainment/acts" <%= activeTab === 'entertainment-acts' ? 'selected' : '' %>>Entertainment - Acts Directory</option>
+        <option value="/settings/entertainment/public" <%= activeTab === 'entertainment-public' ? 'selected' : '' %>>Entertainment - Public Page</option>
+        <option value="/settings/entertainment/media" <%= activeTab === 'entertainment-media' ? 'selected' : '' %>>Entertainment - Media Library</option>
+        <option value="/settings/entertainment/embeds" <%= activeTab === 'entertainment-embeds' ? 'selected' : '' %>>Entertainment - Embeds</option>
         <option value="/settings/feedback" <%= activeTab === 'feedback-automation' ? 'selected' : '' %>>Feedback - Automation</option>
         <option value="/settings/feedback/templates/email" <%= activeTab === 'feedback-template-email' ? 'selected' : '' %>>Feedback - Email Invite</option>
         <option value="/settings/feedback/templates/survey" <%= activeTab === 'feedback-template-survey' ? 'selected' : '' %>>Feedback - Survey Intro</option>
@@ -154,7 +157,8 @@
         <option value="/settings/proposal-terms" <%= activeTab === 'proposal-terms' ? 'selected' : '' %>>Proposal Terms</option>
         <option value="/settings/manuals/functions" <%= activeTab === 'manuals-functions' ? 'selected' : '' %>>Manuals - Functions</option>
         <option value="/settings/users" <%= activeTab === 'users' ? 'selected' : '' %>>Users</option>
-        <option value="/settings/menus" <%= activeTab === 'menus' ? 'selected' : '' %>>Menus - Manage Menus</option>
+        <option value="/settings/menus" <%= activeTab === 'menus' ? 'selected' : '' %>>Menus - Overview</option>
+        <option value="/settings/menus/manage" <%= activeTab === 'menus-manage' ? 'selected' : '' %>>Menus - Manage Menus</option>
         <option value="/settings/menus/categories" <%= activeTab === 'menu-categories' ? 'selected' : '' %>>Menus - Sales Categories</option>
         <option value="/settings/menus/choices" <%= activeTab === 'menu-choices' ? 'selected' : '' %>>Menus - Menu Choices</option>
         <option value="/settings/menus/units" <%= activeTab === 'menu-units' ? 'selected' : '' %>>Menus - Sales Units</option>
@@ -204,9 +208,43 @@
           </nav>
         </div>
       </div>
-      <a href="/settings/entertainment" class="nav-link <%= activeTab === 'entertainment' ? 'active fw-semibold' : '' %>">Entertainment Events</a>
-      <a href="/settings/entertainment/media" class="nav-link <%= activeTab === 'entertainment-media' ? 'active fw-semibold' : '' %>">Entertainment Media Library</a>
-      <a href="/settings/entertainment/embeds" class="nav-link <%= activeTab === 'entertainment-embeds' ? 'active fw-semibold' : '' %>">Entertainment Embeds</a>
+      <div class="nav-item">
+        <button
+          class="btn w-100 text-start nav-link d-flex justify-content-between align-items-center
+            <%= ['entertainment','entertainment-events','entertainment-acts','entertainment-public','entertainment-media','entertainment-embeds'].includes(activeTab) ? 'active fw-semibold' : '' %>"
+          data-bs-toggle="collapse"
+          data-bs-target="#submenu-entertainment"
+          aria-expanded="<%= ['entertainment','entertainment-events','entertainment-acts','entertainment-public','entertainment-media','entertainment-embeds'].includes(activeTab) ? 'true' : 'false' %>"
+          aria-controls="submenu-entertainment"
+        >
+          Entertainment
+          <span class="ms-auto">
+            <i class="bi bi-chevron-down small"></i>
+          </span>
+        </button>
+        <div class="collapse <%= ['entertainment','entertainment-events','entertainment-acts','entertainment-public','entertainment-media','entertainment-embeds'].includes(activeTab) ? 'show' : '' %>" id="submenu-entertainment">
+          <nav class="nav flex-column ms-3 mt-1">
+            <a href="/settings/entertainment" class="nav-link <%= activeTab === 'entertainment' ? 'active fw-semibold' : '' %>">
+              Overview
+            </a>
+            <a href="/settings/entertainment/events" class="nav-link <%= activeTab === 'entertainment-events' ? 'active fw-semibold' : '' %>">
+              Events
+            </a>
+            <a href="/settings/entertainment/acts" class="nav-link <%= activeTab === 'entertainment-acts' ? 'active fw-semibold' : '' %>">
+              Acts directory
+            </a>
+            <a href="/settings/entertainment/public" class="nav-link <%= activeTab === 'entertainment-public' ? 'active fw-semibold' : '' %>">
+              Public page
+            </a>
+            <a href="/settings/entertainment/media" class="nav-link <%= activeTab === 'entertainment-media' ? 'active fw-semibold' : '' %>">
+              Media library
+            </a>
+            <a href="/settings/entertainment/embeds" class="nav-link <%= activeTab === 'entertainment-embeds' ? 'active fw-semibold' : '' %>">
+              Embeds
+            </a>
+          </nav>
+        </div>
+      </div>
 
       <div class="nav-item">
         <button
@@ -252,10 +290,10 @@
 <div class="nav-item">
   <button
     class="btn w-100 text-start nav-link d-flex justify-content-between align-items-center
-      <%= ['menus', 'menu-categories', 'menu-choices', 'menu-units'].includes(activeTab) ? 'active fw-semibold' : '' %>"
+      <%= ['menus', 'menus-manage', 'menu-categories', 'menu-choices', 'menu-units'].includes(activeTab) ? 'active fw-semibold' : '' %>"
     data-bs-toggle="collapse"
     data-bs-target="#submenu-menus"
-    aria-expanded="<%= ['menus', 'menu-categories', 'menu-choices', 'menu-units'].includes(activeTab) ? 'true' : 'false' %>"
+    aria-expanded="<%= ['menus', 'menus-manage', 'menu-categories', 'menu-choices', 'menu-units'].includes(activeTab) ? 'true' : 'false' %>"
     aria-controls="submenu-menus"
   >
     Menus
@@ -264,9 +302,12 @@
     </span>
   </button>
 
-  <div class="collapse <%= ['menus', 'menu-categories', 'menu-choices', 'menu-units'].includes(activeTab) ? 'show' : '' %>" id="submenu-menus">
+  <div class="collapse <%= ['menus', 'menus-manage', 'menu-categories', 'menu-choices', 'menu-units'].includes(activeTab) ? 'show' : '' %>" id="submenu-menus">
     <nav class="nav flex-column ms-3 mt-1">
       <a href="/settings/menus" class="nav-link <%= activeTab === 'menus' ? 'active fw-semibold' : '' %>">
+        Overview
+      </a>
+      <a href="/settings/menus/manage" class="nav-link <%= activeTab === 'menus-manage' ? 'active fw-semibold' : '' %>">
         Manage Menus
       </a>
       <a href="/settings/menus/categories" class="nav-link <%= activeTab === 'menu-categories' ? 'active fw-semibold' : '' %>">

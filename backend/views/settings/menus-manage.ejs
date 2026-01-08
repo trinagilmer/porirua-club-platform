@@ -1,0 +1,90 @@
+
+<script>
+  window.menuBuilderData = {
+    categories: <%- JSON.stringify(categories || []) %>,
+    units: <%- JSON.stringify(units || []) %>
+  };
+</script>
+
+<main class="menus-page">
+
+  <!--  Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="fw-bold text-primary mb-0">Manage Menus</h1>
+  </div>
+
+  <!--  No Categories -->
+  <% if (!categories || !categories.length) { %>
+    <div class="alert alert-secondary">
+      <p>No categories found. Add some in Settings first.</p>
+    </div>
+
+  <!--  Categories with Menus -->
+  <% } else { %>
+    <% categories.forEach(cat => { 
+         const filteredMenus = menus.filter(m => m.category_id === cat.id);
+    %>
+      <section class="menu-category-block mb-5">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h4 class="mb-0"><%= cat.name %></h4>
+          <button 
+            class="btn btn-sm btn-outline-primary add-menu-btn"
+            data-category="<%= cat.id %>">
+            + Add Menu
+          </button>
+        </div>
+
+        <% if (!filteredMenus.length) { %>
+          <p class="text-muted fst-italic ps-2">
+            No menus created under this category yet.
+          </p>
+        <% } else { %>
+          <table class="table align-middle table-striped mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th class="text-end">Price</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% filteredMenus.forEach(menu => { %>
+                <tr>
+                  <td><%= menu.name %></td>
+                  <td><%= menu.description || '' %></td>
+                  <td class="text-end"><%= formatCurrency(menu.price) %></td>
+                  <td class="text-end">
+                    <button
+                      class="btn btn-sm btn-outline-secondary edit-menu-btn"
+                      data-id="<%= menu.id %>"
+                      data-name="<%= menu.name %>"
+                      data-category="<%= menu.category_id %>"
+                      data-price="<%= menu.price || 0 %>"
+                      data-description="<%= menu.description || '' %>">
+                       Edit
+                    </button>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        <% } %>
+      </section>
+    <% }) %>
+  <% } %>
+</main>
+
+<!--  Drawer Partial -->
+<%- include('../partials/menuDrawer', { categories, units }) %>
+
+<!--  JS Context -->
+<script>
+  window.menuBuilderData = {
+    categories: <%- JSON.stringify(categories) %>,
+    units: <%- JSON.stringify(units) %>
+  };
+</script>
+
+
+

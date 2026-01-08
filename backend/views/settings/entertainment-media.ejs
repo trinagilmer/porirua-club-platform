@@ -5,7 +5,7 @@
       <p class="text-muted mb-0">Reuse uploaded images or remove ones you no longer need.</p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
-      <a class="btn btn-outline-secondary" href="/settings/entertainment">Back to events</a>
+      <a class="btn btn-outline-secondary" href="/settings/entertainment/events">Back to events</a>
     </div>
   </div>
 
@@ -47,7 +47,7 @@
                 <% if (mediaTarget) { %>
                   <a
                     class="btn btn-outline-primary btn-sm w-100 mb-2"
-                    href="/settings/entertainment?media_target=<%= mediaTarget %><%= mediaEventId ? '&media_event_id=' + mediaEventId : '' %>&media_image_url=<%= encodeURIComponent(item.url) %>"
+                    href="/settings/entertainment/events?media_target=<%= mediaTarget %><%= mediaEventId ? '&media_event_id=' + mediaEventId : '' %>&media_image_url=<%= encodeURIComponent(item.url) %>"
                   >
                     Insert
                   </a>

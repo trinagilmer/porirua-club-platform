@@ -2559,7 +2559,34 @@ router.post("/restaurant/emails", ensurePrivileged, updateRestaurantEmailTemplat
 /* =========================================================
    🎤 ENTERTAINMENT EVENTS SETTINGS
 ========================================================= */
+
 router.get("/entertainment", ensurePrivileged, async (req, res) => {
+  try {
+    const [eventsCount, actsCount] = await Promise.all([
+      pool.query("SELECT COUNT(*)::int AS count FROM entertainment_events;"),
+      pool.query("SELECT COUNT(*)::int AS count FROM entertainment_acts;"),
+    ]);
+
+    res.render("settings/entertainment", {
+      layout: "layouts/settings",
+      title: "Settings - Entertainment",
+      pageType: "settings",
+      activeTab: "entertainment",
+      user: req.session.user || null,
+      entertainmentCounts: {
+        events: eventsCount.rows[0]?.count ?? 0,
+        acts: actsCount.rows[0]?.count ?? 0,
+      },
+    });
+  } catch (err) {
+    console.error("? Error loading entertainment settings:", err);
+    req.flash("flashMessage", "? Failed to load entertainment settings.");
+    req.flash("flashType", "error");
+    res.redirect("/settings");
+  }
+});
+
+router.get("/entertainment/events", ensurePrivileged, async (req, res) => {
   try {
     await ensureEntertainmentColorColumn();
     const eventsRes = await pool.query(
@@ -2606,17 +2633,16 @@ router.get("/entertainment", ensurePrivileged, async (req, res) => {
     const roomsRes = await pool.query(
       `SELECT id, name FROM rooms ORDER BY name ASC;`
     );
-    const feedbackSettings = await getFeedbackSettings();
     const prefillEntertainment = {
       title: req.query.title || "",
       start_date: req.query.prefill_date || req.query.start_date || "",
       start_time: req.query.prefill_time || req.query.start_time || "",
     };
-    res.render("settings/entertainment", {
+    res.render("settings/entertainment-events", {
       layout: "layouts/settings",
-      title: "Settings — Entertainment",
+      title: "Settings - Entertainment Events",
       pageType: "settings",
-      activeTab: "entertainment",
+      activeTab: "entertainment-events",
       events: eventsRes.rows,
       acts: actsRes.rows,
       rooms: roomsRes.rows,
@@ -2627,7 +2653,6 @@ router.get("/entertainment", ensurePrivileged, async (req, res) => {
       },
       user: req.session.user || null,
       prefillEntertainment,
-      showEntertainmentHeader: feedbackSettings.show_entertainment_header,
       flashMessage: req.flash?.("flashMessage"),
       flashType: req.flash?.("flashType"),
     });
@@ -2639,42 +2664,46 @@ router.get("/entertainment", ensurePrivileged, async (req, res) => {
   }
 });
 
-router.post("/restaurant/email-templates", ensurePrivileged, async (req, res) => {
+router.get("/entertainment/acts", ensurePrivileged, async (req, res) => {
   try {
-    const settings = await getRestaurantSettings();
-    const requestSubject = (req.body.request_subject || "").trim();
-    const requestBody = req.body.request_body_html || "";
-    const confirmSubject = (req.body.confirm_subject || "").trim();
-    const confirmBody = req.body.confirm_body_html || "";
-
-    await pool.query(
-      `
-      UPDATE restaurant_settings
-         SET request_subject = $1,
-             request_body_html = $2,
-             confirm_subject = $3,
-             confirm_body_html = $4,
-             updated_at = NOW()
-       WHERE id = $5;
-      `,
-      [
-        requestSubject || DEFAULT_RESTAURANT_EMAIL_TEMPLATES.request_subject,
-        requestBody || DEFAULT_RESTAURANT_EMAIL_TEMPLATES.request_body_html,
-        confirmSubject || DEFAULT_RESTAURANT_EMAIL_TEMPLATES.confirm_subject,
-        confirmBody || DEFAULT_RESTAURANT_EMAIL_TEMPLATES.confirm_body_html,
-        settings.id,
-      ]
+    const actsRes = await pool.query(
+      `SELECT id, name, external_url FROM entertainment_acts ORDER BY name ASC;`
     );
-
-    req.flash("flashMessage", "✅ Restaurant email templates updated.");
-    req.flash("flashType", "success");
+    res.render("settings/entertainment-acts", {
+      layout: "layouts/settings",
+      title: "Settings - Entertainment Acts",
+      pageType: "settings",
+      activeTab: "entertainment-acts",
+      acts: actsRes.rows,
+      user: req.session.user || null,
+    });
   } catch (err) {
-    console.error("❌ Error saving restaurant email templates:", err);
-    req.flash("flashMessage", "❌ Failed to update restaurant email templates.");
+    console.error("❌ Error loading entertainment acts:", err);
+    req.flash("flashMessage", "❌ Failed to load entertainment acts.");
     req.flash("flashType", "error");
+    res.redirect("/settings/entertainment/acts");
   }
-  res.redirect("/settings/restaurant#email-templates");
 });
+
+router.get("/entertainment/public", ensurePrivileged, async (req, res) => {
+  try {
+    const feedbackSettings = await getFeedbackSettings();
+    res.render("settings/entertainment-public", {
+      layout: "layouts/settings",
+      title: "Settings - Entertainment Public Page",
+      pageType: "settings",
+      activeTab: "entertainment-public",
+      user: req.session.user || null,
+      showEntertainmentHeader: feedbackSettings.show_entertainment_header,
+    });
+  } catch (err) {
+    console.error("❌ Error loading entertainment public settings:", err);
+    req.flash("flashMessage", "❌ Failed to load entertainment public settings.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/entertainment/public");
+  }
+});
+
 
 router.post("/users/invite", ensurePrivileged, async (req, res) => {
   try {
@@ -2771,7 +2800,7 @@ router.post("/entertainment/header", ensurePrivileged, async (req, res) => {
     req.flash("flashMessage", "Failed to update entertainment header.");
     req.flash("flashType", "error");
   }
-  res.redirect("/settings/entertainment");
+  res.redirect("/settings/entertainment/public");
 });
 
 async function loadRecurrence(seriesId) {
@@ -2865,7 +2894,7 @@ router.get("/entertainment/media", ensurePrivileged, async (req, res) => {
     console.error("[Settings] Failed to load entertainment media:", err);
     req.flash("flashMessage", "Failed to load media library.");
     req.flash("flashType", "error");
-    res.redirect("/settings/entertainment");
+    res.redirect("/settings/entertainment/media");
   }
 });
 
@@ -2884,7 +2913,7 @@ router.get("/entertainment/embeds", ensurePrivileged, async (req, res) => {
     console.error("[Settings] Failed to load entertainment embeds:", err);
     req.flash("flashMessage", "Failed to load embed links.");
     req.flash("flashType", "error");
-    res.redirect("/settings/entertainment");
+    res.redirect("/settings/entertainment/embeds");
   }
 });
 
@@ -2916,7 +2945,7 @@ router.post(
     if (!title?.trim() || !start_date || !start_time) {
       req.flash("flashMessage", "⚠️ Title, date, and time are required.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/entertainment");
+      return res.redirect("/settings/entertainment/events");
     }
 
     const startAt = combineDateAndTime(start_date, start_time);
@@ -3034,7 +3063,7 @@ router.post(
     await client.query("COMMIT");
     req.flash("flashMessage", "✅ Entertainment event added.");
     req.flash("flashType", "success");
-    res.redirect("/settings/entertainment");
+    res.redirect("/settings/entertainment/events");
   } catch (err) {
     console.error("❌ Error adding entertainment event:", err);
     try {
@@ -3044,7 +3073,7 @@ router.post(
     }
     req.flash("flashMessage", "❌ Failed to add entertainment event.");
     req.flash("flashType", "error");
-    res.redirect("/settings/entertainment");
+    res.redirect("/settings/entertainment/events");
   } finally {
     if (client) client.release();
   }
@@ -3089,7 +3118,7 @@ router.post(
       if (!id || !title?.trim()) {
         req.flash("flashMessage", "⚠️ Missing event details.");
         req.flash("flashType", "warning");
-        return res.redirect("/settings/entertainment");
+        return res.redirect("/settings/entertainment/events");
       }
 
       const startTimeClean = typeof start_time === "string" ? start_time.trim() : "";
@@ -3331,7 +3360,7 @@ router.post(
       await client.query("COMMIT");
       req.flash("flashMessage", "Entertainment event updated.");
       req.flash("flashType", "success");
-      res.redirect("/settings/entertainment");
+      res.redirect("/settings/entertainment/events");
     } catch (err) {
       console.error("❌ Error updating entertainment event:", err);
       try {
@@ -3341,7 +3370,7 @@ router.post(
       }
       req.flash("flashMessage", "❌ Failed to update entertainment event.");
       req.flash("flashType", "error");
-      res.redirect("/settings/entertainment");
+      res.redirect("/settings/entertainment/events");
     } finally {
       if (client) client.release();
     }
@@ -3353,7 +3382,7 @@ router.post("/entertainment/delete", ensurePrivileged, async (req, res) => {
     if (!id) {
       req.flash("flashMessage", "⚠️ Missing event ID.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/entertainment");
+      return res.redirect("/settings/entertainment/events");
     }
 
     const scope = (series_scope || "single").toLowerCase();
@@ -3365,7 +3394,7 @@ router.post("/entertainment/delete", ensurePrivileged, async (req, res) => {
     if (!current) {
       req.flash("flashMessage", "⚠️ Event not found.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/entertainment");
+      return res.redirect("/settings/entertainment/events");
     }
 
     if (current.series_id && (scope === "all" || scope === "future")) {
@@ -3380,12 +3409,12 @@ router.post("/entertainment/delete", ensurePrivileged, async (req, res) => {
       req.flash("flashType", "success");
     }
 
-    res.redirect("/settings/entertainment");
+    res.redirect("/settings/entertainment/events");
   } catch (err) {
     console.error("❌ Error deleting entertainment event:", err);
     req.flash("flashMessage", "❌ Failed to delete entertainment event.");
     req.flash("flashType", "error");
-    res.redirect("/settings/entertainment");
+    res.redirect("/settings/entertainment/events");
   }
 });
 
@@ -3395,19 +3424,19 @@ router.post("/entertainment/media/delete", ensurePrivileged, async (req, res) =>
     if (!rawFile) {
       req.flash("flashMessage", "Missing media file.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/entertainment");
+      return res.redirect("/settings/entertainment/media");
     }
     const filename = path.basename(rawFile);
     const targetPath = path.join(entertainmentUploadsDir, filename);
     if (!targetPath.startsWith(entertainmentUploadsDir)) {
       req.flash("flashMessage", "Invalid media file.");
       req.flash("flashType", "error");
-      return res.redirect("/settings/entertainment");
+      return res.redirect("/settings/entertainment/media");
     }
     if (!fs.existsSync(targetPath)) {
       req.flash("flashMessage", "Media file not found.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/entertainment");
+      return res.redirect("/settings/entertainment/media");
     }
     const imageUrl = `/uploads/entertainment/${filename}`;
     await pool.query(`UPDATE entertainment_events SET image_url = NULL WHERE image_url = $1;`, [
@@ -3421,7 +3450,7 @@ router.post("/entertainment/media/delete", ensurePrivileged, async (req, res) =>
     req.flash("flashMessage", "Failed to delete media file.");
     req.flash("flashType", "error");
   }
-  res.redirect("/settings/entertainment");
+  res.redirect("/settings/entertainment/media");
 });
 
 router.post("/entertainment/acts/add", ensurePrivileged, async (req, res) => {
@@ -3436,7 +3465,7 @@ router.post("/entertainment/acts/add", ensurePrivileged, async (req, res) => {
       if (wantsJson) return res.status(400).json({ success: false, message: "Act name is required." });
       req.flash("flashMessage", "⚠️ Act name is required.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/entertainment");
+      return res.redirect("/settings/entertainment/acts");
     }
     const { rows } = await pool.query(
       `
@@ -3454,13 +3483,13 @@ router.post("/entertainment/acts/add", ensurePrivileged, async (req, res) => {
     }
     req.flash("flashMessage", "✅ Act saved.");
     req.flash("flashType", "success");
-    res.redirect("/settings/entertainment");
+    res.redirect("/settings/entertainment/acts");
   } catch (err) {
     console.error("❌ Error saving act:", err);
     if (wantsJson) return res.status(500).json({ success: false, message: "Failed to save act." });
     req.flash("flashMessage", "❌ Failed to save act.");
     req.flash("flashType", "error");
-    res.redirect("/settings/entertainment");
+    res.redirect("/settings/entertainment/acts");
   }
 });
 router.post("/entertainment/acts/delete", ensurePrivileged, async (req, res) => {
@@ -3469,17 +3498,17 @@ router.post("/entertainment/acts/delete", ensurePrivileged, async (req, res) => 
     if (!id) {
       req.flash("flashMessage", "⚠️ Missing act ID.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/entertainment");
+      return res.redirect("/settings/entertainment/acts");
     }
     await pool.query(`DELETE FROM entertainment_acts WHERE id = $1;`, [id]);
     req.flash("flashMessage", "🗑️ Act deleted.");
     req.flash("flashType", "success");
-    res.redirect("/settings/entertainment");
+    res.redirect("/settings/entertainment/acts");
   } catch (err) {
     console.error("❌ Error deleting act:", err);
     req.flash("flashMessage", "❌ Failed to delete act.");
     req.flash("flashType", "error");
-    res.redirect("/settings/entertainment");
+    res.redirect("/settings/entertainment/acts");
   }
 });
 

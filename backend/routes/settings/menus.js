@@ -11,28 +11,67 @@ router.use('/categories', require('./menu-categories'));
 // ======================================================
 // Main Menus Page
 // ======================================================
+
+// ======================================================
+// Menus Overview
+// ======================================================
 router.get('/', async (req, res) => {
   try {
-    const [categoriesRes, menusRes, unitsRes] = await Promise.all([
-      pool.query('SELECT id, name FROM menu_categories ORDER BY name ASC'),
-      pool.query('SELECT * FROM menus ORDER BY name ASC'),
-      pool.query('SELECT * FROM menu_units ORDER BY name ASC'),
-    ]);
-
-    res.locals.pageJs = ['/js/settings/menus.js', '/js/settings/menuDrawer.js'];
+    const { rows } = await pool.query(`
+      SELECT
+        (SELECT COUNT(*)::int FROM menu_categories) AS categories,
+        (SELECT COUNT(*)::int FROM menus) AS menus,
+        (SELECT COUNT(*)::int FROM menu_choices) AS choices,
+        (SELECT COUNT(*)::int FROM menu_units) AS units;
+    `);
 
     res.render('settings/menus', {
       layout: 'layouts/settings',
       title: 'Settings - Menus',
       pageType: 'settings',
       activeTab: 'menus',
-      categories: categoriesRes.rows,
-      menus: menusRes.rows,
-      units: unitsRes.rows,
+      menuCounts: rows[0] || {},
       user: req.session.user || null,
     });
   } catch (err) {
-    console.error('⚠️  Error loading menus page:', err);
+    console.error('??  Error loading menus overview:', err);
+    res.status(500).send('Error loading menus');
+  }
+});
+
+// ======================================================
+// Manage Menus
+// ======================================================
+router.get('/manage', async (req, res) => {
+  try {
+    const [categoriesRes, menusRes, unitsRes, countsRes] = await Promise.all([
+      pool.query('SELECT id, name FROM menu_categories ORDER BY name ASC'),
+      pool.query('SELECT * FROM menus ORDER BY name ASC'),
+      pool.query('SELECT * FROM menu_units ORDER BY name ASC'),
+      pool.query(`
+        SELECT
+          (SELECT COUNT(*)::int FROM menu_categories) AS categories,
+          (SELECT COUNT(*)::int FROM menus) AS menus,
+          (SELECT COUNT(*)::int FROM menu_choices) AS choices,
+          (SELECT COUNT(*)::int FROM menu_units) AS units;
+      `),
+    ]);
+
+    res.locals.pageJs = ['/js/settings/menus.js', '/js/settings/menuDrawer.js'];
+
+    res.render('settings/menus-manage', {
+      layout: 'layouts/settings',
+      title: 'Settings - Manage Menus',
+      pageType: 'settings',
+      activeTab: 'menus-manage',
+      categories: categoriesRes.rows,
+      menus: menusRes.rows,
+      units: unitsRes.rows,
+      menuCounts: countsRes.rows[0] || {},
+      user: req.session.user || null,
+    });
+  } catch (err) {
+    console.error('??  Error loading manage menus page:', err);
     res.status(500).send('Error loading menus');
   }
 });
