@@ -345,14 +345,25 @@ async function createUserInvite(userId, createdBy) {
   return rows[0]?.token || token;
 }
 
-function getAppBaseUrl() {
+function getAppBaseUrl(req) {
+  const envBase = (process.env.APP_URL || "").trim();
+  if (envBase) {
+    return envBase.replace(/\/$/, "");
+  }
+  if (req) {
+    const proto = req.headers["x-forwarded-proto"] || req.protocol;
+    const host = req.get("host");
+    if (host) {
+      return `${proto}://${host}`.replace(/\/$/, "");
+    }
+  }
   return (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
 }
 
-async function sendUserInviteEmail({ toEmail, toName, inviteToken }) {
+async function sendUserInviteEmail({ toEmail, toName, inviteToken, baseUrl }) {
   const accessToken = await acquireGraphToken();
   if (!accessToken) throw new Error("Graph token unavailable");
-  const inviteLink = `${getAppBaseUrl()}/auth/accept-invite/${inviteToken}`;
+  const inviteLink = `${(baseUrl || getAppBaseUrl()).replace(/\/$/, "")}/auth/accept-invite/${inviteToken}`;
   const subject = "Set up your Porirua Club account";
   const body = `
     <p>Hello ${toName || "there"},</p>
@@ -1285,6 +1296,7 @@ router.post("/users/add", ensurePrivileged, async (req, res) => {
           toEmail: storedUser.email,
           toName: storedUser.name,
           inviteToken: token,
+          baseUrl: getAppBaseUrl(req),
         });
         req.flash("flashMessage", "Invite sent. The user can set their own password.");
       } else {
@@ -2469,6 +2481,7 @@ router.post("/users/invite", ensurePrivileged, async (req, res) => {
       toEmail: user.email,
       toName: user.name,
       inviteToken: token,
+      baseUrl: getAppBaseUrl(req),
     });
     req.flash("flashMessage", "Invite sent.");
     req.flash("flashType", "success");
