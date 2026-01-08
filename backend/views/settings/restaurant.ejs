@@ -1,533 +1,75 @@
-<% const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]; %>
+<% const counts = locals.restaurantCounts || {}; %>
 
 <main class="settings-restaurant">
   <header class="mb-4">
-    <h1 class="mb-1">Restaurant Booking Settings</h1>
-    <p class="text-muted mb-0">Manage service blocks, capacity zones, tables, and exceptions.</p>
+    <h1 class="mb-1">Restaurant Settings</h1>
+    <p class="text-muted mb-0">Quick links to manage services, layout, overrides, customer emails, and embeds.</p>
   </header>
 
-  <!-- Services -->
-  <section class="card shadow-sm mb-4" id="service-settings">
-    <div class="card-body">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-          <h5 class="mb-0">Service Blocks</h5>
-          <small class="text-muted">Each block defines a day, window, slot length, and caps.</small>
-        </div>
-      </div>
-
-      <% if (!services || services.length === 0) { %>
-        <div class="alert alert-light border">No services configured yet.</div>
-      <% } else { %>
-        <% services.forEach(function(service) { %>
-          <details class="border rounded-3 p-3 mb-3">
-            <summary class="fw-semibold">
-              <%= service.name %> · <%= DAY_NAMES[service.day_of_week] || 'Day' %> ·
-              <%= service.start_time ? service.start_time.slice(0,5) : '--:--' %> -
-              <%= service.end_time ? service.end_time.slice(0,5) : '--:--' %>
-            </summary>
-            <form class="mt-3" action="/settings/restaurant/services/edit" method="POST">
-              <input type="hidden" name="id" value="<%= service.id %>">
-              <div class="row g-3">
-                <div class="col-md-4">
-                  <label class="form-label">Name</label>
-                  <input type="text" name="name" class="form-control" value="<%= service.name %>" required>
-                </div>
-                <div class="col-md-2">
-                  <label class="form-label">Day</label>
-                  <select name="day_of_week" class="form-select" required>
-                    <% DAY_NAMES.forEach(function(day, idx) { %>
-                      <option value="<%= idx %>" <%= idx === service.day_of_week ? 'selected' : '' %>><%= day %></option>
-                    <% }) %>
-                  </select>
-                </div>
-                <div class="col-md-2">
-                  <label class="form-label">Start</label>
-                  <input type="time" name="start_time" class="form-control" value="<%= service.start_time ? service.start_time.slice(0,5) : '' %>" required>
-                </div>
-                <div class="col-md-2">
-                  <label class="form-label">End</label>
-                  <input type="time" name="end_time" class="form-control" value="<%= service.end_time ? service.end_time.slice(0,5) : '' %>" required>
-                </div>
-                <div class="col-md-2">
-                  <label class="form-label">Active</label>
-                  <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="active" <%= service.active ? 'checked' : '' %>>
-                    <label class="form-check-label">Enabled</label>
-                  </div>
-                </div>
-              </div>
-              <div class="row g-3 mt-2">
-                <div class="col-md-2">
-                  <label class="form-label">Slot Minutes</label>
-                  <input type="number" name="slot_minutes" class="form-control" value="<%= service.slot_minutes %>" min="5" step="5">
-                </div>
-                <div class="col-md-2">
-                  <label class="form-label">Turn Minutes</label>
-                  <input type="number" name="turn_minutes" class="form-control" value="<%= service.turn_minutes %>" min="5" step="5">
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label">Max Covers / Slot</label>
-                  <input type="number" name="max_covers_per_slot" class="form-control" value="<%= service.max_covers_per_slot ?? '' %>" min="1">
-                </div>
-               <div class="col-md-3">
-                 <label class="form-label">Max Online Covers</label>
-                 <input type="number" name="max_online_covers" class="form-control" value="<%= service.max_online_covers ?? '' %>" min="1">
-               </div>
-                <div class="col-md-4">
-                  <label class="form-label">Special menu label</label>
-                  <input type="text" name="special_menu_label" class="form-control" value="<%= service.special_menu_label || '' %>" placeholder="e.g. Buffet $30, Bar snacks">
-                </div>
-                <div class="col-md-2">
-                  <label class="form-label">Menu price</label>
-                  <input type="number" step="0.01" name="special_menu_price" class="form-control" value="<%= service.special_menu_price || '' %>">
-                </div>
-              </div>
-              <div class="row g-3 mt-2">
-                <div class="col-md-3">
-                  <label class="form-label">Menu start date</label>
-                  <input type="date" name="special_menu_start" class="form-control" value="<%= service.special_menu_start ? service.special_menu_start.toISOString().slice(0,10) : '' %>">
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label">Menu end date</label>
-                  <input type="date" name="special_menu_end" class="form-control" value="<%= service.special_menu_end ? service.special_menu_end.toISOString().slice(0,10) : '' %>">
-                </div>
-                <div class="col-md-3 d-flex align-items-end">
-                  <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="special_menu_only" <%= service.special_menu_only ? 'checked' : '' %>>
-                    <label class="form-check-label">Special menu only</label>
-                  </div>
-                </div>
-                <div class="col-md-3 d-flex align-items-end gap-2">
-                  <button type="submit" class="btn btn-primary w-100">Save</button>
-                </div>
-              </div>
-            </form>
-            <form action="/settings/restaurant/services/delete" method="POST" class="mt-2" onsubmit="return confirm('Delete <%= service.name %>?');">
-              <input type="hidden" name="id" value="<%= service.id %>">
-              <button type="submit" class="btn btn-outline-danger btn-sm">Delete service</button>
-            </form>
-          </details>
-        <% }) %>
-      <% } %>
-
-      <hr>
-      <h6>Add Service</h6>
-      <form class="row g-3" action="/settings/restaurant/services/add" method="POST">
-        <div class="col-md-4">
-          <label class="form-label">Name</label>
-          <input type="text" name="name" class="form-control" required>
-        </div>
-        <div class="col-md-2">
-          <label class="form-label">Day</label>
-          <select name="day_of_week" class="form-select" required>
-            <% DAY_NAMES.forEach(function(day, idx) { %>
-              <option value="<%= idx %>"><%= day %></option>
-            <% }) %>
-          </select>
-        </div>
-        <div class="col-md-2">
-          <label class="form-label">Start</label>
-          <input type="time" name="start_time" class="form-control" required>
-        </div>
-        <div class="col-md-2">
-          <label class="form-label">End</label>
-          <input type="time" name="end_time" class="form-control" required>
-        </div>
-        <div class="col-md-1">
-          <label class="form-label">Slot</label>
-          <input type="number" name="slot_minutes" class="form-control" value="30" min="5" step="5">
-        </div>
-        <div class="col-md-1">
-          <label class="form-label">Turn</label>
-          <input type="number" name="turn_minutes" class="form-control" value="90" min="5" step="5">
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Max Covers / Slot</label>
-          <input type="number" name="max_covers_per_slot" class="form-control" min="1">
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Max Online</label>
-          <input type="number" name="max_online_covers" class="form-control" min="1">
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">Special menu label</label>
-          <input type="text" name="special_menu_label" class="form-control" placeholder="e.g. Buffet $30, Bar snacks">
-        </div>
-        <div class="col-md-2">
-          <label class="form-label">Menu price</label>
-          <input type="number" step="0.01" name="special_menu_price" class="form-control">
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Menu start date</label>
-          <input type="date" name="special_menu_start" class="form-control">
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Menu end date</label>
-          <input type="date" name="special_menu_end" class="form-control">
-        </div>
-        <div class="col-md-2 d-flex align-items-end">
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="special_menu_only">
-            <label class="form-check-label">Special menu only</label>
+  <div class="row g-3">
+    <div class="col-md-6 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body d-flex flex-column">
+          <h5 class="mb-1">Services & Menus</h5>
+          <p class="text-muted small mb-3">Service windows, slot lengths, and special menus.</p>
+          <div class="mt-auto">
+            <div class="text-muted small mb-2"><%= counts.services || 0 %> service block(s)</div>
+            <a href="/settings/restaurant/services" class="btn btn-outline-primary btn-sm">Manage services</a>
           </div>
         </div>
-        <div class="col-md-2 d-flex align-items-end">
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="active" checked>
-            <label class="form-check-label">Active</label>
+      </div>
+    </div>
+
+    <div class="col-md-6 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body d-flex flex-column">
+          <h5 class="mb-1">Zones & Tables</h5>
+          <p class="text-muted small mb-3">Dining zones, table inventory, and seating rules.</p>
+          <div class="mt-auto">
+            <div class="text-muted small mb-2"><%= counts.zones || 0 %> zone(s) - <%= counts.tables || 0 %> table(s)</div>
+            <a href="/settings/restaurant/layout" class="btn btn-outline-primary btn-sm">Manage layout</a>
           </div>
         </div>
-        <div class="col-12">
-          <button type="submit" class="btn btn-primary">Add Service</button>
-        </div>
-      </form>
+      </div>
     </div>
-  </section>
 
-  <!-- Zones -->
-  <section class="card shadow-sm mb-4">
-    <div class="card-body">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">Zones / Sections</h5>
-      </div>
-      <% if (!zones || zones.length === 0) { %>
-        <div class="alert alert-light border">No zones configured.</div>
-      <% } else { %>
-        <div class="row g-3">
-          <% zones.forEach(function(zone) { %>
-            <div class="col-lg-6">
-              <div class="border rounded-3 p-3 h-100">
-                <form action="/settings/restaurant/zones/edit" method="POST">
-                  <input type="hidden" name="id" value="<%= zone.id %>">
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="fw-semibold"><%= zone.name %></span>
-                    <button type="submit" class="btn btn-sm btn-primary">Save</button>
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Name</label>
-                    <input type="text" name="name" class="form-control" value="<%= zone.name %>" required>
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Max Covers per Slot</label>
-                    <input type="number" name="max_covers_per_slot" class="form-control" value="<%= zone.max_covers_per_slot ?? '' %>">
-                  </div>
-                  <div class="mb-2">
-                    <label class="form-label">Notes</label>
-                    <textarea name="notes" class="form-control" rows="2"><%= zone.notes || '' %></textarea>
-                  </div>
-                </form>
-                <form action="/settings/restaurant/zones/delete" method="POST" onsubmit="return confirm('Delete zone <%= zone.name %>?');">
-                  <input type="hidden" name="id" value="<%= zone.id %>">
-                  <button type="submit" class="btn btn-link text-danger p-0">Delete zone</button>
-                </form>
-              </div>
-            </div>
-          <% }) %>
-        </div>
-      <% } %>
-
-      <hr>
-      <h6>Add Zone</h6>
-      <form class="row g-3" action="/settings/restaurant/zones/add" method="POST">
-        <div class="col-md-4">
-          <label class="form-label">Name</label>
-          <input type="text" name="name" class="form-control" required>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Max Covers per Slot</label>
-          <input type="number" name="max_covers_per_slot" class="form-control" min="1">
-        </div>
-        <div class="col-md-5">
-          <label class="form-label">Notes</label>
-          <input type="text" name="notes" class="form-control">
-        </div>
-        <div class="col-12">
-          <button type="submit" class="btn btn-primary">Add Zone</button>
-        </div>
-      </form>
-    </div>
-  </section>
-
-  <!-- Tables -->
-  <section class="card shadow-sm mb-4">
-    <div class="card-body">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">Tables</h5>
-      </div>
-      <div class="table-responsive">
-        <table class="table align-middle">
-          <thead>
-            <tr>
-              <th>Label</th>
-              <th>Zone</th>
-              <th>Seats</th>
-              <th>Joinable</th>
-              <th>Active</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <% if (!tables || tables.length === 0) { %>
-              <tr><td colspan="6" class="text-muted text-center">No tables recorded.</td></tr>
-            <% } else { %>
-              <% tables.forEach(function(table) { %>
-                <tr>
-                  <td><%= table.label %></td>
-                  <td><%= table.zone_name || '—' %></td>
-                  <td><%= table.seats %></td>
-                  <td><%= table.can_join ? 'Yes' : 'No' %></td>
-                  <td><%= table.active ? 'Yes' : 'No' %></td>
-                  <td>
-                    <details>
-                      <summary class="btn btn-sm btn-outline-secondary">Edit</summary>
-                      <form class="mt-2" action="/settings/restaurant/tables/edit" method="POST">
-                        <input type="hidden" name="id" value="<%= table.id %>">
-                        <div class="row g-2">
-                          <div class="col-md-4">
-                            <label class="form-label">Label</label>
-                            <input type="text" name="label" class="form-control" value="<%= table.label %>" required>
-                          </div>
-                          <div class="col-md-3">
-                            <label class="form-label">Zone</label>
-                            <select name="zone_id" class="form-select">
-                              <option value="">No zone</option>
-                              <% (zones || []).forEach(function(zone) { %>
-                                <option value="<%= zone.id %>" <%= zone.id === table.zone_id ? 'selected' : '' %>><%= zone.name %></option>
-                              <% }) %>
-                            </select>
-                          </div>
-                          <div class="col-md-2">
-                            <label class="form-label">Seats</label>
-                            <input type="number" name="seats" class="form-control" value="<%= table.seats %>" min="1" required>
-                          </div>
-                          <div class="col-md-3">
-                            <label class="form-label">Flags</label>
-                            <div class="form-check">
-                              <input class="form-check-input" type="checkbox" name="can_join" <%= table.can_join ? 'checked' : '' %>>
-                              <label class="form-check-label">Can join</label>
-                            </div>
-                            <div class="form-check">
-                              <input class="form-check-input" type="checkbox" name="active" <%= table.active ? 'checked' : '' %>>
-                              <label class="form-check-label">Active</label>
-                            </div>
-                          </div>
-                          <div class="col-12">
-                            <button type="submit" class="btn btn-primary btn-sm">Save</button>
-                          </div>
-                        </div>
-                      </form>
-                      <form class="mt-2" action="/settings/restaurant/tables/delete" method="POST" onsubmit="return confirm('Delete table <%= table.label %>?');">
-                        <input type="hidden" name="id" value="<%= table.id %>">
-                        <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
-                      </form>
-                    </details>
-                  </td>
-                </tr>
-              <% }) %>
-            <% } %>
-          </tbody>
-        </table>
-      </div>
-
-      <hr>
-      <h6>Add Table</h6>
-      <form class="row g-3" action="/settings/restaurant/tables/add" method="POST">
-        <div class="col-md-3">
-          <label class="form-label">Label</label>
-          <input type="text" name="label" class="form-control" required>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Zone</label>
-          <select name="zone_id" class="form-select">
-            <option value="">No zone</option>
-            <% (zones || []).forEach(function(zone) { %>
-              <option value="<%= zone.id %>"><%= zone.name %></option>
-            <% }) %>
-          </select>
-        </div>
-        <div class="col-md-2">
-          <label class="form-label">Seats</label>
-          <input type="number" name="seats" class="form-control" min="1" required>
-        </div>
-        <div class="col-md-2">
-          <label class="form-label">Can Join</label>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="can_join" id="tableAddJoin">
-            <label class="form-check-label" for="tableAddJoin">Allow join</label>
+    <div class="col-md-6 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body d-flex flex-column">
+          <h5 class="mb-1">Overrides & Blackouts</h5>
+          <p class="text-muted small mb-3">One-off capacity changes and closed periods.</p>
+          <div class="mt-auto">
+            <div class="text-muted small mb-2"><%= counts.overrides || 0 %> override(s) - <%= counts.blackouts || 0 %> blackout(s)</div>
+            <a href="/settings/restaurant/overrides" class="btn btn-outline-primary btn-sm">Manage overrides</a>
           </div>
         </div>
-        <div class="col-md-2">
-          <label class="form-label">Active</label>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="active" id="tableAddActive" checked>
-            <label class="form-check-label" for="tableAddActive">Visible</label>
+      </div>
+    </div>
+
+    <div class="col-md-6 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body d-flex flex-column">
+          <h5 class="mb-1">Customer Emails</h5>
+          <p class="text-muted small mb-3">Templates for pending and confirmed bookings.</p>
+          <div class="mt-auto">
+            <div class="text-muted small mb-2">Editable templates</div>
+            <a href="/settings/restaurant/emails" class="btn btn-outline-primary btn-sm">Edit templates</a>
           </div>
         </div>
-        <div class="col-12">
-          <button type="submit" class="btn btn-primary">Add Table</button>
-        </div>
-      </form>
+      </div>
     </div>
-  </section>
 
-  <!-- Overrides -->
-  <section class="card shadow-sm mb-4">
-    <div class="card-body">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">Capacity Overrides</h5>
-      </div>
-      <div class="table-responsive">
-        <table class="table align-middle">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Service</th>
-              <th>Max Covers</th>
-              <th>Slot Minutes</th>
-              <th>Notes</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <% if (!overrides || overrides.length === 0) { %>
-              <tr><td colspan="6" class="text-muted text-center">No overrides recorded.</td></tr>
-            <% } else { %>
-              <% overrides.forEach(function(override) { %>
-                <tr>
-                  <td><%= override.override_date ? new Date(override.override_date).toLocaleDateString('en-NZ') : '' %></td>
-                  <td><%= override.service_name || 'Service #' + override.service_id %></td>
-                  <td><%= override.max_covers_per_slot ?? '—' %></td>
-                  <td><%= override.slot_minutes ?? '—' %></td>
-                  <td><%= override.notes || '' %></td>
-                  <td>
-                    <form action="/settings/restaurant/overrides/delete" method="POST" onsubmit="return confirm('Delete override?');">
-                      <input type="hidden" name="id" value="<%= override.id %>">
-                      <button type="submit" class="btn btn-link text-danger p-0">Delete</button>
-                    </form>
-                  </td>
-                </tr>
-              <% }) %>
-            <% } %>
-          </tbody>
-        </table>
-      </div>
-      <hr>
-      <h6>Add Override</h6>
-      <form class="row g-3" action="/settings/restaurant/overrides/add" method="POST">
-        <div class="col-md-3">
-          <label class="form-label">Service</label>
-          <select name="service_id" class="form-select" required>
-            <% (services || []).forEach(function(service) { %>
-              <option value="<%= service.id %>"><%= service.name %> · <%= DAY_NAMES[service.day_of_week] %></option>
-            <% }) %>
-          </select>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Date</label>
-          <input type="date" name="override_date" class="form-control" required>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Max Covers / Slot</label>
-          <input type="number" name="max_covers_per_slot" class="form-control" min="1">
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Slot Minutes</label>
-          <input type="number" name="slot_minutes" class="form-control" min="5" step="5">
-        </div>
-        <div class="col-12">
-          <label class="form-label">Notes</label>
-          <textarea name="notes" class="form-control" rows="2"></textarea>
-        </div>
-        <div class="col-12">
-          <button type="submit" class="btn btn-primary">Save Override</button>
-        </div>
-      </form>
-    </div>
-  </section>
-
-  <!-- Blackouts -->
-  <section class="card shadow-sm mb-5">
-    <div class="card-body">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">Blackouts</h5>
-      </div>
-      <div class="table-responsive">
-        <table class="table align-middle">
-          <thead>
-            <tr>
-              <th>Start</th>
-              <th>End</th>
-              <th>Reason</th>
-              <th>Applies To</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <% if (!blackouts || blackouts.length === 0) { %>
-              <tr><td colspan="5" class="text-muted text-center">No blackouts recorded.</td></tr>
-            <% } else { %>
-              <% blackouts.forEach(function(blackout) { %>
-                <tr>
-                  <td><%= blackout.start_at ? new Date(blackout.start_at).toLocaleString('en-NZ') : '' %></td>
-                  <td><%= blackout.end_at ? new Date(blackout.end_at).toLocaleString('en-NZ') : '' %></td>
-                  <td><%= blackout.reason || '—' %></td>
-                  <td><code><%= blackout.applies_to || 'all' %></code></td>
-                  <td>
-                    <form action="/settings/restaurant/blackouts/delete" method="POST" onsubmit="return confirm('Remove blackout?');">
-                      <input type="hidden" name="id" value="<%= blackout.id %>">
-                      <button type="submit" class="btn btn-link text-danger p-0">Delete</button>
-                    </form>
-                  </td>
-                </tr>
-              <% }) %>
-            <% } %>
-          </tbody>
-        </table>
-      </div>
-      <hr>
-      <h6>Add Blackout</h6>
-      <form class="row g-3" action="/settings/restaurant/blackouts/add" method="POST">
-        <div class="col-md-3">
-          <label class="form-label">Start</label>
-          <input type="datetime-local" name="start_at" class="form-control" required>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">End</label>
-          <input type="datetime-local" name="end_at" class="form-control" required>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Applies To</label>
-          <input type="text" name="applies_to" class="form-control" placeholder="e.g. all, online, zone:bar" value="all">
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Reason</label>
-          <input type="text" name="reason" class="form-control">
-        </div>
-        <div class="col-12">
-          <button type="submit" class="btn btn-primary">Add Blackout</button>
-        </div>
-      </form>
-    </div>
-  </section>
-
-  <section class="card shadow-sm mb-4">
-    <div class="card-body">
-      <h5 class="mb-2">Embeds for your website</h5>
-      <p class="text-muted small mb-3">Use these URLs to embed the public apps without headers/navigation.</p>
-      <div class="row g-3">
-        <div class="col-md-6">
-          <label class="form-label">Public booking form (embed)</label>
-          <input type="text" class="form-control form-control-sm" readonly value="/calendar/restaurant/book?embed=1">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Restaurant calendar (embed)</label>
-          <input type="text" class="form-control form-control-sm" readonly value="/calendar/restaurant?embed=1">
-        </div>
-        <div class="col-12">
-          <small class="text-muted">Add your full domain in front (e.g. https://yourdomain.com) and place inside an &lt;iframe&gt; on your site.</small>
+    <div class="col-md-6 col-xl-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-body d-flex flex-column">
+          <h5 class="mb-1">Embeds</h5>
+          <p class="text-muted small mb-3">Public booking form and calendar embed links.</p>
+          <div class="mt-auto">
+            <div class="text-muted small mb-2">Website links</div>
+            <a href="/settings/restaurant/embeds" class="btn btn-outline-primary btn-sm">View embeds</a>
+          </div>
         </div>
       </div>
     </div>
-  </section>
+  </div>
 </main>

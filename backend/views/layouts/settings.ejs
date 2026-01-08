@@ -135,7 +135,12 @@
         <option value="/settings/overview" <%= activeTab === 'overview' ? 'selected' : '' %>>Overview</option>
         <option value="/settings/event-types" <%= activeTab === 'event-types' ? 'selected' : '' %>>Event Types</option>
         <option value="/settings/spaces" <%= activeTab === 'spaces' ? 'selected' : '' %>>Rooms / Spaces</option>
-        <option value="/settings/restaurant" <%= activeTab === 'restaurant' ? 'selected' : '' %>>Restaurant Bookings</option>
+        <option value="/settings/restaurant" <%= activeTab === 'restaurant' ? 'selected' : '' %>>Restaurant - Overview</option>
+        <option value="/settings/restaurant/services" <%= activeTab === 'restaurant-services' ? 'selected' : '' %>>Restaurant - Services</option>
+        <option value="/settings/restaurant/layout" <%= activeTab === 'restaurant-layout' ? 'selected' : '' %>>Restaurant - Zones & Tables</option>
+        <option value="/settings/restaurant/overrides" <%= activeTab === 'restaurant-overrides' ? 'selected' : '' %>>Restaurant - Overrides & Blackouts</option>
+        <option value="/settings/restaurant/emails" <%= activeTab === 'restaurant-emails' ? 'selected' : '' %>>Restaurant - Customer Emails</option>
+        <option value="/settings/restaurant/embeds" <%= activeTab === 'restaurant-embeds' ? 'selected' : '' %>>Restaurant - Embeds</option>
         <option value="/settings/entertainment" <%= activeTab === 'entertainment' ? 'selected' : '' %>>Entertainment Events</option>
         <option value="/settings/entertainment/media" <%= activeTab === 'entertainment-media' ? 'selected' : '' %>>Entertainment Media Library</option>
         <option value="/settings/entertainment/embeds" <%= activeTab === 'entertainment-embeds' ? 'selected' : '' %>>Entertainment Embeds</option>
@@ -162,7 +167,43 @@
       <a href="/settings/overview" class="nav-link <%= activeTab === 'overview' ? 'active fw-semibold' : '' %>">Overview</a>
       <a href="/settings/event-types" class="nav-link <%= activeTab === 'event-types' ? 'active fw-semibold' : '' %>">Event Types</a>
       <a href="/settings/spaces" class="nav-link <%= activeTab === 'spaces' ? 'active fw-semibold' : '' %>">Rooms / Spaces</a>
-      <a href="/settings/restaurant" class="nav-link <%= activeTab === 'restaurant' ? 'active fw-semibold' : '' %>">Restaurant Bookings</a>
+      <div class="nav-item">
+        <button
+          class="btn w-100 text-start nav-link d-flex justify-content-between align-items-center
+            <%= ['restaurant','restaurant-services','restaurant-layout','restaurant-overrides','restaurant-emails','restaurant-embeds'].includes(activeTab) ? 'active fw-semibold' : '' %>"
+          data-bs-toggle="collapse"
+          data-bs-target="#submenu-restaurant"
+          aria-expanded="<%= ['restaurant','restaurant-services','restaurant-layout','restaurant-overrides','restaurant-emails','restaurant-embeds'].includes(activeTab) ? 'true' : 'false' %>"
+          aria-controls="submenu-restaurant"
+        >
+          Restaurant
+          <span class="ms-auto">
+            <i class="bi bi-chevron-down small"></i>
+          </span>
+        </button>
+        <div class="collapse <%= ['restaurant','restaurant-services','restaurant-layout','restaurant-overrides','restaurant-emails','restaurant-embeds'].includes(activeTab) ? 'show' : '' %>" id="submenu-restaurant">
+          <nav class="nav flex-column ms-3 mt-1">
+            <a href="/settings/restaurant" class="nav-link <%= activeTab === 'restaurant' ? 'active fw-semibold' : '' %>">
+              Overview
+            </a>
+            <a href="/settings/restaurant/services" class="nav-link <%= activeTab === 'restaurant-services' ? 'active fw-semibold' : '' %>">
+              Services &amp; menus
+            </a>
+            <a href="/settings/restaurant/layout" class="nav-link <%= activeTab === 'restaurant-layout' ? 'active fw-semibold' : '' %>">
+              Zones &amp; tables
+            </a>
+            <a href="/settings/restaurant/overrides" class="nav-link <%= activeTab === 'restaurant-overrides' ? 'active fw-semibold' : '' %>">
+              Overrides &amp; blackouts
+            </a>
+            <a href="/settings/restaurant/emails" class="nav-link <%= activeTab === 'restaurant-emails' ? 'active fw-semibold' : '' %>">
+              Customer emails
+            </a>
+            <a href="/settings/restaurant/embeds" class="nav-link <%= activeTab === 'restaurant-embeds' ? 'active fw-semibold' : '' %>">
+              Embeds
+            </a>
+          </nav>
+        </div>
+      </div>
       <a href="/settings/entertainment" class="nav-link <%= activeTab === 'entertainment' ? 'active fw-semibold' : '' %>">Entertainment Events</a>
       <a href="/settings/entertainment/media" class="nav-link <%= activeTab === 'entertainment-media' ? 'active fw-semibold' : '' %>">Entertainment Media Library</a>
       <a href="/settings/entertainment/embeds" class="nav-link <%= activeTab === 'entertainment-embeds' ? 'active fw-semibold' : '' %>">Entertainment Embeds</a>

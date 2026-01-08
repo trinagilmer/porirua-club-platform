@@ -1,6 +1,9 @@
 <% const booking = locals.booking || {}; %>
 <% const success = locals.success || null; %>
 <% const errorMessage = locals.errorMessage || null; %>
+<% const services = locals.services || []; %>
+<% const zones = locals.zones || []; %>
+<% const tables = locals.tables || []; %>
 
 <div class="container py-4">
   <a href="/calendar/restaurant" class="btn btn-outline-secondary btn-sm mb-3">
@@ -75,6 +78,93 @@
       <% if (errorMessage) { %>
         <div class="alert alert-danger"><%= decodeURIComponent(errorMessage) %></div>
       <% } %>
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="mb-3">Edit booking details</h5>
+          <form action="/calendar/restaurant/bookings/<%= booking.id %>/edit" method="POST" class="vstack gap-3">
+            <div>
+              <label class="form-label">Party name</label>
+              <input type="text" name="party_name" class="form-control" value="<%= booking.party_name || '' %>" required>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Date</label>
+                <input
+                  type="date"
+                  name="booking_date"
+                  class="form-control"
+                  value="<%= booking.booking_date ? new Date(booking.booking_date).toLocaleDateString('en-CA') : '' %>"
+                  required
+                >
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Time</label>
+                <input
+                  type="time"
+                  name="booking_time"
+                  class="form-control"
+                  value="<%= booking.booking_time ? booking.booking_time.slice(0,5) : '' %>"
+                  required
+                >
+              </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Guests</label>
+                <input type="number" name="size" class="form-control" min="1" value="<%= booking.size || 0 %>" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Service</label>
+                <select name="service_id" class="form-select">
+                  <option value="">Auto-detect</option>
+                  <% services.forEach(function(service) { %>
+                    <option value="<%= service.id %>" <%= booking.service_id === service.id ? 'selected' : '' %>>
+                      <%= service.name %>
+                      (<%= service.start_time ? service.start_time.slice(0,5) : '--:--' %>-
+                      <%= service.end_time ? service.end_time.slice(0,5) : '--:--' %>)
+                    </option>
+                  <% }) %>
+                </select>
+              </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Zone</label>
+                <select name="zone_id" class="form-select">
+                  <option value="">Unassigned</option>
+                  <% zones.forEach(function(zone) { %>
+                    <option value="<%= zone.id %>" <%= booking.zone_id === zone.id ? 'selected' : '' %>><%= zone.name %></option>
+                  <% }) %>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Table</label>
+                <select name="table_id" class="form-select">
+                  <option value="">Unassigned</option>
+                  <% tables.forEach(function(table) { %>
+                    <option value="<%= table.id %>" <%= booking.table_id === table.id ? 'selected' : '' %>><%= table.label %></option>
+                  <% }) %>
+                </select>
+              </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Contact email</label>
+                <input type="email" name="contact_email" class="form-control" value="<%= booking.contact_email || '' %>">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Contact phone</label>
+                <input type="text" name="contact_phone" class="form-control" value="<%= booking.contact_phone || '' %>">
+              </div>
+            </div>
+            <div>
+              <label class="form-label">Notes</label>
+              <textarea name="notes" class="form-control" rows="3"><%= booking.notes || '' %></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Save booking</button>
+          </form>
+        </div>
+      </div>
       <div class="card shadow-sm">
         <div class="card-body">
           <h5 class="mb-3">Update status</h5>
@@ -87,11 +177,17 @@
                 <% }) %>
               </select>
             </div>
-            <div>
-              <label class="form-label">Notes</label>
-              <textarea name="notes" class="form-control" rows="3"><%= booking.notes || '' %></textarea>
-            </div>
             <button type="submit" class="btn btn-primary">Save changes</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mt-3">
+        <div class="card-body">
+          <h5 class="mb-3 text-danger">Delete booking</h5>
+          <p class="text-muted small mb-3">This permanently removes the booking.</p>
+          <form action="/calendar/restaurant/bookings/<%= booking.id %>/delete" method="POST" onsubmit="return confirm('Delete this booking? This cannot be undone.');">
+            <button type="submit" class="btn btn-outline-danger">Delete booking</button>
           </form>
         </div>
       </div>

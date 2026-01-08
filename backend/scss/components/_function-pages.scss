@@ -126,6 +126,61 @@
   .tabs-bar.mb-4 {
     margin-left: 2.0rem;
   }
+
+// ===========================================================
+// ?? FUNCTION TABS + SIDEBAR MOBILE CONTROLS
+// ===========================================================
+.tabs-select,
+.sidebar-toggle {
+  display: none;
+}
+
+.function-sidebar .sidebar-mobile-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid $neutral-200;
+  background: #f2f5fa;
+  font-weight: 600;
+}
+
+.function-sidebar .sidebar-close {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: $neutral-700;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .tabs-bar {
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .tabs-bar a {
+    display: none;
+  }
+
+  .tabs-select {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .sidebar-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .function-sidebar .sidebar-mobile-header {
+    display: flex;
+  }
+}
 // ===========================================================
 // 📬 BODY NORMALIZATION
 // ===========================================================

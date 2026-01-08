@@ -1,0 +1,144 @@
+<main class="settings-restaurant">
+  <header class="mb-4">
+    <h1 class="mb-1">Overrides & Blackouts</h1>
+    <p class="text-muted mb-0">Manage one-off capacity changes and closed periods.</p>
+  </header>
+
+  <section class="card shadow-sm mb-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">Capacity Overrides</h5>
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Service</th>
+              <th>Max Covers</th>
+              <th>Slot Minutes</th>
+              <th>Notes</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (!overrides || overrides.length === 0) { %>
+              <tr><td colspan="6" class="text-muted text-center">No overrides recorded.</td></tr>
+            <% } else { %>
+              <% overrides.forEach(function(override) { %>
+                <tr>
+                  <td><%= override.override_date ? new Date(override.override_date).toLocaleDateString('en-NZ') : '' %></td>
+                  <td><%= override.service_name || 'Service #' + override.service_id %></td>
+                  <td><%= override.max_covers_per_slot ?? '-' %></td>
+                  <td><%= override.slot_minutes ?? '-' %></td>
+                  <td><%= override.notes || '' %></td>
+                  <td>
+                    <form action="/settings/restaurant/overrides/delete" method="POST" onsubmit="return confirm('Delete override?');">
+                      <input type="hidden" name="id" value="<%= override.id %>">
+                      <button type="submit" class="btn btn-link text-danger p-0">Delete</button>
+                    </form>
+                  </td>
+                </tr>
+              <% }) %>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+      <hr>
+      <h6>Add Override</h6>
+      <form class="row g-3" action="/settings/restaurant/overrides/add" method="POST">
+        <div class="col-md-3">
+          <label class="form-label">Service</label>
+          <select name="service_id" class="form-select" required>
+            <% (services || []).forEach(function(service) { %>
+              <option value="<%= service.id %>"><%= service.name %> - <%= ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][service.day_of_week] %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Date</label>
+          <input type="date" name="override_date" class="form-control" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Max Covers / Slot</label>
+          <input type="number" name="max_covers_per_slot" class="form-control" min="1">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Slot Minutes</label>
+          <input type="number" name="slot_minutes" class="form-control" min="5" step="5">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Notes</label>
+          <textarea name="notes" class="form-control" rows="2"></textarea>
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-primary">Save Override</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <section class="card shadow-sm mb-5">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">Blackouts</h5>
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle">
+          <thead>
+            <tr>
+              <th>Start</th>
+              <th>End</th>
+              <th>Reason</th>
+              <th>Applies To</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (!blackouts || blackouts.length === 0) { %>
+              <tr><td colspan="5" class="text-muted text-center">No blackouts recorded.</td></tr>
+            <% } else { %>
+              <% blackouts.forEach(function(blackout) { %>
+                <tr>
+                  <td><%= blackout.start_at ? new Date(blackout.start_at).toLocaleString('en-NZ') : '' %></td>
+                  <td><%= blackout.end_at ? new Date(blackout.end_at).toLocaleString('en-NZ') : '' %></td>
+                  <td><%= blackout.reason || '-' %></td>
+                  <td><code><%= blackout.applies_to || 'all' %></code></td>
+                  <td>
+                    <form action="/settings/restaurant/blackouts/delete" method="POST" onsubmit="return confirm('Remove blackout?');">
+                      <input type="hidden" name="id" value="<%= blackout.id %>">
+                      <button type="submit" class="btn btn-link text-danger p-0">Delete</button>
+                    </form>
+                  </td>
+                </tr>
+              <% }) %>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+      <hr>
+      <h6>Add Blackout</h6>
+      <form class="row g-3" action="/settings/restaurant/blackouts/add" method="POST">
+        <div class="col-md-3">
+          <label class="form-label">Start</label>
+          <input type="datetime-local" name="start_at" class="form-control" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">End</label>
+          <input type="datetime-local" name="end_at" class="form-control" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Applies To</label>
+          <input type="text" name="applies_to" class="form-control" placeholder="e.g. all, online, zone:bar" value="all">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Reason</label>
+          <input type="text" name="reason" class="form-control">
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-primary">Add Blackout</button>
+        </div>
+      </form>
+    </div>
+  </section>
+</main>

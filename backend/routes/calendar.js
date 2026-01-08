@@ -4,6 +4,11 @@ const { pool } = require("../db");
 const { sendMail } = require("../services/graphService");
 const { getAppToken } = require("../utils/graphAuth");
 const recurrenceService = require("../services/recurrenceService");
+const { replaceTokens } = require("../services/templateRenderer");
+const {
+  DEFAULT_RESTAURANT_EMAIL_TEMPLATES,
+  getRestaurantSettings,
+} = require("../services/restaurantSettings");
 
 const router = express.Router();
 
@@ -319,6 +324,7 @@ async function ensureRestaurantCapacity(
     slotEnd,
     partySize,
     channel,
+    excludeBookingId = null,
   },
   db = pool
 ) {
@@ -337,9 +343,10 @@ async function ensureRestaurantCapacity(
        AND service_id = $2
        AND booking_time >= $3::time
        AND booking_time < $4::time
+       AND ($5::int IS NULL OR id <> $5)
        AND COALESCE(status, 'pending') NOT IN ('cancelled', 'no_show');
     `,
-    [bookingDate, service.id, startTime, endTime]
+    [bookingDate, service.id, startTime, endTime, excludeBookingId]
   );
   const currentCovers = Number(rows[0]?.covers || 0);
   const totalLimit = limits.total;
@@ -450,6 +457,7 @@ async function createRestaurantBooking(payload, options = {}) {
       slotEnd,
       partySize: size,
       channel: payload.channel || "internal",
+      excludeBookingId: null,
     },
     db
   );
@@ -487,7 +495,8 @@ async function createRestaurantBooking(payload, options = {}) {
       console.error("[Restaurant Calendar] Failed to send booking email:", err.message);
     });
     if (booking.contact_email) {
-      notifyRestaurantCustomer(booking, service, "request", options.req).catch((err) => {
+      const template = (booking.status || "").toLowerCase() === "confirmed" ? "confirm" : "request";
+      notifyRestaurantCustomer(booking, service, template, options.req).catch((err) => {
         console.error("[Restaurant Calendar] Failed to send customer email:", err.message);
       });
     }
@@ -540,31 +549,32 @@ async function notifyRestaurantCustomer(booking, service, template = "request", 
   try {
     const accessToken = await acquireGraphToken();
     if (!accessToken || !booking?.contact_email) return;
-    const subject =
-      template === "confirm"
-        ? "Restaurant booking confirmation"
-        : "Restaurant booking request received";
-    const details = [
-      `<strong>Name:</strong> ${booking.party_name}`,
-      `<strong>Date:</strong> ${formatDateNZ(booking.booking_date)}`,
-      `<strong>Time:</strong> ${booking.booking_time || "TBC"}`,
-      `<strong>Guests:</strong> ${booking.size || 0}`,
-      `<strong>Service:</strong> ${service?.name || "Restaurant"}`,
-    ];
-    if (isSpecialMenuActive(service, booking.booking_date)) {
-      const price = service?.special_menu_price ? ` ($${Number(service.special_menu_price).toFixed(2)})` : "";
-      details.push(`<strong>Menu:</strong> ${service.special_menu_label}${price}`);
-    }
-    const intro =
-      template === "confirm"
-        ? "<p>Your restaurant booking has been confirmed. We look forward to seeing you.</p>"
-        : "<p>Thank you for your reservation request. We will confirm availability as soon as possible.</p>";
-
-    const body = `
-      ${intro}
-      <p>${details.join("<br>")}</p>
-      <p>If you need to make changes, please contact us.</p>
-    `;
+    const settings = await getRestaurantSettings();
+    const mode = template === "confirm" ? "confirm" : "request";
+    const subjectTemplate =
+      settings[`${mode}_subject`] || DEFAULT_RESTAURANT_EMAIL_TEMPLATES[`${mode}_subject`];
+    const bodyTemplate =
+      settings[`${mode}_body_html`] || DEFAULT_RESTAURANT_EMAIL_TEMPLATES[`${mode}_body_html`];
+    const price = service?.special_menu_price
+      ? ` ($${Number(service.special_menu_price).toFixed(2)})`
+      : "";
+    const menuLine =
+      isSpecialMenuActive(service, booking.booking_date) && service?.special_menu_label
+        ? `<br><strong>Menu:</strong> ${service.special_menu_label}${price}`
+        : "";
+    const bookingTime = booking.booking_time || "TBC";
+    const bookingDateTime = composeDateTimeString(booking.booking_date, booking.booking_time);
+    const data = {
+      booking: {
+        ...booking,
+        booking_time: bookingTime,
+        booking_datetime: bookingDateTime,
+      },
+      service: service || {},
+      menu_line: menuLine,
+    };
+    const subject = replaceTokens(subjectTemplate, data);
+    const body = replaceTokens(bodyTemplate, data);
 
     await sendMail(accessToken, {
       to: booking.contact_email,
@@ -1001,42 +1011,152 @@ router.get("/restaurant/bookings/:id", async (req, res) => {
   try {
     const bookingId = Number(req.params.id);
     if (!bookingId) throw new Error("Missing booking id");
-    const { rows } = await pool.query(
-      `
-      SELECT b.*,
-             s.name AS service_name,
-             s.day_of_week,
-             s.start_time AS service_start,
-             s.end_time AS service_end,
-             s.special_menu_label,
-             s.special_menu_price,
-             s.special_menu_start,
-             s.special_menu_end,
-             s.special_menu_only,
-             z.name AS zone_name,
-             t.label AS table_label
-        FROM restaurant_bookings b
-        LEFT JOIN restaurant_services s ON s.id = b.service_id
-        LEFT JOIN restaurant_zones z ON z.id = b.zone_id
-        LEFT JOIN restaurant_tables t ON t.id = b.table_id
-       WHERE b.id = $1
-       LIMIT 1;
-      `,
-      [bookingId]
-    );
-    const booking = rows[0];
+    const [bookingRes, servicesRes, zonesRes, tablesRes] = await Promise.all([
+      pool.query(
+        `
+        SELECT b.*,
+               s.name AS service_name,
+               s.day_of_week,
+               s.start_time AS service_start,
+               s.end_time AS service_end,
+               s.special_menu_label,
+               s.special_menu_price,
+               s.special_menu_start,
+               s.special_menu_end,
+               s.special_menu_only,
+               z.name AS zone_name,
+               t.label AS table_label
+          FROM restaurant_bookings b
+          LEFT JOIN restaurant_services s ON s.id = b.service_id
+          LEFT JOIN restaurant_zones z ON z.id = b.zone_id
+          LEFT JOIN restaurant_tables t ON t.id = b.table_id
+         WHERE b.id = $1
+         LIMIT 1;
+        `,
+        [bookingId]
+      ),
+      pool.query(
+        `
+        SELECT id, name, day_of_week, start_time, end_time
+          FROM restaurant_services
+         WHERE active = TRUE
+         ORDER BY day_of_week, start_time;
+        `
+      ),
+      pool.query(
+        `
+        SELECT id, name
+          FROM restaurant_zones
+         ORDER BY name ASC;
+        `
+      ),
+      pool.query(
+        `
+        SELECT id, label, zone_id, active
+          FROM restaurant_tables
+         WHERE active = TRUE
+         ORDER BY label ASC;
+        `
+      ),
+    ]);
+    const booking = bookingRes.rows[0];
     if (!booking) return res.status(404).send("Booking not found");
     res.render("pages/calendar/restaurant-booking-detail", {
       layout: "layouts/main",
       title: `Booking · ${booking.party_name}`,
       active: "restaurant",
       booking,
+      services: servicesRes.rows,
+      zones: zonesRes.rows,
+      tables: tablesRes.rows,
       success: req.query.success || null,
       errorMessage: req.query.error || null,
     });
   } catch (err) {
     console.error("[Restaurant Calendar] Failed to load booking detail:", err);
     res.status(500).send("Unable to load booking detail.");
+  }
+});
+
+router.post("/restaurant/bookings/:id/edit", async (req, res) => {
+  if (!isPrivileged(req)) {
+    return res.redirect("/calendar/restaurant?error=Admin%20access%20required");
+  }
+  const bookingId = Number(req.params.id);
+  if (!bookingId) {
+    return res.redirect("/calendar/restaurant?error=Missing%20booking%20id");
+  }
+  const payload = {
+    partyName: (req.body.party_name || "").trim(),
+    bookingDate: req.body.booking_date,
+    bookingTime: req.body.booking_time,
+    size: parseInt(req.body.size, 10) || 0,
+    serviceId: req.body.service_id ? Number(req.body.service_id) : null,
+    zoneId: req.body.zone_id ? Number(req.body.zone_id) : null,
+    tableId: req.body.table_id ? Number(req.body.table_id) : null,
+    notes: req.body.notes || null,
+    contactEmail: req.body.contact_email || null,
+    contactPhone: req.body.contact_phone || null,
+  };
+
+  try {
+    if (!payload.partyName) throw new Error("Party name is required.");
+    const bookingDate = normaliseDate(payload.bookingDate);
+    const bookingTime = normaliseTime(payload.bookingTime);
+    if (!bookingDate) throw new Error("Booking date is invalid.");
+    if (!bookingTime) throw new Error("Booking time is required.");
+    if (!payload.size) throw new Error("Party size is required.");
+
+    const service = await findServiceForSlot(bookingDate, bookingTime, payload.serviceId);
+    if (!service) throw new Error("No service matches the requested time.");
+
+    const { slotStart, slotEnd } = computeSlotBounds(service, bookingTime);
+    await ensureRestaurantCapacity({
+      bookingDate,
+      service,
+      slotStart,
+      slotEnd,
+      partySize: payload.size,
+      channel: "internal",
+      excludeBookingId: bookingId,
+    });
+
+    await pool.query(
+      `
+      UPDATE restaurant_bookings
+         SET party_name = $1,
+             booking_date = $2,
+             booking_time = $3,
+             size = $4,
+             service_id = $5,
+             zone_id = $6,
+             table_id = $7,
+             contact_email = $8,
+             contact_phone = $9,
+             notes = $10,
+             updated_at = NOW()
+       WHERE id = $11;
+      `,
+      [
+        payload.partyName,
+        bookingDate,
+        bookingTime,
+        payload.size,
+        service.id,
+        payload.zoneId,
+        payload.tableId,
+        payload.contactEmail || null,
+        payload.contactPhone || null,
+        payload.notes || null,
+        bookingId,
+      ]
+    );
+
+    res.redirect(`/calendar/restaurant/bookings/${bookingId}?success=1`);
+  } catch (err) {
+    console.error("[Restaurant Calendar] Failed to edit booking:", err);
+    const message = encodeURIComponent(err.message || "Unable to update booking");
+    res.redirect(`/calendar/restaurant/bookings/${bookingId}?error=${message}`);
   }
 });
 
@@ -1094,6 +1214,22 @@ router.post("/restaurant/bookings/:id/status", async (req, res) => {
   } catch (err) {
     console.error("[Restaurant Calendar] Failed to update booking status:", err);
     const message = encodeURIComponent(err.message || "Unable to update booking");
+    res.redirect(`/calendar/restaurant/bookings/${req.params.id}?error=${message}`);
+  }
+});
+
+router.post("/restaurant/bookings/:id/delete", async (req, res) => {
+  if (!isPrivileged(req)) {
+    return res.redirect("/calendar/restaurant?error=Admin%20access%20required");
+  }
+  try {
+    const bookingId = Number(req.params.id);
+    if (!bookingId) throw new Error("Missing booking id");
+    await pool.query("DELETE FROM restaurant_bookings WHERE id = $1;", [bookingId]);
+    res.redirect("/calendar/restaurant?success=Booking%20deleted");
+  } catch (err) {
+    console.error("[Restaurant Calendar] Failed to delete booking:", err);
+    const message = encodeURIComponent(err.message || "Unable to delete booking");
     res.redirect(`/calendar/restaurant/bookings/${req.params.id}?error=${message}`);
   }
 });

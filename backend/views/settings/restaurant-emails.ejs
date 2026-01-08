@@ -1,0 +1,100 @@
+<main class="settings-restaurant">
+  <header class="mb-4">
+    <h1 class="mb-1">Customer Email Templates</h1>
+    <p class="text-muted mb-0">Update the messages sent for pending and confirmed bookings.</p>
+  </header>
+
+  <section class="card shadow-sm mb-4" id="email-templates">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h5 class="mb-0">Templates</h5>
+          <small class="text-muted">
+            Tokens: {{booking.party_name}}, {{booking.booking_date|date}}, {{booking.booking_time}},
+            {{booking.size}}, {{service.name}}, {{menu_line}}.
+          </small>
+        </div>
+      </div>
+
+      <form id="restaurantEmailTemplatesForm" class="vstack gap-3" action="/settings/restaurant/emails" method="POST">
+        <div>
+          <label class="form-label">Pending subject</label>
+          <input
+            type="text"
+            name="request_subject"
+            class="form-control"
+            value="<%= (restaurantEmailTemplates && restaurantEmailTemplates.request_subject) || '' %>"
+          >
+        </div>
+        <div>
+          <label class="form-label">Pending message (HTML)</label>
+          <div class="border rounded bg-white" id="requestEmailEditor" style="min-height: 180px;"></div>
+          <input
+            type="hidden"
+            id="requestEmailInput"
+            name="request_body_html"
+            value="<%- (restaurantEmailTemplates && restaurantEmailTemplates.request_body_html) || '' %>"
+          >
+        </div>
+        <div>
+          <label class="form-label">Confirmed subject</label>
+          <input
+            type="text"
+            name="confirm_subject"
+            class="form-control"
+            value="<%= (restaurantEmailTemplates && restaurantEmailTemplates.confirm_subject) || '' %>"
+          >
+        </div>
+        <div>
+          <label class="form-label">Confirmed message (HTML)</label>
+          <div class="border rounded bg-white" id="confirmEmailEditor" style="min-height: 180px;"></div>
+          <input
+            type="hidden"
+            id="confirmEmailInput"
+            name="confirm_body_html"
+            value="<%- (restaurantEmailTemplates && restaurantEmailTemplates.confirm_body_html) || '' %>"
+          >
+        </div>
+        <div>
+          <button type="submit" class="btn btn-primary">Save templates</button>
+        </div>
+      </form>
+    </div>
+  </section>
+</main>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    if (!window.Quill) return;
+    const requestEditorEl = document.getElementById("requestEmailEditor");
+    const confirmEditorEl = document.getElementById("confirmEmailEditor");
+    const requestInput = document.getElementById("requestEmailInput");
+    const confirmInput = document.getElementById("confirmEmailInput");
+    const form = document.getElementById("restaurantEmailTemplatesForm");
+    if (!requestEditorEl || !confirmEditorEl || !requestInput || !confirmInput || !form) return;
+
+    const toolbar = [
+      ["bold", "italic", "underline"],
+      [{ list: "ordered" }, { list: "bullet" }],
+      ["link"],
+      ["clean"],
+    ];
+
+    const requestEditor = new Quill(requestEditorEl, {
+      theme: "snow",
+      modules: { toolbar },
+    });
+    const confirmEditor = new Quill(confirmEditorEl, {
+      theme: "snow",
+      modules: { toolbar },
+    });
+
+    requestEditor.root.innerHTML = requestInput.value || "";
+    confirmEditor.root.innerHTML = confirmInput.value || "";
+
+    form.addEventListener("submit", () => {
+      requestInput.value = requestEditor.root.innerHTML;
+      confirmInput.value = confirmEditor.root.innerHTML;
+    });
+  });
+</script>

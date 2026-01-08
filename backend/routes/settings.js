@@ -29,6 +29,10 @@ const {
 const { runFeedbackJobOnce } = require("../services/feedbackScheduler");
 const { sendMail } = require("../services/graphService");
 const { getAppToken } = require("../utils/graphAuth");
+const {
+  DEFAULT_RESTAURANT_EMAIL_TEMPLATES,
+  getRestaurantSettings,
+} = require("../services/restaurantSettings");
 
 const CALENDAR_SLOT_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
 const DEFAULT_CALENDAR_SLOT = 30;
@@ -2318,22 +2322,81 @@ router.post("/restaurant/blackouts/delete", ensurePrivileged, async (req, res) =
 /* =========================================================
    🍽️ RESTAURANT BOOKING SETTINGS
 ========================================================= */
+/* =========================================================
+   ?? RESTAURANT BOOKING SETTINGS
+========================================================= */
 router.get("/restaurant", ensurePrivileged, async (req, res) => {
   try {
-    const [servicesRes, zonesRes, tablesRes, overridesRes, blackoutsRes] = await Promise.all([
-      pool.query(`
-        SELECT id, name, day_of_week, start_time, end_time, slot_minutes, turn_minutes,
-               max_covers_per_slot, max_online_covers, active, created_at, updated_at,
-               special_menu_label, special_menu_price, special_menu_start, special_menu_end, special_menu_only
-          FROM restaurant_services
-         ORDER BY day_of_week, start_time;
-      `),
-      pool.query(`
+    const [servicesCount, zonesCount, tablesCount, overridesCount, blackoutsCount] =
+      await Promise.all([
+        pool.query("SELECT COUNT(*)::int AS count FROM restaurant_services;"),
+        pool.query("SELECT COUNT(*)::int AS count FROM restaurant_zones;"),
+        pool.query("SELECT COUNT(*)::int AS count FROM restaurant_tables;"),
+        pool.query("SELECT COUNT(*)::int AS count FROM restaurant_capacity_overrides;"),
+        pool.query("SELECT COUNT(*)::int AS count FROM restaurant_blackouts;"),
+      ]);
+
+    res.render("settings/restaurant", {
+      layout: "layouts/settings",
+      title: "Settings - Restaurant Booking",
+      pageType: "settings",
+      activeTab: "restaurant",
+      user: req.session.user || null,
+      restaurantCounts: {
+        services: servicesCount.rows[0]?.count ?? 0,
+        zones: zonesCount.rows[0]?.count ?? 0,
+        tables: tablesCount.rows[0]?.count ?? 0,
+        overrides: overridesCount.rows[0]?.count ?? 0,
+        blackouts: blackoutsCount.rows[0]?.count ?? 0,
+      },
+    });
+  } catch (err) {
+    console.error("? Error loading restaurant settings:", err);
+    req.flash("flashMessage", "? Failed to load restaurant settings.");
+    req.flash("flashType", "error");
+    res.redirect("/settings");
+  }
+});
+
+router.get("/restaurant/services", ensurePrivileged, async (req, res) => {
+  try {
+    const { rows: services } = await pool.query(
+      `
+      SELECT id, name, day_of_week, start_time, end_time, slot_minutes, turn_minutes,
+             max_covers_per_slot, max_online_covers, active, created_at, updated_at,
+             special_menu_label, special_menu_price, special_menu_start, special_menu_end, special_menu_only
+        FROM restaurant_services
+       ORDER BY day_of_week, start_time;
+      `
+    );
+    res.render("settings/restaurant-services", {
+      layout: "layouts/settings",
+      title: "Settings - Restaurant Services",
+      pageType: "settings",
+      activeTab: "restaurant-services",
+      user: req.session.user || null,
+      services,
+    });
+  } catch (err) {
+    console.error("❌ Error loading restaurant services:", err);
+    req.flash("flashMessage", "❌ Failed to load restaurant services.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/restaurant");
+  }
+});
+
+router.get("/restaurant/layout", ensurePrivileged, async (req, res) => {
+  try {
+    const [zonesRes, tablesRes] = await Promise.all([
+      pool.query(
+        `
         SELECT id, name, max_covers_per_slot, notes, created_at
           FROM restaurant_zones
          ORDER BY name ASC;
-      `),
-      pool.query(`
+        `
+      ),
+      pool.query(
+        `
         SELECT t.id,
                t.zone_id,
                z.name AS zone_name,
@@ -2345,8 +2408,39 @@ router.get("/restaurant", ensurePrivileged, async (req, res) => {
           FROM restaurant_tables t
           LEFT JOIN restaurant_zones z ON z.id = t.zone_id
          ORDER BY z.name NULLS LAST, t.label ASC;
-      `),
-      pool.query(`
+        `
+      ),
+    ]);
+
+    res.render("settings/restaurant-layout", {
+      layout: "layouts/settings",
+      title: "Settings - Restaurant Layout",
+      pageType: "settings",
+      activeTab: "restaurant-layout",
+      user: req.session.user || null,
+      zones: zonesRes.rows,
+      tables: tablesRes.rows,
+    });
+  } catch (err) {
+    console.error("❌ Error loading restaurant layout:", err);
+    req.flash("flashMessage", "❌ Failed to load restaurant layout.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/restaurant");
+  }
+});
+
+router.get("/restaurant/overrides", ensurePrivileged, async (req, res) => {
+  try {
+    const [servicesRes, overridesRes, blackoutsRes] = await Promise.all([
+      pool.query(
+        `
+        SELECT id, name, day_of_week, start_time, end_time
+          FROM restaurant_services
+         ORDER BY day_of_week, start_time;
+        `
+      ),
+      pool.query(
+        `
         SELECT o.id,
                o.service_id,
                s.name AS service_name,
@@ -2358,60 +2452,109 @@ router.get("/restaurant", ensurePrivileged, async (req, res) => {
           FROM restaurant_capacity_overrides o
           LEFT JOIN restaurant_services s ON s.id = o.service_id
          ORDER BY o.override_date DESC;
-      `),
-      pool.query(`
+        `
+      ),
+      pool.query(
+        `
         SELECT id, start_at, end_at, reason, applies_to, created_at
           FROM restaurant_blackouts
          ORDER BY start_at DESC;
-      `),
+        `
+      ),
     ]);
 
-    res.render("settings/restaurant", {
+    res.render("settings/restaurant-overrides", {
       layout: "layouts/settings",
-      title: "Settings — Restaurant Booking",
+      title: "Settings - Restaurant Overrides",
       pageType: "settings",
-      activeTab: "restaurant",
+      activeTab: "restaurant-overrides",
       user: req.session.user || null,
       services: servicesRes.rows,
-      zones: zonesRes.rows,
-      tables: tablesRes.rows,
       overrides: overridesRes.rows,
       blackouts: blackoutsRes.rows,
     });
   } catch (err) {
-    console.error("❌ Error loading restaurant settings:", err);
-    req.flash("flashMessage", "❌ Failed to load restaurant settings.");
+    console.error("❌ Error loading restaurant overrides:", err);
+    req.flash("flashMessage", "❌ Failed to load restaurant overrides.");
     req.flash("flashType", "error");
-    res.redirect("/settings");
+    res.redirect("/settings/restaurant");
   }
 });
 
-router.post("/calendar", ensurePrivileged, async (req, res) => {
+router.get("/restaurant/emails", ensurePrivileged, async (req, res) => {
   try {
-    const input = Number(req.body?.day_slot_minutes);
-    const minutes = CALENDAR_SLOT_OPTIONS.includes(input) ? input : null;
-    if (!minutes) {
-      req.flash("flashMessage", "Please choose a valid slot interval.");
-      req.flash("flashType", "warning");
-      return res.redirect("/settings/calendar");
-    }
-    await pool.query(
-      `INSERT INTO calendar_settings (id, day_slot_minutes, created_at, updated_at)
-       VALUES (1, $1, NOW(), NOW())
-       ON CONFLICT (id)
-       DO UPDATE SET day_slot_minutes = EXCLUDED.day_slot_minutes, updated_at = NOW();`,
-      [minutes]
-    );
-    req.flash("flashMessage", "Calendar settings updated.");
-    req.flash("flashType", "success");
-    res.redirect("/settings/calendar");
+    const restaurantEmail = await getRestaurantSettings();
+    res.render("settings/restaurant-emails", {
+      layout: "layouts/settings",
+      title: "Settings - Restaurant Emails",
+      pageType: "settings",
+      activeTab: "restaurant-emails",
+      user: req.session.user || null,
+      restaurantEmailTemplates: restaurantEmail || DEFAULT_RESTAURANT_EMAIL_TEMPLATES,
+    });
   } catch (err) {
-    console.error("[Settings] Calendar update failed:", err);
-    req.flash("flashMessage", "Failed to update calendar settings.");
+    console.error("❌ Error loading restaurant email templates:", err);
+    req.flash("flashMessage", "❌ Failed to load restaurant email templates.");
     req.flash("flashType", "error");
-    res.redirect("/settings/calendar");
+    res.redirect("/settings/restaurant");
   }
 });
+
+router.get("/restaurant/embeds", ensurePrivileged, async (req, res) => {
+  try {
+    res.render("settings/restaurant-embeds", {
+      layout: "layouts/settings",
+      title: "Settings - Restaurant Embeds",
+      pageType: "settings",
+      activeTab: "restaurant-embeds",
+      user: req.session.user || null,
+    });
+  } catch (err) {
+    console.error("❌ Error loading restaurant embeds:", err);
+    req.flash("flashMessage", "❌ Failed to load restaurant embeds.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/restaurant");
+  }
+});
+
+const updateRestaurantEmailTemplates = async (req, res) => {
+  try {
+    const settings = await getRestaurantSettings();
+    const requestSubject = (req.body.request_subject || "").trim();
+    const requestBody = req.body.request_body_html || "";
+    const confirmSubject = (req.body.confirm_subject || "").trim();
+    const confirmBody = req.body.confirm_body_html || "";
+
+    await pool.query(
+      `
+      UPDATE restaurant_settings
+         SET request_subject = $1,
+             request_body_html = $2,
+             confirm_subject = $3,
+             confirm_body_html = $4,
+             updated_at = NOW()
+       WHERE id = $5;
+      `,
+      [
+        requestSubject || DEFAULT_RESTAURANT_EMAIL_TEMPLATES.request_subject,
+        requestBody || DEFAULT_RESTAURANT_EMAIL_TEMPLATES.request_body_html,
+        confirmSubject || DEFAULT_RESTAURANT_EMAIL_TEMPLATES.confirm_subject,
+        confirmBody || DEFAULT_RESTAURANT_EMAIL_TEMPLATES.confirm_body_html,
+        settings.id,
+      ]
+    );
+
+    req.flash("flashMessage", "✅ Restaurant email templates updated.");
+    req.flash("flashType", "success");
+  } catch (err) {
+    console.error("❌ Error saving restaurant email templates:", err);
+    req.flash("flashMessage", "❌ Failed to update restaurant email templates.");
+    req.flash("flashType", "error");
+  }
+  res.redirect("/settings/restaurant/emails");
+};
+
+router.post("/restaurant/emails", ensurePrivileged, updateRestaurantEmailTemplates);
 
 /* =========================================================
    🎤 ENTERTAINMENT EVENTS SETTINGS
@@ -2494,6 +2637,43 @@ router.get("/entertainment", ensurePrivileged, async (req, res) => {
     req.flash("flashType", "error");
     res.redirect("/settings");
   }
+});
+
+router.post("/restaurant/email-templates", ensurePrivileged, async (req, res) => {
+  try {
+    const settings = await getRestaurantSettings();
+    const requestSubject = (req.body.request_subject || "").trim();
+    const requestBody = req.body.request_body_html || "";
+    const confirmSubject = (req.body.confirm_subject || "").trim();
+    const confirmBody = req.body.confirm_body_html || "";
+
+    await pool.query(
+      `
+      UPDATE restaurant_settings
+         SET request_subject = $1,
+             request_body_html = $2,
+             confirm_subject = $3,
+             confirm_body_html = $4,
+             updated_at = NOW()
+       WHERE id = $5;
+      `,
+      [
+        requestSubject || DEFAULT_RESTAURANT_EMAIL_TEMPLATES.request_subject,
+        requestBody || DEFAULT_RESTAURANT_EMAIL_TEMPLATES.request_body_html,
+        confirmSubject || DEFAULT_RESTAURANT_EMAIL_TEMPLATES.confirm_subject,
+        confirmBody || DEFAULT_RESTAURANT_EMAIL_TEMPLATES.confirm_body_html,
+        settings.id,
+      ]
+    );
+
+    req.flash("flashMessage", "✅ Restaurant email templates updated.");
+    req.flash("flashType", "success");
+  } catch (err) {
+    console.error("❌ Error saving restaurant email templates:", err);
+    req.flash("flashMessage", "❌ Failed to update restaurant email templates.");
+    req.flash("flashType", "error");
+  }
+  res.redirect("/settings/restaurant#email-templates");
 });
 
 router.post("/users/invite", ensurePrivileged, async (req, res) => {
