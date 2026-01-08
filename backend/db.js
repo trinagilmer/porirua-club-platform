@@ -8,9 +8,15 @@ const pool = new Pool({
     require: true,
     rejectUnauthorized: false, // Supabase uses managed/self-signed certs
   },
-  max: 10,
+  keepAlive: true,
+  max: 5,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
+  connectionTimeoutMillis: 20000,
+});
+
+pool.on("connect", (client) => {
+  client.query("SET statement_timeout = 15000").catch(() => {});
+  client.query("SET idle_in_transaction_session_timeout = 15000").catch(() => {});
 });
 
 pool.on("connect", () => console.log("✅ PostgreSQL (SSL) connection established."));
