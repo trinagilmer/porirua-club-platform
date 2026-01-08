@@ -117,6 +117,7 @@ router.post("/register", async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
 
 // --- ACCEPT INVITE ---
 router.get("/accept-invite/:token", async (req, res) => {
@@ -229,8 +230,6 @@ router.post("/accept-invite/:token", async (req, res) => {
       invite: null,
     });
   }
-});
-
 });
 
 // --- LOGOUT ---
