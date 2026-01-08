@@ -1,0 +1,250 @@
+<%
+  const fallbackQuestions = {
+    overallLabel: "Overall, how was your experience?",
+    showService: true,
+    serviceLabel: "How would you rate our service?",
+    showRecommend: true,
+    recommendLabel: "Would you recommend us?",
+    showComments: true,
+    commentsLabel: "Anything we could improve?",
+  };
+  const functionQuestions = feedbackSettings.function_question_config || fallbackQuestions;
+  const restaurantQuestions = feedbackSettings.restaurant_question_config || fallbackQuestions;
+  const templateButtons = Array.isArray(templateLinks) ? templateLinks : [];
+%>
+
+<main class="settings-feedback py-4">
+  <style>
+    .question-card {
+      border: 1px solid var(--bs-border-color);
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      background: #f8f9fb;
+      height: 100%;
+    }
+  </style>
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap mb-4 gap-2">
+    <div>
+      <h1 class="mb-1">Feedback automation &amp; questions</h1>
+      <p class="text-muted mb-0">Control when surveys are sent and which questions appear for each form.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="/settings/feedback/activity" class="btn btn-outline-secondary btn-sm">
+        View responses &amp; opt-outs
+      </a>
+      <a href="/settings/feedback/preview?type=function" target="_blank" class="btn btn-outline-secondary btn-sm">
+        Preview function survey
+      </a>
+      <a href="/settings/feedback/preview?type=restaurant" target="_blank" class="btn btn-outline-secondary btn-sm">
+        Preview restaurant survey
+      </a>
+      <a href="/settings/feedback" class="btn btn-link text-decoration-none">
+        &larr; Back to feedback overview
+      </a>
+    </div>
+  </div>
+
+  <% if (flashMessage) { %>
+    <div class="alert alert-<%= flashType === 'error' ? 'danger' : flashType || 'success' %>">
+      <%= flashMessage %>
+    </div>
+  <% } %>
+
+  <section class="card shadow-sm mb-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between flex-wrap gap-2 align-items-center mb-3">
+        <div>
+          <h5 class="mb-1">Send a survey now</h5>
+          <p class="text-muted mb-0">Pick a specific function or restaurant booking to send the survey immediately.</p>
+        </div>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <form action="/settings/feedback/send-now" method="POST" class="d-flex gap-2 align-items-end">
+            <input type="hidden" name="type" value="function">
+            <div class="flex-grow-1">
+              <label class="form-label">Function</label>
+              <select class="form-select" name="function_id">
+                <option value="">Select a function...</option>
+                <% (recentFunctions || []).forEach(function(fn) { %>
+                  <option value="<%= fn.id_uuid %>"><%= fn.event_name %> (<%= fn.event_date ? new Date(fn.event_date).toLocaleDateString('en-NZ') : 'No date' %>)</option>
+                <% }) %>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Send</button>
+          </form>
+        </div>
+        <div class="col-md-6">
+          <form action="/settings/feedback/send-now" method="POST" class="d-flex gap-2 align-items-end">
+            <input type="hidden" name="type" value="restaurant">
+            <div class="flex-grow-1">
+              <label class="form-label">Restaurant booking</label>
+              <select class="form-select" name="booking_id">
+                <option value="">Select a booking...</option>
+                <% (recentBookings || []).forEach(function(bk) { %>
+                  <option value="<%= bk.id %>"><%= bk.party_name %> (<%= bk.booking_date ? new Date(bk.booking_date).toLocaleDateString('en-NZ') : 'No date' %>)</option>
+                <% }) %>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Send</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card shadow-sm mb-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between flex-wrap gap-2 align-items-center mb-3">
+        <div>
+          <h5 class="mb-1">Templates</h5>
+          <p class="text-muted mb-0">Email, survey, and entertainment templates now live on dedicated pages.</p>
+        </div>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <% templateButtons.forEach(function(link) { %>
+          <a href="<%= link.path %>" class="btn btn-light border">
+            <%= link.label %>
+          </a>
+        <% }) %>
+      </div>
+    </div>
+  </section>
+
+  <section class="card shadow-sm">
+    <form class="card-body" method="POST" action="/settings/feedback">
+      <div class="row g-4">
+        <div class="col-md-6">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="autoFunctions" name="auto_functions" <%= feedbackSettings.auto_functions ? 'checked' : '' %>>
+            <label class="form-check-label" for="autoFunctions">Automatically email survey after functions</label>
+          </div>
+          <small class="text-muted">Uses the primary function contact if available.</small>
+        </div>
+        <div class="col-md-6">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="autoRestaurant" name="auto_restaurant" <%= feedbackSettings.auto_restaurant ? 'checked' : '' %>>
+            <label class="form-check-label" for="autoRestaurant">Automatically email survey after restaurant bookings</label>
+          </div>
+          <small class="text-muted">Uses the booking contact email if supplied.</small>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Send survey after (days)</label>
+          <input type="number" class="form-control" name="send_delay_days" min="0" max="30" value="<%= feedbackSettings.send_delay_days %>">
+          <small class="text-muted">Days after the booking/event date to send the first email.</small>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Reminder after (days)</label>
+          <input type="number" class="form-control" name="reminder_days" min="0" max="30" value="<%= feedbackSettings.reminder_days %>">
+          <small class="text-muted">Set to 0 to disable reminders.</small>
+        </div>
+      </div>
+
+      <hr class="my-4">
+
+      <div class="row g-4">
+        <div class="col-12 col-lg-6">
+          <div class="question-card">
+            <h5 class="mb-3">Function question layout</h5>
+            <div class="mb-3">
+              <label class="form-label">Overall question</label>
+              <input type="text" class="form-control" name="function_overall_label" value="<%= functionQuestions.overallLabel %>">
+            </div>
+            <div class="row g-3 align-items-end mb-3">
+              <div class="col-8">
+                <label class="form-label">Service question</label>
+                <input type="text" class="form-control" name="function_service_label" value="<%= functionQuestions.serviceLabel %>">
+              </div>
+              <div class="col-4">
+                <div class="form-check">
+                  <input type="hidden" name="function_show_service_present" value="1">
+                  <input class="form-check-input" type="checkbox" id="functionShowService" name="function_show_service" value="on" <%= functionQuestions.showService ? 'checked' : '' %>>
+                  <label class="form-check-label" for="functionShowService">Show</label>
+                </div>
+              </div>
+            </div>
+            <div class="row g-3 align-items-end mb-3">
+              <div class="col-8">
+                <label class="form-label">Recommend question</label>
+                <input type="text" class="form-control" name="function_recommend_label" value="<%= functionQuestions.recommendLabel %>">
+              </div>
+              <div class="col-4">
+                <div class="form-check">
+                  <input type="hidden" name="function_show_recommend_present" value="1">
+                  <input class="form-check-input" type="checkbox" id="functionShowRecommend" name="function_show_recommend" value="on" <%= functionQuestions.showRecommend ? 'checked' : '' %>>
+                  <label class="form-check-label" for="functionShowRecommend">Show</label>
+                </div>
+              </div>
+            </div>
+            <div class="row g-3 align-items-end">
+              <div class="col-8">
+                <label class="form-label">Comments question</label>
+                <input type="text" class="form-control" name="function_comments_label" value="<%= functionQuestions.commentsLabel %>">
+              </div>
+              <div class="col-4">
+                <div class="form-check">
+                  <input type="hidden" name="function_show_comments_present" value="1">
+                  <input class="form-check-input" type="checkbox" id="functionShowComments" name="function_show_comments" value="on" <%= functionQuestions.showComments ? 'checked' : '' %>>
+                  <label class="form-check-label" for="functionShowComments">Show</label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-lg-6">
+          <div class="question-card">
+            <h5 class="mb-3">Restaurant question layout</h5>
+            <div class="mb-3">
+              <label class="form-label">Overall question</label>
+              <input type="text" class="form-control" name="restaurant_overall_label" value="<%= restaurantQuestions.overallLabel %>">
+            </div>
+            <div class="row g-3 align-items-end mb-3">
+              <div class="col-8">
+                <label class="form-label">Service question</label>
+                <input type="text" class="form-control" name="restaurant_service_label" value="<%= restaurantQuestions.serviceLabel %>">
+              </div>
+              <div class="col-4">
+                <div class="form-check">
+                  <input type="hidden" name="restaurant_show_service_present" value="1">
+                  <input class="form-check-input" type="checkbox" id="restaurantShowService" name="restaurant_show_service" value="on" <%= restaurantQuestions.showService ? 'checked' : '' %>>
+                  <label class="form-check-label" for="restaurantShowService">Show</label>
+                </div>
+              </div>
+            </div>
+            <div class="row g-3 align-items-end mb-3">
+              <div class="col-8">
+                <label class="form-label">Recommend question</label>
+                <input type="text" class="form-control" name="restaurant_recommend_label" value="<%= restaurantQuestions.recommendLabel %>">
+              </div>
+              <div class="col-4">
+                <div class="form-check">
+                  <input type="hidden" name="restaurant_show_recommend_present" value="1">
+                  <input class="form-check-input" type="checkbox" id="restaurantShowRecommend" name="restaurant_show_recommend" value="on" <%= restaurantQuestions.showRecommend ? 'checked' : '' %>>
+                  <label class="form-check-label" for="restaurantShowRecommend">Show</label>
+                </div>
+              </div>
+            </div>
+            <div class="row g-3 align-items-end">
+              <div class="col-8">
+                <label class="form-label">Comments question</label>
+                <input type="text" class="form-control" name="restaurant_comments_label" value="<%= restaurantQuestions.commentsLabel %>">
+              </div>
+              <div class="col-4">
+                <div class="form-check">
+                  <input type="hidden" name="restaurant_show_comments_present" value="1">
+                  <input class="form-check-input" type="checkbox" id="restaurantShowComments" name="restaurant_show_comments" value="on" <%= restaurantQuestions.showComments ? 'checked' : '' %>>
+                  <label class="form-check-label" for="restaurantShowComments">Show</label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-end mt-4">
+        <button type="submit" class="btn btn-primary">Save settings</button>
+      </div>
+    </form>
+  </section>
+</main>

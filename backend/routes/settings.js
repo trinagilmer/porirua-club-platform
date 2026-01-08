@@ -587,7 +587,48 @@ router.get("/overview", async (req, res) => {
   }
 });
 
+
 router.get("/feedback", ensurePrivileged, async (req, res) => {
+  try {
+    const [statsRes, optOutRes] = await Promise.all([
+      pool.query(`
+        SELECT
+          COUNT(*)::int AS total,
+          SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END)::int AS completed,
+          SUM(CASE WHEN status IS NULL OR status <> 'completed' THEN 1 ELSE 0 END)::int AS pending
+        FROM feedback_responses;
+      `),
+      pool.query(`SELECT COUNT(*)::int AS count FROM contacts WHERE feedback_opt_out = TRUE;`),
+    ]);
+
+    res.render("settings/feedback", {
+      layout: "layouts/settings",
+      title: "Settings - Feedback",
+      pageType: "settings",
+      activeTab: "feedback",
+      feedbackStats: {
+        total: statsRes.rows[0]?.total ?? 0,
+        completed: statsRes.rows[0]?.completed ?? 0,
+        pending: statsRes.rows[0]?.pending ?? 0,
+        optOuts: optOutRes.rows[0]?.count ?? 0,
+      },
+      user: req.session.user || null,
+      flashMessage: req.flash?.("flashMessage"),
+      flashType: req.flash?.("flashType"),
+    });
+  } catch (err) {
+    console.error("? Error loading feedback overview:", err);
+    res.status(500).render("error", {
+      layout: "layouts/main",
+      title: "Error",
+      message: "Failed to load feedback overview.",
+      error: err.message,
+      stack: err.stack,
+    });
+  }
+});
+
+router.get("/feedback/automation", ensurePrivileged, async (req, res) => {
   try {
     const feedbackSettings = await getFeedbackSettings();
     const { rows: statsRows } = await pool.query(
@@ -619,7 +660,7 @@ router.get("/feedback", ensurePrivileged, async (req, res) => {
        LIMIT 30;
       `
     );
-    res.render("settings/feedback", {
+    res.render("settings/feedback-automation", {
       layout: "layouts/settings",
       title: "Settings - Feedback Automation",
       pageType: "settings",
@@ -634,7 +675,7 @@ router.get("/feedback", ensurePrivileged, async (req, res) => {
       flashType: req.flash?.("flashType"),
     });
   } catch (err) {
-    console.error("❌ Error loading feedback settings:", err);
+    console.error("? Error loading feedback settings:", err);
     res.status(500).render("error", {
       layout: "layouts/main",
       title: "Error",
@@ -660,7 +701,7 @@ router.post("/feedback/send-now", ensurePrivileged, async (req, res) => {
     req.flash("flashMessage", err.message || "Unable to trigger surveys.");
     req.flash("flashType", "error");
   }
-  res.redirect("/settings/feedback");
+  res.redirect("/settings/feedback/automation");
 });
 
 router.get("/feedback/activity", ensurePrivileged, async (req, res) => {
@@ -1109,7 +1150,7 @@ router.post("/feedback", ensurePrivileged, async (req, res) => {
     req.flash("flashMessage", "❌ Unable to save feedback settings.");
     req.flash("flashType", "error");
   }
-  res.redirect("/settings/feedback");
+  res.redirect("/settings/feedback/automation");
 });
 
 router.get("/feedback/templates/:type", ensurePrivileged, async (req, res) => {
@@ -1158,7 +1199,7 @@ router.post("/feedback/templates/:type", ensurePrivileged, async (req, res) => {
   if (!templateConfig) {
     req.flash("flashMessage", "Unknown template.");
     req.flash("flashType", "error");
-    return res.redirect("/settings/feedback");
+    return res.redirect("/settings/feedback/automation");
   }
 
   try {

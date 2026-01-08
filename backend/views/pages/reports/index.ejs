@@ -3,6 +3,14 @@
   helpers.formatCurrency = helpers.formatCurrency || function (value) { return value ?? 0; };
   helpers.formatDisplayDate = helpers.formatDisplayDate || function (value) { return value || ""; };
   helpers.formatTime = helpers.formatTime || function (value) { return value || ""; };
+  const reportMeta = (report && report.meta) || null;
+  const reportOptions = Array.isArray(reportTypes) ? reportTypes : [];
+  function formatMetaValue(value, format) {
+    if (format === "currency") return helpers.formatCurrency(value);
+    if (format === "date") return helpers.formatDisplayDate(value);
+    if (format === "time") return helpers.formatTime(value);
+    return value ?? "-";
+  }
 %>
 <div class="container-fluid py-4 reports-page">
   <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
@@ -11,6 +19,10 @@
       <p class="text-muted mb-0">Download ready-to-share data from functions, restaurant bookings, and entertainment.</p>
     </div>
     <div class="d-flex gap-2">
+      <a class="btn btn-outline-primary" href="/reports">
+        <i class="bi bi-grid me-1"></i>
+        All reports
+      </a>
       <a class="btn btn-outline-primary" href="/calendar">
         <i class="bi bi-calendar3 me-1"></i>
         Back to calendar
@@ -28,10 +40,11 @@
         <div class="col-md-3 col-sm-6">
           <label class="form-label">Report type</label>
           <select name="type" class="form-select">
-            <option value="functions" <%= filters.type === 'functions' ? 'selected' : '' %>>Functions</option>
-            <option value="restaurant" <%= filters.type === 'restaurant' ? 'selected' : '' %>>Restaurant bookings</option>
-            <option value="entertainment" <%= filters.type === 'entertainment' ? 'selected' : '' %>>Entertainment</option>
-            <option value="contact-value" <%= filters.type === 'contact-value' ? 'selected' : '' %>>Contacts (spend)</option>
+            <% reportOptions.forEach(function(option) { %>
+              <option value="<%= option.value %>" <%= filters.type === option.value ? 'selected' : '' %>>
+                <%= option.label %>
+              </option>
+            <% }) %>
           </select>
         </div>
         <div class="col-md-3 col-sm-6">
@@ -68,271 +81,310 @@
       No records were found for the selected dates. Try widening the range or choosing another report.
     </div>
   <% } else { %>
-    <section class="mb-3">
-      <div class="row g-3">
-        <% if (filters.type === 'functions') { %>
-          <div class="col-sm-3">
-            <div class="report-stat card shadow-sm">
-              <div class="card-body">
-                <p class="text-muted text-uppercase small mb-1">Total functions</p>
-                <h3 class="mb-0"><%= report.rows.length %></h3>
-              </div>
-            </div>
-          </div>
-          <div class="col-sm-3">
-            <div class="report-stat card shadow-sm">
-              <div class="card-body">
-                <p class="text-muted text-uppercase small mb-1">Revenue (NZD)</p>
-                <h3 class="mb-0"><%= helpers.formatCurrency(report.summary.totalRevenue || 0) %></h3>
-              </div>
-            </div>
-          </div>
-          <div class="col-sm-3">
-            <div class="report-stat card shadow-sm">
-              <div class="card-body">
-                <p class="text-muted text-uppercase small mb-1">Profit (NZD)</p>
-                <h3 class="mb-0"><%= helpers.formatCurrency(report.summary.totalProfit || 0) %></h3>
-              </div>
-            </div>
-          </div>
-          <div class="col-sm-3">
-            <div class="report-stat card shadow-sm">
-              <div class="card-body">
-                <p class="text-muted text-uppercase small mb-1">Expected attendees</p>
-                <h3 class="mb-0"><%= report.summary.totalAttendees || 0 %></h3>
-              </div>
-            </div>
-          </div>
-          <div class="col-12">
-            <div class="report-stat card shadow-sm">
-              <div class="card-body">
-                <p class="text-muted text-uppercase small mb-1">Statuses</p>
-                <div class="d-flex flex-wrap gap-2">
-                  <% Object.entries(report.summary.statusCounts || {}).forEach(([status, count]) => { %>
-                    <span class="badge bg-light text-dark text-uppercase">
-                      <%= status.replace('_',' ') %>: <%= count %>
-                    </span>
-                  <% }) %>
+    <% if (reportMeta) { %>
+      <section class="mb-3">
+        <div class="row g-3">
+          <% (reportMeta.summary || []).forEach(function(card) { %>
+            <div class="col-sm-3">
+              <div class="report-stat card shadow-sm">
+                <div class="card-body">
+                  <p class="text-muted text-uppercase small mb-1"><%= card.label %></p>
+                  <h3 class="mb-0"><%= formatMetaValue(card.value, card.format) %></h3>
                 </div>
               </div>
             </div>
-          </div>
-        <% } else if (filters.type === 'restaurant') { %>
-          <div class="col-sm-4">
-            <div class="report-stat card shadow-sm">
-              <div class="card-body">
-                <p class="text-muted text-uppercase small mb-1">Bookings</p>
-                <h3 class="mb-0"><%= report.rows.length %></h3>
-              </div>
-            </div>
-          </div>
-          <div class="col-sm-4">
-            <div class="report-stat card shadow-sm">
-              <div class="card-body">
-                <p class="text-muted text-uppercase small mb-1">Guests</p>
-                <h3 class="mb-0"><%= report.summary.totalGuests || 0 %></h3>
-              </div>
-            </div>
-          </div>
-          <div class="col-sm-4">
-            <div class="report-stat card shadow-sm">
-              <div class="card-body">
-                <p class="text-muted text-uppercase small mb-1">Statuses</p>
-                <div class="d-flex flex-wrap gap-2">
-                  <% Object.entries(report.summary.statusCounts || {}).forEach(([status, count]) => { %>
-                    <span class="badge bg-light text-dark text-uppercase">
-                      <%= status %>: <%= count %>
-                    </span>
-                  <% }) %>
-                </div>
-              </div>
-            </div>
-          </div>
-        <% } else if (filters.type === 'restaurant') { %>
+          <% }) %>
+        </div>
+      </section>
+      <section class="card shadow-sm">
+        <div class="card-body table-responsive">
           <table class="table table-striped align-middle">
             <thead>
               <tr>
-                <th>Party</th>
-                <th>Date</th>
-                <th>Time</th>
-                <th>Guests</th>
-                <th>Status</th>
-                <th>Service</th>
-                <th>Channel</th>
+                <% (reportMeta.columns || []).forEach(function(col) { %>
+                  <th><%= col.label %></th>
+                <% }) %>
               </tr>
             </thead>
             <tbody>
               <% report.rows.forEach(function(row) { %>
                 <tr>
-                  <td><a href="/calendar/restaurant/bookings/<%= row.id %>"><%= row.party_name %></a></td>
-                  <td><%= helpers.formatDisplayDate(row.booking_date) %></td>
-                  <td><%= helpers.formatTime(row.booking_time) %></td>
-                  <td><%= row.size || 0 %></td>
-                  <td><span class="badge bg-light text-dark text-uppercase"><%= row.status || 'pending' %></span></td>
-                  <td><%= row.service_name || '—' %></td>
-                  <td><%= (row.channel || 'internal') %></td>
+                  <% (reportMeta.columns || []).forEach(function(col) { %>
+                    <td><%= formatMetaValue(row[col.key], col.format) %></td>
+                  <% }) %>
                 </tr>
               <% }) %>
             </tbody>
           </table>
-        <% } else if (filters.type === 'contact-value') { %>
-          <div class="col-sm-3">
-            <div class="report-stat card shadow-sm">
-              <div class="card-body">
-                <p class="text-muted text-uppercase small mb-1">Contacts</p>
-                <h3 class="mb-0"><%= report.summary.contactCount || 0 %></h3>
-              </div>
-            </div>
-          </div>
-          <div class="col-sm-3">
-            <div class="report-stat card shadow-sm">
-              <div class="card-body">
-                <p class="text-muted text-uppercase small mb-1">Functions booked</p>
-                <h3 class="mb-0"><%= report.summary.totalFunctions || 0 %></h3>
-              </div>
-            </div>
-          </div>
-          <div class="col-sm-3">
-            <div class="report-stat card shadow-sm">
-              <div class="card-body">
-                <p class="text-muted text-uppercase small mb-1">Revenue</p>
-                <h3 class="mb-0"><%= helpers.formatCurrency(report.summary.totalRevenue || 0) %></h3>
-              </div>
-            </div>
-          </div>
-          <div class="col-sm-3">
-            <div class="report-stat card shadow-sm">
-              <div class="card-body">
-                <p class="text-muted text-uppercase small mb-1">Top contact</p>
-                <% if (report.summary.topContact) { %>
-                  <h6 class="mb-0"><%= report.summary.topContact.name %></h6>
-                  <small class="text-muted">Spent <%= helpers.formatCurrency(report.summary.topContact.revenue || 0) %></small>
-                <% } else { %>
-                  <p class="text-muted mb-0">—</p>
-                <% } %>
-              </div>
-            </div>
-          </div>
-        <% } else { %>
-          <div class="col-sm-4">
-            <div class="report-stat card shadow-sm">
-              <div class="card-body">
-                <p class="text-muted text-uppercase small mb-1">Events</p>
-                <h3 class="mb-0"><%= report.rows.length %></h3>
-              </div>
-            </div>
-          </div>
-          <div class="col-sm-8">
-            <div class="report-stat card shadow-sm">
-              <div class="card-body">
-                <p class="text-muted text-uppercase small mb-1">Statuses</p>
-                <div class="d-flex flex-wrap gap-2">
-                  <% Object.entries(report.summary.statusCounts || {}).forEach(([status, count]) => { %>
-                    <span class="badge bg-light text-dark text-uppercase">
-                      <%= status %>: <%= count %>
-                    </span>
-                  <% }) %>
+        </div>
+      </section>
+    <% } else { %>
+      <section class="mb-3">
+        <div class="row g-3">
+          <% if (filters.type === 'functions') { %>
+            <div class="col-sm-3">
+              <div class="report-stat card shadow-sm">
+                <div class="card-body">
+                  <p class="text-muted text-uppercase small mb-1">Total functions</p>
+                  <h3 class="mb-0"><%= report.rows.length %></h3>
                 </div>
               </div>
             </div>
-          </div>
-        <% } %>
-      </div>
-    </section>
+            <div class="col-sm-3">
+              <div class="report-stat card shadow-sm">
+                <div class="card-body">
+                  <p class="text-muted text-uppercase small mb-1">Revenue (NZD)</p>
+                  <h3 class="mb-0"><%= helpers.formatCurrency(report.summary.totalRevenue || 0) %></h3>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-3">
+              <div class="report-stat card shadow-sm">
+                <div class="card-body">
+                  <p class="text-muted text-uppercase small mb-1">Profit (NZD)</p>
+                  <h3 class="mb-0"><%= helpers.formatCurrency(report.summary.totalProfit || 0) %></h3>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-3">
+              <div class="report-stat card shadow-sm">
+                <div class="card-body">
+                  <p class="text-muted text-uppercase small mb-1">Expected attendees</p>
+                  <h3 class="mb-0"><%= report.summary.totalAttendees || 0 %></h3>
+                </div>
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="report-stat card shadow-sm">
+                <div class="card-body">
+                  <p class="text-muted text-uppercase small mb-1">Statuses</p>
+                  <div class="d-flex flex-wrap gap-2">
+                    <% Object.entries(report.summary.statusCounts || {}).forEach(([status, count]) => { %>
+                      <span class="badge bg-light text-dark text-uppercase">
+                        <%= status.replace('_',' ') %>: <%= count %>
+                      </span>
+                    <% }) %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% } else if (filters.type === 'restaurant') { %>
+            <div class="col-sm-4">
+              <div class="report-stat card shadow-sm">
+                <div class="card-body">
+                  <p class="text-muted text-uppercase small mb-1">Bookings</p>
+                  <h3 class="mb-0"><%= report.rows.length %></h3>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-4">
+              <div class="report-stat card shadow-sm">
+                <div class="card-body">
+                  <p class="text-muted text-uppercase small mb-1">Guests</p>
+                  <h3 class="mb-0"><%= report.summary.totalGuests || 0 %></h3>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-4">
+              <div class="report-stat card shadow-sm">
+                <div class="card-body">
+                  <p class="text-muted text-uppercase small mb-1">Statuses</p>
+                  <div class="d-flex flex-wrap gap-2">
+                    <% Object.entries(report.summary.statusCounts || {}).forEach(([status, count]) => { %>
+                      <span class="badge bg-light text-dark text-uppercase">
+                        <%= status %>: <%= count %>
+                      </span>
+                    <% }) %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% } else if (filters.type === 'contact-value') { %>
+            <div class="col-sm-3">
+              <div class="report-stat card shadow-sm">
+                <div class="card-body">
+                  <p class="text-muted text-uppercase small mb-1">Contacts</p>
+                  <h3 class="mb-0"><%= report.summary.contactCount || 0 %></h3>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-3">
+              <div class="report-stat card shadow-sm">
+                <div class="card-body">
+                  <p class="text-muted text-uppercase small mb-1">Functions booked</p>
+                  <h3 class="mb-0"><%= report.summary.totalFunctions || 0 %></h3>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-3">
+              <div class="report-stat card shadow-sm">
+                <div class="card-body">
+                  <p class="text-muted text-uppercase small mb-1">Revenue</p>
+                  <h3 class="mb-0"><%= helpers.formatCurrency(report.summary.totalRevenue || 0) %></h3>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-3">
+              <div class="report-stat card shadow-sm">
+                <div class="card-body">
+                  <p class="text-muted text-uppercase small mb-1">Top contact</p>
+                  <% if (report.summary.topContact) { %>
+                    <h6 class="mb-0"><%= report.summary.topContact.name %></h6>
+                    <small class="text-muted">Spent <%= helpers.formatCurrency(report.summary.topContact.revenue || 0) %></small>
+                  <% } else { %>
+                    <p class="text-muted mb-0">-</p>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+          <% } else { %>
+            <div class="col-sm-4">
+              <div class="report-stat card shadow-sm">
+                <div class="card-body">
+                  <p class="text-muted text-uppercase small mb-1">Events</p>
+                  <h3 class="mb-0"><%= report.rows.length %></h3>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-8">
+              <div class="report-stat card shadow-sm">
+                <div class="card-body">
+                  <p class="text-muted text-uppercase small mb-1">Statuses</p>
+                  <div class="d-flex flex-wrap gap-2">
+                    <% Object.entries(report.summary.statusCounts || {}).forEach(([status, count]) => { %>
+                      <span class="badge bg-light text-dark text-uppercase">
+                        <%= status %>: <%= count %>
+                      </span>
+                    <% }) %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% } %>
+        </div>
+      </section>
 
-    <section class="card shadow-sm">
-      <div class="card-body table-responsive">
-        <% if (filters.type === 'functions') { %>
-          <table class="table table-striped align-middle">
-            <thead>
-              <tr>
-                <th>Event</th>
-                <th>Date</th>
-                <th>Start</th>
-                <th>Status</th>
-                <th>Attendees</th>
-                <th>Room</th>
-                <th>Owner</th>
-                <th>Revenue</th>
-                <th>Cost</th>
-                <th>Profit</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% report.rows.forEach(function(fn) { %>
+      <section class="card shadow-sm">
+        <div class="card-body table-responsive">
+          <% if (filters.type === 'functions') { %>
+            <table class="table table-striped align-middle">
+              <thead>
                 <tr>
-                  <td>
-                    <strong><a href="/functions/<%= fn.id_uuid %>" class="text-decoration-none"><%= fn.event_name %></a></strong>
-                  </td>
-                  <td><%= helpers.formatDisplayDate(fn.event_date) %></td>
-                  <td><%= helpers.formatTime(fn.start_time || fn.event_time) %></td>
-                  <td><span class="badge bg-light text-dark text-uppercase"><%= fn.status || 'lead' %></span></td>
-                  <td><%= fn.attendees || 0 %></td>
-                  <td><%= fn.room_name || 'Unassigned' %></td>
-                  <td><%= fn.owner_name || '—' %></td>
-                  <td><%= helpers.formatCurrency(fn.totals_price || 0) %></td>
-                  <td><%= helpers.formatCurrency(fn.totals_cost || 0) %></td>
-                  <td><%= helpers.formatCurrency((fn.totals_price || 0) - (fn.totals_cost || 0)) %></td>
+                  <th>Event</th>
+                  <th>Date</th>
+                  <th>Start</th>
+                  <th>Status</th>
+                  <th>Attendees</th>
+                  <th>Room</th>
+                  <th>Owner</th>
+                  <th>Revenue</th>
+                  <th>Cost</th>
+                  <th>Profit</th>
                 </tr>
-              <% }) %>
-            </tbody>
-          </table>
-        <% } else if (filters.type === 'contact-value') { %>
-          <table class="table table-striped align-middle">
-            <thead>
-              <tr>
-                <th>Contact</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Functions</th>
-                <th>Revenue</th>
-                <th>Cost</th>
-                <th>Profit</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% report.rows.forEach(function(row) { %>
+              </thead>
+              <tbody>
+                <% report.rows.forEach(function(fn) { %>
+                  <tr>
+                    <td>
+                      <strong><a href="/functions/<%= fn.id_uuid %>" class="text-decoration-none"><%= fn.event_name %></a></strong>
+                    </td>
+                    <td><%= helpers.formatDisplayDate(fn.event_date) %></td>
+                    <td><%= helpers.formatTime(fn.start_time || fn.event_time) %></td>
+                    <td><span class="badge bg-light text-dark text-uppercase"><%= fn.status || 'lead' %></span></td>
+                    <td><%= fn.attendees || 0 %></td>
+                    <td><%= fn.room_name || 'Unassigned' %></td>
+                    <td><%= fn.owner_name || '-' %></td>
+                    <td><%= helpers.formatCurrency(fn.totals_price || 0) %></td>
+                    <td><%= helpers.formatCurrency(fn.totals_cost || 0) %></td>
+                    <td><%= helpers.formatCurrency((fn.totals_price || 0) - (fn.totals_cost || 0)) %></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          <% } else if (filters.type === 'contact-value') { %>
+            <table class="table table-striped align-middle">
+              <thead>
                 <tr>
-                  <td><a href="/contacts?selected=<%= row.id %>" class="text-decoration-none"><%= row.name %></a></td>
-                  <td><%= row.email || '—' %></td>
-                  <td><%= row.phone || '—' %></td>
-                  <td><%= row.function_count || 0 %></td>
-                  <td><%= helpers.formatCurrency(row.revenue || 0) %></td>
-                  <td><%= helpers.formatCurrency(row.cost || 0) %></td>
-                  <td><%= helpers.formatCurrency((row.revenue || 0) - (row.cost || 0)) %></td>
+                  <th>Contact</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Functions</th>
+                  <th>Revenue</th>
+                  <th>Cost</th>
+                  <th>Profit</th>
                 </tr>
-              <% }) %>
-            </tbody>
-          </table>
-        <% } else { %>
-          <table class="table table-striped align-middle">
-            <thead>
-              <tr>
-                <th>Event</th>
-                <th>Date</th>
-                <th>Time</th>
-                <th>Status</th>
-                <th>Room</th>
-                <th>Adjunct</th>
-                <th>Organiser</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% report.rows.forEach(function(evt) { %>
+              </thead>
+              <tbody>
+                <% report.rows.forEach(function(row) { %>
+                  <tr>
+                    <td><a href="/contacts?selected=<%= row.id %>" class="text-decoration-none"><%= row.name %></a></td>
+                    <td><%= row.email || '-' %></td>
+                    <td><%= row.phone || '-' %></td>
+                    <td><%= row.function_count || 0 %></td>
+                    <td><%= helpers.formatCurrency(row.revenue || 0) %></td>
+                    <td><%= helpers.formatCurrency(row.cost || 0) %></td>
+                    <td><%= helpers.formatCurrency((row.revenue || 0) - (row.cost || 0)) %></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          <% } else if (filters.type === 'restaurant') { %>
+            <table class="table table-striped align-middle">
+              <thead>
                 <tr>
-                  <td><a href="/entertainment/<%= evt.id %>" target="_blank" rel="noopener"><%= evt.title %></a></td>
-                  <td><%= helpers.formatDisplayDate(evt.start_at) %></td>
-                  <td><%= helpers.formatTime(evt.start_at) %></td>
-                  <td><span class="badge bg-light text-dark text-uppercase"><%= evt.status || 'scheduled' %></span></td>
-                  <td><%= evt.room_name || '—' %></td>
-                  <td><%= evt.adjunct_name || '-' %></td>
-                  <td><%= evt.organiser || '-' %></td>
+                  <th>Party</th>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Guests</th>
+                  <th>Status</th>
+                  <th>Service</th>
+                  <th>Channel</th>
                 </tr>
-              <% }) %>
-            </tbody>
-          </table>
-        <% } %>
-      </div>
-    </section>
+              </thead>
+              <tbody>
+                <% report.rows.forEach(function(row) { %>
+                  <tr>
+                    <td><a href="/calendar/restaurant/bookings/<%= row.id %>"><%= row.party_name %></a></td>
+                    <td><%= helpers.formatDisplayDate(row.booking_date) %></td>
+                    <td><%= helpers.formatTime(row.booking_time) %></td>
+                    <td><%= row.size || 0 %></td>
+                    <td><span class="badge bg-light text-dark text-uppercase"><%= row.status || 'pending' %></span></td>
+                    <td><%= row.service_name || '-' %></td>
+                    <td><%= (row.channel || 'internal') %></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          <% } else { %>
+            <table class="table table-striped align-middle">
+              <thead>
+                <tr>
+                  <th>Event</th>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Status</th>
+                  <th>Room</th>
+                  <th>Adjunct</th>
+                  <th>Organiser</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% report.rows.forEach(function(evt) { %>
+                  <tr>
+                    <td><a href="/entertainment/<%= evt.id %>" target="_blank" rel="noopener"><%= evt.title %></a></td>
+                    <td><%= helpers.formatDisplayDate(evt.start_at) %></td>
+                    <td><%= helpers.formatTime(evt.start_at) %></td>
+                    <td><span class="badge bg-light text-dark text-uppercase"><%= evt.status || 'scheduled' %></span></td>
+                    <td><%= evt.room_name || '-' %></td>
+                    <td><%= evt.adjunct_name || '-' %></td>
+                    <td><%= evt.organiser || '-' %></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          <% } %>
+        </div>
+      </section>
+    <% } %>
   <% } %>
 </div>

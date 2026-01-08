@@ -147,7 +147,8 @@
         <option value="/settings/entertainment/public" <%= activeTab === 'entertainment-public' ? 'selected' : '' %>>Entertainment - Public Page</option>
         <option value="/settings/entertainment/media" <%= activeTab === 'entertainment-media' ? 'selected' : '' %>>Entertainment - Media Library</option>
         <option value="/settings/entertainment/embeds" <%= activeTab === 'entertainment-embeds' ? 'selected' : '' %>>Entertainment - Embeds</option>
-        <option value="/settings/feedback" <%= activeTab === 'feedback-automation' ? 'selected' : '' %>>Feedback - Automation</option>
+        <option value="/settings/feedback" <%= activeTab === 'feedback' ? 'selected' : '' %>>Feedback - Overview</option>
+        <option value="/settings/feedback/automation" <%= activeTab === 'feedback-automation' ? 'selected' : '' %>>Feedback - Automation</option>
         <option value="/settings/feedback/templates/email" <%= activeTab === 'feedback-template-email' ? 'selected' : '' %>>Feedback - Email Invite</option>
         <option value="/settings/feedback/templates/survey" <%= activeTab === 'feedback-template-survey' ? 'selected' : '' %>>Feedback - Survey Intro</option>
         <option value="/settings/feedback/templates/entertainment" <%= activeTab === 'feedback-template-entertainment' ? 'selected' : '' %>>Feedback - Entertainment Header</option>
@@ -248,10 +249,10 @@
 
       <div class="nav-item">
         <button
-          class="btn w-100 text-start nav-link d-flex justify-content-between align-items-center <%= ['feedback-automation','feedback-template-email','feedback-template-survey','feedback-template-entertainment','feedback-activity'].includes(activeTab) ? 'active fw-semibold' : '' %>"
+          class="btn w-100 text-start nav-link d-flex justify-content-between align-items-center <%= ['feedback','feedback-automation','feedback-template-email','feedback-template-survey','feedback-template-entertainment','feedback-activity'].includes(activeTab) ? 'active fw-semibold' : '' %>"
           data-bs-toggle="collapse"
           data-bs-target="#submenu-feedback"
-          aria-expanded="<%= ['feedback-automation','feedback-template-email','feedback-template-survey','feedback-template-entertainment','feedback-activity'].includes(activeTab) ? 'true' : 'false' %>"
+          aria-expanded="<%= ['feedback','feedback-automation','feedback-template-email','feedback-template-survey','feedback-template-entertainment','feedback-activity'].includes(activeTab) ? 'true' : 'false' %>"
           aria-controls="submenu-feedback"
         >
           Feedback &amp; Surveys
@@ -259,9 +260,12 @@
             <i class="bi bi-chevron-down small"></i>
           </span>
         </button>
-        <div class="collapse <%= ['feedback-automation','feedback-template-email','feedback-template-survey','feedback-template-entertainment','feedback-activity'].includes(activeTab) ? 'show' : '' %>" id="submenu-feedback">
+        <div class="collapse <%= ['feedback','feedback-automation','feedback-template-email','feedback-template-survey','feedback-template-entertainment','feedback-activity'].includes(activeTab) ? 'show' : '' %>" id="submenu-feedback">
           <nav class="nav flex-column ms-3 mt-1">
-            <a href="/settings/feedback" class="nav-link <%= activeTab === 'feedback-automation' ? 'active fw-semibold' : '' %>">
+            <a href="/settings/feedback" class="nav-link <%= activeTab === 'feedback' ? 'active fw-semibold' : '' %>">
+              Overview
+            </a>
+            <a href="/settings/feedback/automation" class="nav-link <%= activeTab === 'feedback-automation' ? 'active fw-semibold' : '' %>">
               Automation &amp; Questions
             </a>
             <span class="text-muted text-uppercase small mt-2">Templates</span>
