@@ -34,7 +34,7 @@
 
   <!-- Status Filters -->
   <div class="status-filters mb-4">
-    <% ['active','lead','qualified','confirmed','balance_due','completed'].forEach(st => { %>
+    <% ['active','lead','qualified','confirmed','balance_due','completed','cancelled'].forEach(st => { %>
       <a href="/functions?status=<%= st %>"
          class="filter-pill <%= statusFilter === st ? 'active' : '' %>">
         <%= st.replace('_',' ') %>

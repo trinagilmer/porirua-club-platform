@@ -162,6 +162,13 @@
         <div class="snapshot-value"><span class="badge bg-light text-dark text-uppercase tracking-wide"><%= fn.status || 'lead' %></span></div>
         <div class="snapshot-updated"><%= formatUpdated(fieldAudit.status) %></div>
       </div>
+      <% if (fn.status === 'cancelled' && fn.cancelled_reason) { %>
+        <div class="snapshot-row">
+          <div class="snapshot-label">Cancellation reason</div>
+          <div class="snapshot-value"><%= fn.cancelled_reason %></div>
+          <div class="snapshot-updated"><%= formatUpdated(fieldAudit.cancelled_reason) %></div>
+        </div>
+      <% } %>
     </div>
   </section>
 

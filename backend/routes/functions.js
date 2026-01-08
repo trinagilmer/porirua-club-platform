@@ -103,7 +103,12 @@ const FUNCTION_STATUSES = [
   "confirmed",
   "balance_due",
   "completed",
+  "cancelled",
 ];
+
+async function ensureFunctionCancelColumn() {
+  await pool.query("ALTER TABLE functions ADD COLUMN IF NOT EXISTS cancelled_reason TEXT;");
+}
 
 const META_REGEX = /\[([a-z_]+):([^\]]+)\]/gi;
 
@@ -322,6 +327,7 @@ router.get("/", async (req, res, next) => {
       confirmed: ["confirmed"],
       balance_due: ["balance_due"],
       completed: ["completed"],
+      cancelled: ["cancelled"],
     };
 
     const statuses = statusGroups[statusFilter] || statusGroups.active;
@@ -535,6 +541,7 @@ router.post("/new", async (req, res) => {
     event_type,
     status,
     owner_id,
+    cancelled_reason,
   } = req.body || {};
 
   const trimmedName = (event_name || "").trim();
@@ -545,10 +552,12 @@ router.post("/new", async (req, res) => {
   const newFunctionId = randomUUID();
   const userId = req.session.user?.id || null;
   const statusValue = (status || "lead").trim() || "lead";
+  const cancelReasonValue = statusValue === "cancelled" ? (cancelled_reason || "").trim() || null : null;
 
   const recurrence = recurrenceService.parseRecurrenceForm(req.body);
   const client = await pool.connect();
   try {
+    await ensureFunctionCancelColumn();
     await client.query("BEGIN");
     await client.query(
       `
@@ -556,6 +565,7 @@ router.post("/new", async (req, res) => {
         id_uuid,
         event_name,
         status,
+        cancelled_reason,
         event_date,
         event_time,
         start_time,
@@ -572,13 +582,14 @@ router.post("/new", async (req, res) => {
         updated_by
       )
       VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW(),NOW(),$15
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW(),NOW(),$16
       );
       `,
       [
         newFunctionId,
         trimmedName,
         statusValue,
+        cancelReasonValue,
         event_date || null,
         event_time || null,
         start_time || null,
@@ -623,6 +634,7 @@ router.post("/new", async (req, res) => {
               id_uuid,
               event_name,
               status,
+              cancelled_reason,
               event_date,
               event_time,
               start_time,
@@ -641,13 +653,14 @@ router.post("/new", async (req, res) => {
               updated_by
             )
             VALUES (
-              $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW(),NOW(),$17
+              $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW(),NOW(),$18
             );
             `,
             [
               cloneId,
               trimmedName,
               statusValue,
+              cancelReasonValue,
               date,
               event_time || null,
               start_time || null,
@@ -937,12 +950,16 @@ router.post("/:id/edit", async (req, res) => {
     room_id,
     event_type,
     status,
-    owner_id
+    owner_id,
+    cancelled_reason,
   } = req.body;
 
   const userId = req.session.user?.id || null;
+  const statusValue = (status || "").trim() || "lead";
+  const cancelReasonValue = statusValue === "cancelled" ? (cancelled_reason || "").trim() || null : null;
 
   try {
+    await ensureFunctionCancelColumn();
     await pool.query(`
       UPDATE functions
       SET
@@ -958,10 +975,11 @@ router.post("/:id/edit", async (req, res) => {
         room_id      = $10,
         event_type   = $11,
         status       = $12,
-        owner_id     = $13,
+        cancelled_reason = $13,
+        owner_id     = $14,
         updated_at   = NOW(),
-        updated_by   = COALESCE($14, updated_by)
-    WHERE id_uuid = $15;`,
+        updated_by   = COALESCE($15, updated_by)
+    WHERE id_uuid = $16;`,
     [
       event_name,
       event_date || null,
@@ -974,7 +992,8 @@ router.post("/:id/edit", async (req, res) => {
       totals_cost || 0,
       room_id || null,
       event_type || null,
-      status,
+      statusValue,
+      cancelReasonValue,
       owner_id || null,
       userId,
       functionId
@@ -1787,6 +1806,7 @@ router.delete("/:functionId", async (req, res) => {
 router.post("/:id/update-field", async (req, res) => {
   const { id: functionId } = req.params; // UUID string
   let { field, value } = req.body;
+  await ensureFunctionCancelColumn();
 
   // ✅ Define only allowed, safe-to-update columns
   const allowed = new Map([
@@ -1795,6 +1815,7 @@ router.post("/:id/update-field", async (req, res) => {
     ["event_date", "event_date"],
     ["event_time", "event_time"],
     ["status", "status"],
+    ["cancelled_reason", "cancelled_reason"],
     ["event_name", "event_name"],
     ["event_type", "event_type"],
     ["attendees", "attendees"],

@@ -2463,6 +2463,13 @@ textarea {
 .status-badge.status-active:hover {
   background: rgb(237.75, 247.5, 252.75);
 }
+.status-badge.status-cancelled {
+  border-color: #E25B5B;
+  color: rgb(123.4, 75.4, 85);
+}
+.status-badge.status-cancelled:hover {
+  background: rgb(230.35, 115.6, 115.6);
+}
 
 .page-dashboard {
   background: #F9FAFB;

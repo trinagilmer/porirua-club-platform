@@ -233,4 +233,14 @@
       background: color.mix($brand-soft, $white, $weight: 75%);
     }
   }
+
+  // 🔴 Cancelled — red outline
+  &.status-cancelled {
+    border-color: $danger;
+    color: color.mix($danger, $neutral-700, $weight: 40%);
+
+    &:hover {
+      background: color.mix($danger, $white, $weight: 85%);
+    }
+  }
 }

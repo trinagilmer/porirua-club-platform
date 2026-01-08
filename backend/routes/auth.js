@@ -99,6 +99,7 @@ router.post("/login", async (req, res, next) => {
         error: "Invalid email or password",
         title: "Login",
         hideChrome: true,
+        next: nextValue || "",
       });
 
     const user = rows[0];
@@ -108,6 +109,7 @@ router.post("/login", async (req, res, next) => {
         error: "Invalid email or password",
         title: "Login",
         hideChrome: true,
+        next: nextValue || "",
       });
 
     req.session.user = {

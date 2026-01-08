@@ -72,13 +72,18 @@
 
       <div class="col-md-4">
         <label class="form-label">Status</label>
-        <select name="status" class="form-select">
+        <select name="status" class="form-select" id="functionStatusSelectNew">
           <% (statuses || []).forEach(st => { %>
             <option value="<%= st %>" <%= (v.status || 'lead') === st ? 'selected' : '' %>>
               <%= st.replace('_',' ') %>
             </option>
           <% }) %>
         </select>
+      </div>
+
+      <div class="col-md-8" id="cancelReasonGroupNew" style="<%= (v.status || 'lead') === 'cancelled' ? '' : 'display:none;' %>">
+        <label class="form-label">Cancellation reason</label>
+        <textarea name="cancelled_reason" class="form-control" rows="2" placeholder="Add a note for why this function was cancelled."><%= v.cancelled_reason || '' %></textarea>
       </div>
 
       <div class="col-md-4">
@@ -167,3 +172,17 @@
     </div>
   </form>
 </div>
+
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const statusSelect = document.getElementById("functionStatusSelectNew");
+    const cancelGroup = document.getElementById("cancelReasonGroupNew");
+    if (!statusSelect || !cancelGroup) return;
+    const toggleCancelReason = () => {
+      cancelGroup.style.display = statusSelect.value === "cancelled" ? "" : "none";
+    };
+    statusSelect.addEventListener("change", toggleCancelReason);
+    toggleCancelReason();
+  });
+</script>

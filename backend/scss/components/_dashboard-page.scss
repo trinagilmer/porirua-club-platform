@@ -69,6 +69,11 @@
       background-color: $success;
       color: #fff;
     }
+
+    &.status-cancelled {
+      background-color: $danger;
+      color: #fff;
+    }
   }
 
   // ---------- KPI BAR ----------

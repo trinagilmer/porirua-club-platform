@@ -73,13 +73,18 @@
 
           <div class="col-md-6">
             <label class="form-label">Status</label>
-            <select name="status" class="form-select">
-              <% ['lead','qualified','confirmed','balance_due','completed'].forEach(st => { %>
+            <select name="status" class="form-select" id="functionStatusSelect">
+              <% ['lead','qualified','confirmed','balance_due','completed','cancelled'].forEach(st => { %>
                 <option value="<%= st %>" <%= fn.status === st ? 'selected' : '' %>>
                   <%= st.replace('_', ' ') %>
                 </option>
               <% }) %>
             </select>
+          </div>
+
+          <div class="col-12" id="cancelReasonGroup" style="<%= fn.status === 'cancelled' ? '' : 'display:none;' %>">
+            <label class="form-label">Cancellation reason</label>
+            <textarea name="cancelled_reason" class="form-control" rows="3" placeholder="Add a note for why this function was cancelled."><%= fn.cancelled_reason || '' %></textarea>
           </div>
 
           <div class="col-md-6">
@@ -121,6 +126,18 @@
   };
 
   console.log("🛠️ Function Context (Edit):", window.fnContext);
+</script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const statusSelect = document.getElementById("functionStatusSelect");
+    const cancelGroup = document.getElementById("cancelReasonGroup");
+    if (!statusSelect || !cancelGroup) return;
+    const toggleCancelReason = () => {
+      cancelGroup.style.display = statusSelect.value === "cancelled" ? "" : "none";
+    };
+    statusSelect.addEventListener("change", toggleCancelReason);
+    toggleCancelReason();
+  });
 </script>
 
 <!-- JS Controller -->

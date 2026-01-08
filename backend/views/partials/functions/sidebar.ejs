@@ -11,13 +11,13 @@
       <h2 contenteditable="true" class="editable" data-field="event_name" data-id="<%= fn.id_uuid %>">
         <%= fn.event_name %>
       </h2>
-      <select class="form-select status-select editable" data-field="status" data-id="<%= fn.id_uuid %>">
+      <select class="form-select status-select" disabled>
         <option value="lead" <%= fn.status==='lead'?'selected':'' %>>Lead</option>
         <option value="qualified" <%= fn.status==='qualified'?'selected':'' %>>Qualified</option>
         <option value="confirmed" <%= fn.status==='confirmed'?'selected':'' %>>Confirmed</option>
         <option value="balance_due" <%= fn.status==='balance_due'?'selected':'' %>>Balance Due</option>
         <option value="completed" <%= fn.status==='completed'?'selected':'' %>>Completed</option>
-        <option value="archived" <%= fn.status==='archived'?'selected':'' %>>Archived</option>
+        <option value="cancelled" <%= fn.status==='cancelled'?'selected':'' %>>Cancelled</option>
       </select>
     </div>
 
