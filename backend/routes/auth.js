@@ -6,18 +6,40 @@ const { cca } = require("../auth/msal"); // ✅ import the shared MSAL client
 
 const router = express.Router();
 
+async function ensureUserInvitesTable() {
+  await pool.query(
+    `
+    CREATE TABLE IF NOT EXISTS user_invites (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token TEXT NOT NULL UNIQUE,
+      created_by INTEGER NULL REFERENCES users(id),
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMP NOT NULL,
+      used_at TIMESTAMP NULL
+    );
+    `
+  );
+}
+
+
 /* =========================================================
    LOCAL LOGIN / REGISTER / LOGOUT
 ========================================================= */
 
 // --- LOGIN ---
 router.get("/login", (req, res) => {
-  res.render("pages/login", { error: null, title: "Login", hideChrome: true });
+  res.render("pages/login", {
+    error: null,
+    title: "Login",
+    hideChrome: true,
+    next: req.query.next || "",
+  });
 });
 
 router.post("/login", async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, next: nextValue } = req.body;
     const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
 
     if (!rows.length)
@@ -43,8 +65,29 @@ router.post("/login", async (req, res, next) => {
       role: user.role,
     };
 
-    // Go straight to dashboard (app-only mail auth now)
-    res.redirect("/dashboard");
+    const allowedLandingPages = new Set([
+      "/dashboard",
+      "/functions",
+      "/calendar",
+      "/inbox",
+      "/contacts",
+      "/reports",
+      "/settings",
+      "/tasks",
+      "/dashboard/restaurant",
+      "/dashboard/events",
+    ]);
+    const safePath = (value) => {
+      if (!value) return null;
+      const cleaned = String(value).trim();
+      if (!cleaned.startsWith("/")) return null;
+      if (cleaned.startsWith("//")) return null;
+      return allowedLandingPages.has(cleaned) ? cleaned : null;
+    };
+    const nextUrl = safePath(nextValue);
+    const preferredLanding = safePath(user.default_landing);
+
+    res.redirect(nextUrl || preferredLanding || "/dashboard");
   } catch (err) {
     next(err);
   }
@@ -74,6 +117,120 @@ router.post("/register", async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+
+// --- ACCEPT INVITE ---
+router.get("/accept-invite/:token", async (req, res) => {
+  try {
+    await ensureUserInvitesTable();
+    const token = req.params.token;
+    const { rows } = await pool.query(
+      `
+      SELECT i.token, i.expires_at, i.used_at, u.name, u.email
+        FROM user_invites i
+        JOIN users u ON u.id = i.user_id
+       WHERE i.token = $1
+       LIMIT 1;
+      `,
+      [token]
+    );
+    const invite = rows[0];
+    const isValid = invite && !invite.used_at && new Date(invite.expires_at) > new Date();
+    res.render("pages/accept-invite", {
+      title: "Set your password",
+      hideChrome: true,
+      error: isValid ? null : "Invite link is invalid or has expired.",
+      token: isValid ? token : null,
+      invite,
+    });
+  } catch (err) {
+    console.error("[Auth] Failed to load invite:", err);
+    res.status(500).render("pages/accept-invite", {
+      title: "Set your password",
+      hideChrome: true,
+      error: "Unable to load invite.",
+      token: null,
+      invite: null,
+    });
+  }
+});
+
+router.post("/accept-invite/:token", async (req, res) => {
+  try {
+    await ensureUserInvitesTable();
+    const token = req.params.token;
+    const { password, confirm_password } = req.body;
+    if (!password || password.length < 8) {
+      return res.render("pages/accept-invite", {
+        title: "Set your password",
+        hideChrome: true,
+        error: "Password must be at least 8 characters.",
+        token,
+        invite: null,
+      });
+    }
+    if (password !== confirm_password) {
+      return res.render("pages/accept-invite", {
+        title: "Set your password",
+        hideChrome: true,
+        error: "Passwords do not match.",
+        token,
+        invite: null,
+      });
+    }
+    const { rows } = await pool.query(
+      `
+      SELECT i.id, i.user_id, i.expires_at, i.used_at, u.email, u.name
+        FROM user_invites i
+        JOIN users u ON u.id = i.user_id
+       WHERE i.token = $1
+       LIMIT 1;
+      `,
+      [token]
+    );
+    const invite = rows[0];
+    if (!invite || invite.used_at || new Date(invite.expires_at) <= new Date()) {
+      return res.render("pages/accept-invite", {
+        title: "Set your password",
+        hideChrome: true,
+        error: "Invite link is invalid or has expired.",
+        token: null,
+        invite: null,
+      });
+    }
+    const { rows: columnRows } = await pool.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND table_schema = 'public';`
+    );
+    const columns = columnRows.map((r) => r.column_name);
+    if (!columns.includes("password_hash")) {
+      return res.render("pages/accept-invite", {
+        title: "Set your password",
+        hideChrome: true,
+        error: "Password setup is not available for this account type.",
+        token: null,
+        invite: null,
+      });
+    }
+    const hash = await bcrypt.hash(password, 10);
+    await pool.query(`UPDATE users SET password_hash = $1 WHERE id = $2;`, [hash, invite.user_id]);
+    await pool.query(`UPDATE user_invites SET used_at = NOW() WHERE id = $1;`, [invite.id]);
+    res.render("pages/login", {
+      error: null,
+      title: "Login",
+      hideChrome: true,
+      success: "Password set. You can log in now.",
+    });
+  } catch (err) {
+    console.error("[Auth] Failed to accept invite:", err);
+    res.status(500).render("pages/accept-invite", {
+      title: "Set your password",
+      hideChrome: true,
+      error: "Unable to set password.",
+      token: null,
+      invite: null,
+    });
+  }
+});
+
 });
 
 // --- LOGOUT ---
@@ -190,7 +347,27 @@ router.get("/graph/callback", async (req, res) => {
     console.log(`📨 Shared mailbox configured: ${req.session.sharedMailbox}`);
 
     // ✅ Redirect back to original page (or inbox as fallback)
-    const nextUrl = req.session.next || "/dashboard";
+    const allowedLandingPages = new Set([
+      "/dashboard",
+      "/functions",
+      "/calendar",
+      "/inbox",
+      "/contacts",
+      "/reports",
+      "/settings",
+      "/tasks",
+      "/dashboard/restaurant",
+      "/dashboard/events",
+    ]);
+    const safePath = (value) => {
+      if (!value) return null;
+      const cleaned = String(value).trim();
+      if (!cleaned.startsWith("/")) return null;
+      if (cleaned.startsWith("//")) return null;
+      return allowedLandingPages.has(cleaned) ? cleaned : null;
+    };
+    const preferredLanding = safePath(user.default_landing);
+    const nextUrl = req.session.next || preferredLanding || "/dashboard";
     delete req.session.next;
     res.redirect(nextUrl);
   } catch (error) {

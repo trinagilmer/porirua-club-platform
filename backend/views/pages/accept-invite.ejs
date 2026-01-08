@@ -1,0 +1,54 @@
+<style>
+  .invite-shell {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+  .invite-card {
+    width: 100%;
+    max-width: 420px;
+    border: none;
+    border-radius: 1rem;
+  }
+  .invite-logo {
+    height: 64px;
+    width: auto;
+  }
+</style>
+
+<main class="invite-shell">
+  <div class="card shadow-lg invite-card">
+    <div class="card-body p-4 p-md-5">
+      <div class="text-center mb-4">
+        <img src="/img/pc-logo.png" alt="Porirua Club" class="invite-logo mb-3">
+        <h2 class="h4 mb-1">Set your password</h2>
+        <p class="text-muted mb-0">Finish setting up your account.</p>
+      </div>
+
+      <% if (error) { %>
+        <div class="alert alert-danger"><%= error %></div>
+      <% } %>
+
+      <% if (token) { %>
+        <form method="POST" action="/auth/accept-invite/<%= token %>" class="vstack gap-3">
+          <div>
+            <label class="form-label" for="invitePassword">New password</label>
+            <input type="password" class="form-control" id="invitePassword" name="password" required>
+          </div>
+          <div>
+            <label class="form-label" for="inviteConfirmPassword">Confirm password</label>
+            <input type="password" class="form-control" id="inviteConfirmPassword" name="confirm_password" required>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Set password</button>
+        </form>
+      <% } else { %>
+        <div class="text-center">
+          <a href="/auth/login" class="btn btn-outline-secondary w-100">Back to login</a>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</main>

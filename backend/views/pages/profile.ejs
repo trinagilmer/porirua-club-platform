@@ -1,0 +1,53 @@
+<main class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h1 class="h4 mb-1">My Profile</h1>
+          <p class="text-muted mb-0">Update your details and login preferences.</p>
+        </div>
+      </div>
+
+      <% if (typeof flashMessage !== 'undefined' && flashMessage) { %>
+        <div class="alert alert-<%= flashType === 'error' ? 'danger' : flashType === 'warning' ? 'warning' : 'success' %> alert-dismissible fade show">
+          <%= flashMessage %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      <% } %>
+
+      <form class="card shadow-sm border-0" method="POST" action="/profile">
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Name</label>
+              <input type="text" name="name" class="form-control" value="<%= profile?.name || '' %>" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Email</label>
+              <input type="email" class="form-control" value="<%= profile?.email || '' %>" readonly>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Role</label>
+              <input type="text" class="form-control" value="<%= profile?.role || '' %>" readonly>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Default landing page</label>
+              <select name="default_landing" class="form-select">
+                <option value="">Use dashboard</option>
+                <% (landingOptions || []).forEach(function(option) { %>
+                  <option value="<%= option.value %>" <%= profile?.default_landing === option.value ? 'selected' : '' %>>
+                    <%= option.label %>
+                  </option>
+                <% }) %>
+              </select>
+              <small class="text-muted">You will be taken here after login if no other page was requested.</small>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer bg-white border-0">
+          <button type="submit" class="btn btn-primary">Save changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</main>

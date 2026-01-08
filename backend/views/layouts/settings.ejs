@@ -112,7 +112,7 @@
                 <%= user.name ? user.name.charAt(0).toUpperCase() : '?' %>
               </button>
               <ul class="dropdown-menu dropdown-menu-end text-sm" aria-labelledby="userMenuBtn">
-                <li><a class="dropdown-item" href="/settings/users">View Profile</a></li>
+                <li><a class="dropdown-item" href="/profile">View Profile</a></li>
                 <li><a class="dropdown-item" href="/auth/logout">Log out</a></li>
                 <% if (user.role && ['admin','owner'].includes(user.role.toLowerCase())) { %>
                   <li><hr class="dropdown-divider"></li>

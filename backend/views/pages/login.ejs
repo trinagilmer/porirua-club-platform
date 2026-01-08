@@ -31,8 +31,12 @@
       <% if (error) { %>
         <div class="alert alert-danger"><%= error %></div>
       <% } %>
+      <% if (typeof success !== 'undefined' && success) { %>
+        <div class="alert alert-success"><%= success %></div>
+      <% } %>
 
       <form method="POST" action="/auth/login" class="vstack gap-3">
+        <input type="hidden" name="next" value="<%= next || '' %>">
         <div>
           <label class="form-label" for="loginEmail">Email</label>
           <input type="email" class="form-control" id="loginEmail" name="email" required autocomplete="email">

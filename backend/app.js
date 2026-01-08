@@ -231,6 +231,7 @@ const feedbackPublicRouter = require("./routes/feedback");
 const { startFeedbackScheduler } = require("./services/feedbackScheduler");
 const reportsRouter = require("./routes/reports");
 const widgetRouter = require("./routes/widgets");
+const profileRouter = require("./routes/profile");
 
 //---------------------------------------------------
 // ✅ ROUTE REGISTRATION ORDER (most specific → least)
@@ -249,6 +250,7 @@ app.use("/entertainment", entertainmentRouter);
 app.use("/feedback", feedbackPublicRouter);
 app.use("/reports", reportsRouter);
 app.use("/", widgetRouter);
+app.use("/profile", profileRouter);
 
 // 🧭 Settings (specific first, then general)
 app.use('/settings', settingsRouter);

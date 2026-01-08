@@ -315,6 +315,63 @@ async function ensureEntertainmentColorColumn() {
   );
 }
 
+async function ensureUserInvitesTable() {
+  await pool.query(
+    `
+    CREATE TABLE IF NOT EXISTS user_invites (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token TEXT NOT NULL UNIQUE,
+      created_by INTEGER NULL REFERENCES users(id),
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMP NOT NULL,
+      used_at TIMESTAMP NULL
+    );
+    `
+  );
+}
+
+async function createUserInvite(userId, createdBy) {
+  const token = crypto.randomBytes(24).toString("hex");
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const { rows } = await pool.query(
+    `
+    INSERT INTO user_invites (user_id, token, created_by, expires_at)
+    VALUES ($1, $2, $3, $4)
+    RETURNING token;
+    `,
+    [userId, token, createdBy || null, expiresAt]
+  );
+  return rows[0]?.token || token;
+}
+
+function getAppBaseUrl() {
+  return (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
+}
+
+async function sendUserInviteEmail({ toEmail, toName, inviteToken }) {
+  const accessToken = await acquireGraphToken();
+  if (!accessToken) throw new Error("Graph token unavailable");
+  const inviteLink = `${getAppBaseUrl()}/auth/accept-invite/${inviteToken}`;
+  const subject = "Set up your Porirua Club account";
+  const body = `
+    <p>Hello ${toName || "there"},</p>
+    <p>You have been invited to access the Porirua Club platform.</p>
+    <p><a href="${inviteLink}">Click here to set your password</a></p>
+    <p>This link expires in 7 days.</p>
+  `;
+  await sendMail(accessToken, {
+    to: toEmail,
+    subject,
+    body,
+    fromMailbox:
+      process.env.SHARED_MAILBOX ||
+      process.env.FEEDBACK_MAILBOX ||
+      process.env.FUNCTION_FEEDBACK_MAILBOX ||
+      "events@poriruaclub.co.nz",
+  });
+}
+
 function combineDateAndTime(dateValue, timeValue) {
   if (!dateValue) return null;
   const datePart = String(dateValue).trim();
@@ -1150,10 +1207,21 @@ router.get("/feedback/preview", ensurePrivileged, async (req, res) => {
  ========================================================= */
 router.get("/users", async (req, res) => {
   try {
+    await ensureUserInvitesTable();
     const { rows: users } = await pool.query(
-      `SELECT id, name, email, role, created_at
-         FROM users
-        ORDER BY name ASC;`
+      `
+      SELECT u.id,
+             u.name,
+             u.email,
+             u.role,
+             u.created_at,
+             MAX(i.created_at) AS last_invite_at,
+             MAX(i.used_at) AS last_invite_used_at
+        FROM users u
+        LEFT JOIN user_invites i ON i.user_id = u.id
+       GROUP BY u.id, u.name, u.email, u.role, u.created_at
+       ORDER BY u.name ASC;
+      `
     );
 
     const secretConfigured = Boolean(process.env.ADMIN_SECRET || process.env.BUILD_ADMIN_SECRET);
@@ -1184,6 +1252,7 @@ router.get("/users", async (req, res) => {
 router.post("/users/add", ensurePrivileged, async (req, res) => {
   try {
     const { name, email, role = "staff" } = req.body;
+    const sendInvite = parseBooleanField(req.body.send_invite);
     if (!name?.trim() || !email?.trim()) {
       req.flash("flashMessage", "?? Name and email are required.");
       req.flash("flashType", "warning");
@@ -1198,19 +1267,32 @@ router.post("/users/add", ensurePrivileged, async (req, res) => {
     const passwordHash = hasPassword ? await bcrypt.hash(tempPassword, 10) : null;
 
     if (hasPassword) {
-      await pool.query(
+      const { rows } = await pool.query(
         `INSERT INTO users (name, email, role, password_hash)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (email) DO UPDATE
            SET name = EXCLUDED.name,
                role = EXCLUDED.role,
-               password_hash = COALESCE(EXCLUDED.password_hash, users.password_hash);`,
+               password_hash = COALESCE(EXCLUDED.password_hash, users.password_hash)
+         RETURNING id, name, email;`,
         [name.trim(), email.trim().toLowerCase(), (role || "staff").toLowerCase(), passwordHash]
       );
-      req.flash(
-        "flashMessage",
-        `? User stored. Temp password: ${tempPassword} (ask them to log in and change it).`
-      );
+      const storedUser = rows[0];
+      if (sendInvite && storedUser) {
+        await ensureUserInvitesTable();
+        const token = await createUserInvite(storedUser.id, req.session.user?.id);
+        await sendUserInviteEmail({
+          toEmail: storedUser.email,
+          toName: storedUser.name,
+          inviteToken: token,
+        });
+        req.flash("flashMessage", "Invite sent. The user can set their own password.");
+      } else {
+        req.flash(
+          "flashMessage",
+          `? User stored. Temp password: ${tempPassword} (ask them to log in and change it).`
+        );
+      }
     } else {
       await pool.query(
         `INSERT INTO users (name, email, role)
@@ -2362,6 +2444,40 @@ router.get("/entertainment", ensurePrivileged, async (req, res) => {
     req.flash("flashType", "error");
     res.redirect("/settings");
   }
+});
+
+router.post("/users/invite", ensurePrivileged, async (req, res) => {
+  try {
+    const userId = parseOptionalInteger(req.body.user_id);
+    if (!userId) {
+      req.flash("flashMessage", "Missing user ID.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/users");
+    }
+    const { rows } = await pool.query(`SELECT id, name, email FROM users WHERE id = $1 LIMIT 1;`, [
+      userId,
+    ]);
+    const user = rows[0];
+    if (!user) {
+      req.flash("flashMessage", "User not found.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/users");
+    }
+    await ensureUserInvitesTable();
+    const token = await createUserInvite(user.id, req.session.user?.id);
+    await sendUserInviteEmail({
+      toEmail: user.email,
+      toName: user.name,
+      inviteToken: token,
+    });
+    req.flash("flashMessage", "Invite sent.");
+    req.flash("flashType", "success");
+  } catch (err) {
+    console.error("? Error sending invite:", err);
+    req.flash("flashMessage", "Failed to send invite.");
+    req.flash("flashType", "error");
+  }
+  res.redirect("/settings/users");
 });
 
 router.post("/entertainment/header", ensurePrivileged, async (req, res) => {
