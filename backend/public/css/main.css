@@ -2073,6 +2073,7 @@ textarea {
   }
   .proposal-header {
     grid-template-columns: minmax(70px, auto) minmax(0, 1fr) minmax(70px, auto);
+    margin-bottom: 2cm;
   }
   .proposal-header__logo img {
     max-height: 30px;
@@ -2110,6 +2111,7 @@ textarea {
   }
   .proposal-summary-grid {
     display: flex;
+    flex-direction: row;
     flex-wrap: nowrap;
     gap: 1rem;
   }

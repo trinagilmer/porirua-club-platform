@@ -119,6 +119,7 @@
   };
   const baseDiscount = Number(totals?.discount_amount || 0);
   const baseTotalPaid = Number(totals?.total_paid || 0);
+  const hasTerms = String(terms || "").replace(/<[^>]+>/g, "").trim().length > 0;
 %>
 
 <style>
@@ -138,6 +139,7 @@
   @media print {
     .proposal-summary-grid {
       display: flex !important;
+      flex-direction: row !important;
       flex-wrap: nowrap !important;
       gap: 1rem;
     }
@@ -154,6 +156,7 @@
     }
     .proposal-header {
       display: grid !important;
+      margin-bottom: 2cm !important;
     }
   }
 </style>
@@ -401,12 +404,14 @@
         <% } %>
       </div>
     <% } %>
-    <section class="proposal-terms card shadow-sm page-break" id="termsSection">
-      <div class="card-header bg-light fw-semibold">Terms &amp; Conditions</div>
-      <div class="card-body proposal-terms__body small">
-        <%- terms %>
-      </div>
-    </section>
+    <% if (hasTerms) { %>
+      <section class="proposal-terms card shadow-sm page-break" id="termsSection">
+        <div class="card-header bg-light fw-semibold">Terms &amp; Conditions</div>
+        <div class="card-body proposal-terms__body small">
+          <%- terms %>
+        </div>
+      </section>
+    <% } %>
   <% } %>
 </form>
 </div>
