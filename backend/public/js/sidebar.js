@@ -80,12 +80,29 @@ console.log("?? Sidebar script loaded");
     sidebar.classList.remove("is-open");
     document.getElementById("sidebarOverlay")?.classList.remove("active");
     document.body.classList.remove("sidebar-open");
+    const contactOverlay = document.getElementById("contactOverlay");
+    if (contactOverlay) {
+      contactOverlay.style.display = "";
+      contactOverlay.style.pointerEvents = "";
+      contactOverlay.style.opacity = "";
+      contactOverlay.style.visibility = "";
+    }
   };
 
   const openSidebar = () => {
     sidebar.classList.add("is-open");
     document.getElementById("sidebarOverlay")?.classList.add("active");
     document.body.classList.add("sidebar-open");
+    const contactOverlay = document.getElementById("contactOverlay");
+    if (contactOverlay) {
+      contactOverlay.classList.remove("panel-open");
+      contactOverlay.classList.add("hidden");
+      contactOverlay.style.display = "none";
+      contactOverlay.style.pointerEvents = "none";
+      contactOverlay.style.opacity = "0";
+      contactOverlay.style.visibility = "hidden";
+    }
+    document.body.classList.remove("contact-panel-open");
   };
 
   document.addEventListener("click", (event) => {
@@ -117,6 +134,91 @@ console.log("?? Sidebar script loaded");
     if (!select) return;
     const next = select.value;
     if (next) window.location.href = next;
+  });
+
+  const hideTabs = () => {
+    const tabsBar = document.querySelector(".tabs-bar");
+    if (tabsBar) tabsBar.style.display = "none";
+  };
+
+  const showTabs = () => {
+    const tabsBar = document.querySelector(".tabs-bar");
+    if (tabsBar) tabsBar.style.display = "";
+  };
+
+  const syncMobileTabs = () => {
+    const isMobile = window.matchMedia("(max-width: 768px)").matches;
+    const tabsBar = document.querySelector(".tabs-bar");
+    if (!tabsBar) return;
+    tabsBar.querySelectorAll("a").forEach((link) => {
+      link.style.display = isMobile ? "none" : "";
+    });
+    const select = tabsBar.querySelector(".tabs-select");
+    if (select) select.style.display = isMobile ? "block" : "";
+  };
+
+  const syncContactPanelState = () => {
+    const addPanel = document.getElementById("addContactPanel");
+    const editPanel = document.getElementById("editContactPanel");
+    const contactOverlay = document.getElementById("contactOverlay");
+    const isOpen =
+      addPanel?.classList.contains("panel-open") ||
+      editPanel?.classList.contains("panel-open");
+
+    if (isOpen) {
+      closeSidebar();
+      hideTabs();
+      document.body.classList.add("contact-panel-open");
+      if (contactOverlay) {
+        contactOverlay.style.display = "";
+        contactOverlay.style.pointerEvents = "";
+        contactOverlay.style.opacity = "";
+        contactOverlay.style.visibility = "";
+      }
+    } else {
+      showTabs();
+      document.body.classList.remove("contact-panel-open");
+      if (contactOverlay) {
+        contactOverlay.style.display = "";
+        contactOverlay.style.pointerEvents = "";
+        contactOverlay.style.opacity = "";
+        contactOverlay.style.visibility = "";
+      }
+    }
+  };
+
+  const addPanelEl = document.getElementById("addContactPanel");
+  const editPanelEl = document.getElementById("editContactPanel");
+  if (addPanelEl || editPanelEl) {
+    const observer = new MutationObserver(() => {
+      syncContactPanelState();
+    });
+    if (addPanelEl) observer.observe(addPanelEl, { attributes: true, attributeFilter: ["class"] });
+    if (editPanelEl) observer.observe(editPanelEl, { attributes: true, attributeFilter: ["class"] });
+    syncContactPanelState();
+  }
+
+  syncMobileTabs();
+  window.addEventListener("resize", syncMobileTabs);
+
+  document.addEventListener("click", (event) => {
+    const openAdd = event.target.closest("#openAddPanelBtn");
+    if (openAdd) {
+      closeSidebar();
+      hideTabs();
+      document.body.classList.add("contact-panel-open");
+    }
+
+    const closeAdd = event.target.closest("#closeAddPanel, #cancelEdit");
+    if (closeAdd) {
+      showTabs();
+      document.body.classList.remove("contact-panel-open");
+    }
+  });
+
+  document.getElementById("contactOverlay")?.addEventListener("click", () => {
+    showTabs();
+    document.body.classList.remove("contact-panel-open");
   });
 
   /* =========================================================
@@ -178,6 +280,9 @@ console.log("?? Sidebar script loaded");
       void editPanel.offsetWidth;
       editPanel.classList.add("panel-open");
       overlay.classList.add("panel-open");
+      document.body.classList.add("contact-panel-open");
+      const tabsBar = document.querySelector(".tabs-bar");
+      if (tabsBar) tabsBar.style.display = "none";
     } catch (err) {
       console.error("? Error loading contact for edit:", err);
       alert("? Failed to load contact details");
@@ -252,6 +357,9 @@ console.log("?? Sidebar script loaded");
 
     editPanel.classList.remove("panel-open");
     overlay.classList.remove("panel-open");
+    document.body.classList.remove("contact-panel-open");
+    const tabsBar = document.querySelector(".tabs-bar");
+    if (tabsBar) tabsBar.style.display = "";
     setTimeout(() => {
       editPanel.classList.add("hidden");
       overlay.classList.add("hidden");

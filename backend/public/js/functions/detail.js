@@ -35,14 +35,27 @@ document.addEventListener("DOMContentLoaded", () => {
      ➕ ADD CONTACT PANEL
   ========================================================== */
   const openPanel = () => {
+    const tabsBar = document.querySelector(".tabs-bar");
     addPanel.classList.remove("hidden");
     overlay.classList.remove("hidden");
     addPanel.classList.add("panel-open");
+    overlay.classList.add("panel-open");
+    document.body.classList.add("contact-panel-open");
+    if (tabsBar) tabsBar.style.display = "none";
+    const sidebar = document.querySelector(".function-sidebar");
+    const sidebarOverlay = document.getElementById("sidebarOverlay");
+    sidebar?.classList.remove("is-open");
+    sidebarOverlay?.classList.remove("active");
+    document.body.classList.remove("sidebar-open");
   };
   const closePanel = () => {
+    const tabsBar = document.querySelector(".tabs-bar");
     addPanel.classList.remove("panel-open");
     addPanel.classList.add("hidden");
     overlay.classList.add("hidden");
+    overlay.classList.remove("panel-open");
+    document.body.classList.remove("contact-panel-open");
+    if (tabsBar) tabsBar.style.display = "";
   };
 
   openAddBtn?.addEventListener("click", openPanel);

@@ -1071,6 +1071,55 @@ textarea {
   .function-sidebar .sidebar-mobile-header {
     display: flex;
   }
+  .function-layout-two-col {
+    position: relative;
+    height: auto;
+    overflow: visible;
+  }
+  .function-sidebar {
+    display: none !important;
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: min(360px, 88vw);
+    max-width: 88vw;
+    z-index: 1101;
+  }
+  .function-sidebar.is-open {
+    display: flex !important;
+  }
+  .function-workspace {
+    width: 100%;
+  }
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 1100;
+  }
+  .sidebar-overlay.active {
+    opacity: 1;
+    pointer-events: none;
+  }
+  body.sidebar-open {
+    overflow: hidden;
+  }
+  body.sidebar-open #contactOverlay {
+    display: none !important;
+  }
+  body.contact-panel-open {
+    overflow: hidden;
+  }
+  body.contact-panel-open .tabs-bar {
+    display: none;
+  }
+  body.contact-panel-open .function-sidebar {
+    display: none !important;
+  }
 }
 .function-body {
   max-width: 100%;
