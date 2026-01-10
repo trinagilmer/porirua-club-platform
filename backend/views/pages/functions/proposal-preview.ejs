@@ -137,13 +137,23 @@
   }
   @media print {
     .proposal-summary-grid {
-      display: flex;
-      flex-wrap: nowrap;
+      display: flex !important;
+      flex-wrap: nowrap !important;
       gap: 1rem;
     }
     .proposal-summary-grid > * {
-      flex: 1 1 0;
-      max-width: 50%;
+      flex: 0 0 50% !important;
+      max-width: 50% !important;
+    }
+    .proposal-summary-grid > *:only-child {
+      flex: 0 0 100% !important;
+      max-width: 100% !important;
+    }
+    .proposal-summary-card {
+      page-break-inside: avoid;
+    }
+    .proposal-header {
+      display: grid !important;
     }
   }
 </style>
