@@ -2063,7 +2063,8 @@ textarea {
   }
   .proposal-terms__body table th,
   .proposal-terms__body table td {
-    font-size: inherit;
+    font-size: 0.95rem;
+    font-family: inherit;
   }
 }
 @media print {
