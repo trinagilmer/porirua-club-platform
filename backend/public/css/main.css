@@ -2059,6 +2059,7 @@ textarea {
 @media screen {
   .proposal-terms__body {
     margin: 2em;
+    font-size: 0.9rem;
   }
 }
 @media print {
