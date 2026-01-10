@@ -962,14 +962,33 @@ router.get("/restaurant/book", async (req, res) => {
         WHERE active = TRUE
         ORDER BY day_of_week, start_time;`
     );
+    const draft = req.session?.restaurantBookingDraft || null;
+    if (req.session?.restaurantBookingDraft) {
+      delete req.session.restaurantBookingDraft;
+    }
+    const rawError = draft?.errorMessage || req.query.error || null;
+    const safeDecode = (value) => {
+      if (!value) return value;
+      try {
+        return decodeURIComponent(value);
+      } catch (err) {
+        return value;
+      }
+    };
+    const decodedError = safeDecode(rawError);
+    const normalizedError =
+      decodedError && decodedError.toLowerCase().includes("capacity")
+        ? "Please contact the Eastwood restaurant to make this booking instead."
+        : decodedError;
     res.render("pages/calendar/restaurant-book", {
       layout: embed ? false : "layouts/main",
       title: "Book the Restaurant",
       active: "restaurant",
       services,
       success: req.query.success || null,
-      errorMessage: req.query.error || null,
+      errorMessage: normalizedError || null,
       embed,
+      formData: draft?.formData || null,
     });
   } catch (err) {
     console.error("[Restaurant Calendar] Failed to load booking form:", err);
@@ -998,9 +1017,80 @@ router.post("/restaurant/book", async (req, res) => {
     res.redirect(successUrl);
   } catch (err) {
     console.error("[Restaurant Calendar] Public booking failed:", err);
-    const message = encodeURIComponent(err.message || "Unable to submit booking");
-    const embedPrefix = req.query.embed === "1" ? "embed=1&" : "";
-    res.redirect(`/calendar/restaurant/book?${embedPrefix}error=${message}`);
+    const embed = req.query.embed === "1";
+    const capacityMessage =
+      (err?.message || "").toLowerCase().includes("capacity") ||
+      (err?.message || "").toLowerCase().includes("allocation") ||
+      err.message === "No capacity remaining for this slot." ||
+      err.message === "Online allocation for this slot is full.";
+    const message = capacityMessage
+      ? "Please contact the Eastwood restaurant to make this booking instead."
+      : err.message || "Unable to submit booking";
+    if (req.session) {
+      req.session.restaurantBookingDraft = {
+        formData: {
+          party_name: req.body.party_name,
+          contact_email: req.body.contact_email,
+          contact_phone: req.body.contact_phone,
+          booking_date: req.body.booking_date,
+          booking_time: req.body.booking_time,
+          size: req.body.size,
+          service_id: req.body.service_id,
+          notes: req.body.notes,
+        },
+        errorMessage: message,
+        embed,
+      };
+    }
+    try {
+      const { rows: services } = await pool.query(
+        `SELECT id, name, day_of_week, start_time, end_time,
+                special_menu_label, special_menu_price, special_menu_start, special_menu_end, special_menu_only
+           FROM restaurant_services
+          WHERE active = TRUE
+          ORDER BY day_of_week, start_time;`
+      );
+      res.status(400).render("pages/calendar/restaurant-book", {
+        layout: embed ? false : "layouts/main",
+        title: "Book the Restaurant",
+        active: "restaurant",
+        services,
+        success: null,
+        errorMessage: message,
+        embed,
+        formData: {
+          party_name: req.body.party_name,
+          contact_email: req.body.contact_email,
+          contact_phone: req.body.contact_phone,
+          booking_date: req.body.booking_date,
+          booking_time: req.body.booking_time,
+          size: req.body.size,
+          service_id: req.body.service_id,
+          notes: req.body.notes,
+        },
+      });
+    } catch (loadErr) {
+      console.error("[Restaurant Calendar] Failed to reload booking form:", loadErr);
+      res.status(400).render("pages/calendar/restaurant-book", {
+        layout: embed ? false : "layouts/main",
+        title: "Book the Restaurant",
+        active: "restaurant",
+        services: [],
+        success: null,
+        errorMessage: message,
+        embed,
+        formData: {
+          party_name: req.body.party_name,
+          contact_email: req.body.contact_email,
+          contact_phone: req.body.contact_phone,
+          booking_date: req.body.booking_date,
+          booking_time: req.body.booking_time,
+          size: req.body.size,
+          service_id: req.body.service_id,
+          notes: req.body.notes,
+        },
+      });
+    }
   }
 });
 

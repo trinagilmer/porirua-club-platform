@@ -2,6 +2,7 @@
 <% const isEmbed = Boolean(embed); %>
 <% const actionUrl = isEmbed ? "/calendar/restaurant/book?embed=1" : "/calendar/restaurant/book"; %>
 <% const slotStepMinutes = (typeof calendarConfig !== 'undefined' && calendarConfig && calendarConfig.daySlotMinutes) || 30; %>
+<% const formValues = formData || {}; %>
 
 <% if (isEmbed) { %>
 <!DOCTYPE html>
@@ -128,15 +129,15 @@
       <form action="<%= actionUrl %>" method="POST" class="vstack gap-2" id="restaurantPublicForm">
         <div>
           <label class="form-label">Name</label>
-          <input type="text" name="party_name" class="form-control" required>
+          <input type="text" name="party_name" class="form-control" required value="<%= formValues.party_name || '' %>">
         </div>
         <div>
           <label class="form-label">Email</label>
-          <input type="email" name="contact_email" class="form-control" required>
+          <input type="email" name="contact_email" class="form-control" required value="<%= formValues.contact_email || '' %>">
         </div>
         <div>
           <label class="form-label">Phone</label>
-          <input type="text" name="contact_phone" class="form-control">
+          <input type="text" name="contact_phone" class="form-control" value="<%= formValues.contact_phone || '' %>">
         </div>
         <div class="card border-0 shadow-sm">
           <div class="card-body">
@@ -152,13 +153,13 @@
               </div>
             </div>
             <!-- Hidden actual inputs the form submits -->
-            <input type="date" name="booking_date" id="hiddenBookingDate" class="form-control" hidden required>
-            <input type="time" name="booking_time" id="hiddenBookingTime" class="form-control" hidden required>
+            <input type="date" name="booking_date" id="hiddenBookingDate" class="form-control" hidden required value="<%= formValues.booking_date || '' %>">
+            <input type="time" name="booking_time" id="hiddenBookingTime" class="form-control" hidden required value="<%= formValues.booking_time || '' %>">
           </div>
         </div>
         <div>
           <label class="form-label">Guests</label>
-          <input type="number" name="size" class="form-control" min="1" required>
+          <input type="number" name="size" class="form-control" min="1" required value="<%= formValues.size || '' %>">
         </div>
         <% const specialServices = serviceList.filter(s => s.special_menu_label); %>
         <div>
@@ -171,7 +172,7 @@
                  const window = start && end ? `${start} - ${end}` : (start ? `From ${start}` : (end ? `Until ${end}` : ''));
                  const price = service.special_menu_price ? ` ($${Number(service.special_menu_price).toFixed(2)})` : '';
             %>
-              <option value="<%= service.id %>">
+              <option value="<%= service.id %>" <%= String(formValues.service_id || '') === String(service.id) ? 'selected' : '' %>>
                 <%= service.special_menu_label %><%= price %>
                 <% if (window) { %> - <%= window %><% } %>
               </option>
@@ -183,7 +184,7 @@
         </div>
         <div>
           <label class="form-label">Notes / requests</label>
-          <textarea name="notes" class="form-control" rows="3"></textarea>
+          <textarea name="notes" class="form-control" rows="3"><%= formValues.notes || '' %></textarea>
         </div>
         <button type="submit" class="btn btn-primary w-100">Send booking request</button>
       </form>
@@ -241,14 +242,20 @@
         timeHelper.textContent = "No times for this day.";
         return;
       }
+      const preferredTime = hiddenTime.value;
       slots.forEach((t) => {
         const opt = document.createElement("option");
         opt.value = t;
         opt.textContent = t;
         timeSelect.appendChild(opt);
       });
-      hiddenTime.value = slots[0];
-      timeSelect.value = slots[0];
+      if (preferredTime && slots.includes(preferredTime)) {
+        hiddenTime.value = preferredTime;
+        timeSelect.value = preferredTime;
+      } else {
+        hiddenTime.value = slots[0];
+        timeSelect.value = slots[0];
+      }
       timeHelper.textContent = "Select a time that suits you.";
     };
 
@@ -323,7 +330,8 @@
         datesSet: forceCompactGrid
       });
       calendar.render();
-      setDate(firstAvailableDate);
+      const initialDate = hiddenDate.value || firstAvailableDate;
+      setDate(initialDate);
 
       forceCompactGrid();
       setTimeout(forceCompactGrid, 50);

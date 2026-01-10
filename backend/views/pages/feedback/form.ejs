@@ -155,7 +155,7 @@
           <% if (resolvedQuestionConfig.showRecommend) { %>
             <div>
               <label class="form-label fw-semibold d-block mb-2"><%= resolvedQuestionConfig.recommendLabel %></label>
-              <div class="nps-scale">
+              <div class="nps-scale rating-pills" data-rating-group="nps">
                 <% for (let i = 0; i <= 10; i += 1) { %>
                   <label class="rating-pill w-100 text-center" data-nps-value="<%= i %>">
                     <input type="radio" name="nps_score" value="<%= i %>">
@@ -164,18 +164,6 @@
                 <% } %>
               </div>
               <small class="text-muted d-block mt-1">0 = Not at all likely, 10 = Extremely likely</small>
-              <div class="mt-2 rating-pills" data-rating-group="recommend">
-                <label class="rating-pill" data-value="yes">
-                  <input type="radio" name="recommend" value="yes">
-                  <span class="fw-semibold">Yes</span>
-                  <span class="text-muted small">I would recommend</span>
-                </label>
-                <label class="rating-pill" data-value="no">
-                  <input type="radio" name="recommend" value="no">
-                  <span class="fw-semibold">No</span>
-                  <span class="text-muted small">I wouldn’t recommend</span>
-                </label>
-              </div>
             </div>
           <% } %>
 
@@ -213,18 +201,15 @@
   document.addEventListener('DOMContentLoaded', function() {
     const pillGroups = document.querySelectorAll('.rating-pills');
     const issueSection = document.getElementById('issueSection');
-    const recommendInputs = document.querySelectorAll('input[name="recommend"]');
     const npsInputs = document.querySelectorAll('input[name="nps_score"]');
 
     function computeShowIssues() {
       // show if overall <=3, recommend no, or nps <=6
       const overallChecked = document.querySelector('input[name="rating_overall"]:checked');
       const overallVal = overallChecked ? parseInt(overallChecked.value, 10) : null;
-      const recommendVal = Array.from(recommendInputs).find((el) => el.checked)?.value;
       const npsVal = Array.from(npsInputs).find((el) => el.checked)?.value;
       return (
         (overallVal !== null && overallVal <= 3) ||
-        recommendVal === 'no' ||
         (npsVal !== undefined && npsVal !== null && npsVal !== '' && Number(npsVal) <= 6)
       );
     }
@@ -242,8 +227,17 @@
       }
     }
 
-    document.querySelectorAll('input[name="rating_overall"], input[name="recommend"], input[name="nps_score"]').forEach(function(el) {
-      el.addEventListener('change', syncIssueVisibility);
+    document.querySelectorAll('input[name="rating_overall"], input[name="nps_score"]').forEach(function(el) {
+      el.addEventListener('change', function(e) {
+        const input = e.target;
+        const group = input.closest('.rating-pills');
+        if (group) {
+          group.querySelectorAll('.rating-pill').forEach(function(pill) {
+            pill.classList.toggle('active', pill.querySelector('input')?.checked);
+          });
+        }
+        syncIssueVisibility();
+      });
     });
     syncIssueVisibility();
 
