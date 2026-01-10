@@ -493,14 +493,23 @@ router.post("/:functionId/proposal/apply-client", async (req, res) => {
       return res.status(400).json({ success: false, error: "No client selections to apply" });
     }
 
+    const { rows: itemRows } = await client.query(
+      `SELECT id, description, unit_price
+         FROM proposal_items
+        WHERE proposal_id = $1`,
+      [proposal.id]
+    );
+    const itemsById = new Map(itemRows.map((row) => [Number(row.id), row]));
+    const itemsByLabel = new Map(
+      itemRows.map((row) => [normalizeItemLabel(row.description || ""), row]).filter(([label]) => label)
+    );
+
     for (const sel of selections) {
       const itemId = Number(sel.id);
-      if (!Number.isInteger(itemId)) continue;
-      const { rows: itemRows } = await client.query(
-        `SELECT description, unit_price FROM proposal_items WHERE id = $1 AND proposal_id = $2 LIMIT 1`,
-        [itemId, proposal.id]
-      );
-      const row = itemRows[0];
+      let row = Number.isInteger(itemId) ? itemsById.get(itemId) : null;
+      if (!row && sel.description) {
+        row = itemsByLabel.get(normalizeItemLabel(sel.description || "")) || null;
+      }
       if (!row) continue;
       const baseLabel = stripAllMetadata(row.description || "");
       const meta = extractMetadata(row.description || "");
@@ -529,7 +538,7 @@ router.post("/:functionId/proposal/apply-client", async (req, res) => {
                 updated_by = COALESCE($4, updated_by),
                 updated_at = NOW()
           WHERE id = $3`,
-        [updatedDescription, newTotal, itemId, userId]
+        [updatedDescription, newTotal, row.id, userId]
       );
     }
 
@@ -618,10 +627,15 @@ async function recalcTotals(client, proposalId, userId = null) {
     const excluded = parseBoolean(meta.excluded);
     let linePrice = Number(row.unit_price) || 0;
     if (!excluded) {
-      const unitType = String(meta.unit_type || "").toLowerCase();
       const qty = Number(meta.qty) || 1;
-      if (!meta.base && isPerPersonUnit(unitType) && qty > 1) {
-        linePrice = linePrice <= qty ? linePrice * qty : linePrice;
+      const base = meta.base != null ? Number(meta.base) : null;
+      if (Number.isFinite(base) && qty > 0) {
+        linePrice = base * qty;
+      } else {
+        const unitType = String(meta.unit_type || "").toLowerCase();
+        if (isPerPersonUnit(unitType) && qty > 1) {
+          linePrice = linePrice <= qty ? linePrice * qty : linePrice;
+        }
       }
     } else {
       linePrice = 0;
@@ -725,6 +739,10 @@ function stripAllMetadata(description = "") {
     .trim();
 }
 
+function normalizeItemLabel(description = "") {
+  return stripAllMetadata(description || "").replace(/ x \d+$/i, "").trim();
+}
+
 function extractMetadata(description = "") {
   const meta = {};
   const regex = /\[([a-z_]+):([^\]]+)\]/gi;
@@ -814,11 +832,19 @@ async function fetchMenuMetaLookup(items = []) {
 // Apply client selection (include/qty) to a local items array for rendering
 function applySelectionsToItems(items = [], selections = []) {
   const selMap = new Map();
+  const selLabelMap = new Map();
   selections.forEach((s) => {
-    if (s && s.id) selMap.set(Number(s.id), s);
+    if (!s) return;
+    if (s.id) selMap.set(Number(s.id), s);
+    if (s.description) {
+      const label = normalizeItemLabel(s.description || "");
+      if (label && !selLabelMap.has(label)) selLabelMap.set(label, s);
+    }
   });
   return items.map((item) => {
-    const sel = selMap.get(Number(item.id));
+    const sel =
+      selMap.get(Number(item.id)) ||
+      selLabelMap.get(normalizeItemLabel(item.description || ""));
     if (!sel) return item;
     // Default to included unless client explicitly unchecked
     const include = sel.include === false ? false : true;
@@ -826,6 +852,7 @@ function applySelectionsToItems(items = [], selections = []) {
     // adjust description metadata for view only
     const baseLabel = stripAllMetadata(item.description || "");
     const meta = extractMetadata(item.description || "");
+    const originalQty = Number(meta.qty || 1) || 1;
     if (!include) {
       meta.excluded = true;
     } else {
@@ -837,8 +864,8 @@ function applySelectionsToItems(items = [], selections = []) {
       .map(([k, v]) => `[${k}:${v}]`)
       .join(" ");
     const updatedDesc = `${baseLabel}${metaString ? " " + metaString : ""}`.trim();
-    const originalQty = Number(meta.qty || 1) || 1;
-    const perUnit = originalQty > 0 ? (Number(item.unit_price) || 0) / originalQty : Number(item.unit_price) || 0;
+    const perUnit =
+      originalQty > 0 ? (Number(item.unit_price) || 0) / originalQty : Number(item.unit_price) || 0;
     return {
       ...item,
       description: updatedDesc,
@@ -1441,7 +1468,7 @@ async function rebuildMenu(client, proposalId, functionId, menuId, userId = null
 
   const adjustments = new Map();
   for (const row of existing.rows) {
-    const label = stripAllMetadata(row.description || "");
+    const label = normalizeItemLabel(row.description || "");
     if (!label) continue;
     adjustments.set(label, {
       unit_price: Number(row.unit_price) || 0,
@@ -1470,7 +1497,7 @@ async function rebuildMenu(client, proposalId, functionId, menuId, userId = null
   );
 
   for (const row of fresh.rows) {
-    const label = stripAllMetadata(row.description || "");
+    const label = normalizeItemLabel(row.description || "");
     if (!label) continue;
     const saved = adjustments.get(label);
     if (!saved) continue;
@@ -1488,13 +1515,23 @@ async function rebuildMenu(client, proposalId, functionId, menuId, userId = null
       .join(" ");
     const updatedDescription = `${label}${metaString ? " " + metaString : ""}`.trim();
 
+    const qty = Number(mergedMeta.qty) || 1;
+    const base = mergedMeta.base != null ? Number(mergedMeta.base) : null;
+    let nextUnitPrice = saved.unit_price;
+    if (Number.isFinite(base) && qty > 0) {
+      const baseTotal = base * qty;
+      if (Math.abs(nextUnitPrice - baseTotal) <= 0.01 || nextUnitPrice < base) {
+        nextUnitPrice = baseTotal;
+      }
+    }
+
     await client.query(
       `UPDATE proposal_items
           SET unit_price = $1,
               description = $2,
               client_selectable = COALESCE($4, client_selectable)
         WHERE id = $3`,
-      [saved.unit_price, updatedDescription, row.id, saved.client_selectable]
+      [nextUnitPrice, updatedDescription, row.id, saved.client_selectable]
     );
   }
 }
