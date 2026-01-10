@@ -125,8 +125,7 @@
     const previewBtn = builder.querySelector("[data-role='preview-btn']");
     const printBtn = builder.querySelector("[data-role='print-btn']");
     const saveBtn = builder.querySelector("[data-role='save-btn']");
-    const statusSelect = builder.querySelector("[data-role='proposal-status']");
-    const statusSaveBtn = builder.querySelector("[data-role='proposal-status-save']");
+    const clientLink = (builder.dataset.clientLink || "").trim();
     const noteLibrary = window.functionNotesLibrary || [];
     const noteMap = new Map(noteLibrary.map((note) => [String(note.id), note]));
 
@@ -177,14 +176,29 @@
     });
 
     previewBtn?.addEventListener("click", () => {
-      if (!proposalId) return;
-      window.open(`/functions/${functionId}/proposal/preview`, "_blank");
+      if (!clientLink) {
+        notify("Client link is not available yet.", "warning");
+        return;
+      }
+      window.open(clientLink, "_blank");
     });
 
     printBtn?.addEventListener("click", () => {
-      if (!proposalId) return;
-      const win = window.open(`/functions/${functionId}/proposal/preview`, "_blank");
-      win?.print?.();
+      if (!clientLink) {
+        notify("Client link is not available yet.", "warning");
+        return;
+      }
+      const win = window.open(clientLink, "_blank");
+      if (!win) return;
+      const attemptPrint = () => {
+        try {
+          win.print();
+        } catch (err) {
+          console.error(err);
+        }
+      };
+      win.addEventListener("load", attemptPrint);
+      setTimeout(attemptPrint, 1200);
     });
 
     saveBtn?.addEventListener("click", async () => {
@@ -219,31 +233,6 @@
         notify(err.message || "Failed to save proposal.", "danger");
       } finally {
         saveBtn.disabled = false;
-      }
-    });
-
-    statusSaveBtn?.addEventListener("click", async () => {
-      if (!statusSelect || !proposalId) {
-        notify("No proposal available to update.", "warning");
-        return;
-      }
-      const nextStatus = statusSelect.value;
-      if (!nextStatus) return;
-      statusSaveBtn.disabled = true;
-      try {
-        const res = await fetch(`/functions/${functionId}/proposal/status`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: nextStatus }),
-        });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || "Failed to update status.");
-        notify(`Proposal status updated to ${nextStatus}.`, "success");
-      } catch (err) {
-        console.error(err);
-        notify(err.message || "Failed to update proposal status.", "danger");
-      } finally {
-        statusSaveBtn.disabled = false;
       }
     });
 

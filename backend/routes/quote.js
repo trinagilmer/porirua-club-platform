@@ -542,7 +542,11 @@ router.post("/:functionId/proposal/apply-client", async (req, res) => {
         sel.include === undefined || sel.include === null ? true : Boolean(sel.include);
 
       meta.qty = newQty;
-      meta.excluded = includeFlag ? false : true;
+      if (!includeFlag) {
+        meta.excluded = true;
+      } else {
+        delete meta.excluded;
+      }
       const metaString = Object.entries(meta)
         .filter(([, val]) => val !== undefined && val !== null && val !== "")
         .map(([k, v]) => `[${k}:${v}]`)
@@ -1524,7 +1528,13 @@ async function rebuildMenu(client, proposalId, functionId, menuId, userId = null
     const mergedMeta = { ...baseMeta };
 
     if (saved.meta.qty !== undefined) mergedMeta.qty = saved.meta.qty;
-    if (saved.meta.excluded !== undefined) mergedMeta.excluded = saved.meta.excluded;
+    if (saved.meta.excluded !== undefined) {
+      if (parseBoolean(saved.meta.excluded)) {
+        mergedMeta.excluded = true;
+      } else {
+        delete mergedMeta.excluded;
+      }
+    }
     if (saved.meta.cost !== undefined) mergedMeta.cost = saved.meta.cost;
 
     const metaString = Object.entries(mergedMeta)
@@ -1626,13 +1636,33 @@ router.post("/:functionId/quote/resync-all", async (req, res) => {
 // ------------------------------------------------------
 router.post("/:proposalId/totals/update", async (req, res) => {
   const { proposalId } = req.params;
-  const { discount_amount = 0 } = req.body || {};
+  const {
+    discount_type = "amount",
+    discount_value = null,
+    discount_amount = null,
+  } = req.body || {};
 
   const userId = req.session.user?.id || null;
-  const discountValue = Math.max(0, Number(discount_amount) || 0);
+  const rawValue = Number(discount_value ?? discount_amount ?? 0) || 0;
+  const normalizedType = String(discount_type || "amount").toLowerCase();
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+
+    const {
+      rows: [totalsRow],
+    } = await client.query(
+      `SELECT subtotal FROM proposal_totals WHERE proposal_id = $1 LIMIT 1`,
+      [proposalId]
+    );
+    const subtotal = Number(totalsRow?.subtotal) || 0;
+    let discountValue =
+      normalizedType === "percent"
+        ? Math.max(0, rawValue) * (subtotal / 100)
+        : Math.max(0, rawValue);
+    if (subtotal > 0) {
+      discountValue = Math.min(discountValue, subtotal);
+    }
 
     await client.query(
       `UPDATE proposal_totals
@@ -1933,7 +1963,7 @@ router.get("/:functionId/proposal", async (req, res) => {
 
     const [proposalRes, templatesRes, termsRes, functionNotesRes, contactsRes, roomsRes] = await Promise.all([
       pool.query(
-        `SELECT id
+        `SELECT id, client_status, client_token
            FROM proposals
           WHERE function_id = $1
           ORDER BY created_at DESC
@@ -1972,7 +2002,8 @@ router.get("/:functionId/proposal", async (req, res) => {
       pool.query("SELECT id, name, capacity FROM rooms ORDER BY name ASC"),
     ]);
 
-    const proposalId = proposalRes.rows[0]?.id || null;
+    const proposalRow = proposalRes.rows[0] || null;
+    const proposalId = proposalRow?.id || null;
     const sessionSaved =
       (req.session.proposalBuilder && req.session.proposalBuilder[functionId]) ||
       { includeItemIds: [], includeContactIds: [], sections: [], terms: "", termIds: [], termIdsExplicit: false };
@@ -2078,6 +2109,10 @@ router.get("/:functionId/proposal", async (req, res) => {
       termsLibrary: termsRes.rows,
       functionNotes,
       totals,
+      clientStatus: proposalRow?.client_status || "draft",
+      clientLink: proposalRow
+        ? `${getAppUrl(req)}/functions/proposal/client/${proposalRow.client_token}`
+        : null,
     });
   } catch (err) {
     console.error("Error loading proposal builder:", err);

@@ -90,7 +90,25 @@
   </div>
 
   <div class="quote-stage">
+    <div id="quoteSaveBar" class="alert alert-warning d-none">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <strong>Changes not saved.</strong> Save to update totals and keep your edits.
+        </div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-sm btn-primary" id="saveQuoteChangesBtn">Save changes</button>
+        </div>
+      </div>
+    </div>
     <section class="quote-card flex-grow-1 d-flex flex-column">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div class="fw-semibold">Menus</div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary <%= proposals.length ? '' : 'disabled' %>" id="resyncQuoteBtn" <%= proposals.length ? '' : 'disabled' %>>
+            Refresh menu prices
+          </button>
+        </div>
+      </div>
       <div id="quoteMenuMount" class="d-flex flex-column gap-3"></div>
       <% if (!proposals.length) { %>
         <div class="alert alert-secondary mt-3 mb-0">No quotes created yet. Start by adding a menu.</div>
@@ -107,21 +125,15 @@
                 Apply client selections
               </button>
             <% } %>
-            <div class="dropdown">
-              <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                Actions
-              </button>
-              <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                <li><a class="dropdown-item" href="#" id="saveQuoteDropdown">Save</a></li>
-                <li><a class="dropdown-item <%= proposals.length ? '' : 'disabled' %>" href="#" id="editTotalsDropdown">Edit totals</a></li>
-                <li><a class="dropdown-item <%= proposals.length ? '' : 'disabled' %>" href="#" id="resyncQuoteDropdown">Refresh from menus</a></li>
-                <li><a class="dropdown-item <%= clientLink ? '' : 'disabled' %>" href="#" id="copyClientLinkDropdown" data-link="<%= clientLink || '' %>">Copy client link</a></li>
-                <li><a class="dropdown-item <%= proposals.length ? '' : 'disabled' %>" href="#" id="sendClientLinkDropdown">Email client link</a></li>
-                <li><a class="dropdown-item" href="#" id="openBuilderDropdown">Open builder</a></li>
-                <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item text-danger <%= proposals.length ? '' : 'disabled' %>" href="#" id="resetQuoteDropdown">Reset quote</a></li>
-              </ul>
-            </div>
+            <button class="btn btn-sm btn-outline-primary <%= proposals.length ? '' : 'disabled' %>" id="openPaymentDrawerBtn" <%= proposals.length ? '' : 'disabled' %>>
+              Record payment
+            </button>
+            <button class="btn btn-sm btn-outline-secondary <%= proposals.length ? '' : 'disabled' %>" id="openDiscountDrawerBtn" <%= proposals.length ? '' : 'disabled' %>>
+              Add discount
+            </button>
+            <button class="btn btn-sm btn-outline-danger <%= proposals.length ? '' : 'disabled' %>" id="resetQuoteBtn" <%= proposals.length ? '' : 'disabled' %>>
+              Reset quote
+            </button>
             <span class="badge bg-light text-dark text-uppercase align-self-center">
               Client: <%= clientStatus || 'draft' %>
             </span>
@@ -185,6 +197,9 @@
         contacts: linkedContacts || [],
         saved: proposalBuilderSaved,
         termsLibrary,
+        clientStatus,
+        clientLink,
+        showClientActions: true,
         builderHeading: 'Proposal Builder',
         builderDescription: 'Choose exactly what reaches the proposal before you preview or print it.'
       }) %>
@@ -206,7 +221,7 @@
     <div class="modal-content">
       <form id="sendClientEmailForm">
         <div class="modal-header">
-          <h5 class="modal-title" id="sendClientEmailModalLabel">Email client link</h5>
+          <h5 class="modal-title" id="sendClientEmailModalLabel">Email client proposal</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
@@ -306,7 +321,7 @@
 <!-- Totals offcanvas -->
 <div id="totalsDrawer" class="offcanvas offcanvas-end" tabindex="-1" aria-labelledby="totalsDrawerLabel">
   <div class="offcanvas-header">
-    <h5 id="totalsDrawerLabel" class="mb-0">Adjust Totals</h5>
+    <h5 id="totalsDrawerLabel" class="mb-0">Payments &amp; Discounts</h5>
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
   </div>
   <div class="offcanvas-body">
@@ -317,8 +332,14 @@
         <div class="form-text">Calculated automatically from menu selections.</div>
       </div>
       <div id="discountInputWrap" class="<%= discountValue > 0 ? '' : 'd-none' %>">
-        <label class="form-label">Discount ($)</label>
-        <input type="number" step="0.01" name="discount_amount" class="form-control" value="<%= Number(totals.discount_amount || 0).toFixed(2) %>">
+        <label class="form-label">Discount type</label>
+        <select class="form-select" name="discount_type">
+          <option value="amount" selected>Amount ($)</option>
+          <option value="percent">Percent (%)</option>
+        </select>
+        <div class="mt-2">
+          <input type="number" step="0.01" name="discount_value" class="form-control" value="<%= Number(totals.discount_amount || 0).toFixed(2) %>">
+        </div>
       </div>
       <button type="button" class="btn btn-outline-secondary" id="toggleDiscountBtn">
         <%= discountValue > 0 ? 'Edit discount' : 'Add discount' %>
@@ -443,6 +464,8 @@
     const discountInputWrap = document.getElementById('discountInputWrap');
     const resetQuoteBtn = document.getElementById('resetQuoteBtn');
     const saveQuoteBtn = document.getElementById('saveQuoteBtn');
+    const saveQuoteChangesBtn = document.getElementById('saveQuoteChangesBtn');
+    const quoteSaveBar = document.getElementById('quoteSaveBar');
     const categorySelect = document.getElementById('quoteCategorySelect');
     const menuSelect = document.getElementById('quoteMenuSelect');
     const addMenuBtn = document.getElementById('addMenuToQuoteBtn');
@@ -458,6 +481,42 @@
 
     window.quoteActiveItemIds = new Set();
     const itemLookup = new Map();
+    const dirtyItems = new Map();
+
+    function markDirty(itemId, payload) {
+      if (!itemId) return;
+      dirtyItems.set(itemId, payload);
+      if (quoteSaveBar) quoteSaveBar.classList.remove('d-none');
+    }
+
+    async function saveDirtyItems() {
+      if (!dirtyItems.size) return;
+      if (saveQuoteChangesBtn) saveQuoteChangesBtn.disabled = true;
+      try {
+        for (const [itemId, payload] of dirtyItems.entries()) {
+          const qty = payload.qty;
+          const priceEach = payload.priceEach;
+          const include = payload.include;
+          const costEach = payload.costEach;
+          const lineTotal = include ? qty * priceEach : 0;
+          let costTotal;
+          if (Number.isFinite(costEach)) {
+            costTotal = include ? costEach * qty : 0;
+          }
+          await saveQty(itemId, qty);
+          await saveLineTotal(itemId, lineTotal, include, costTotal, costEach);
+        }
+        dirtyItems.clear();
+        if (quoteSaveBar) quoteSaveBar.classList.add('d-none');
+        await fetchTotals();
+        quoteToast('Changes saved.', 'success');
+      } catch (err) {
+        console.error(err);
+        quoteToast(err.message || 'Failed to save changes.', 'danger');
+      } finally {
+        if (saveQuoteChangesBtn) saveQuoteChangesBtn.disabled = false;
+      }
+    }
 
     const formatCurrency = (value) => {
       const amount = Number(value) || 0;
@@ -479,6 +538,9 @@
       }
       const qtyMatch = text.match(/ x (\d+)/i);
       if (qtyMatch) meta.qty = Number(qtyMatch[1]);
+      if (meta.excluded !== undefined) {
+        meta.excluded = String(meta.excluded).toLowerCase() === 'true';
+      }
       if (/\[excluded:true\]/i.test(text)) meta.excluded = true;
       return meta;
     };
@@ -837,10 +899,8 @@
         window.quoteActiveItemIds.delete(itemId);
       }
 
-      await saveQty(itemId, qty);
-      await saveLineTotal(itemId, total, include, costTotal, costEach);
+      markDirty(itemId, { qty, priceEach, include, costEach });
       updateMenuSubtotal(row);
-      await fetchTotals();
     });
 
     mount.addEventListener('click', async (event) => {
@@ -910,23 +970,25 @@
       }
     });
 
+    const discountTypeSelect = discountForm?.querySelector('select[name="discount_type"]');
+    const discountValueInput = discountForm?.querySelector('input[name="discount_value"]');
+
     toggleDiscountBtn?.addEventListener('click', () => {
       discountInputWrap?.classList.remove('d-none');
-      const input = discountInputWrap?.querySelector('input[name="discount_amount"]');
-      if (input && input.value === '0.00') input.value = '';
-      input?.focus();
+      if (discountValueInput && discountValueInput.value === '0.00') discountValueInput.value = '';
+      discountValueInput?.focus();
     });
 
     discountForm?.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const formData = new FormData(discountForm);
       const proposalId = discountForm.dataset.proposalId;
-      const discountAmount = Number(formData.get('discount_amount') || 0);
+      const discountType = discountTypeSelect?.value || 'amount';
+      const discountValue = Number(discountValueInput?.value || 0);
       try {
         const res = await fetch(`/functions/${proposalId}/totals/update`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ discount_amount: discountAmount }),
+          body: JSON.stringify({ discount_type: discountType, discount_value: discountValue }),
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Failed to update discount');
@@ -1007,7 +1069,11 @@
     });
 
     saveQuoteBtn?.addEventListener('click', () => {
-      window.location.reload();
+      saveDirtyItems().then(() => window.location.reload());
+    });
+    saveQuoteChangesBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      saveDirtyItems();
     });
 
     createMenuBtn?.addEventListener('click', () => {
@@ -1063,6 +1129,8 @@
 
     const sendClientLinkBtn = document.getElementById('sendClientLinkBtn');
     const copyClientLinkBtn = document.getElementById('copyClientLinkBtn');
+    const openPaymentDrawerBtn = document.getElementById('openPaymentDrawerBtn');
+    const openDiscountDrawerBtn = document.getElementById('openDiscountDrawerBtn');
     const sendClientEmailModalEl = document.getElementById('sendClientEmailModal');
     const sendClientEmailForm = document.getElementById('sendClientEmailForm');
     const clientEmailSelect = document.getElementById('clientEmailSelect');
@@ -1168,36 +1236,35 @@
       }
     });
 
-    // Dropdown mirrors for actions
-    const sendClientLinkDropdown = document.getElementById('sendClientLinkDropdown');
-    const copyClientLinkDropdown = document.getElementById('copyClientLinkDropdown');
-    const saveQuoteDropdown = document.getElementById('saveQuoteDropdown');
-    const editTotalsDropdown = document.getElementById('editTotalsDropdown');
-    const resyncQuoteDropdown = document.getElementById('resyncQuoteDropdown');
-    const resetQuoteDropdown = document.getElementById('resetQuoteDropdown');
-    const openBuilderDropdown = document.getElementById('openBuilderDropdown');
-
-    sendClientLinkDropdown?.addEventListener('click', (e) => { e.preventDefault(); triggerSendClient(); });
-    copyClientLinkDropdown?.addEventListener('click', async (e) => {
-      e.preventDefault();
-      const link = (copyClientLinkBtn?.dataset?.link || copyClientLinkDropdown?.dataset?.link || '').trim();
-      if (!link) return;
-      try {
-        await navigator.clipboard.writeText(link);
-        quoteToast('Client link copied to clipboard.', 'success');
-      } catch (err) {
-        console.error(err);
-        quoteToast('Failed to copy link.', 'danger');
+    const totalsDrawerEl = document.getElementById('totalsDrawer');
+    const openTotalsDrawer = (mode) => {
+      if (!totalsDrawerEl) return;
+      const drawer = bootstrap.Offcanvas.getOrCreateInstance(totalsDrawerEl);
+      drawer.show();
+      if (mode === 'discount') {
+        discountInputWrap?.classList.remove('d-none');
+        discountValueInput?.focus();
       }
+      if (mode === 'payment') {
+        paymentForm?.querySelector('input[name="payment_type"]')?.focus();
+      }
+    };
+
+    openPaymentDrawerBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      openTotalsDrawer('payment');
     });
-    saveQuoteDropdown?.addEventListener('click', (e) => { e.preventDefault(); window.location.reload(); });
+    openDiscountDrawerBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      openTotalsDrawer('discount');
+    });
 
     const resyncQuoteBtn = document.getElementById('resyncQuoteBtn');
-    resyncQuoteDropdown?.addEventListener('click', async (e) => {
+    resyncQuoteBtn?.addEventListener('click', async (e) => {
       e.preventDefault();
       if (!fnId) return;
       if (!confirm('Refresh prices from current menus? This will overwrite manual price edits on this quote.')) return;
-      if (resyncQuoteBtn) resyncQuoteBtn.disabled = true;
+      resyncQuoteBtn.disabled = true;
       try {
         const res = await fetch(`/functions/${fnId}/quote/resync-all`, { method: 'POST' });
         const data = await res.json();
@@ -1207,21 +1274,8 @@
         console.error(err);
         quoteToast(err.message || 'Refresh failed.', 'danger');
       } finally {
-        if (resyncQuoteBtn) resyncQuoteBtn.disabled = false;
+        resyncQuoteBtn.disabled = false;
       }
-    });
-
-    editTotalsDropdown?.addEventListener('click', (e) => {
-      e.preventDefault();
-      const drawer = new bootstrap.Offcanvas(document.getElementById('totalsDrawer'));
-      drawer.show();
-    });
-
-    resetQuoteDropdown?.addEventListener('click', (e) => { e.preventDefault(); handleResetQuote(); });
-    openBuilderDropdown?.addEventListener('click', (e) => {
-      e.preventDefault();
-      const btn = document.querySelector('[data-bs-target="#quoteProposalBuilderCollapse"]');
-      if (btn) btn.click();
     });
     async function handleResetQuote() {
       if (!fnId) return;
