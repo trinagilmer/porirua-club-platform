@@ -2061,6 +2061,10 @@ textarea {
     margin: 2em;
     font-size: 0.9rem;
   }
+  .proposal-terms__body table th,
+  .proposal-terms__body table td {
+    font-size: inherit;
+  }
 }
 @media print {
   .proposal-print {
