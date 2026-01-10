@@ -33,6 +33,7 @@ const {
   DEFAULT_RESTAURANT_EMAIL_TEMPLATES,
   getRestaurantSettings,
 } = require("../services/restaurantSettings");
+const { ensureRestaurantServiceBookingLimitColumn } = require("../services/restaurantServiceSchema");
 
 const CALENDAR_SLOT_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
 const DEFAULT_CALENDAR_SLOT = 30;
@@ -1935,6 +1936,7 @@ router.get("/calendar", ensurePrivileged, async (req, res) => {
 ========================================================= */
 router.post("/restaurant/services/add", ensurePrivileged, async (req, res) => {
   try {
+    await ensureRestaurantServiceBookingLimitColumn();
     const {
       name,
       day_of_week,
@@ -1944,6 +1946,7 @@ router.post("/restaurant/services/add", ensurePrivileged, async (req, res) => {
       turn_minutes,
       max_covers_per_slot,
       max_online_covers,
+      max_online_party_size,
       active,
     } = req.body;
 
@@ -1964,13 +1967,15 @@ router.post("/restaurant/services/add", ensurePrivileged, async (req, res) => {
     const turn = parseOptionalInteger(turn_minutes) || DEFAULT_SERVICE_TURN;
     const maxCovers = parseOptionalInteger(max_covers_per_slot);
     const maxOnline = parseOptionalInteger(max_online_covers);
+    const maxOnlinePartySize = parseOptionalInteger(max_online_party_size);
 
     await pool.query(
       `
       INSERT INTO restaurant_services
-        (name, day_of_week, start_time, end_time, slot_minutes, turn_minutes, max_covers_per_slot, max_online_covers, active,
+        (name, day_of_week, start_time, end_time, slot_minutes, turn_minutes, max_covers_per_slot, max_online_covers,
+         max_online_party_size, active,
          special_menu_label, special_menu_price, special_menu_start, special_menu_end, special_menu_only)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);
       `,
       [
         name.trim(),
@@ -1981,6 +1986,7 @@ router.post("/restaurant/services/add", ensurePrivileged, async (req, res) => {
         turn,
         maxCovers,
         maxOnline,
+        maxOnlinePartySize,
         parseBooleanField(active),
         req.body.special_menu_label?.trim() || null,
         req.body.special_menu_price ? parseFloat(req.body.special_menu_price) : null,
@@ -2003,6 +2009,7 @@ router.post("/restaurant/services/add", ensurePrivileged, async (req, res) => {
 
 router.post("/restaurant/services/edit", ensurePrivileged, async (req, res) => {
   try {
+    await ensureRestaurantServiceBookingLimitColumn();
     const {
       id,
       name,
@@ -2013,6 +2020,7 @@ router.post("/restaurant/services/edit", ensurePrivileged, async (req, res) => {
       turn_minutes,
       max_covers_per_slot,
       max_online_covers,
+      max_online_party_size,
       active,
     } = req.body;
 
@@ -2043,14 +2051,15 @@ router.post("/restaurant/services/edit", ensurePrivileged, async (req, res) => {
              turn_minutes = $6,
              max_covers_per_slot = $7,
              max_online_covers = $8,
-             active = $9,
-             special_menu_label = $10,
-             special_menu_price = $11,
-             special_menu_start = $12,
-             special_menu_end = $13,
-             special_menu_only = $14,
+             max_online_party_size = $9,
+             active = $10,
+             special_menu_label = $11,
+             special_menu_price = $12,
+             special_menu_start = $13,
+             special_menu_end = $14,
+             special_menu_only = $15,
              updated_at = NOW()
-       WHERE id = $15;
+       WHERE id = $16;
       `,
       [
         name.trim(),
@@ -2061,6 +2070,7 @@ router.post("/restaurant/services/edit", ensurePrivileged, async (req, res) => {
         turn,
         parseOptionalInteger(max_covers_per_slot),
         parseOptionalInteger(max_online_covers),
+        parseOptionalInteger(max_online_party_size),
         parseBooleanField(active),
         req.body.special_menu_label?.trim() || null,
         req.body.special_menu_price ? parseFloat(req.body.special_menu_price) : null,
@@ -2401,10 +2411,11 @@ router.get("/restaurant", ensurePrivileged, async (req, res) => {
 
 router.get("/restaurant/services", ensurePrivileged, async (req, res) => {
   try {
+    await ensureRestaurantServiceBookingLimitColumn();
     const { rows: services } = await pool.query(
       `
       SELECT id, name, day_of_week, start_time, end_time, slot_minutes, turn_minutes,
-             max_covers_per_slot, max_online_covers, active, created_at, updated_at,
+             max_covers_per_slot, max_online_covers, max_online_party_size, active, created_at, updated_at,
              special_menu_label, special_menu_price, special_menu_start, special_menu_end, special_menu_only
         FROM restaurant_services
        ORDER BY day_of_week, start_time;

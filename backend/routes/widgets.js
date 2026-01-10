@@ -1,5 +1,6 @@
 const express = require("express");
 const { pool } = require("../db");
+const { ensureRestaurantServiceBookingLimitColumn } = require("../services/restaurantServiceSchema");
 
 const router = express.Router();
 
@@ -186,9 +187,10 @@ router.get("/widgets/pc-entertainment.js", async (req, res) => {
 
 router.get("/api/widgets/pc-bookings/services", async (req, res) => {
   try {
+    await ensureRestaurantServiceBookingLimitColumn();
     const { rows } = await pool.query(
       `SELECT id, name, day_of_week, start_time, end_time, slot_minutes, turn_minutes,
-              max_covers_per_slot, max_online_covers
+              max_covers_per_slot, max_online_covers, max_online_party_size
          FROM restaurant_services
         WHERE active = TRUE
         ORDER BY day_of_week, start_time;`

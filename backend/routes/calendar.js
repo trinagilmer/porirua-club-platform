@@ -9,6 +9,11 @@ const {
   DEFAULT_RESTAURANT_EMAIL_TEMPLATES,
   getRestaurantSettings,
 } = require("../services/restaurantSettings");
+const { ensureRestaurantServiceBookingLimitColumn } = require("../services/restaurantServiceSchema");
+const {
+  exceedsOnlinePartySize,
+  isCapacityError,
+} = require("../utils/restaurantBookingRules");
 
 const router = express.Router();
 
@@ -34,6 +39,8 @@ const RESTAURANT_STATUS_COLOURS = {
 const RESTAURANT_STATUSES = new Set(["pending", "confirmed", "seated", "completed", "cancelled"]);
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
+const CAPACITY_CONTACT_MESSAGE =
+  "please contact the restaurant to complete this booking email:  chef@poriruaclub.co.nz or phone 04 237 6143 ext 2";
 
 function formatDateNZ(value) {
   if (!value) return "";
@@ -225,11 +232,12 @@ function isSpecialMenuActive(service = {}, bookingDate = null) {
 }
 
 async function fetchServiceById(serviceId, db = pool) {
+  await ensureRestaurantServiceBookingLimitColumn(db);
   const { rows } = await db.query(
     `
     SELECT id, name, day_of_week, start_time, end_time,
            slot_minutes, turn_minutes,
-           max_covers_per_slot, max_online_covers,
+           max_covers_per_slot, max_online_covers, max_online_party_size,
            special_menu_label, special_menu_price, special_menu_start, special_menu_end, special_menu_only
       FROM restaurant_services
      WHERE id = $1 AND active = TRUE
@@ -241,6 +249,7 @@ async function fetchServiceById(serviceId, db = pool) {
 }
 
 async function findServiceForSlot(bookingDate, bookingTime, explicitServiceId, db = pool) {
+  await ensureRestaurantServiceBookingLimitColumn(db);
   const targetDate = normaliseDate(bookingDate);
   if (!targetDate) return null;
 
@@ -263,7 +272,7 @@ async function findServiceForSlot(bookingDate, bookingTime, explicitServiceId, d
     `
     SELECT id, name, start_time, end_time,
            slot_minutes, turn_minutes,
-           max_covers_per_slot, max_online_covers,
+           max_covers_per_slot, max_online_covers, max_online_party_size,
            special_menu_label, special_menu_price, special_menu_start, special_menu_end, special_menu_only
       FROM restaurant_services
      WHERE day_of_week = $1
@@ -438,6 +447,12 @@ async function createRestaurantBooking(payload, options = {}) {
   const service = await findServiceForSlot(bookingDate, bookingTime, explicitServiceId, db);
   if (!service) {
     throw new Error("No service matches the requested time.");
+  }
+
+  if (exceedsOnlinePartySize(service, size, payload.channel)) {
+    const error = new Error("Online booking exceeds maximum diners per booking.");
+    error.code = "MAX_ONLINE_PARTY_SIZE";
+    throw error;
   }
 
   const contactId =
@@ -955,8 +970,10 @@ router.post("/restaurant/bookings", async (req, res) => {
 router.get("/restaurant/book", async (req, res) => {
   try {
     const embed = req.query.embed === "1";
+    await ensureRestaurantServiceBookingLimitColumn();
     const { rows: services } = await pool.query(
       `SELECT id, name, day_of_week, start_time, end_time,
+              max_online_party_size,
               special_menu_label, special_menu_price, special_menu_start, special_menu_end, special_menu_only
          FROM restaurant_services
         WHERE active = TRUE
@@ -977,8 +994,8 @@ router.get("/restaurant/book", async (req, res) => {
     };
     const decodedError = safeDecode(rawError);
     const normalizedError =
-      decodedError && decodedError.toLowerCase().includes("capacity")
-        ? "Please contact the Eastwood restaurant to make this booking instead."
+      decodedError && isCapacityError({ message: decodedError })
+        ? CAPACITY_CONTACT_MESSAGE
         : decodedError;
     res.render("pages/calendar/restaurant-book", {
       layout: embed ? false : "layouts/main",
@@ -1018,13 +1035,8 @@ router.post("/restaurant/book", async (req, res) => {
   } catch (err) {
     console.error("[Restaurant Calendar] Public booking failed:", err);
     const embed = req.query.embed === "1";
-    const capacityMessage =
-      (err?.message || "").toLowerCase().includes("capacity") ||
-      (err?.message || "").toLowerCase().includes("allocation") ||
-      err.message === "No capacity remaining for this slot." ||
-      err.message === "Online allocation for this slot is full.";
-    const message = capacityMessage
-      ? "Please contact the Eastwood restaurant to make this booking instead."
+    const message = isCapacityError(err)
+      ? CAPACITY_CONTACT_MESSAGE
       : err.message || "Unable to submit booking";
     if (req.session) {
       req.session.restaurantBookingDraft = {
@@ -1043,8 +1055,10 @@ router.post("/restaurant/book", async (req, res) => {
       };
     }
     try {
+      await ensureRestaurantServiceBookingLimitColumn();
       const { rows: services } = await pool.query(
         `SELECT id, name, day_of_week, start_time, end_time,
+                max_online_party_size,
                 special_menu_label, special_menu_price, special_menu_start, special_menu_end, special_menu_only
            FROM restaurant_services
           WHERE active = TRUE

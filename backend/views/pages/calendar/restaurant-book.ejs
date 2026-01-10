@@ -160,6 +160,7 @@
         <div>
           <label class="form-label">Guests</label>
           <input type="number" name="size" class="form-control" min="1" required value="<%= formValues.size || '' %>">
+          <small class="text-muted" id="guestLimitHint"></small>
         </div>
         <% const specialServices = serviceList.filter(s => s.special_menu_label); %>
         <div>
@@ -204,6 +205,9 @@
     const dateLabelEl = document.getElementById("selectedDateLabel");
     const hiddenDate = document.getElementById("hiddenBookingDate");
     const hiddenTime = document.getElementById("hiddenBookingTime");
+    const guestInput = document.querySelector('input[name="size"]');
+    const guestHint = document.getElementById("guestLimitHint");
+    const serviceSelect = document.querySelector('select[name="service_id"]');
 
     const toMinutes = (t) => {
       if (!t) return 0;
@@ -213,6 +217,46 @@
 
     const pad = (n) => String(n).padStart(2, "0");
     const timeFromMinutes = (m) => `${pad(Math.floor(m/60))}:${pad(m%60)}`;
+
+    const resolveService = (dateStr, timeStr) => {
+      if (serviceSelect?.value) {
+        return services.find((s) => String(s.id) === String(serviceSelect.value)) || null;
+      }
+      if (!dateStr || !timeStr) return null;
+      const dt = new Date(dateStr + "T00:00:00");
+      if (Number.isNaN(dt.getTime())) return null;
+      const dow = dt.getDay();
+      const candidates = services
+        .filter((s) => Number(s.day_of_week) === dow)
+        .sort((a, b) => String(a.start_time || "").localeCompare(String(b.start_time || "")));
+      const timeMinutes = toMinutes(timeStr);
+      return (
+        candidates.find((s) => {
+          const startM = toMinutes((s.start_time || "00:00").slice(0, 5));
+          const endM = toMinutes((s.end_time || "23:59").slice(0, 5));
+          return timeMinutes >= startM && timeMinutes <= endM;
+        }) || null
+      );
+    };
+
+    const updateGuestLimit = () => {
+      const service = resolveService(hiddenDate.value, hiddenTime.value);
+      const maxParty = parseInt(service?.max_online_party_size, 10);
+      if (guestInput) {
+        if (Number.isInteger(maxParty) && maxParty > 0) {
+          guestInput.max = String(maxParty);
+          if (parseInt(guestInput.value, 10) > maxParty) {
+            guestInput.value = String(maxParty);
+          }
+        } else {
+          guestInput.removeAttribute("max");
+        }
+      }
+      if (guestHint) {
+        guestHint.textContent =
+          Number.isInteger(maxParty) && maxParty > 0 ? `Max online booking size: ${maxParty}` : "";
+      }
+    };
 
     const slotsForDate = (dateStr) => {
       const dt = new Date(dateStr + "T00:00:00");
@@ -257,12 +301,14 @@
         timeSelect.value = slots[0];
       }
       timeHelper.textContent = "Select a time that suits you.";
+      updateGuestLimit();
     };
 
     const setDate = (dateStr) => {
       hiddenDate.value = dateStr;
       dateLabelEl.textContent = `Selected: ${dateStr}`;
       renderSlots(dateStr);
+      updateGuestLimit();
     };
 
     const firstAvailableDate = (() => {
@@ -339,7 +385,9 @@
 
     timeSelect?.addEventListener("change", (e) => {
       hiddenTime.value = e.target.value || "";
+      updateGuestLimit();
     });
+    serviceSelect?.addEventListener("change", updateGuestLimit);
 
     // On submit, ensure both date/time present
     const form = document.getElementById("restaurantPublicForm");

@@ -73,6 +73,10 @@
                   <label class="form-label">Max Online Covers</label>
                   <input type="number" name="max_online_covers" class="form-control" value="<%= service.max_online_covers ?? '' %>" min="1">
                 </div>
+                <div class="col-md-3">
+                  <label class="form-label">Max Online Diners / Booking</label>
+                  <input type="number" name="max_online_party_size" class="form-control" value="<%= service.max_online_party_size ?? '' %>" min="1">
+                </div>
                 <div class="col-md-4">
                   <label class="form-label">Special menu label</label>
                   <input type="text" name="special_menu_label" class="form-control" value="<%= service.special_menu_label || '' %>" placeholder="e.g. Buffet $30, Bar snacks">
@@ -148,6 +152,10 @@
         <div class="col-md-3">
           <label class="form-label">Max Online</label>
           <input type="number" name="max_online_covers" class="form-control" min="1">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Max Online Diners / Booking</label>
+          <input type="number" name="max_online_party_size" class="form-control" min="1">
         </div>
         <div class="col-md-4">
           <label class="form-label">Special menu label</label>
