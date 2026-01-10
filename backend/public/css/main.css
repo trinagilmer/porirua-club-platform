@@ -2066,6 +2066,12 @@ textarea {
     font-size: 0.95rem;
     font-family: inherit;
   }
+  .proposal-terms__body .MsoNormal,
+  .proposal-terms__body .MsoNormal span {
+    font-size: 0.95rem;
+    line-height: 1.3;
+    font-family: "Inter", "Segoe UI", Roboto, sans-serif;
+  }
 }
 @media print {
   .proposal-print {
