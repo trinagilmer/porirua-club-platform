@@ -185,7 +185,7 @@
       <div class="proposal-builder-toggle">
         <div>
           <p class="fw-semibold mb-1">Proposal Builder</p>
-          <p class="text-muted small mb-0">Open the builder to choose which menus, notes, contacts, and terms flow through to the customer proposal.</p>
+          <p class="text-muted small mb-0">Choose which notes, contacts, and terms flow through to the customer proposal.</p>
         </div>
       </div>
       <div class="collapse show mt-3" id="quoteProposalBuilderCollapse">
@@ -200,8 +200,8 @@
         clientStatus,
         clientLink,
         showClientActions: true,
-        builderHeading: 'Proposal Builder',
-        builderDescription: 'Choose exactly what reaches the proposal before you preview or print it.'
+        builderHeading: '',
+        builderDescription: ''
       }) %>
     </div>
   </section>
@@ -489,7 +489,40 @@
       if (quoteSaveBar) quoteSaveBar.classList.remove('d-none');
     }
 
+    function seedDirtyFromDom() {
+      if (!mount) return;
+      mount.querySelectorAll('tbody tr').forEach((row) => {
+        const itemId = Number(row.dataset.id);
+        if (!itemId) return;
+        const item = itemLookup.get(itemId);
+        if (!item) return;
+        const include = row.querySelector('.include-toggle')?.checked ?? true;
+        const qtyInput = row.querySelector('.qty-input');
+        const priceInput = row.querySelector('.price-input');
+        const costInput = row.querySelector('.cost-input');
+        let qty = Number(qtyInput?.value || 0);
+        if (!Number.isFinite(qty) || qty <= 0) {
+          const placeholder = Number(qtyInput?.placeholder || 0);
+          qty = placeholder > 0 ? placeholder : 1;
+        }
+        const priceEach = Number(priceInput?.value || 0);
+        const costEach = costInput ? Number(costInput.value || 0) : undefined;
+        const storedQty = Number(item.qty ?? 1);
+        const storedPriceEach = Number(item.priceEach ?? item.price ?? 0);
+        const storedInclude = !item.excluded;
+        const qtyChanged = storedQty !== qty;
+        const priceChanged = Math.abs(storedPriceEach - priceEach) > 0.001;
+        const includeChanged = storedInclude !== include;
+        if (qtyChanged || priceChanged || includeChanged) {
+          markDirty(itemId, { qty, priceEach, include, costEach });
+        }
+      });
+    }
+
     async function saveDirtyItems() {
+      if (!dirtyItems.size) {
+        seedDirtyFromDom();
+      }
       if (!dirtyItems.size) return;
       if (saveQuoteChangesBtn) saveQuoteChangesBtn.disabled = true;
       try {
@@ -504,10 +537,11 @@
             costTotal = include ? costEach * qty : 0;
           }
           await saveQty(itemId, qty);
-          await saveLineTotal(itemId, lineTotal, include, costTotal, costEach);
+          await saveLineTotal(itemId, priceEach, include, costTotal, costEach);
         }
         dirtyItems.clear();
         if (quoteSaveBar) quoteSaveBar.classList.add('d-none');
+        updateTotalsFromMenus();
         await fetchTotals();
         quoteToast('Changes saved.', 'success');
       } catch (err) {
@@ -523,6 +557,21 @@
       const sign = amount < 0 ? '-' : '';
       return `${sign}$${Math.abs(amount).toFixed(2)}`;
     };
+
+    function updateTotalsFromMenus() {
+      const subtotalEls = document.querySelectorAll('.menu-subtotal');
+      let subtotal = 0;
+      subtotalEls.forEach((el) => {
+        const value = Number((el.textContent || '').replace(/[^0-9.-]/g, '')) || 0;
+        subtotal += value;
+      });
+      const totalPayments = Number((document.getElementById('quoteTotalPayments')?.textContent || '').replace(/[^0-9.-]/g, '')) || 0;
+      const remaining = subtotal - totalPayments;
+      const subtotalEl = document.getElementById('quoteSubtotal');
+      const remainingEl = document.getElementById('quoteRemaining');
+      if (subtotalEl) subtotalEl.textContent = formatCurrency(subtotal);
+      if (remainingEl) remainingEl.textContent = formatCurrency(remaining);
+    }
 
     function updateModalActions() {
       const hasCategory = Boolean(categorySelect?.value);
@@ -541,7 +590,11 @@
       if (meta.excluded !== undefined) {
         meta.excluded = String(meta.excluded).toLowerCase() === 'true';
       }
+      if (meta.hide_proposal !== undefined) {
+        meta.hide_proposal = String(meta.hide_proposal).toLowerCase() === 'true';
+      }
       if (/\[excluded:true\]/i.test(text)) meta.excluded = true;
+      if (/\[hide_proposal:true\]/i.test(text)) meta.hide_proposal = true;
       return meta;
     };
 
@@ -587,6 +640,7 @@
             title: menuTitle,
             basePrice: price,
             baseExcluded: Boolean(meta.excluded),
+            baseHidden: Boolean(meta.hide_proposal),
             baseCost,
             clientSelectable: clientSelectableFlag,
             clientAllowQty: clientAllowQtyFlag,
@@ -668,7 +722,7 @@
     async function fetchTotals() {
       if (!proposalId) return;
       try {
-        const res = await fetch(`/functions/${proposalId}/totals`);
+        const res = await fetch(`/functions/${proposalId}/totals?ts=${Date.now()}`, { cache: 'no-store' });
         const payload = await res.json();
         if (payload.success && payload.data) {
           const t = payload.data;
@@ -686,8 +740,8 @@
       }
     }
 
-    async function saveLineTotal(itemId, lineTotal, include, costTotal, costEach) {
-      const payload = { unit_price: lineTotal, include };
+    async function saveLineTotal(itemId, unitPrice, include, costTotal, costEach) {
+      const payload = { unit_price: unitPrice, include };
       if (costTotal !== undefined) payload.cost_total = costTotal;
       if (costEach !== undefined) payload.cost_each = costEach;
       await fetch(`/functions/proposal-items/${itemId}/price`, {
@@ -732,7 +786,7 @@
                       <div class="fw-semibold">${menu.title}</div>
                       <div class="text-muted small">Menu ID: ${menu.menuId || 'n/a'}</div>
                       <div class="d-flex flex-wrap gap-2 mt-1">
-                        <span class="badge ${menu.baseExcluded ? 'quote-badge-hide' : 'quote-badge-show'}">${menu.baseExcluded ? 'Hidden from proposal' : 'Shown in proposal'}</span>
+                        <span class="badge ${menu.baseHidden ? 'quote-badge-hide' : 'quote-badge-show'}">${menu.baseHidden ? 'Hidden from proposal' : 'Shown in proposal'}</span>
                         <span class="badge ${menu.clientSelectable ? 'quote-badge-client' : 'quote-badge-locked'}">${menu.clientSelectable ? 'Client can choose' : 'Client view locked'}</span>
                       </div>
                     </div>
@@ -744,7 +798,7 @@
                         <li><a class="dropdown-item menu-edit" href="#" data-menu-id="${menu.menuId || ''}">Edit menu</a></li>
                         <li><a class="dropdown-item menu-resync" href="#" data-menu-id="${menu.menuId || ''}">Resync prices</a></li>
                         <li><a class="dropdown-item menu-client-select" href="#" data-menu-id="${menu.menuId || ''}" data-selectable="${menu.clientSelectable ? 'true' : 'false'}">${menu.clientSelectable ? 'Lock client view' : 'Allow client selection'}</a></li>
-                        <li><a class="dropdown-item menu-hide-proposal" href="#" data-menu-id="${menu.menuId || ''}" data-hidden="${menu.baseExcluded ? 'true' : 'false'}">${menu.baseExcluded ? 'Show in proposal' : 'Hide from proposal'}</a></li>
+                        <li><a class="dropdown-item menu-hide-proposal" href="#" data-menu-id="${menu.menuId || ''}" data-hidden="${menu.baseHidden ? 'true' : 'false'}">${menu.baseHidden ? 'Show in proposal' : 'Hide from proposal'}</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item text-danger menu-remove" href="#" data-menu-id="${menu.menuId || ''}">Remove menu</a></li>
                       </ul>
@@ -1356,11 +1410,13 @@
         const currentlyHidden = hideBtn.dataset.hidden === 'true';
         const desiredHide = !currentlyHidden;
         hideBtn.disabled = true;
+        const menuCard = hideBtn.closest('.list-group-item');
+        const baseInclude = menuCard?.querySelector('.quote-menu-base-row .include-toggle')?.checked ?? true;
         try {
           const res = await fetch(`/functions/${fnId}/quote/menu/proposal-toggle`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ menu_id: menuId, hide: desiredHide }),
+            body: JSON.stringify({ menu_id: menuId, hide: desiredHide, include_base: baseInclude }),
           });
           const data = await res.json();
           if (!data.success) throw new Error(data.error || 'Failed to update proposal visibility');

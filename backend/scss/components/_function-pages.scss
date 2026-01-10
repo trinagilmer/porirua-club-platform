@@ -1317,6 +1317,15 @@
     page: terms-page;
     margin: 0;
   }
+  .proposal-summary-grid {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 1rem;
+  }
+  .proposal-summary-grid > * {
+    flex: 1 1 0;
+    max-width: 50%;
+  }
 }
 
 @media print {

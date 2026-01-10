@@ -996,7 +996,6 @@ async function addMenuBundle(client, functionId, proposalId, menuId, userId = nu
     ) {
       qty = Math.max(attendees, 1);
     }
-    const total = basePrice * qty;
     const totalCost = baseCost * qty;
     const optionLabel = choice.option_name || choice.choice_name;
     let description = `Choice: ${optionLabel || choice.choice_name}`;
@@ -1013,7 +1012,7 @@ async function addMenuBundle(client, functionId, proposalId, menuId, userId = nu
     await client.query(
       `INSERT INTO proposal_items (proposal_id, description, unit_price, updated_by)
        VALUES ($1, $2, $3, $4)`,
-      [proposalId, description, total, userId]
+      [proposalId, description, basePrice, userId]
     );
   }
 
@@ -1049,7 +1048,6 @@ async function addMenuBundle(client, functionId, proposalId, menuId, userId = nu
       const d = Number(addon.default_quantity);
       qty = Number.isFinite(d) && d > 0 ? d : 1;
     }
-    const total = basePrice * qty;
     const totalCost = baseCost * qty;
     let description = `Add-on: ${addon.name}`;
     if (qty > 1) description += ` x ${qty}`;
@@ -1065,7 +1063,7 @@ async function addMenuBundle(client, functionId, proposalId, menuId, userId = nu
     await client.query(
       `INSERT INTO proposal_items (proposal_id, description, unit_price, updated_by)
        VALUES ($1, $2, $3, $4)`,
-      [proposalId, description, total, userId]
+      [proposalId, description, basePrice, userId]
     );
   }
 
@@ -1799,6 +1797,20 @@ router.post("/proposal-items/:id/price", async (req, res) => {
     const numericUnitPrice = Number(unit_price);
     const storedUnitPrice = parseBoolean(include) && Number.isFinite(numericUnitPrice) ? numericUnitPrice : 0;
 
+    let updatedDescription = description;
+    const meta = extractMetadata(description);
+    if (parseBoolean(include)) {
+      if (Number.isFinite(numericUnitPrice) && meta.base !== undefined) {
+        meta.base = numericUnitPrice;
+      }
+      const metaString = Object.entries(meta)
+        .filter(([, value]) => value !== undefined && value !== null && value !== "")
+        .map(([key, value]) => `[${key}:${value}]`)
+        .join(" ");
+      const label = stripAllMetadata(description || "");
+      updatedDescription = `${label}${metaString ? " " + metaString : ""}`.trim();
+    }
+
     await client.query(
       `UPDATE proposal_items
           SET unit_price = $1,
@@ -1806,10 +1818,10 @@ router.post("/proposal-items/:id/price", async (req, res) => {
               updated_at = NOW(),
               updated_by = COALESCE($4, updated_by)
         WHERE id = $3`,
-      [storedUnitPrice, description, id, userId]
+      [storedUnitPrice, updatedDescription, id, userId]
     );
-    const meta = extractMetadata(description);
-    if (meta.menu_id) {
+    const metaFinal = extractMetadata(updatedDescription);
+    if (metaFinal.menu_id) {
       const {
         rows: fnRows,
       } = await client.query(
@@ -1821,7 +1833,7 @@ router.post("/proposal-items/:id/price", async (req, res) => {
       );
       const fnRow = fnRows[0];
       if (fnRow?.function_id) {
-        await markMenuUpdated(client, fnRow.function_id, Number(meta.menu_id), userId);
+        await markMenuUpdated(client, fnRow.function_id, Number(metaFinal.menu_id), userId);
       }
     }
 
@@ -1868,8 +1880,15 @@ router.post("/proposal-items/:id/qty", async (req, res) => {
     const baseLabel = stripAllMetadata(currentDescription || "").replace(/ x \d+$/i, "").trim();
     const meta = extractMetadata(currentDescription || "");
     const previousQty = Number(meta.qty || 1) || 1;
-    const perUnitPrice =
-      previousQty > 0 ? (Number(rows[0].unit_price) || 0) / previousQty : Number(rows[0].unit_price) || 0;
+    const baseFromMeta = meta.base != null ? Number(meta.base) : null;
+    let perUnitPrice;
+    if (Number.isFinite(baseFromMeta)) {
+      perUnitPrice = baseFromMeta;
+    } else if (previousQty > 0) {
+      perUnitPrice = (Number(rows[0].unit_price) || 0) / previousQty;
+    } else {
+      perUnitPrice = Number(rows[0].unit_price) || 0;
+    }
     let perUnitCost = null;
     if (meta.cost_each !== undefined) {
       const ce = Number(meta.cost_each);
@@ -1896,7 +1915,7 @@ router.post("/proposal-items/:id/qty", async (req, res) => {
     const updatedDescription = `${baseLabel ? `${baseLabel} x ${qty}` : `Item x ${qty}`}${
       metaString ? " " + metaString : ""
     }`.trim();
-    const updatedUnitPrice = Number.isFinite(perUnitPrice) ? perUnitPrice * qty : 0;
+    const updatedUnitPrice = Number.isFinite(perUnitPrice) ? perUnitPrice : 0;
 
     await client.query(
       `UPDATE proposal_items
@@ -2463,10 +2482,11 @@ router.post("/:functionId/quote/menu/client-toggle", async (req, res) => {
 // ------------------------------------------------------
 router.post("/:functionId/quote/menu/proposal-toggle", async (req, res) => {
   const { functionId } = req.params;
-  const { menu_id, hide } = req.body || {};
+  const { menu_id, hide, include_base } = req.body || {};
   if (!menu_id) return res.status(400).json({ success: false, error: "menu_id is required" });
   const userId = req.session.user?.id || null;
   const hideFlag = hide === false || hide === "false" ? false : true;
+  const includeBase = include_base === true || include_base === "true";
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -2481,7 +2501,14 @@ router.post("/:functionId/quote/menu/proposal-toggle", async (req, res) => {
     for (const row of rows) {
       const baseLabel = stripAllMetadata(row.description || "");
       const meta = extractMetadata(row.description || "");
-      meta.excluded = hideFlag;
+      if (hideFlag) {
+        meta.hide_proposal = true;
+      } else {
+        delete meta.hide_proposal;
+      }
+      if (includeBase && !/^\s*(Choice:|Add-on:)/i.test(baseLabel || "")) {
+        delete meta.excluded;
+      }
       const metaString = Object.entries(meta)
         .filter(([, val]) => val !== undefined && val !== null && val !== "")
         .map(([k, v]) => `[${k}:${v}]`)

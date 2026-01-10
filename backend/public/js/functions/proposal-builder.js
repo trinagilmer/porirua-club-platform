@@ -122,10 +122,10 @@
     const includeContactInputs = builder.querySelectorAll("[data-role='include-contact']");
     const termCheckboxes = builder.querySelectorAll("[data-role='term-select']");
     const termsInput = builder.querySelector("[data-role='terms-input']");
-    const previewBtn = builder.querySelector("[data-role='preview-btn']");
     const printBtn = builder.querySelector("[data-role='print-btn']");
     const saveBtn = builder.querySelector("[data-role='save-btn']");
     const clientLink = (builder.dataset.clientLink || "").trim();
+    const viewClientLinkBtn = builder.querySelector("#viewClientLinkBtn");
     const noteLibrary = window.functionNotesLibrary || [];
     const noteMap = new Map(noteLibrary.map((note) => [String(note.id), note]));
 
@@ -175,7 +175,8 @@
       notePicker.value = "";
     });
 
-    previewBtn?.addEventListener("click", () => {
+    viewClientLinkBtn?.addEventListener("click", (event) => {
+      event.preventDefault();
       if (!clientLink) {
         notify("Client link is not available yet.", "warning");
         return;

@@ -135,6 +135,17 @@
   .proposal-choice-row td:first-child {
     padding-left: 1.75rem;
   }
+  @media print {
+    .proposal-summary-grid {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 1rem;
+    }
+    .proposal-summary-grid > * {
+      flex: 1 1 0;
+      max-width: 50%;
+    }
+  }
 </style>
 
 <div class="proposal-print container py-4">
@@ -191,7 +202,7 @@
     <form class="mb-4">
   <% } %>
     <% const hasContacts = (orderedContacts || []).length > 0; %>
-    <div class="row g-3">
+    <div class="row g-3 proposal-summary-grid">
       <div class="<%= hasContacts ? 'col-lg-6' : 'col-12' %>">
         <div class="proposal-summary-card card shadow-sm h-100 <%= hasContacts ? '' : 'proposal-summary-card--single' %>">
           <div class="card-body">
@@ -591,7 +602,8 @@
           menu.items.forEach((item) => {
             const meta = extractMeta(item.description || "");
             const excluded = String(meta.excluded || item.excluded || "").toLowerCase() === "true";
-            if (excluded) return; // hide excluded items
+            const hidden = String(meta.hide_proposal || "").toLowerCase() === "true";
+            if (excluded || hidden) return; // hide excluded or proposal-hidden items
             const qtyVal = Number(meta.qty || item.qty || 1) || 1;
             const allowQty = item.clientAllowQty || String(meta.client_allow_qty || "").toLowerCase() === "true";
             const showQtyInput = clientModeFlag && (item.selectable || allowQty);

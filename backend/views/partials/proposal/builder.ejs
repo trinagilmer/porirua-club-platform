@@ -28,12 +28,12 @@
     'accepted-final': 'Accepted (final)',
   };
   const statusStyles = {
-    draft: 'bg-secondary-subtle text-secondary',
-    sent: 'bg-info-subtle text-info',
-    approved: 'bg-primary-subtle text-primary',
-    declined: 'bg-danger-subtle text-danger',
-    'accepted-pending-menu': 'bg-warning-subtle text-warning',
-    'accepted-final': 'bg-success-subtle text-success',
+    draft: 'bg-secondary-subtle text-dark',
+    sent: 'bg-info-subtle text-dark',
+    approved: 'bg-primary-subtle text-dark',
+    declined: 'bg-danger-subtle text-dark',
+    'accepted-pending-menu': 'bg-warning-subtle text-dark',
+    'accepted-final': 'bg-success-subtle text-dark',
   };
 const builderContacts = Array.isArray(contacts)
   ? [...contacts].sort((a, b) => {
@@ -63,26 +63,33 @@ const builderContacts = Array.isArray(contacts)
     <div>
       <p class="proposal-builder__title mb-1"><%= resolvedBuilderHeading %></p>
       <p class="proposal-builder__subtitle mb-0 text-muted"><%= resolvedBuilderDescription %></p>
-    </div>
-    <div class="d-flex flex-column flex-lg-row gap-3 align-items-lg-center">
-      <div class="d-flex flex-column flex-sm-row gap-2 align-items-sm-center">
+      <div class="d-flex align-items-center gap-2 mt-2">
         <span class="small text-muted">Proposal status</span>
         <span class="badge <%= statusStyles[statusValue] || 'bg-light text-dark' %> text-uppercase">
           <%= statusLabels[statusValue] || statusValue || 'Draft' %>
         </span>
       </div>
+    </div>
+    <div class="d-flex flex-column flex-lg-row gap-3 align-items-lg-center">
       <div class="btn-toolbar gap-2">
         <% if (resolvedShowClientActions) { %>
-          <button type="button" class="btn btn-outline-secondary btn-sm" id="copyClientLinkBtn" data-link="<%= resolvedClientLink || '' %>" <%= resolvedClientLink ? '' : 'disabled' %>>
-            <i class="bi bi-link-45deg me-1"></i> Copy client link
-          </button>
-          <button type="button" class="btn btn-outline-primary btn-sm" id="sendClientLinkBtn" <%= resolvedClientLink ? '' : 'disabled' %>>
-            <i class="bi bi-send me-1"></i> Email client proposal
-          </button>
+          <div class="dropdown">
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" <%= resolvedClientLink ? '' : 'disabled' %>>
+              <i class="bi bi-link-45deg me-1"></i> Client link
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+              <li>
+                <a class="dropdown-item" href="#" id="viewClientLinkBtn" data-link="<%= resolvedClientLink || '' %>">View client link</a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="#" id="copyClientLinkBtn" data-link="<%= resolvedClientLink || '' %>">Copy client link</a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="#" id="sendClientLinkBtn">Email client link</a>
+              </li>
+            </ul>
+          </div>
         <% } %>
-        <button type="button" class="btn btn-outline-primary btn-sm" data-role="preview-btn" <%= resolvedClientLink ? '' : 'disabled' %>>
-          <i class="bi bi-eye me-1"></i> Preview client view
-        </button>
         <button type="button" class="btn btn-outline-secondary btn-sm" data-role="print-btn" <%= resolvedClientLink ? '' : 'disabled' %>>
           <i class="bi bi-printer me-1"></i> Print
         </button>
