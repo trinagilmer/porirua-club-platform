@@ -118,6 +118,7 @@
                   const label = stripMeta(item.description);
                   const selectable = item.client_selectable;
                   const meta = parseMeta(item.description);
+                  const allowQty = String(meta.client_allow_qty || '').toLowerCase() === 'true';
                   const qtyValue = Number(meta.qty || 1) || 1;
                   const unitPrice = Number(item.unit_price || 0);
                   const unitType = String(meta.unit_type || '').toLowerCase();
@@ -144,7 +145,7 @@
                     </td>
                     <td><%= label || 'Item' %></td>
                     <td>
-                      <% if (selectable) { %>
+                      <% if (selectable || allowQty) { %>
                         <input type="number" name="item_<%= item.id %>_qty" class="form-control form-control-sm client-qty" value="<%= qtyValue %>" min="1" data-price="<%= priceEach %>">
                       <% } else { %>
                         <span><%= qtyValue %></span>

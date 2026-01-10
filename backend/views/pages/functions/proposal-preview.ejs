@@ -513,6 +513,7 @@
           qty,
           isAddon,
           selectable,
+          clientAllowQty: String(meta.client_allow_qty || '').toLowerCase() === 'true',
           excluded: meta.excluded || false,
           menuId,
         };
@@ -592,6 +593,8 @@
             const excluded = String(meta.excluded || item.excluded || "").toLowerCase() === "true";
             if (excluded) return; // hide excluded items
             const qtyVal = Number(meta.qty || item.qty || 1) || 1;
+            const allowQty = item.clientAllowQty || String(meta.client_allow_qty || "").toLowerCase() === "true";
+            const showQtyInput = clientModeFlag && (item.selectable || allowQty);
 
             const row = document.createElement('tr');
             const label = item.isAddon ? `${item.name} (Add-on)` : item.name;
@@ -601,6 +604,9 @@
                     excluded ? "" : "checked"
                   }>`
                 : '';
+            const qtyCell = showQtyInput
+              ? `<input type="number" name="item_${item.id}_qty" class="form-control form-control-sm client-qty" value="${qtyVal}" min="1" data-price="${item.priceEach}">`
+              : `${qtyVal}`;
             const priceEach = formatCurrency(item.priceEach);
             const priceTotal = formatCurrency(item.priceEach * qtyVal);
             row.innerHTML = `
@@ -608,7 +614,7 @@
                 ${includeControl}
                 <span>${label}</span>
               </td>
-              <td class="proposal-cell proposal-cell--qty">${qtyVal}</td>
+              <td class="proposal-cell proposal-cell--qty">${qtyCell}</td>
               <td class="proposal-cell proposal-cell--price">${priceEach}</td>
               <td class="proposal-cell proposal-cell--total" data-base="${item.priceEach}" data-qty="${qtyVal}">${priceTotal}</td>
             `;
@@ -677,8 +683,10 @@
           const include = row.querySelector('.client-include');
           if (include && !include.checked) return;
           const base = Number(cell.dataset.base || 0);
-          let qty = Number(cell.dataset.qty || 1);
+          const qtyInput = row.querySelector('.client-qty');
+          let qty = qtyInput ? Number(qtyInput.value || 1) : Number(cell.dataset.qty || 1);
           if (!Number.isFinite(qty) || qty <= 0) qty = 1;
+          if (qtyInput) cell.dataset.qty = qty;
           subtotal += base * qty;
           cell.textContent = formatCurrency(base * qty);
         });
@@ -700,7 +708,7 @@
         upd('fs-total-due', formatCurrency(remaining));
       };
       const handle = (e) => {
-        if (e.target.classList.contains('client-include')) {
+        if (e.target.classList.contains('client-include') || e.target.classList.contains('client-qty')) {
           updateTotals();
         }
       };

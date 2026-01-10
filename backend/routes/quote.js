@@ -272,11 +272,30 @@ router.post("/proposal/client/:token/accept", async (req, res) => {
     let items = rawItems;
 
     const selections = items
-      .filter((item) => item.client_selectable)
+      .filter((item) => {
+        const meta = extractMetadata(item.description || "");
+        const allowQty = parseBoolean(meta.client_allow_qty);
+        return item.client_selectable || allowQty;
+      })
       .map((item) => {
-        const include = Boolean(req.body[`item_${item.id}_include`]);
-        const qty = parseInt(req.body[`item_${item.id}_qty`], 10) || 1;
-        return { id: item.id, include, qty, description: item.description, unit_price: item.unit_price };
+        const meta = extractMetadata(item.description || "");
+        const allowQty = parseBoolean(meta.client_allow_qty);
+        const include = item.client_selectable
+          ? Boolean(req.body[`item_${item.id}_include`])
+          : true;
+        const rawQty = req.body[`item_${item.id}_qty`];
+        const qty =
+          rawQty !== undefined && rawQty !== null
+            ? parseInt(rawQty, 10) || 1
+            : parseInt(meta.qty, 10) || 1;
+        return {
+          id: item.id,
+          include,
+          qty,
+          description: item.description,
+          unit_price: item.unit_price,
+          client_allow_qty: allowQty,
+        };
       });
 
     const itemsWithSelection = applySelectionsToItems(rawItems, selections);
@@ -628,15 +647,8 @@ async function recalcTotals(client, proposalId, userId = null) {
     let linePrice = Number(row.unit_price) || 0;
     if (!excluded) {
       const qty = Number(meta.qty) || 1;
-      const base = meta.base != null ? Number(meta.base) : null;
-      if (Number.isFinite(base) && qty > 0) {
-        linePrice = base * qty;
-      } else {
-        const unitType = String(meta.unit_type || "").toLowerCase();
-        if (isPerPersonUnit(unitType) && qty > 1) {
-          linePrice = linePrice <= qty ? linePrice * qty : linePrice;
-        }
-      }
+      const perUnit = derivePerUnitPrice(meta, linePrice);
+      linePrice = qty > 0 ? perUnit * qty : perUnit;
     } else {
       linePrice = 0;
     }
@@ -720,6 +732,17 @@ function isPerPersonUnit(value) {
     normalized === "per person" ||
     normalized === "pp"
   );
+}
+
+function derivePerUnitPrice(meta = {}, unitPrice = 0) {
+  const qty = Number(meta.qty) || 1;
+  const base = meta.base != null ? Number(meta.base) : null;
+  if (Number.isFinite(base)) return base;
+  const unitType = String(meta.unit_type || "").toLowerCase();
+  if (isPerPersonUnit(unitType)) return Number(unitPrice) || 0;
+  const numericUnitPrice = Number(unitPrice) || 0;
+  if (qty > 1 && numericUnitPrice < qty) return numericUnitPrice;
+  return qty > 0 ? numericUnitPrice / qty : numericUnitPrice;
 }
 
 function includeMetadata(description, token, value) {
@@ -864,8 +887,7 @@ function applySelectionsToItems(items = [], selections = []) {
       .map(([k, v]) => `[${k}:${v}]`)
       .join(" ");
     const updatedDesc = `${baseLabel}${metaString ? " " + metaString : ""}`.trim();
-    const perUnit =
-      originalQty > 0 ? (Number(item.unit_price) || 0) / originalQty : Number(item.unit_price) || 0;
+    const perUnit = derivePerUnitPrice(meta, Number(item.unit_price) || 0);
     return {
       ...item,
       description: updatedDesc,
