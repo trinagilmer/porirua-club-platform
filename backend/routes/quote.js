@@ -619,9 +619,18 @@ async function ensureActiveProposal(client, functionId, contactId = null) {
 async function findProposalByToken(token) {
   const { rows } = await pool.query(
     `
-    SELECT p.*, f.event_name, f.event_date, f.start_time, f.end_time, f.attendees, f.room_id, f.id_uuid AS function_id
+    SELECT p.*,
+           f.event_name,
+           f.event_date,
+           f.start_time,
+           f.end_time,
+           f.attendees,
+           f.room_id,
+           r.name AS room_name,
+           f.id_uuid AS function_id
       FROM proposals p
       JOIN functions f ON f.id_uuid = p.function_id
+ LEFT JOIN rooms r ON r.id = f.room_id
      WHERE p.client_token = $1
      LIMIT 1;
     `,
@@ -1153,20 +1162,7 @@ router.get("/:functionId/quote", async (req, res) => {
       payments = payRes.rows;
       totals = totalsRes.rows[0] || null;
 
-      // Apply saved client selections so the quote UI reflects the client's choices
-      if (activeProposal.client_selection) {
-        let savedSel = activeProposal.client_selection;
-        if (typeof savedSel === "string") {
-          try {
-            savedSel = JSON.parse(savedSel);
-          } catch (e) {
-            savedSel = null;
-          }
-        }
-        if (savedSel?.selections) {
-          proposalItems = applySelectionsToItems(proposalItems, savedSel.selections);
-        }
-      }
+      // Keep quote UI in sync with stored proposal items; client selections can be applied explicitly.
     }
 
     if (!totals) {

@@ -17,6 +17,36 @@
     const amount = Number(value) || 0;
     return amount.toLocaleString('en-NZ', { style: 'currency', currency: 'NZD' });
   }
+  function formatDate(value) {
+    if (!value) return '';
+    try {
+      return new Date(value).toLocaleDateString('en-NZ', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+    } catch (err) {
+      return '';
+    }
+  }
+  function formatTime(value) {
+    if (!value) return '';
+    try {
+      return new Date(`1970-01-01T${value}`).toLocaleTimeString('en-NZ', {
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+    } catch (err) {
+      return value || '';
+    }
+  }
+  const orderedContacts = Array.isArray(contacts) ? contacts : [];
+  const primaryContact =
+    orderedContacts.find((contact) => contact.is_primary) || orderedContacts[0] || null;
+  const hasContacts = orderedContacts.length > 0;
+  const eventDate = formatDate(proposal?.event_date);
+  const printedDate = formatDate(new Date());
 %>
 
 <style>
@@ -48,11 +78,20 @@
           <img src="/img/Pclogotext.png" alt="Porirua Club" class="proposal-logo proposal-logo--primary">
         </div>
         <div class="proposal-header__meta">
-          <div class="proposal-header__date">
-            <%= proposal?.event_date ? new Date(proposal.event_date).toLocaleDateString('en-NZ') : '' %>
+          <div class="proposal-header__date"><%= eventDate %></div>
+          <div class="proposal-header__title"><strong><%= proposal?.event_name || 'Function Proposal' %></strong></div>
+          <div class="proposal-header__contact">
+            <div class="text-muted text-uppercase small letter-tight">Attention</div>
+            <% if (primaryContact) { %>
+              <strong><%= primaryContact.name %></strong>
+              <% if (primaryContact.email) { %><span><%= primaryContact.email %></span><% } %>
+              <% if (primaryContact.phone) { %><span><%= primaryContact.phone %></span><% } %>
+            <% } else { %>
+              <span class="text-muted">No contact selected</span>
+            <% } %>
           </div>
-          <div class="proposal-header__title">
-            <strong><%= proposal?.event_name || 'Function Proposal' %></strong>
+          <div class="proposal-header__issued text-uppercase small text-muted">
+            Prepared <%= printedDate %>
           </div>
         </div>
         <div class="proposal-header__logo proposal-header__logo--eastwood">
@@ -90,6 +129,61 @@
         <p class="text-muted mb-0">This link is no longer available.</p>
       <% } else { %>
         <form method="POST" action="/functions/proposal/client/<%= proposal.client_token %>/accept" class="vstack gap-4">
+          <div class="row g-3">
+            <div class="<%= hasContacts ? 'col-lg-6' : 'col-12' %>">
+              <div class="proposal-summary-card card shadow-sm h-100 <%= hasContacts ? '' : 'proposal-summary-card--single' %>">
+                <div class="card-body">
+                  <h5 class="proposal-summary__title">Function Details</h5>
+                  <dl class="proposal-summary__list">
+                    <div>
+                      <dt>Event</dt>
+                      <dd><%= proposal?.event_name || '-' %></dd>
+                    </div>
+                    <div>
+                      <dt>Date</dt>
+                      <dd><%= eventDate || '-' %></dd>
+                    </div>
+                    <div>
+                      <dt>Time</dt>
+                      <dd>
+                        <%= proposal?.start_time ? formatTime(proposal.start_time) : '-' %>
+                        <% if (proposal?.end_time) { %> - <%= formatTime(proposal.end_time) %><% } %>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Guests</dt>
+                      <dd><%= proposal?.attendees || '-' %></dd>
+                    </div>
+                    <div>
+                      <dt>Room</dt>
+                      <dd><%= proposal?.room_name || (proposal?.room_id ? 'Room assigned' : '-') %></dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+            </div>
+            <% if (hasContacts) { %>
+              <div class="col-lg-6">
+                <div class="proposal-summary-card card shadow-sm h-100">
+                  <div class="card-body">
+                    <h5 class="proposal-summary__title">Contact Details</h5>
+                    <dl class="proposal-summary__list">
+                      <% orderedContacts.forEach(function(contact) { %>
+                        <div>
+                          <dt><%= contact.is_primary ? 'Primary contact' : 'Contact' %></dt>
+                          <dd>
+                            <strong><%= contact.name || '-' %></strong>
+                            <% if (contact.email) { %><span><%= contact.email %></span><% } %>
+                            <% if (contact.phone) { %><span><%= contact.phone %></span><% } %>
+                          </dd>
+                        </div>
+                      <% }) %>
+                    </dl>
+                  </div>
+                </div>
+              </div>
+            <% } %>
+          </div>
           <div>
             <label class="form-label">Your name</label>
             <input type="text" class="form-control" name="client_name" required placeholder="Full name">
