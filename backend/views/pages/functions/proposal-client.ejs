@@ -120,7 +120,20 @@
                   const meta = parseMeta(item.description);
                   const qtyValue = Number(meta.qty || 1) || 1;
                   const unitPrice = Number(item.unit_price || 0);
-                  const priceEach = meta.base ? Number(meta.base) : qtyValue > 0 ? unitPrice / qtyValue : unitPrice;
+                  const unitType = String(meta.unit_type || '').toLowerCase();
+                  const isPerPerson =
+                    unitType === 'per_person' ||
+                    unitType === 'per-person' ||
+                    unitType === 'per person' ||
+                    unitType === 'pp';
+                  let priceEach;
+                  if (meta.base != null) {
+                    priceEach = Number(meta.base);
+                  } else if (isPerPerson && qtyValue > 0) {
+                    priceEach = unitPrice < qtyValue ? unitPrice : unitPrice / qtyValue;
+                  } else {
+                    priceEach = qtyValue > 0 ? unitPrice / qtyValue : unitPrice;
+                  }
                   const lineTotal = priceEach * qtyValue;
                 %>
                   <tr>

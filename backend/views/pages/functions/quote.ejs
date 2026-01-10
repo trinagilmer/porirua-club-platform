@@ -544,14 +544,25 @@
         }
 
         if (!currentMenu) return;
-        const unitType = meta.unit_type || '';
+        const unitType = String(meta.unit_type || '').toLowerCase();
+        const isPerPerson =
+          unitType === 'per_person' ||
+          unitType === 'per-person' ||
+          unitType === 'per person' ||
+          unitType === 'pp';
         const qty = meta.qty
           ? Number(meta.qty)
-          : unitType === 'per_person'
+          : isPerPerson
           ? attendees
           : 1;
-        const priceEach =
-          meta.base != null ? Number(meta.base) : qty > 0 ? price / qty : price;
+        let priceEach;
+        if (meta.base != null) {
+          priceEach = Number(meta.base);
+        } else if (isPerPerson && qty > 0) {
+          priceEach = price < qty ? price : price / qty;
+        } else {
+          priceEach = qty > 0 ? price / qty : price;
+        }
           const costEachMeta =
             meta.cost_each !== undefined && meta.cost_each !== null
               ? Number(meta.cost_each)
@@ -574,7 +585,7 @@
         const item = {
           id,
           name: text.replace(/^(Choice:|Add-on:)\s*/i, '').replace(/\s+x\s+\d+.*/, '').trim(),
-          price,
+          price: priceEach * (qty > 0 ? qty : 1),
           qty,
           unitType,
           priceEach,

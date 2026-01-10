@@ -280,6 +280,7 @@ router.post("/proposal/client/:token/accept", async (req, res) => {
       });
 
     const itemsWithSelection = applySelectionsToItems(rawItems, selections);
+    const menuMetaLookup = await fetchMenuMetaLookup(itemsWithSelection);
 
     const payload = {
       action,
@@ -615,7 +616,16 @@ async function recalcTotals(client, proposalId, userId = null) {
   itemRows.forEach((row) => {
     const meta = extractMetadata(row.description || "");
     const excluded = parseBoolean(meta.excluded);
-    const linePrice = excluded ? 0 : Number(row.unit_price) || 0;
+    let linePrice = Number(row.unit_price) || 0;
+    if (!excluded) {
+      const unitType = String(meta.unit_type || "").toLowerCase();
+      const qty = Number(meta.qty) || 1;
+      if (!meta.base && isPerPersonUnit(unitType) && qty > 1) {
+        linePrice = linePrice <= qty ? linePrice * qty : linePrice;
+      }
+    } else {
+      linePrice = 0;
+    }
     subtotal += linePrice;
     if (excluded) return;
     const qty = Number(meta.qty) || 1;
@@ -686,6 +696,16 @@ function parseBoolean(value) {
     return ["true", "1", "yes", "on"].includes(value.toLowerCase());
   }
   return Boolean(value);
+}
+
+function isPerPersonUnit(value) {
+  const normalized = String(value || "").toLowerCase();
+  return (
+    normalized === "per_person" ||
+    normalized === "per-person" ||
+    normalized === "per person" ||
+    normalized === "pp"
+  );
 }
 
 function includeMetadata(description, token, value) {
@@ -1039,6 +1059,18 @@ router.get("/:functionId/quote", async (req, res) => {
     let totals = null;
 
     if (activeProposal) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await recalcTotals(client, activeProposal.id, req.session.user?.id || null);
+        await client.query("COMMIT");
+      } catch (err) {
+        await client.query("ROLLBACK");
+        console.warn("[Quote] Failed to recalc totals:", err.message);
+      } finally {
+        client.release();
+      }
+
       const [itemsRes, payRes, totalsRes] = await Promise.all([
         pool.query(
           `SELECT id, description, unit_price
@@ -2543,6 +2575,17 @@ router.post("/:functionId/quote/send-client-email", async (req, res) => {
 router.get("/:proposalId/totals", async (req, res) => {
   const { proposalId } = req.params;
   try {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await recalcTotals(client, proposalId, req.session.user?.id || null);
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.warn("[Quote] Totals recalc skipped:", err.message);
+    } finally {
+      client.release();
+    }
     const {
       rows,
     } = await pool.query(
