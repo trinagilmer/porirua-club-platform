@@ -17,6 +17,8 @@ runStartupValidation();
 const express = require("express");
 const expressLayouts = require("express-ejs-layouts");
 const session = require("express-session");
+const { pool } = require("./db");
+const PgSession = require("connect-pg-simple")(session);
 const { format } = require("date-fns");
 
 const app = express();
@@ -71,7 +73,11 @@ app.use(
     secret: process.env.SESSION_SECRET || "changeme",
     resave: false,
     saveUninitialized: false,
-    // store: ... (add a store in production)
+    store: new PgSession({
+      pool,
+      tableName: "session",
+      createTableIfMissing: false,
+    }),
     // cookie: { secure: true, sameSite: "lax" } // tune for prod
   })
 );
