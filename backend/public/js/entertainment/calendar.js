@@ -87,6 +87,7 @@
 
     const calendar = new window.FullCalendar.Calendar(calendarEl, {
       initialView,
+      locale: "en-nz",
       height: "auto",
       expandRows: true,
       firstDay: 1,
@@ -95,6 +96,11 @@
       eventDisplay: "block",
       headerToolbar: false,
       dayMaxEventRows: true,
+      titleFormat: { year: "numeric", month: "short", day: "numeric" },
+      views: {
+        dayGridWeek: { titleFormat: { year: "numeric", month: "short", day: "numeric" } },
+        listWeek: { titleFormat: { year: "numeric", month: "short", day: "numeric" } },
+      },
       eventTimeFormat: { hour: "numeric", minute: "2-digit", meridiem: "short" },
       events: (info, success, failure) => {
         const params = new URLSearchParams();
