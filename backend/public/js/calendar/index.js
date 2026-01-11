@@ -11,6 +11,13 @@
     published: "Published",
     scheduled: "Scheduled",
   };
+  const DEFAULT_FUNCTION_STATUSES = [
+    "lead",
+    "qualified",
+    "confirmed",
+    "balance_due",
+    "completed",
+  ];
 
   function pad(value) {
     return String(value).padStart(2, "0");
@@ -80,6 +87,7 @@
     const state = {
       rooms: [],
       types: new Set(["functions"]),
+      functionStatuses: new Set(DEFAULT_FUNCTION_STATUSES),
       pendingAdd: null,
       selectedEvent: null,
     };
@@ -244,6 +252,9 @@
           const params = {};
           if (state.rooms.length) params.rooms = state.rooms.join(",");
           if (state.types.size) params.include = Array.from(state.types).join(",");
+          if (state.functionStatuses.size) {
+            params.statuses = Array.from(state.functionStatuses).join(",");
+          }
           return params;
         },
         failure: (error) => console.error("Calendar events failed", error),
@@ -375,6 +386,19 @@
       });
     });
 
+    const statusInputs = document.querySelectorAll("[data-function-status]");
+    statusInputs.forEach((input) => {
+      const status = input.getAttribute("data-function-status");
+      if (!status) return;
+      input.addEventListener("change", () => {
+        if (input.checked) state.functionStatuses.add(status);
+        else state.functionStatuses.delete(status);
+        ensureAtLeastOneStatus();
+        calendar.refetchEvents();
+      });
+    });
+    ensureAtLeastOneStatus();
+
     const resetButton = document.getElementById("calendarClearFilters");
     if (resetButton) {
       resetButton.addEventListener("click", () => {
@@ -383,6 +407,11 @@
         state.types = new Set(["functions"]);
         typeInputs.forEach((input) => {
           input.checked = input.getAttribute("data-calendar-type") === "functions";
+        });
+        state.functionStatuses = new Set(DEFAULT_FUNCTION_STATUSES);
+        statusInputs.forEach((input) => {
+          const status = input.getAttribute("data-function-status");
+          input.checked = DEFAULT_FUNCTION_STATUSES.includes(status);
         });
         calendar.refetchEvents();
       });
@@ -409,6 +438,16 @@
         state.rooms = activeButtons.map((btn) => btn.dataset.roomId).filter(Boolean);
       }
       if (refetch) calendar.refetchEvents();
+    }
+
+    function ensureAtLeastOneStatus() {
+      if (state.functionStatuses.size) return;
+      DEFAULT_FUNCTION_STATUSES.forEach((status) => state.functionStatuses.add(status));
+      statusInputs.forEach((input) => {
+        const status = input.getAttribute("data-function-status");
+        if (!status) return;
+        input.checked = DEFAULT_FUNCTION_STATUSES.includes(status);
+      });
     }
 
     function setPrintOrientation(viewType) {

@@ -21,6 +21,21 @@ router.use(express.urlencoded({ extended: true }));
 router.use(express.json());
 
 const EVENT_TYPES = ["functions", "restaurant", "entertainment"];
+const FUNCTION_STATUSES = [
+  "lead",
+  "qualified",
+  "confirmed",
+  "balance_due",
+  "completed",
+  "cancelled",
+];
+const DEFAULT_FUNCTION_STATUS_FILTER = [
+  "lead",
+  "qualified",
+  "confirmed",
+  "balance_due",
+  "completed",
+];
 const STATUS_COLOURS = {
   lead: "#CBD5F5", // muted indigo
   qualified: "#A5B4FC",
@@ -114,6 +129,15 @@ function parseRoomFilter(raw) {
   return list
     .map((entry) => Number(entry))
     .filter((num) => Number.isInteger(num));
+}
+
+function parseFunctionStatusFilter(raw) {
+  if (!raw) return DEFAULT_FUNCTION_STATUS_FILTER.slice();
+  const list = Array.isArray(raw) ? raw : String(raw).split(",");
+  const filtered = list
+    .map((entry) => String(entry || "").trim().toLowerCase())
+    .filter((entry) => FUNCTION_STATUSES.includes(entry));
+  return filtered.length ? Array.from(new Set(filtered)) : DEFAULT_FUNCTION_STATUS_FILTER.slice();
 }
 
 function normaliseTime(value) {
@@ -742,6 +766,7 @@ router.get("/events", async (req, res) => {
     const includeRestaurant = types.includes("restaurant");
     const includeEntertainment = types.includes("entertainment");
     const roomIds = parseRoomFilter(req.query.rooms);
+    const functionStatuses = parseFunctionStatusFilter(req.query.statuses);
     const startDate = normaliseDate(req.query.start);
     const endDate = normaliseDate(req.query.end);
 
@@ -762,6 +787,10 @@ router.get("/events", async (req, res) => {
       if (roomIds.length) {
         params.push(roomIds);
         whereParts.push(`f.room_id = ANY($${params.length}::int[])`);
+      }
+      if (functionStatuses.length) {
+        params.push(functionStatuses);
+        whereParts.push(`LOWER(COALESCE(f.status, 'lead')) = ANY($${params.length}::text[])`);
       }
 
       const query = `

@@ -70,6 +70,29 @@
         </button>
       </div>
     </div>
+    <div class="mt-3">
+      <span class="form-label d-block">Function status</span>
+      <div class="btn-group flex-wrap" role="group" aria-label="Function status filters">
+        <input class="btn-check" type="checkbox" id="statusLead" data-function-status="lead" checked>
+        <label class="btn btn-outline-secondary btn-sm" for="statusLead">Lead</label>
+
+        <input class="btn-check" type="checkbox" id="statusQualified" data-function-status="qualified" checked>
+        <label class="btn btn-outline-secondary btn-sm" for="statusQualified">Qualified</label>
+
+        <input class="btn-check" type="checkbox" id="statusConfirmed" data-function-status="confirmed" checked>
+        <label class="btn btn-outline-secondary btn-sm" for="statusConfirmed">Confirmed</label>
+
+        <input class="btn-check" type="checkbox" id="statusBalance" data-function-status="balance_due">
+        <label class="btn btn-outline-secondary btn-sm" for="statusBalance">Balance due</label>
+
+        <input class="btn-check" type="checkbox" id="statusCompleted" data-function-status="completed">
+        <label class="btn btn-outline-secondary btn-sm" for="statusCompleted">Completed</label>
+
+        <input class="btn-check" type="checkbox" id="statusCancelled" data-function-status="cancelled">
+        <label class="btn btn-outline-secondary btn-sm" for="statusCancelled">Cancelled</label>
+      </div>
+      <small class="text-muted d-block mt-1">Cancelled functions are hidden unless selected.</small>
+    </div>
   </section>
 
   <section class="calendar-wrapper card shadow-sm p-3 calendar-area">
