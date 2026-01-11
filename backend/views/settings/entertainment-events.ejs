@@ -40,12 +40,21 @@
 
   <div class="card shadow-sm mb-4">
     <div class="card-header bg-light">
-      <h5 class="mb-0">Entertainment events</h5>
+      <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+        <h5 class="mb-0">Entertainment events</h5>
+        <div class="d-flex align-items-center gap-2">
+          <input type="url" class="form-control form-control-sm" id="bulkImageUrlEntertainment" placeholder="Paste image URL for selected">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bulk-apply="entertainment">Apply image</button>
+        </div>
+      </div>
     </div>
     <div class="table-responsive">
       <table class="table align-middle mb-0">
         <thead class="table-light">
           <tr>
+            <th style="width: 48px;">
+              <input type="checkbox" class="form-check-input" data-bulk-select="entertainment">
+            </th>
             <th>Title</th>
             <th>Color</th>
             <th>Date</th>
@@ -59,11 +68,20 @@
         <tbody>
           <% if (!entertainmentEvents.length) { %>
             <tr>
-              <td colspan="7" class="text-muted text-center py-4">No entertainment events configured yet.</td>
+              <td colspan="8" class="text-muted text-center py-4">No entertainment events configured yet.</td>
             </tr>
           <% } else { %>
             <% entertainmentEvents.forEach(function(event) { %>
               <tr>
+                <td>
+                  <input
+                    type="checkbox"
+                    class="form-check-input"
+                    data-bulk-item="entertainment"
+                    value="<%= event.id %>"
+                    data-series-id="<%= event.series_id || '' %>"
+                  >
+                </td>
                 <td>
                   <div class="fw-semibold"><%= event.title %></div>
                   <% if (event.room_name) { %>
@@ -112,6 +130,16 @@
                   >
                     Copy
                   </button>
+                  <% if (event.series_id) { %>
+                    <button
+                      class="btn btn-sm btn-outline-secondary bulk-series-btn"
+                      type="button"
+                      data-series-id="<%= event.series_id %>"
+                      data-series-scope="all"
+                    >
+                      Apply image to series
+                    </button>
+                  <% } %>
                   <form action="/settings/entertainment/delete" method="POST" class="d-inline" onsubmit="return confirm('Delete <%= event.title %>?');">
                     <input type="hidden" name="id" value="<%= event.id %>">
                     <% if (event.series_id) { %>
@@ -136,12 +164,21 @@
 
   <div class="card shadow-sm">
     <div class="card-header bg-light">
-      <h5 class="mb-0">Regular events</h5>
+      <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+        <h5 class="mb-0">Regular events</h5>
+        <div class="d-flex align-items-center gap-2">
+          <input type="url" class="form-control form-control-sm" id="bulkImageUrlRegular" placeholder="Paste image URL for selected">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bulk-apply="regular">Apply image</button>
+        </div>
+      </div>
     </div>
     <div class="table-responsive">
       <table class="table align-middle mb-0">
         <thead class="table-light">
           <tr>
+            <th style="width: 48px;">
+              <input type="checkbox" class="form-check-input" data-bulk-select="regular">
+            </th>
             <th>Title</th>
             <th>Color</th>
             <th>Date</th>
@@ -155,11 +192,20 @@
         <tbody>
           <% if (!regularEvents.length) { %>
             <tr>
-              <td colspan="7" class="text-muted text-center py-4">No regular events configured yet.</td>
+              <td colspan="8" class="text-muted text-center py-4">No regular events configured yet.</td>
             </tr>
           <% } else { %>
             <% regularEvents.forEach(function(event) { %>
               <tr>
+                <td>
+                  <input
+                    type="checkbox"
+                    class="form-check-input"
+                    data-bulk-item="regular"
+                    value="<%= event.id %>"
+                    data-series-id="<%= event.series_id || '' %>"
+                  >
+                </td>
                 <td>
                   <div class="fw-semibold"><%= event.title %></div>
                   <% if (event.room_name) { %>
@@ -208,6 +254,16 @@
                   >
                     Copy
                   </button>
+                  <% if (event.series_id) { %>
+                    <button
+                      class="btn btn-sm btn-outline-secondary bulk-series-btn"
+                      type="button"
+                      data-series-id="<%= event.series_id %>"
+                      data-series-scope="all"
+                    >
+                      Apply image to series
+                    </button>
+                  <% } %>
                   <form action="/settings/entertainment/delete" method="POST" class="d-inline" onsubmit="return confirm('Delete <%= event.title %>?');">
                     <input type="hidden" name="id" value="<%= event.id %>">
                     <% if (event.series_id) { %>
@@ -310,12 +366,11 @@
           </div>
           <div class="col-md-6">
             <label class="form-label">Image</label>
-            <input type="hidden" name="image_url" id="entAddImageUrl" value="<%= (mediaSelection && mediaSelection.target === 'add') ? mediaSelection.imageUrl : '' %>">
             <div class="d-flex gap-2">
-              <input type="text" class="form-control" id="entAddImageLabel" readonly value="<%= (mediaSelection && mediaSelection.target === 'add' && mediaSelection.imageUrl) ? mediaSelection.imageUrl.split('/').pop() : '' %>">
+              <input type="url" name="image_url" class="form-control" id="entAddImageUrl" placeholder="Paste image URL" value="<%= (mediaSelection && mediaSelection.target === 'add') ? mediaSelection.imageUrl : '' %>">
               <a class="btn btn-outline-secondary" href="/settings/entertainment/media?target=add">Insert</a>
             </div>
-            <small class="text-muted">Choose from the media library.</small>
+            <small class="text-muted">Paste a URL or choose from the media library.</small>
           </div>
           <div class="col-md-6">
             <label class="form-label">Or Upload Image</label>
@@ -509,12 +564,11 @@
           </div>
           <div class="col-md-6">
             <label class="form-label">Image</label>
-            <input type="hidden" name="image_url" id="entEditImage">
             <div class="d-flex gap-2">
-              <input type="text" class="form-control" id="entEditImageLabel" readonly>
+              <input type="url" name="image_url" class="form-control" id="entEditImage" placeholder="Paste image URL">
               <a class="btn btn-outline-secondary" id="entEditImageInsert" href="/settings/entertainment/media?target=edit">Insert</a>
             </div>
-            <small class="text-muted">Choose from the media library.</small>
+            <small class="text-muted">Paste a URL or choose from the media library.</small>
           </div>
           <div class="col-md-6">
             <label class="form-label">Or Upload Image</label>
@@ -758,13 +812,9 @@
         document.getElementById("entEditOrganiser").value = record.organiser || "";
         document.getElementById("entEditPrice").value = record.price || "";
         const imageUrlInput = document.getElementById("entEditImage");
-        const imageLabel = document.getElementById("entEditImageLabel");
         if (imageUrlInput) {
           const currentUrl = record.image_url || "";
           imageUrlInput.value = currentUrl;
-          if (imageLabel) {
-            imageLabel.value = currentUrl ? currentUrl.split("/").pop() : "";
-          }
         }
         const imageInsert = document.getElementById("entEditImageInsert");
         if (imageInsert && record.id) {
@@ -830,11 +880,7 @@
 
     if (mediaTarget === "add" && mediaImageUrl) {
       const addImageInput = document.getElementById("entAddImageUrl");
-      const addImageLabel = document.getElementById("entAddImageLabel");
       if (addImageInput) addImageInput.value = mediaImageUrl;
-      if (addImageLabel) {
-        addImageLabel.value = mediaImageUrl.split("/").pop();
-      }
       const addModal = document.getElementById("addEntertainmentModal");
       if (addModal && window.bootstrap) {
         const modal = new window.bootstrap.Modal(addModal);
@@ -849,11 +895,7 @@
           "shown.bs.modal",
           () => {
             const imageUrlInput = document.getElementById("entEditImage");
-            const imageLabel = document.getElementById("entEditImageLabel");
             if (imageUrlInput) imageUrlInput.value = mediaImageUrl;
-            if (imageLabel) {
-              imageLabel.value = mediaImageUrl.split("/").pop();
-            }
           },
           { once: true }
         );
@@ -897,9 +939,7 @@
       setValue('textarea[name="description"]', record.description || "");
 
       const imageUrlInput = document.getElementById("entAddImageUrl");
-      const imageLabel = document.getElementById("entAddImageLabel");
       if (imageUrlInput) imageUrlInput.value = record.image_url || "";
-      if (imageLabel) imageLabel.value = record.image_url ? record.image_url.split("/").pop() : "";
 
       const addActsSelect = document.querySelector('select[name="acts[]"]');
       if (addActsSelect) {
@@ -921,6 +961,79 @@
         } catch (err) {
           console.error("Failed to parse copy event payload", err);
         }
+      });
+    });
+
+    const postBulkImage = async ({ imageUrl, eventIds = [], seriesId = null }) => {
+      if (!imageUrl) return;
+      try {
+        const resp = await fetch("/settings/entertainment/bulk-image", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ imageUrl, eventIds, seriesId }),
+        });
+        const data = await resp.json().catch(() => null);
+        if (!resp.ok || !data?.success) {
+          throw new Error(data?.message || "Failed to update images");
+        }
+        window.location.reload();
+      } catch (err) {
+        console.error("Bulk image update failed", err);
+        window.alert(err.message || "Failed to update images");
+      }
+    };
+
+    const getSelectedIds = (group) => {
+      const checkboxes = document.querySelectorAll(`input[data-bulk-item="${group}"]`);
+      return Array.from(checkboxes)
+        .filter((cb) => cb.checked)
+        .map((cb) => Number(cb.value))
+        .filter((id) => Number.isFinite(id));
+    };
+
+    const bulkSelect = document.querySelectorAll("[data-bulk-select]");
+    bulkSelect.forEach((selectAll) => {
+      selectAll.addEventListener("change", () => {
+        const group = selectAll.getAttribute("data-bulk-select");
+        const checkboxes = document.querySelectorAll(`input[data-bulk-item="${group}"]`);
+        checkboxes.forEach((cb) => {
+          cb.checked = selectAll.checked;
+        });
+      });
+    });
+
+    document.querySelectorAll("[data-bulk-apply]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const group = button.getAttribute("data-bulk-apply");
+        const imageInput =
+          group === "entertainment"
+            ? document.getElementById("bulkImageUrlEntertainment")
+            : document.getElementById("bulkImageUrlRegular");
+        const imageUrl = (imageInput?.value || "").trim();
+        const eventIds = getSelectedIds(group);
+        if (!imageUrl) {
+          window.alert("Paste an image URL first.");
+          return;
+        }
+        if (!eventIds.length) {
+          window.alert("Select at least one event.");
+          return;
+        }
+        postBulkImage({ imageUrl, eventIds });
+      });
+    });
+
+    document.querySelectorAll(".bulk-series-btn").forEach((button) => {
+      button.addEventListener("click", () => {
+        const seriesId = button.getAttribute("data-series-id");
+        if (!seriesId) return;
+        const imageUrl =
+          window.prompt("Paste image URL to apply to the entire series:");
+        if (!imageUrl) return;
+        postBulkImage({ imageUrl: imageUrl.trim(), seriesId: Number(seriesId) });
       });
     });
 

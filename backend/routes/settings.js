@@ -2663,6 +2663,40 @@ router.post("/functions/enquiry", ensurePrivileged, async (req, res) => {
   res.redirect("/settings/functions/enquiry");
 });
 
+router.post("/entertainment/bulk-image", ensurePrivileged, async (req, res) => {
+  try {
+    const imageUrl = String(req.body.imageUrl || "").trim();
+    const rawIds = Array.isArray(req.body.eventIds) ? req.body.eventIds : [];
+    const eventIds = rawIds.map((id) => Number(id)).filter((id) => Number.isFinite(id));
+    const seriesId = Number.isFinite(Number(req.body.seriesId)) ? Number(req.body.seriesId) : null;
+
+    if (!imageUrl) {
+      return res.status(400).json({ success: false, message: "Image URL is required." });
+    }
+    if (!seriesId && !eventIds.length) {
+      return res.status(400).json({ success: false, message: "Select events or a series to update." });
+    }
+    
+    let result;
+    if (seriesId) {
+      result = await pool.query(
+        `UPDATE entertainment_events SET image_url = $1, updated_at = NOW() WHERE series_id = $2;`,
+        [imageUrl, seriesId]
+      );
+    } else {
+      result = await pool.query(
+        `UPDATE entertainment_events SET image_url = $1, updated_at = NOW() WHERE id = ANY($2::int[]);`,
+        [imageUrl, eventIds]
+      );
+    }
+    res.json({ success: true, updated: result?.rowCount || 0 });
+  } catch (err) {
+    console.error("[Settings] Bulk image update failed:", err);
+    res.status(500).json({ success: false, message: "Failed to update images." });
+  }
+});
+
+
 
 /* =========================================================
    🎤 ENTERTAINMENT EVENTS SETTINGS
