@@ -1,4 +1,7 @@
 <% const entertainmentPrefill = typeof prefillEntertainment !== 'undefined' ? prefillEntertainment : null; %>
+<% const rangeSelection = typeof rangeFilter !== 'undefined' ? rangeFilter : 'upcoming'; %>
+<% const entertainmentEvents = (events || []).filter(function(event) { return event.display_type !== 'regularevents'; }); %>
+<% const regularEvents = (events || []).filter(function(event) { return event.display_type === 'regularevents'; }); %>
 
 <main class="settings-entertainment">
   <div class="d-flex justify-content-between align-items-center mb-4 gap-2 flex-wrap">
@@ -13,6 +16,15 @@
       <a class="btn btn-outline-secondary" href="/settings/entertainment/acts">
         Acts directory
       </a>
+      <form method="GET" action="/settings/entertainment/events" class="d-flex align-items-center gap-2">
+        <label class="small text-muted" for="entRange">Show</label>
+        <select id="entRange" name="range" class="form-select form-select-sm">
+          <option value="upcoming" <%= rangeSelection === 'upcoming' ? 'selected' : '' %>>Upcoming</option>
+          <option value="past" <%= rangeSelection === 'past' ? 'selected' : '' %>>Past</option>
+          <option value="all" <%= rangeSelection === 'all' ? 'selected' : '' %>>All</option>
+        </select>
+        <button type="submit" class="btn btn-outline-secondary btn-sm">Apply</button>
+      </form>
       <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEntertainmentModal">
         + Add Event
       </button>
@@ -26,8 +38,10 @@
     </div>
   <% } %>
 
-
-<div class="card shadow-sm">
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-light">
+      <h5 class="mb-0">Entertainment events</h5>
+    </div>
     <div class="table-responsive">
       <table class="table align-middle mb-0">
         <thead class="table-light">
@@ -43,18 +57,15 @@
           </tr>
         </thead>
         <tbody>
-          <% if (!events || !events.length) { %>
+          <% if (!entertainmentEvents.length) { %>
             <tr>
               <td colspan="7" class="text-muted text-center py-4">No entertainment events configured yet.</td>
             </tr>
           <% } else { %>
-            <% events.forEach(function(event) { %>
+            <% entertainmentEvents.forEach(function(event) { %>
               <tr>
                 <td>
                   <div class="fw-semibold"><%= event.title %></div>
-                  <small class="badge bg-light text-dark text-uppercase mt-1 d-inline-block">
-                    <%= event.display_type === 'regularevents' ? 'Regular' : 'Entertainment' %>
-                  </small>
                   <% if (event.room_name) { %>
                     <small class="text-muted d-block">Room: <%= event.room_name %></small>
                   <% } %>
@@ -93,6 +104,109 @@
                     data-event-id="<%= event.id %>"
                   >
                     Edit
+                  </button>
+                  <button
+                    class="btn btn-sm btn-outline-primary copy-event-btn"
+                    type="button"
+                    data-copy-event='<%- JSON.stringify(event) %>'
+                  >
+                    Copy
+                  </button>
+                  <form action="/settings/entertainment/delete" method="POST" class="d-inline" onsubmit="return confirm('Delete <%= event.title %>?');">
+                    <input type="hidden" name="id" value="<%= event.id %>">
+                    <% if (event.series_id) { %>
+                      <select name="series_scope" class="form-select form-select-sm d-inline-block w-auto me-2">
+                        <option value="single">This event only</option>
+                        <option value="future">This + future</option>
+                        <option value="all">All in series</option>
+                      </select>
+                    <% } else { %>
+                      <input type="hidden" name="series_scope" value="single">
+                    <% } %>
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-header bg-light">
+      <h5 class="mb-0">Regular events</h5>
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Title</th>
+            <th>Color</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Organiser</th>
+            <th>Created</th>
+            <th>Updated</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!regularEvents.length) { %>
+            <tr>
+              <td colspan="7" class="text-muted text-center py-4">No regular events configured yet.</td>
+            </tr>
+          <% } else { %>
+            <% regularEvents.forEach(function(event) { %>
+              <tr>
+                <td>
+                  <div class="fw-semibold"><%= event.title %></div>
+                  <% if (event.room_name) { %>
+                    <small class="text-muted d-block">Room: <%= event.room_name %></small>
+                  <% } %>
+                  <% if (event.adjunct_name) { %>
+                    <small class="text-muted d-block">Adjunct: <%= event.adjunct_name %></small>
+                  <% } %>
+                  <% if (event.acts && event.acts.length) { %>
+                    <small class="text-muted d-block">
+                      Acts:
+                      <%= event.acts.map(function(act) { return act.name; }).join(", ") %>
+                    </small>
+                  <% } %>
+                </td>
+                <td>
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="rounded-circle border" style="width:14px;height:14px;background:<%= event.effective_event_color || event.event_color || '#6bb4de' %>;"></span>
+                    <span class="small text-muted"><%= event.effective_event_color || event.event_color || '#6bb4de' %></span>
+                  </div>
+                </td>
+                <td><%= event.start_at ? new Date(event.start_at).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', dateStyle: 'medium', timeStyle: 'short' }) : '-' %></td>
+                <td class="text-capitalize"><%= event.status %></td>
+                <td><%= event.organiser || '-' %></td>
+                <td>
+                  <div class="small text-muted"><%= event.created_by_name || '-' %></div>
+                  <small class="text-muted"><%= event.created_at ? new Date(event.created_at).toLocaleDateString('en-NZ') : '' %></small>
+                </td>
+                <td>
+                  <div class="small text-muted"><%= event.updated_by_name || '-' %></div>
+                  <small class="text-muted"><%= event.updated_at ? new Date(event.updated_at).toLocaleDateString('en-NZ') : '' %></small>
+                </td>
+                <td class="text-end">
+                  <button
+                    class="btn btn-sm btn-outline-secondary"
+                    data-bs-toggle="modal"
+                    data-bs-target="#editEntertainmentModal"
+                    data-event-id="<%= event.id %>"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    class="btn btn-sm btn-outline-primary copy-event-btn"
+                    type="button"
+                    data-copy-event='<%- JSON.stringify(event) %>'
+                  >
+                    Copy
                   </button>
                   <form action="/settings/entertainment/delete" method="POST" class="d-inline" onsubmit="return confirm('Delete <%= event.title %>?');">
                     <input type="hidden" name="id" value="<%= event.id %>">
@@ -752,6 +866,63 @@
         }
       }
     }
+
+    const addModalEl = document.getElementById("addEntertainmentModal");
+    const openAddModal = () => {
+      if (!addModalEl || !window.bootstrap) return;
+      const modal = new window.bootstrap.Modal(addModalEl);
+      modal.show();
+    };
+
+    const applyAddRecord = (record) => {
+      if (!record) return;
+      const setValue = (selector, value) => {
+        const el = document.querySelector(selector);
+        if (!el) return;
+        el.value = value || "";
+      };
+      setValue('input[name="title"]', record.title || "");
+      setValue('select[name="status"]', record.status || "draft");
+      setValue('select[name="room_id"]', record.room_id || "");
+      setValue('select[name="display_type"]', record.display_type === "regularevents" ? "regularevents" : "entertainment");
+      setValue('input[name="event_color"]', record.event_color || record.effective_event_color || "#6bb4de");
+      setValue('input[name="start_date"]', nzDate(record.start_at));
+      setValue('input[name="start_time"]', nzTime(record.start_at));
+      setValue('input[name="end_date"]', nzDate(record.end_at));
+      setValue('input[name="end_time"]', nzTime(record.end_at));
+      setValue('input[name="adjunct_name"]', record.adjunct_name || "");
+      setValue('input[name="external_url"]', record.external_url || "");
+      setValue('input[name="organiser"]', record.organiser || "");
+      setValue('input[name="price"]', record.price || "");
+      setValue('textarea[name="description"]', record.description || "");
+
+      const imageUrlInput = document.getElementById("entAddImageUrl");
+      const imageLabel = document.getElementById("entAddImageLabel");
+      if (imageUrlInput) imageUrlInput.value = record.image_url || "";
+      if (imageLabel) imageLabel.value = record.image_url ? record.image_url.split("/").pop() : "";
+
+      const addActsSelect = document.querySelector('select[name="acts[]"]');
+      if (addActsSelect) {
+        const selectedIds = (record.acts || []).map((act) => act.id);
+        Array.from(addActsSelect.options).forEach((option) => {
+          option.selected = selectedIds.includes(Number(option.value));
+        });
+      }
+    };
+
+    document.querySelectorAll(".copy-event-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const raw = btn.getAttribute("data-copy-event");
+        if (!raw) return;
+        try {
+          const record = JSON.parse(raw);
+          applyAddRecord(record);
+          openAddModal();
+        } catch (err) {
+          console.error("Failed to parse copy event payload", err);
+        }
+      });
+    });
 
   });
 </script>

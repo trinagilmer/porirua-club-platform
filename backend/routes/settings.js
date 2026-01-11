@@ -2697,6 +2697,19 @@ router.get("/entertainment", ensurePrivileged, async (req, res) => {
 router.get("/entertainment/events", ensurePrivileged, async (req, res) => {
   try {
     await ensureEntertainmentColorColumn();
+    const rangeRaw = String(req.query.range || "upcoming").toLowerCase();
+    const range = ["upcoming", "past", "all"].includes(rangeRaw) ? rangeRaw : "upcoming";
+    const whereParts = [];
+    if (range === "upcoming") {
+      whereParts.push(
+        `e.start_at IS NULL OR (e.start_at AT TIME ZONE 'Pacific/Auckland')::date >= (NOW() AT TIME ZONE 'Pacific/Auckland')::date`
+      );
+    } else if (range === "past") {
+      whereParts.push(
+        `e.start_at IS NULL OR (e.start_at AT TIME ZONE 'Pacific/Auckland')::date < (NOW() AT TIME ZONE 'Pacific/Auckland')::date`
+      );
+    }
+    const whereClause = whereParts.length ? `WHERE ${whereParts.join(" AND ")}` : "";
     const eventsRes = await pool.query(
       `
       WITH series_colors AS (
@@ -2725,8 +2738,7 @@ router.get("/entertainment/events", ensurePrivileged, async (req, res) => {
         LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
         LEFT JOIN entertainment_acts a ON a.id = ea.act_id
         LEFT JOIN rooms r ON r.id = e.room_id
-       WHERE e.start_at IS NULL
-          OR (e.start_at AT TIME ZONE 'Pacific/Auckland')::date >= (NOW() AT TIME ZONE 'Pacific/Auckland')::date
+       ${whereClause}
        GROUP BY e.id, sc.series_color, uc.name, uu.name, r.name
        ORDER BY e.start_at ASC NULLS LAST;
       `
@@ -2754,6 +2766,7 @@ router.get("/entertainment/events", ensurePrivileged, async (req, res) => {
       events: eventsRes.rows,
       acts: actsRes.rows,
       rooms: roomsRes.rows,
+      rangeFilter: range,
       mediaSelection: {
         target: mediaTarget,
         eventId: mediaEventId,
