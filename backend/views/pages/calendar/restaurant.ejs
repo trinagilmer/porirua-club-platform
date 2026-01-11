@@ -1,5 +1,38 @@
 <% const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]; %>
 <% const prefill = typeof prefillBooking !== 'undefined' ? prefillBooking : {}; %>
+<% const isEmbed = Boolean(embed); %>
+<% if (isEmbed) { %>
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Porirua Club - Restaurant Calendar</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css">
+    <style>
+      body.restaurant-calendar-embed {
+        margin: 0;
+        padding: 16px;
+        font-family: "Inter","Segoe UI",system-ui,sans-serif;
+        background: #f8fafc;
+      }
+      .calendar-embed-shell {
+        max-width: 1100px;
+        margin: 0 auto;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        box-shadow: 0 12px 24px rgba(15,23,42,0.12);
+        padding: 16px;
+      }
+      @media (max-width: 720px) {
+        body.restaurant-calendar-embed { padding: 8px; }
+        .calendar-embed-shell { padding: 10px; }
+      }
+    </style>
+  </head>
+  <body class="restaurant-calendar-embed">
+<% } %>
 <script>
   window.calendarConfig = Object.assign({}, window.calendarConfig || {}, <%- JSON.stringify(calendarConfig || {}) %>);
   window.restaurantCanManage = <%= canManage ? 'true' : 'false' %>;
@@ -12,24 +45,26 @@
   }
 </style>
 
-<div class="calendar-page px-4 py-4">
-  <div class="d-flex justify-content-between flex-wrap gap-2 mb-4">
-    <div>
-      <h1 class="mb-1">Restaurant Bookings</h1>
-      <p class="text-muted mb-0">Live view of reservations and capacity windows.</p>
+<div class="<%= isEmbed ? 'calendar-embed-shell' : 'calendar-page px-4 py-4' %>">
+  <% if (!isEmbed) { %>
+    <div class="d-flex justify-content-between flex-wrap gap-2 mb-4">
+      <div>
+        <h1 class="mb-1">Restaurant Bookings</h1>
+        <p class="text-muted mb-0">Live view of reservations and capacity windows.</p>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="/calendar" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-arrow-left-short me-1"></i> Function calendar
+        </a>
+        <a href="/calendar/restaurant/bookings" class="btn btn-outline-primary btn-sm">
+          Booking list
+        </a>
+        <a href="/calendar/restaurant/book" class="btn btn-outline-primary btn-sm">
+          Public booking form
+        </a>
+      </div>
     </div>
-    <div class="d-flex flex-wrap gap-2">
-      <a href="/calendar" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left-short me-1"></i> Function calendar
-      </a>
-      <a href="/calendar/restaurant/bookings" class="btn btn-outline-primary btn-sm">
-        Booking list
-      </a>
-      <a href="/calendar/restaurant/book" class="btn btn-outline-primary btn-sm">
-        Public booking form
-      </a>
-    </div>
-  </div>
+  <% } %>
 
   <% if (message) { %>
     <div class="alert alert-success"><%= message %></div>
@@ -38,82 +73,88 @@
     <div class="alert alert-danger"><%= decodeURIComponent(errorMessage) %></div>
   <% } %>
 
-  <div class="row g-4">
-    <div class="col-lg-8">
-      <section class="card shadow-sm p-3">
-        <div id="restaurantCalendar" class="calendar-shell" aria-live="polite"></div>
-      </section>
-    </div>
-    <div class="col-lg-4">
-      <section class="card shadow-sm">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="mb-0">Upcoming bookings</h5>
-            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#serviceWindowsModal">
-              Service windows
-            </button>
-          </div>
-          <div class="mb-2">
-            <div class="row g-2">
-              <div class="col-12">
-                <div class="input-group input-group-sm">
-                  <span class="input-group-text"><i class="bi bi-search"></i></span>
-                  <input type="text" class="form-control" id="upcomingFilter" placeholder="Search bookings">
+  <% if (isEmbed) { %>
+    <section class="card shadow-sm p-3">
+      <div id="restaurantCalendar" class="calendar-shell" aria-live="polite"></div>
+    </section>
+  <% } else { %>
+    <div class="row g-4">
+      <div class="col-lg-8">
+        <section class="card shadow-sm p-3">
+          <div id="restaurantCalendar" class="calendar-shell" aria-live="polite"></div>
+        </section>
+      </div>
+      <div class="col-lg-4">
+        <section class="card shadow-sm">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0">Upcoming bookings</h5>
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#serviceWindowsModal">
+                Service windows
+              </button>
+            </div>
+            <div class="mb-2">
+              <div class="row g-2">
+                <div class="col-12">
+                  <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" id="upcomingFilter" placeholder="Search bookings">
+                  </div>
+                </div>
+                <div class="col-6">
+                  <select id="upcomingMode" class="form-select form-select-sm">
+                    <option value="all" selected>All bookings</option>
+                    <option value="date">Bookings by date</option>
+                  </select>
+                </div>
+                <div class="col-6">
+                  <input type="date" id="upcomingDate" class="form-control form-control-sm" aria-label="Filter by date">
+                </div>
+                <div class="col-12 d-flex justify-content-between align-items-center">
+                  <small class="text-muted" id="bookingTotalsLabel">Totals: -</small>
                 </div>
               </div>
-              <div class="col-6">
-                <select id="upcomingMode" class="form-select form-select-sm">
-                  <option value="all" selected>All bookings</option>
-                  <option value="date">Bookings by date</option>
-                </select>
-              </div>
-              <div class="col-6">
-                <input type="date" id="upcomingDate" class="form-control form-control-sm" aria-label="Filter by date">
-              </div>
-              <div class="col-12 d-flex justify-content-between align-items-center">
-                <small class="text-muted" id="bookingTotalsLabel">Totals: -</small>
-              </div>
             </div>
+            <% if (!upcomingBookings || !upcomingBookings.length) { %>
+              <p class="text-muted small mb-0">No upcoming bookings.</p>
+            <% } else { %>
+              <div class="list-group list-group-flush upcoming-list" id="upcomingList">
+                <% upcomingBookings.forEach(function(b) { %>
+                  <% 
+                    const rawDate = b.booking_date || "";
+                    const dateObj = rawDate ? new Date(rawDate) : null;
+                    const dateAttr = dateObj
+                      ? new Date(dateObj.getTime() - dateObj.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+                      : (typeof rawDate === 'string' ? rawDate.slice(0, 10) : '');
+                    const dateStr = dateObj
+                      ? dateObj.toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'short', year: '2-digit' })
+                      : '';
+                    const timeStr = (b.booking_time || '').slice(0,5);
+                    const receivedStr = b.created_at
+                      ? new Date(b.created_at).toLocaleString('en-NZ', { weekday: 'long', day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+                      : '';
+                    const linkUrl = `/calendar/restaurant/bookings/${b.id}`;
+                  %>
+                  <a href="<%= linkUrl %>" data-booking-date="<%= dateAttr %>" data-size="<%= b.size || 0 %>" class="list-group-item px-0 d-flex justify-content-between align-items-start text-decoration-none upcoming-item">
+                    <div>
+                      <div class="fw-semibold text-primary"><%= b.party_name %></div>
+                      <small class="text-muted d-block"><%= dateStr %> <% if (timeStr) { %> @ <%= timeStr %><% } %></small>
+                      <small class="text-muted d-block">Guests: <%= b.size || 0 %><% if (b.service_name) { %> • <%= b.service_name %><% } %></small>
+                    </div>
+                    <span class="badge <%= (b.status || '').toLowerCase() === 'pending' ? 'bg-warning text-dark' : 'bg-success' %> text-uppercase align-self-center">
+                      <%= (b.status || '').toLowerCase() === 'pending' ? 'Pending' : 'Confirmed' %>
+                    </span>
+                  </a>
+                <% }) %>
+              </div>
+            <% } %>
+            <hr>
+            <p class="text-muted small mb-0">Click a calendar slot to add a booking.</p>
           </div>
-          <% if (!upcomingBookings || !upcomingBookings.length) { %>
-            <p class="text-muted small mb-0">No upcoming bookings.</p>
-          <% } else { %>
-            <div class="list-group list-group-flush upcoming-list" id="upcomingList">
-              <% upcomingBookings.forEach(function(b) { %>
-                <% 
-                  const rawDate = b.booking_date || "";
-                  const dateObj = rawDate ? new Date(rawDate) : null;
-                  const dateAttr = dateObj
-                    ? new Date(dateObj.getTime() - dateObj.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
-                    : (typeof rawDate === 'string' ? rawDate.slice(0, 10) : '');
-                  const dateStr = dateObj
-                    ? dateObj.toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'short', year: '2-digit' })
-                    : '';
-                  const timeStr = (b.booking_time || '').slice(0,5);
-                  const receivedStr = b.created_at
-                    ? new Date(b.created_at).toLocaleString('en-NZ', { weekday: 'long', day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })
-                    : '';
-                  const linkUrl = `/calendar/restaurant/bookings/${b.id}`;
-                %>
-                <a href="<%= linkUrl %>" data-booking-date="<%= dateAttr %>" data-size="<%= b.size || 0 %>" class="list-group-item px-0 d-flex justify-content-between align-items-start text-decoration-none upcoming-item">
-                  <div>
-                    <div class="fw-semibold text-primary"><%= b.party_name %></div>
-                    <small class="text-muted d-block"><%= dateStr %> <% if (timeStr) { %> @ <%= timeStr %><% } %></small>
-                    <small class="text-muted d-block">Guests: <%= b.size || 0 %><% if (b.service_name) { %> • <%= b.service_name %><% } %></small>
-                  </div>
-                  <span class="badge <%= (b.status || '').toLowerCase() === 'pending' ? 'bg-warning text-dark' : 'bg-success' %> text-uppercase align-self-center">
-                    <%= (b.status || '').toLowerCase() === 'pending' ? 'Pending' : 'Confirmed' %>
-                  </span>
-                </a>
-              <% }) %>
-            </div>
-          <% } %>
-          <hr>
-          <p class="text-muted small mb-0">Click a calendar slot to add a booking.</p>
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
-  </div>
+  <% } %>
 </div>
 
 <script>
@@ -167,6 +208,7 @@
   })();
 </script>
 
+<% if (!isEmbed) { %>
 <!-- Service Windows Modal -->
 <div class="modal fade" id="serviceWindowsModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -354,3 +396,10 @@
     </div>
   </div>
 </div>
+<% } %>
+<% if (isEmbed) { %>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+  <script src="/js/calendar/restaurant.js"></script>
+  </body>
+</html>
+<% } %>

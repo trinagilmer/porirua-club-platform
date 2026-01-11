@@ -79,12 +79,16 @@ router.get("/", async (req, res) => {
     const entertainmentEvents = rows.filter((event) => event.display_type !== "regularevents");
     const regularEvents = rows.filter((event) => event.display_type === "regularevents");
     const viewParam = (req.query.view || "").toLowerCase();
+    const hasViewParam = Boolean(viewParam);
     const initialView = ["month", "week", "agenda", "list", "pinboard"].includes(viewParam)
       ? viewParam
       : "month";
+    const embed = req.query.embed === "1";
+    const safeInitialView = embed && !hasViewParam ? "pinboard" : initialView;
     const typeParam = normalizeDisplayType(req.query.type) || "entertainment";
     res.render("pages/entertainment/index", {
       layout: "layouts/main",
+      hideChrome: embed,
       title: "Entertainment",
       active: "entertainment",
       entertainmentEvents,
@@ -92,8 +96,9 @@ router.get("/", async (req, res) => {
       pastEvents: pastRows,
       entertainmentHeaderHtml: feedbackSettings.events_header_html,
       showEntertainmentHeader: feedbackSettings.show_entertainment_header,
-      initialCalendarView: initialView,
+      initialCalendarView: safeInitialView,
       initialCalendarType: typeParam,
+      embed,
       pageCss: ["https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css"],
       pageJs: [
         "https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js",
@@ -224,22 +229,28 @@ router.get("/:slugOrId", async (req, res) => {
     const { rows } = await pool.query(query, params);
     const event = rows[0] || null;
     if (!event || event.status !== "published") {
+      const embed = req.query.embed === "1";
       return res.status(404).render("pages/entertainment/not-found", {
         layout: "layouts/main",
+        hideChrome: embed,
         title: "Event not found",
         active: "entertainment",
+        embed,
       });
     }
     const shareUrl = `${process.env.APP_URL || ""}/entertainment/${event.slug || event.id}`;
     const feedbackSettings = await getFeedbackSettings();
+    const embed = req.query.embed === "1";
     res.render("pages/entertainment/detail", {
       layout: "layouts/main",
+      hideChrome: embed,
       title: event.title,
       active: "entertainment",
       event,
       shareUrl,
       entertainmentHeaderHtml: feedbackSettings.events_header_html,
       showEntertainmentHeader: feedbackSettings.show_entertainment_header,
+      embed,
     });
   } catch (err) {
     console.error("[Entertainment] Failed to load event detail:", err);

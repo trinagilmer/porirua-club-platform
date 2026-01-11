@@ -1,4 +1,6 @@
-<% if (showEntertainmentHeader) { %>
+<% const isEmbed = Boolean(embed); %>
+
+<% if (showEntertainmentHeader && !isEmbed) { %>
   <div class="entertainment-hero d-flex flex-column align-items-center text-center py-4 position-relative overflow-hidden" style="background: linear-gradient(120deg, #0f172a, #1d4ed8);">
     <div class="hero-content text-white position-relative">
       <%- entertainmentHeaderHtml || '<p class="text-uppercase fw-semibold tracking-wide mb-1">Porirua Club</p><h1 class="display-5 fw-bold mb-2">Live entertainment &amp; events</h1>' %>
@@ -6,12 +8,14 @@
   </div>
 <% } %>
 
-<div class="container py-5">
-  <div class="mb-4">
-    <a href="/entertainment" class="text-decoration-none small fw-semibold">
-      &larr; Back to calendar
-    </a>
-  </div>
+<div class="container <%= isEmbed ? 'py-3' : 'py-5' %>">
+  <% if (!isEmbed) { %>
+    <div class="mb-4">
+      <a href="/entertainment" class="text-decoration-none small fw-semibold">
+        &larr; Back to calendar
+      </a>
+    </div>
+  <% } %>
   <div class="row g-4">
     <div class="col-lg-7">
       <article class="card shadow-sm overflow-hidden">

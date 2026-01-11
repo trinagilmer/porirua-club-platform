@@ -29,6 +29,7 @@
     const calendarEl = document.getElementById("entertainmentCalendar");
     if (!calendarEl || !window.FullCalendar) return;
 
+    const isEmbed = calendarEl.dataset.embed === "1";
     const titleEl = document.getElementById("entCalendarTitle");
     const viewButtons = document.querySelectorAll("[data-ent-view]");
     const navButtons = document.querySelectorAll("[data-cal-nav]");
@@ -115,7 +116,8 @@
       eventClick: (info) => {
         if (info.event.url) {
           info.jsEvent?.preventDefault();
-          window.location.href = info.event.url;
+          const targetUrl = isEmbed ? `${info.event.url}?embed=1` : info.event.url;
+          window.location.href = targetUrl;
         }
       },
       eventDidMount: (info) => {

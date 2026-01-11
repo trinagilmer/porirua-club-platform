@@ -1,6 +1,6 @@
-<% const entertainmentList = entertainmentEvents || []; const regularList = regularEvents || []; const pastList = pastEvents || []; %>
+<% const entertainmentList = entertainmentEvents || []; const regularList = regularEvents || []; const pastList = pastEvents || []; const isEmbed = Boolean(embed); %>
 
-<% if (showEntertainmentHeader) { %>
+<% if (showEntertainmentHeader && !isEmbed) { %>
   <div class="entertainment-hero d-flex flex-column align-items-center text-center py-5 position-relative overflow-hidden" style="background: linear-gradient(120deg, #0f172a, #1d4ed8);">
     <div class="hero-content text-white position-relative">
       <%- entertainmentHeaderHtml || '<p class="text-uppercase fw-semibold tracking-wide mb-1">Porirua Club</p><h1 class="display-4 fw-bold mb-3">Live entertainment &amp; events</h1><p class="lead mb-0">Discover upcoming music, comedy, and special nights at the Club.</p>' %>
@@ -8,11 +8,15 @@
   </div>
 <% } %>
 
-<div class="container py-5 entertainment-page">
+<div class="container <%= isEmbed ? 'py-3' : 'py-5' %> entertainment-page">
   <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
     <div>
-      <p class="text-uppercase small text-muted mb-1">Browse schedule</p>
-      <h2 class="h4 mb-0">What's on at the Club</h2>
+      <% if (!isEmbed) { %>
+        <p class="text-uppercase small text-muted mb-1">Browse schedule</p>
+        <h2 class="h4 mb-0">What's on at the Club</h2>
+      <% } else { %>
+        <h2 class="h5 mb-0">Entertainment calendar</h2>
+      <% } %>
     </div>
     <div class="ent-calendar-controls">
       <div class="btn-group ent-toggle" role="group" aria-label="Event filter">
@@ -71,6 +75,7 @@
       class="ent-calendar"
       data-initial-view="<%= initialCalendarView %>"
       data-initial-type="<%= initialCalendarType %>"
+      data-embed="<%= isEmbed ? '1' : '0' %>"
     ></div>
   </section>
 
@@ -161,7 +166,7 @@
   </section>
 </div>
 
-<% if (pastList.length) { %>
+<% if (!isEmbed && pastList.length) { %>
   <div class="container">
     <div class="mt-5 pt-4 border-top">
       <div class="d-flex justify-content-between align-items-center mb-3">

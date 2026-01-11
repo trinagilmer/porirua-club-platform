@@ -2559,6 +2559,7 @@ router.get("/restaurant/embeds", ensurePrivileged, async (req, res) => {
       title: "Settings - Restaurant Embeds",
       pageType: "settings",
       activeTab: "restaurant-embeds",
+      baseUrl: getAppBaseUrl(req),
       user: req.session.user || null,
     });
   } catch (err) {
@@ -2957,6 +2958,7 @@ router.get("/entertainment/embeds", ensurePrivileged, async (req, res) => {
       title: "Settings - Entertainment Embeds",
       pageType: "settings",
       activeTab: "entertainment-embeds",
+      baseUrl: getAppBaseUrl(req),
       user: req.session.user || null,
       flashMessage: req.flash?.("flashMessage"),
       flashType: req.flash?.("flashType"),
