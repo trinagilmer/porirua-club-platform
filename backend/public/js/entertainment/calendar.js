@@ -3,7 +3,6 @@
     const cleaned = String(value || "").toLowerCase();
     if (cleaned === "week") return "dayGridWeek";
     if (cleaned === "agenda" || cleaned === "list") return "listWeek";
-    if (cleaned === "pinboard") return "pinboard";
     return "dayGridMonth";
   }
 
@@ -39,7 +38,10 @@
     const pinboardViews = document.querySelectorAll(".ent-pinboard");
 
     let currentType = calendarEl.dataset.initialType || getTypeFromToggle();
-    const initialView = getInitialView(calendarEl.dataset.initialView);
+    const initialViewRaw = String(calendarEl.dataset.initialView || "");
+    const startInPinboard = initialViewRaw.toLowerCase() === "pinboard";
+    const initialView = getInitialView(startInPinboard ? "month" : initialViewRaw);
+    let isPinboardActive = false;
 
     function parseColor(value) {
       if (!value) return null;
@@ -71,6 +73,7 @@
     }
 
     function setViewVisibility(showPinboard) {
+      isPinboardActive = showPinboard;
       if (calendarShell) calendarShell.classList.toggle("d-none", showPinboard);
       if (pinboardShell) pinboardShell.classList.toggle("d-none", !showPinboard);
     }
@@ -111,7 +114,9 @@
       },
       datesSet: (arg) => {
         if (titleEl) titleEl.textContent = arg.view?.title || "";
-        setActiveButton(viewButtons, viewKeyFromType(arg.view?.type));
+        if (!isPinboardActive) {
+          setActiveButton(viewButtons, viewKeyFromType(arg.view?.type));
+        }
       },
       eventClick: (info) => {
         if (info.event.url) {
@@ -164,7 +169,7 @@
     });
 
     calendar.render();
-    if (initialView === "pinboard") {
+    if (startInPinboard) {
       setViewVisibility(true);
       setActiveButton(viewButtons, "pinboard");
     } else {
