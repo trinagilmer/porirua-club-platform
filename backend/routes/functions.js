@@ -6,6 +6,7 @@ const { sendMail: graphSendMail } = require("../services/graphService");
 const { sendTaskAssignmentEmail } = require("../services/taskMailer");
 const recurrenceService = require("../services/recurrenceService");
 const { getAppToken } = require("../utils/graphAuth");
+const { getFunctionSettings } = require("../services/functionSettings");
 
 
 // 🧩 Utility: normalizeRecipients
@@ -110,6 +111,69 @@ async function ensureFunctionCancelColumn() {
   await pool.query("ALTER TABLE functions ADD COLUMN IF NOT EXISTS cancelled_reason TEXT;");
 }
 
+async function ensureFunctionLeadSourceColumn() {
+  await pool.query("ALTER TABLE functions ADD COLUMN IF NOT EXISTS lead_source TEXT;");
+}
+
+function getAppBaseUrl(req) {
+  const envBase = (process.env.APP_URL || "").trim();
+  if (envBase) return envBase.replace(/\/$/, "");
+  if (!req) return "http://localhost:3000";
+  const proto = req.headers["x-forwarded-proto"] || req.protocol;
+  const host = req.get("host");
+  return `${proto}://${host}`.replace(/\/$/, "");
+}
+
+async function findOrCreateContact({ name, email, phone }) {
+  const emailTrim = String(email || "").trim();
+  if (!emailTrim) return null;
+  const { rows } = await pool.query(
+    `SELECT id FROM contacts WHERE LOWER(email) = LOWER($1) LIMIT 1;`,
+    [emailTrim]
+  );
+  if (rows.length) return rows[0].id;
+  const {
+    rows: [inserted],
+  } = await pool.query(
+    `
+    INSERT INTO contacts (name, email, phone, created_at, updated_at)
+    VALUES ($1, $2, $3, NOW(), NOW())
+    RETURNING id;
+    `,
+    [name || emailTrim, emailTrim, phone || null]
+  );
+  return inserted?.id || null;
+}
+
+async function renderEnquiryForm(req, res, options = {}) {
+  const embed = req.query.embed === "1";
+  const [eventTypesRes, roomsRes, functionSettings] = await Promise.all([
+    pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`),
+    pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`),
+    getFunctionSettings(),
+  ]);
+  const baseUrl = getAppBaseUrl(req);
+  const termsUrl =
+    (
+      functionSettings?.enquiry_terms_url ||
+      process.env.FUNCTION_TERMS_URL ||
+      process.env.TERMS_URL ||
+      `${baseUrl}/terms`
+    ).trim();
+
+  res.status(options.status || 200).render("pages/functions/enquiry", {
+    layout: false,
+    title: "Function Enquiry",
+    embed,
+    success: options.success || false,
+    errorMessage: options.errorMessage || null,
+    formData: options.formData || null,
+    eventTypes: eventTypesRes.rows || [],
+    rooms: roomsRes.rows || [],
+    termsUrl,
+  });
+}
+
 const META_REGEX = /\[([a-z_]+):([^\]]+)\]/gi;
 
 function extractProposalMetadata(description = "") {
@@ -120,6 +184,203 @@ function extractProposalMetadata(description = "") {
   }
   return meta;
 }
+
+/* =========================================================
+   🌐 PUBLIC: Function Enquiry (embed-friendly)
+========================================================= */
+router.get("/enquiry", async (req, res) => {
+  try {
+    await renderEnquiryForm(req, res, {
+      success: req.query.success === "1",
+      errorMessage: req.query.error || null,
+    });
+  } catch (err) {
+    console.error("[Functions Enquiry] Failed to load form:", err);
+    res.status(500).send("Unable to load enquiry form.");
+  }
+});
+
+router.post("/enquiry", async (req, res) => {
+  const embed = req.query.embed === "1";
+  const {
+    contact_name,
+    contact_email,
+    contact_phone,
+    event_name,
+    event_date,
+    start_time,
+    end_time,
+    attendees,
+    budget,
+    event_type,
+    room_id,
+    lead_source,
+    notes,
+  } = req.body || {};
+
+  const trimmedName = String(event_name || "").trim();
+  const trimmedContact = String(contact_name || "").trim();
+  const trimmedEmail = String(contact_email || "").trim();
+
+  if (!trimmedContact || !trimmedEmail || !trimmedName) {
+    return renderEnquiryForm(req, res, {
+      status: 400,
+      errorMessage: "Contact name, email, and event name are required.",
+      formData: req.body || {},
+    });
+  }
+
+  const newFunctionId = randomUUID();
+  const leadSourceValue = String(lead_source || "").trim() || "Website enquiry form";
+  const contactPhoneValue = String(contact_phone || "").trim() || null;
+  const safeNotes = String(notes || "").trim() || null;
+
+  let client;
+  try {
+    await ensureFunctionCancelColumn();
+    await ensureFunctionLeadSourceColumn();
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    await client.query(
+      `
+      INSERT INTO functions (
+        id_uuid,
+        event_name,
+        status,
+        cancelled_reason,
+        event_date,
+        event_time,
+        start_time,
+        end_time,
+        attendees,
+        budget,
+        totals_price,
+        totals_cost,
+        room_id,
+        event_type,
+        owner_id,
+        lead_source,
+        created_at,
+        updated_at,
+        updated_by
+      )
+      VALUES (
+        $1,$2,'lead',NULL,$3,$4,$5,$6,$7,$8,NULL,NULL,$9,$10,NULL,$11,NOW(),NOW(),NULL
+      );
+      `,
+      [
+        newFunctionId,
+        trimmedName,
+        event_date || null,
+        null,
+        start_time || null,
+        end_time || null,
+        attendees ? Number(attendees) : null,
+        budget ? Number(budget) : null,
+        room_id ? Number(room_id) : null,
+        event_type || null,
+        leadSourceValue,
+      ]
+    );
+
+    const contactId = await findOrCreateContact({
+      name: trimmedContact,
+      email: trimmedEmail,
+      phone: contactPhoneValue,
+    });
+
+    if (contactId) {
+      await client.query(
+        `
+        INSERT INTO function_contacts (function_id, contact_id, is_primary, created_at)
+        VALUES ($1, $2, TRUE, NOW())
+        ON CONFLICT (function_id, contact_id) DO NOTHING;
+        `,
+        [newFunctionId, contactId]
+      );
+    }
+
+    if (safeNotes) {
+      await client.query(
+        `
+        INSERT INTO function_notes
+          (function_id, content, note_type, created_by, updated_by, created_at, updated_at)
+        VALUES ($1, $2, 'general', NULL, NULL, NOW(), NOW());
+        `,
+        [newFunctionId, safeNotes]
+      );
+    }
+
+    await client.query("COMMIT");
+
+    let roomName = null;
+    if (room_id) {
+      const { rows } = await client.query(`SELECT name FROM rooms WHERE id = $1 LIMIT 1;`, [
+        Number(room_id),
+      ]);
+      roomName = rows[0]?.name || null;
+    }
+
+    try {
+      const token = await getGraphAccessToken();
+      const functionSettings = await getFunctionSettings();
+      const notifyValue =
+        functionSettings?.enquiry_notification_emails ||
+        process.env.FUNCTION_ENQUIRY_NOTIFICATIONS ||
+        "operations@poriruaclub.co.nz";
+      const to = normalizeRecipients(notifyValue);
+      if (token && to.length) {
+        const baseUrl = getAppBaseUrl(req);
+        const detailLink = `${baseUrl}/functions/${newFunctionId}`;
+        const subject = `New function enquiry: ${trimmedName}`;
+        const body = `
+          <p>A new function enquiry has been submitted.</p>
+          <p><strong>Event:</strong> ${trimmedName}</p>
+          <p><strong>Date:</strong> ${event_date || "TBC"}</p>
+          <p><strong>Time:</strong> ${[start_time, end_time].filter(Boolean).join(" - ") || "TBC"}</p>
+          <p><strong>Guests:</strong> ${attendees || "TBC"}</p>
+          <p><strong>Budget:</strong> ${budget || "TBC"}</p>
+          <p><strong>Event type:</strong> ${event_type || "TBC"}</p>
+          <p><strong>Room:</strong> ${roomName || "TBC"}</p>
+          <p><strong>Lead source:</strong> ${leadSourceValue}</p>
+          <p><strong>Contact:</strong> ${trimmedContact} (${trimmedEmail}${contactPhoneValue ? `, ${contactPhoneValue}` : ""})</p>
+          ${safeNotes ? `<p><strong>Notes:</strong><br/>${safeNotes}</p>` : ""}
+          <p><a href="${detailLink}">View in portal</a></p>
+        `;
+        await graphSendMail(token, {
+          to,
+          subject,
+          body,
+          fromMailbox: process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz",
+        });
+      }
+    } catch (mailErr) {
+      console.error("[Functions Enquiry] Email send failed:", mailErr.message);
+    }
+
+    const successUrl = embed
+      ? "/functions/enquiry?embed=1&success=1"
+      : "/functions/enquiry?success=1";
+    res.redirect(successUrl);
+  } catch (err) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        console.error("[Functions Enquiry] Rollback failed:", rollbackErr.message);
+      }
+    }
+    console.error("[Functions Enquiry] Failed to submit:", err);
+    await renderEnquiryForm(req, res, {
+      status: 500,
+      errorMessage: "Unable to submit enquiry. Please try again.",
+      formData: req.body || {},
+    });
+  } finally {
+    client?.release();
+  }
+});
 
 function stripProposalMetadata(description = "") {
   return String(description || "").replace(/\s*\[[^\]]+\]/g, "").trim();
@@ -1807,6 +2068,7 @@ router.post("/:id/update-field", async (req, res) => {
   const { id: functionId } = req.params; // UUID string
   let { field, value } = req.body;
   await ensureFunctionCancelColumn();
+  await ensureFunctionLeadSourceColumn();
 
   // ✅ Define only allowed, safe-to-update columns
   const allowed = new Map([
@@ -1823,6 +2085,7 @@ router.post("/:id/update-field", async (req, res) => {
     ["totals_price", "totals_price"],
     ["totals_cost", "totals_cost"],
     ["notes", "notes"],
+    ["lead_source", "lead_source"],
     ["room_id", "room_id"] // integer column - handle separately
   ]);
 

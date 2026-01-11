@@ -11,7 +11,7 @@
       <h2 contenteditable="true" class="editable" data-field="event_name" data-id="<%= fn.id_uuid %>">
         <%= fn.event_name %>
       </h2>
-      <select class="form-select status-select" disabled>
+      <select class="form-select status-select editable" data-field="status" data-id="<%= fn.id_uuid %>">
         <option value="lead" <%= fn.status==='lead'?'selected':'' %>>Lead</option>
         <option value="qualified" <%= fn.status==='qualified'?'selected':'' %>>Qualified</option>
         <option value="confirmed" <%= fn.status==='confirmed'?'selected':'' %>>Confirmed</option>
@@ -177,6 +177,17 @@
           </option>
         <% }) %>
       </select>
+    </div>
+
+    <div class="detail-item">
+      <label>Lead Source</label>
+      <input
+        type="text"
+        class="editable w-100"
+        data-field="lead_source"
+        data-id="<%= fn.id_uuid %>"
+        value="<%= fn.lead_source || '' %>"
+      >
     </div>
   </section>
   </div> <!-- /sidebar-scroll-container -->

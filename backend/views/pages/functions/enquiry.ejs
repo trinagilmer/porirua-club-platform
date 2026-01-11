@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= typeof title !== 'undefined' ? title : 'Function Enquiry' %></title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+    crossorigin="anonymous"
+  />
+  <link rel="stylesheet" href="/css/main.css?v=2.0" />
+  <style>
+    body.pc-embed-body {
+      background: #f6f7fb;
+      padding: 16px;
+    }
+    .pc-embed-shell {
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    .pc-embed-card {
+      border-radius: 16px;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+    .pc-embed-card .card-header {
+      background: #0f172a;
+      color: #fff;
+      border-top-left-radius: 16px;
+      border-top-right-radius: 16px;
+    }
+  </style>
+</head>
+<body class="pc-embed-body">
+  <% const actionUrl = embed ? "/functions/enquiry?embed=1" : "/functions/enquiry"; %>
+  <% const data = formData || {}; %>
+  <main class="pc-embed-shell">
+    <div class="card pc-embed-card border-0">
+      <div class="card-header">
+        <h1 class="h4 mb-1">Function enquiry</h1>
+        <p class="mb-0 small text-white-50">Send a request and our team will follow up.</p>
+      </div>
+      <div class="card-body p-4">
+        <% if (success) { %>
+          <div class="alert alert-success">Thanks! Your enquiry has been sent.</div>
+        <% } %>
+        <% if (errorMessage) { %>
+          <div class="alert alert-danger"><%= errorMessage %></div>
+        <% } %>
+
+        <form method="POST" action="<%= actionUrl %>" class="vstack gap-3">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Contact name</label>
+              <input type="text" name="contact_name" class="form-control" value="<%= data.contact_name || '' %>" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Contact email</label>
+              <input type="email" name="contact_email" class="form-control" value="<%= data.contact_email || '' %>" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Contact phone</label>
+              <input type="text" name="contact_phone" class="form-control" value="<%= data.contact_phone || '' %>" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Event name</label>
+              <input type="text" name="event_name" class="form-control" value="<%= data.event_name || '' %>" required />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Event date</label>
+              <input type="date" name="event_date" class="form-control" value="<%= data.event_date || '' %>" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Start time</label>
+              <input type="time" name="start_time" class="form-control" value="<%= data.start_time || '' %>" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">End time</label>
+              <input type="time" name="end_time" class="form-control" value="<%= data.end_time || '' %>" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Guests</label>
+              <input type="number" name="attendees" class="form-control" value="<%= data.attendees || '' %>" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Budget (NZD)</label>
+              <input type="number" step="0.01" name="budget" class="form-control" value="<%= data.budget || '' %>" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Event type</label>
+              <select name="event_type" class="form-select">
+                <option value="">Select type</option>
+                <% (eventTypes || []).forEach(t => { %>
+                  <option value="<%= t.name %>" <%= data.event_type === t.name ? 'selected' : '' %>><%= t.name %></option>
+                <% }) %>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Preferred room / space</label>
+              <select name="room_id" class="form-select">
+                <option value="">Select a room</option>
+                <% (rooms || []).forEach(r => { %>
+                  <option value="<%= r.id %>" <%= String(data.room_id || '') === String(r.id) ? 'selected' : '' %>>
+                    <%= r.name %><% if (r.capacity) { %> (<%= r.capacity %> ppl)<% } %>
+                  </option>
+                <% }) %>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">How did you hear about us?</label>
+              <input type="text" name="lead_source" class="form-control" value="<%= data.lead_source || '' %>" placeholder="Optional" />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Additional notes</label>
+              <textarea name="notes" class="form-control" rows="4"><%= data.notes || '' %></textarea>
+            </div>
+          </div>
+
+          <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mt-2">
+            <div class="small text-muted">
+              View our <a href="<%= termsUrl %>" target="_blank" rel="noopener">standard terms</a>.
+            </div>
+            <button type="submit" class="btn btn-primary px-4">Submit enquiry</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

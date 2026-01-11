@@ -185,6 +185,7 @@ const OPEN_PATHS = [
   "/entertainment",
   "/feedback",
   "/calendar/restaurant/book",
+  "/terms",
   "/functions/proposal/client", // public proposal links
   "/widgets",
   "/api/widgets",
@@ -245,6 +246,7 @@ const { startFeedbackScheduler } = require("./services/feedbackScheduler");
 const reportsRouter = require("./routes/reports");
 const widgetRouter = require("./routes/widgets");
 const profileRouter = require("./routes/profile");
+const termsRouter = require("./routes/terms");
 
 //---------------------------------------------------
 // ✅ ROUTE REGISTRATION ORDER (most specific → least)
@@ -264,6 +266,7 @@ app.use("/feedback", feedbackPublicRouter);
 app.use("/reports", reportsRouter);
 app.use("/", widgetRouter);
 app.use("/profile", profileRouter);
+app.use("/terms", termsRouter);
 
 // 🧭 Settings (specific first, then general)
 app.use('/settings', settingsRouter);

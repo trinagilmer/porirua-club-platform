@@ -34,6 +34,10 @@ const {
   getRestaurantSettings,
 } = require("../services/restaurantSettings");
 const { ensureRestaurantServiceBookingLimitColumn } = require("../services/restaurantServiceSchema");
+const {
+  getFunctionSettings,
+  updateFunctionSettings,
+} = require("../services/functionSettings");
 
 const CALENDAR_SLOT_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
 const DEFAULT_CALENDAR_SLOT = 30;
@@ -2608,6 +2612,49 @@ const updateRestaurantEmailTemplates = async (req, res) => {
 };
 
 router.post("/restaurant/emails", ensurePrivileged, updateRestaurantEmailTemplates);
+
+/* =========================================================
+   ?? FUNCTION ENQUIRY SETTINGS
+========================================================= */
+
+router.get("/functions/enquiry", ensurePrivileged, async (req, res) => {
+  try {
+    const settings = await getFunctionSettings();
+    res.render("settings/functions-enquiry", {
+      layout: "layouts/settings",
+      title: "Settings - Function Enquiry",
+      pageType: "settings",
+      activeTab: "functions-enquiry",
+      user: req.session.user || null,
+      baseUrl: getAppBaseUrl(req),
+      settings,
+      flashMessage: req.flash?.("flashMessage"),
+      flashType: req.flash?.("flashType"),
+    });
+  } catch (err) {
+    console.error("[Settings] Failed to load function enquiry settings:", err);
+    req.flash("flashMessage", "Failed to load function enquiry settings.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/overview");
+  }
+});
+
+router.post("/functions/enquiry", ensurePrivileged, async (req, res) => {
+  try {
+    await updateFunctionSettings({
+      enquiry_notification_emails: req.body.enquiry_notification_emails,
+      enquiry_terms_url: req.body.enquiry_terms_url,
+    });
+    req.flash("flashMessage", "Function enquiry settings updated.");
+    req.flash("flashType", "success");
+  } catch (err) {
+    console.error("[Settings] Failed to update function enquiry settings:", err);
+    req.flash("flashMessage", "Failed to update function enquiry settings.");
+    req.flash("flashType", "error");
+  }
+  res.redirect("/settings/functions/enquiry");
+});
+
 
 /* =========================================================
    🎤 ENTERTAINMENT EVENTS SETTINGS
