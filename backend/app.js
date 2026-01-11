@@ -7,11 +7,14 @@
 
 const path = require("path");
 const fs = require("fs");
-require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
+const isTestEnv = process.env.NODE_ENV === "test";
 
-// 🧠 Startup validation
-const { runStartupValidation } = require("./utils/startupValidator");
-runStartupValidation();
+if (!isTestEnv) {
+  require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
+  // ?? Startup validation
+  const { runStartupValidation } = require("./utils/startupValidator");
+  runStartupValidation();
+}
 
 // 🔧 Core dependencies
 const express = require("express");
@@ -68,16 +71,20 @@ app.locals.formatCurrency = (value) => {
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
+const sessionStore = isTestEnv
+  ? new session.MemoryStore()
+  : new PgSession({
+      pool,
+      tableName: "session",
+      createTableIfMissing: false,
+    });
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "changeme",
     resave: false,
     saveUninitialized: false,
-    store: new PgSession({
-      pool,
-      tableName: "session",
-      createTableIfMissing: false,
-    }),
+    store: sessionStore,
     // cookie: { secure: true, sameSite: "lax" } // tune for prod
   })
 );
@@ -328,15 +335,21 @@ app.use((req, res) => {
 });
 
 /* =========================================================
-   🚀 START SERVER
+   ?? START SERVER
 ========================================================= */
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log("===========================================");
-  console.log(`✅ Porirua Club Platform running at:`);
-  console.log(`➡️  http://localhost:${PORT}`);
-  console.log("===========================================");
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log("===========================================");
+    console.log(`? Porirua Club Platform running at:`);
+    console.log(`??  http://localhost:${PORT}`);
+    console.log("===========================================");
+  });
 
-startFeedbackScheduler();
+  if (process.env.NODE_ENV !== "test") {
+    startFeedbackScheduler();
+  }
+}
+
+module.exports = app;

@@ -2,8 +2,10 @@
 const { Pool } = require("pg");
 
 // Supabase Postgres always requires SSL, even in development
+const connectionString = process.env.DATABASE_URL_TEST || process.env.DATABASE_URL;
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString,
   ssl: {
     require: true,
     rejectUnauthorized: false, // Supabase uses managed/self-signed certs

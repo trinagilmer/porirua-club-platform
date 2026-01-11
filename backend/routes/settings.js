@@ -115,7 +115,7 @@ function ensurePrivileged(req, res, next) {
   if (isPrivileged(req)) return next();
   req.flash("flashMessage", "?? Admin access required.");
   req.flash("flashType", "warning");
-  res.redirect("/settings");
+  res.redirect(req.originalUrl || "/settings");
 }
 
 function parseBooleanField(value) {
@@ -1464,7 +1464,7 @@ router.post("/users/promote", async (req, res) => {
   if (!req.session?.user) {
     req.flash("flashMessage", "?? You must be logged in.");
     req.flash("flashType", "warning");
-    return res.redirect("/settings");
+    return res.redirect("/settings/users");
   }
   const { secret, role = "admin" } = req.body;
   const master = process.env.ADMIN_SECRET || process.env.BUILD_ADMIN_SECRET;
@@ -1953,14 +1953,14 @@ router.post("/restaurant/services/add", ensurePrivileged, async (req, res) => {
     if (!name?.trim() || !start_time || !end_time) {
       req.flash("flashMessage", "⚠️ Service name, start, and end time are required.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/restaurant");
+      return res.redirect("/settings/restaurant/services");
     }
 
     const day = parseInt(day_of_week, 10);
     if (Number.isNaN(day) || day < 0 || day > 6) {
       req.flash("flashMessage", "⚠️ Invalid day of week.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/restaurant");
+      return res.redirect("/settings/restaurant/services");
     }
 
     const slot = parseOptionalInteger(slot_minutes) || DEFAULT_SERVICE_SLOT;
@@ -1998,12 +1998,12 @@ router.post("/restaurant/services/add", ensurePrivileged, async (req, res) => {
 
     req.flash("flashMessage", "✅ Service added.");
     req.flash("flashType", "success");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/services");
   } catch (err) {
     console.error("❌ Error adding restaurant service:", err);
     req.flash("flashMessage", "❌ Failed to add service.");
     req.flash("flashType", "error");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/services");
   }
 });
 
@@ -2027,14 +2027,14 @@ router.post("/restaurant/services/edit", ensurePrivileged, async (req, res) => {
     if (!id || !name?.trim() || !start_time || !end_time) {
       req.flash("flashMessage", "⚠️ Missing service details.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/restaurant");
+      return res.redirect("/settings/restaurant/services");
     }
 
     const day = parseInt(day_of_week, 10);
     if (Number.isNaN(day) || day < 0 || day > 6) {
       req.flash("flashMessage", "⚠️ Invalid day of week.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/restaurant");
+      return res.redirect("/settings/restaurant/services");
     }
 
     const slot = parseOptionalInteger(slot_minutes) || DEFAULT_SERVICE_SLOT;
@@ -2083,12 +2083,12 @@ router.post("/restaurant/services/edit", ensurePrivileged, async (req, res) => {
 
     req.flash("flashMessage", "✅ Service updated.");
     req.flash("flashType", "success");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/services");
   } catch (err) {
     console.error("❌ Error updating restaurant service:", err);
     req.flash("flashMessage", "❌ Failed to update service.");
     req.flash("flashType", "error");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/services");
   }
 });
 
@@ -2098,17 +2098,17 @@ router.post("/restaurant/services/delete", ensurePrivileged, async (req, res) =>
     if (!id) {
       req.flash("flashMessage", "⚠️ Missing service ID.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/restaurant");
+      return res.redirect("/settings/restaurant/services");
     }
     await pool.query("DELETE FROM restaurant_services WHERE id = $1;", [id]);
     req.flash("flashMessage", "🗑️ Service deleted.");
     req.flash("flashType", "success");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/services");
   } catch (err) {
     console.error("❌ Error deleting restaurant service:", err);
     req.flash("flashMessage", "❌ Failed to delete service.");
     req.flash("flashType", "error");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/services");
   }
 });
 
@@ -2118,7 +2118,7 @@ router.post("/restaurant/zones/add", ensurePrivileged, async (req, res) => {
     if (!name?.trim()) {
       req.flash("flashMessage", "⚠️ Zone name is required.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/restaurant");
+      return res.redirect("/settings/restaurant/layout");
     }
     await pool.query(
       `
@@ -2129,12 +2129,12 @@ router.post("/restaurant/zones/add", ensurePrivileged, async (req, res) => {
     );
     req.flash("flashMessage", "✅ Zone added.");
     req.flash("flashType", "success");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/layout");
   } catch (err) {
     console.error("❌ Error adding zone:", err);
     req.flash("flashMessage", "❌ Failed to add zone.");
     req.flash("flashType", "error");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/layout");
   }
 });
 
@@ -2144,7 +2144,7 @@ router.post("/restaurant/zones/edit", ensurePrivileged, async (req, res) => {
     if (!id || !name?.trim()) {
       req.flash("flashMessage", "⚠️ Missing zone details.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/restaurant");
+      return res.redirect("/settings/restaurant/layout");
     }
     await pool.query(
       `
@@ -2158,12 +2158,12 @@ router.post("/restaurant/zones/edit", ensurePrivileged, async (req, res) => {
     );
     req.flash("flashMessage", "✅ Zone updated.");
     req.flash("flashType", "success");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/layout");
   } catch (err) {
     console.error("❌ Error updating zone:", err);
     req.flash("flashMessage", "❌ Failed to update zone.");
     req.flash("flashType", "error");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/layout");
   }
 });
 
@@ -2173,17 +2173,17 @@ router.post("/restaurant/zones/delete", ensurePrivileged, async (req, res) => {
     if (!id) {
       req.flash("flashMessage", "⚠️ Missing zone ID.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/restaurant");
+      return res.redirect("/settings/restaurant/layout");
     }
     await pool.query("DELETE FROM restaurant_zones WHERE id = $1;", [id]);
     req.flash("flashMessage", "🗑️ Zone deleted.");
     req.flash("flashType", "success");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/layout");
   } catch (err) {
     console.error("❌ Error deleting zone:", err);
     req.flash("flashMessage", "❌ Failed to delete zone.");
     req.flash("flashType", "error");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/layout");
   }
 });
 
@@ -2193,13 +2193,13 @@ router.post("/restaurant/tables/add", ensurePrivileged, async (req, res) => {
     if (!label?.trim() || !seats) {
       req.flash("flashMessage", "⚠️ Table label and seats are required.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/restaurant");
+      return res.redirect("/settings/restaurant/layout");
     }
     const seatsInt = parseInt(seats, 10);
     if (Number.isNaN(seatsInt) || seatsInt <= 0) {
       req.flash("flashMessage", "⚠️ Seats must be a positive number.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/restaurant");
+      return res.redirect("/settings/restaurant/layout");
     }
     await pool.query(
       `
@@ -2210,12 +2210,12 @@ router.post("/restaurant/tables/add", ensurePrivileged, async (req, res) => {
     );
     req.flash("flashMessage", "✅ Table added.");
     req.flash("flashType", "success");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/layout");
   } catch (err) {
     console.error("❌ Error adding table:", err);
     req.flash("flashMessage", "❌ Failed to add table.");
     req.flash("flashType", "error");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/layout");
   }
 });
 
@@ -2225,13 +2225,13 @@ router.post("/restaurant/tables/edit", ensurePrivileged, async (req, res) => {
     if (!id || !label?.trim() || !seats) {
       req.flash("flashMessage", "⚠️ Missing table details.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/restaurant");
+      return res.redirect("/settings/restaurant/layout");
     }
     const seatsInt = parseInt(seats, 10);
     if (Number.isNaN(seatsInt) || seatsInt <= 0) {
       req.flash("flashMessage", "⚠️ Seats must be a positive number.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/restaurant");
+      return res.redirect("/settings/restaurant/layout");
     }
     await pool.query(
       `
@@ -2247,12 +2247,12 @@ router.post("/restaurant/tables/edit", ensurePrivileged, async (req, res) => {
     );
     req.flash("flashMessage", "✅ Table updated.");
     req.flash("flashType", "success");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/layout");
   } catch (err) {
     console.error("❌ Error updating table:", err);
     req.flash("flashMessage", "❌ Failed to update table.");
     req.flash("flashType", "error");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/layout");
   }
 });
 
@@ -2262,17 +2262,17 @@ router.post("/restaurant/tables/delete", ensurePrivileged, async (req, res) => {
     if (!id) {
       req.flash("flashMessage", "⚠️ Missing table ID.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/restaurant");
+      return res.redirect("/settings/restaurant/layout");
     }
     await pool.query("DELETE FROM restaurant_tables WHERE id = $1;", [id]);
     req.flash("flashMessage", "🗑️ Table removed.");
     req.flash("flashType", "success");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/layout");
   } catch (err) {
     console.error("❌ Error deleting table:", err);
     req.flash("flashMessage", "❌ Failed to delete table.");
     req.flash("flashType", "error");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/layout");
   }
 });
 
@@ -2283,7 +2283,7 @@ router.post("/restaurant/overrides/add", ensurePrivileged, async (req, res) => {
     if (!serviceId || !override_date) {
       req.flash("flashMessage", "⚠️ Override needs a service and date.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/restaurant");
+      return res.redirect("/settings/restaurant/overrides");
     }
     await pool.query(
       `
@@ -2295,12 +2295,12 @@ router.post("/restaurant/overrides/add", ensurePrivileged, async (req, res) => {
     );
     req.flash("flashMessage", "✅ Override added.");
     req.flash("flashType", "success");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/overrides");
   } catch (err) {
     console.error("❌ Error adding override:", err);
     req.flash("flashMessage", "❌ Failed to add override.");
     req.flash("flashType", "error");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/overrides");
   }
 });
 
@@ -2310,17 +2310,17 @@ router.post("/restaurant/overrides/delete", ensurePrivileged, async (req, res) =
     if (!id) {
       req.flash("flashMessage", "⚠️ Missing override ID.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/restaurant");
+      return res.redirect("/settings/restaurant/overrides");
     }
     await pool.query("DELETE FROM restaurant_capacity_overrides WHERE id = $1;", [id]);
     req.flash("flashMessage", "🗑️ Override removed.");
     req.flash("flashType", "success");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/overrides");
   } catch (err) {
     console.error("❌ Error deleting override:", err);
     req.flash("flashMessage", "❌ Failed to delete override.");
     req.flash("flashType", "error");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/overrides");
   }
 });
 
@@ -2330,7 +2330,7 @@ router.post("/restaurant/blackouts/add", ensurePrivileged, async (req, res) => {
     if (!start_at || !end_at) {
       req.flash("flashMessage", "⚠️ Blackout requires start and end times.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/restaurant");
+      return res.redirect("/settings/restaurant/overrides");
     }
     await pool.query(
       `
@@ -2341,12 +2341,12 @@ router.post("/restaurant/blackouts/add", ensurePrivileged, async (req, res) => {
     );
     req.flash("flashMessage", "✅ Blackout created.");
     req.flash("flashType", "success");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/overrides");
   } catch (err) {
     console.error("❌ Error adding blackout:", err);
     req.flash("flashMessage", "❌ Failed to add blackout.");
     req.flash("flashType", "error");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/overrides");
   }
 });
 
@@ -2356,17 +2356,17 @@ router.post("/restaurant/blackouts/delete", ensurePrivileged, async (req, res) =
     if (!id) {
       req.flash("flashMessage", "⚠️ Missing blackout ID.");
       req.flash("flashType", "warning");
-      return res.redirect("/settings/restaurant");
+      return res.redirect("/settings/restaurant/overrides");
     }
     await pool.query("DELETE FROM restaurant_blackouts WHERE id = $1;", [id]);
     req.flash("flashMessage", "🗑️ Blackout removed.");
     req.flash("flashType", "success");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/overrides");
   } catch (err) {
     console.error("❌ Error deleting blackout:", err);
     req.flash("flashMessage", "❌ Failed to delete blackout.");
     req.flash("flashType", "error");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/overrides");
   }
 });
 
@@ -2405,7 +2405,7 @@ router.get("/restaurant", ensurePrivileged, async (req, res) => {
     console.error("? Error loading restaurant settings:", err);
     req.flash("flashMessage", "? Failed to load restaurant settings.");
     req.flash("flashType", "error");
-    res.redirect("/settings");
+    res.redirect("/settings/restaurant");
   }
 });
 
@@ -2433,7 +2433,7 @@ router.get("/restaurant/services", ensurePrivileged, async (req, res) => {
     console.error("❌ Error loading restaurant services:", err);
     req.flash("flashMessage", "❌ Failed to load restaurant services.");
     req.flash("flashType", "error");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/services");
   }
 });
 
@@ -2477,7 +2477,7 @@ router.get("/restaurant/layout", ensurePrivileged, async (req, res) => {
     console.error("❌ Error loading restaurant layout:", err);
     req.flash("flashMessage", "❌ Failed to load restaurant layout.");
     req.flash("flashType", "error");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/layout");
   }
 });
 
@@ -2529,7 +2529,7 @@ router.get("/restaurant/overrides", ensurePrivileged, async (req, res) => {
     console.error("❌ Error loading restaurant overrides:", err);
     req.flash("flashMessage", "❌ Failed to load restaurant overrides.");
     req.flash("flashType", "error");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/overrides");
   }
 });
 
@@ -2548,7 +2548,7 @@ router.get("/restaurant/emails", ensurePrivileged, async (req, res) => {
     console.error("❌ Error loading restaurant email templates:", err);
     req.flash("flashMessage", "❌ Failed to load restaurant email templates.");
     req.flash("flashType", "error");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/emails");
   }
 });
 
@@ -2565,7 +2565,7 @@ router.get("/restaurant/embeds", ensurePrivileged, async (req, res) => {
     console.error("❌ Error loading restaurant embeds:", err);
     req.flash("flashMessage", "❌ Failed to load restaurant embeds.");
     req.flash("flashType", "error");
-    res.redirect("/settings/restaurant");
+    res.redirect("/settings/restaurant/embeds");
   }
 });
 
@@ -2634,7 +2634,7 @@ router.get("/entertainment", ensurePrivileged, async (req, res) => {
     console.error("? Error loading entertainment settings:", err);
     req.flash("flashMessage", "? Failed to load entertainment settings.");
     req.flash("flashType", "error");
-    res.redirect("/settings");
+    res.redirect("/settings/entertainment");
   }
 });
 
@@ -2712,7 +2712,7 @@ router.get("/entertainment/events", ensurePrivileged, async (req, res) => {
     console.error("❌ Error loading entertainment events:", err);
     req.flash("flashMessage", "❌ Failed to load entertainment events.");
     req.flash("flashType", "error");
-    res.redirect("/settings");
+    res.redirect("/settings/entertainment/events");
   }
 });
 

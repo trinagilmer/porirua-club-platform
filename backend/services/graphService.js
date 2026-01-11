@@ -21,6 +21,9 @@ const fetch = require("node-fetch");
  * @param {string} [mailData.fromMailbox] - Optional mailbox to send from (overrides SHARED_MAILBOX)
  */
 async function sendMail(accessToken, { to, cc = [], bcc = [], subject, body, attachments = [], fromMailbox }) {
+  if (process.env.NODE_ENV === "test" || process.env.EMAIL_MODE === "disabled") {
+    return { success: true, skipped: true };
+  }
   if (!accessToken) throw new Error("Missing Microsoft Graph access token");
   if (!to || (Array.isArray(to) && to.length === 0))
     throw new Error("Recipient email missing");
