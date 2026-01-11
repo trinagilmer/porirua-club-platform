@@ -254,7 +254,9 @@
       }
       if (guestHint) {
         guestHint.textContent =
-          Number.isInteger(maxParty) && maxParty > 0 ? `Max online booking size: ${maxParty}` : "";
+          Number.isInteger(maxParty) && maxParty > 0
+            ? `For bookings of more than ${maxParty} guests, please contact the restaurant directly`
+            : "";
       }
     };
 
