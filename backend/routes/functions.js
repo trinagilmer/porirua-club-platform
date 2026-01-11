@@ -180,6 +180,8 @@ async function renderEnquiryForm(req, res, options = {}) {
     eventTypes: eventTypesRes.rows || [],
     rooms: rooms || [],
     termsUrl,
+    menusUrl: functionSettings?.enquiry_menus_url || "",
+    roomsUrl: functionSettings?.enquiry_rooms_url || "",
     allowCustomEventType:
       functionSettings?.enquiry_allow_custom_event_type ??
       DEFAULT_FUNCTION_ENQUIRY_SETTINGS.enquiry_allow_custom_event_type,
@@ -379,6 +381,28 @@ router.post("/enquiry", async (req, res) => {
           body,
           fromMailbox: process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz",
         });
+
+        if (trimmedEmail) {
+          const customerSubject = `We received your function enquiry`;
+          const customerBody = `
+            <p>Hi ${trimmedContact || "there"},</p>
+            <p>Thanks for your function enquiry. We will be in touch with you shortly.</p>
+            <p><strong>Event:</strong> ${trimmedName}</p>
+            <p><strong>Date:</strong> ${event_date || "TBC"}</p>
+            <p><strong>Time:</strong> ${[start_time, end_time].filter(Boolean).join(" - ") || "TBC"}</p>
+            <p><strong>Guests:</strong> ${attendees || "TBC"}</p>
+            <p><strong>Budget:</strong> ${budget || "TBC"}</p>
+            <p><strong>Event type:</strong> ${eventTypeValue || "TBC"}</p>
+            <p><strong>Room:</strong> ${roomName || "TBC"}</p>
+            ${safeNotes ? `<p><strong>Notes:</strong><br/>${safeNotes}</p>` : ""}
+          `;
+          await graphSendMail(token, {
+            to: [trimmedEmail],
+            subject: customerSubject,
+            body: customerBody,
+            fromMailbox: process.env.SHARED_MAILBOX || "events@poriruaclub.co.nz",
+          });
+        }
       }
     } catch (mailErr) {
       console.error("[Functions Enquiry] Email send failed:", mailErr.message);

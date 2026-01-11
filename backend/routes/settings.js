@@ -2650,6 +2650,8 @@ router.post("/functions/enquiry", ensurePrivileged, async (req, res) => {
       enquiry_terms_url: req.body.enquiry_terms_url,
       enquiry_room_ids: req.body.enquiry_room_ids,
       enquiry_allow_custom_event_type: req.body.enquiry_allow_custom_event_type,
+      enquiry_menus_url: req.body.enquiry_menus_url,
+      enquiry_rooms_url: req.body.enquiry_rooms_url,
     });
     req.flash("flashMessage", "Function enquiry settings updated.");
     req.flash("flashType", "success");

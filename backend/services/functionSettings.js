@@ -5,6 +5,8 @@ const DEFAULT_FUNCTION_ENQUIRY_SETTINGS = {
   enquiry_terms_url: "https://portal.poriruaclub.co.nz/terms",
   enquiry_room_ids: [],
   enquiry_allow_custom_event_type: true,
+  enquiry_menus_url: "",
+  enquiry_rooms_url: "",
 };
 
 async function ensureFunctionSettingsTable(db = pool) {
@@ -15,6 +17,8 @@ async function ensureFunctionSettingsTable(db = pool) {
       enquiry_terms_url TEXT,
       enquiry_room_ids INTEGER[],
       enquiry_allow_custom_event_type BOOLEAN,
+      enquiry_menus_url TEXT,
+      enquiry_rooms_url TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
@@ -22,7 +26,9 @@ async function ensureFunctionSettingsTable(db = pool) {
   await db.query(`
     ALTER TABLE function_settings
       ADD COLUMN IF NOT EXISTS enquiry_room_ids INTEGER[],
-      ADD COLUMN IF NOT EXISTS enquiry_allow_custom_event_type BOOLEAN;
+      ADD COLUMN IF NOT EXISTS enquiry_allow_custom_event_type BOOLEAN,
+      ADD COLUMN IF NOT EXISTS enquiry_menus_url TEXT,
+      ADD COLUMN IF NOT EXISTS enquiry_rooms_url TEXT;
   `);
 }
 
@@ -43,8 +49,8 @@ async function getFunctionSettings(db = pool) {
   const { rows: inserted } = await db.query(
     `
     INSERT INTO function_settings
-      (enquiry_notification_emails, enquiry_terms_url, enquiry_room_ids, enquiry_allow_custom_event_type, created_at, updated_at)
-    VALUES ($1, $2, $3, $4, NOW(), NOW())
+      (enquiry_notification_emails, enquiry_terms_url, enquiry_room_ids, enquiry_allow_custom_event_type, enquiry_menus_url, enquiry_rooms_url, created_at, updated_at)
+    VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
     RETURNING *;
     `,
     [
@@ -52,6 +58,8 @@ async function getFunctionSettings(db = pool) {
       DEFAULT_FUNCTION_ENQUIRY_SETTINGS.enquiry_terms_url,
       DEFAULT_FUNCTION_ENQUIRY_SETTINGS.enquiry_room_ids,
       DEFAULT_FUNCTION_ENQUIRY_SETTINGS.enquiry_allow_custom_event_type,
+      DEFAULT_FUNCTION_ENQUIRY_SETTINGS.enquiry_menus_url,
+      DEFAULT_FUNCTION_ENQUIRY_SETTINGS.enquiry_rooms_url,
     ]
   );
   return {
@@ -93,6 +101,8 @@ async function updateFunctionSettings(values = {}, db = pool) {
       ? parseBoolean(values.enquiry_allow_custom_event_type, true)
       : current.enquiry_allow_custom_event_type;
   const storedRoomIds = roomIds.length ? roomIds : null;
+  const menusUrl = String(values.enquiry_menus_url || current.enquiry_menus_url || "").trim();
+  const roomsUrl = String(values.enquiry_rooms_url || current.enquiry_rooms_url || "").trim();
 
   if (current?.id) {
     const { rows } = await db.query(
@@ -102,11 +112,13 @@ async function updateFunctionSettings(values = {}, db = pool) {
              enquiry_terms_url = $2,
              enquiry_room_ids = $3,
              enquiry_allow_custom_event_type = $4,
+             enquiry_menus_url = $5,
+             enquiry_rooms_url = $6,
              updated_at = NOW()
-       WHERE id = $5
+       WHERE id = $7
        RETURNING *;
       `,
-      [notificationEmails, termsUrl, storedRoomIds, allowCustom, current.id]
+      [notificationEmails, termsUrl, storedRoomIds, allowCustom, menusUrl, roomsUrl, current.id]
     );
     return {
       ...DEFAULT_FUNCTION_ENQUIRY_SETTINGS,
@@ -121,11 +133,11 @@ async function updateFunctionSettings(values = {}, db = pool) {
   const { rows } = await db.query(
     `
     INSERT INTO function_settings
-      (enquiry_notification_emails, enquiry_terms_url, enquiry_room_ids, enquiry_allow_custom_event_type, created_at, updated_at)
-    VALUES ($1, $2, $3, $4, NOW(), NOW())
+      (enquiry_notification_emails, enquiry_terms_url, enquiry_room_ids, enquiry_allow_custom_event_type, enquiry_menus_url, enquiry_rooms_url, created_at, updated_at)
+    VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
     RETURNING *;
     `,
-    [notificationEmails, termsUrl, storedRoomIds, allowCustom]
+    [notificationEmails, termsUrl, storedRoomIds, allowCustom, menusUrl, roomsUrl]
   );
   return {
     ...DEFAULT_FUNCTION_ENQUIRY_SETTINGS,

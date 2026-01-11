@@ -30,12 +30,23 @@
       border-top-left-radius: 16px;
       border-top-right-radius: 16px;
     }
+    .pc-embed-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .pc-embed-links .btn {
+      font-size: 1rem;
+    }
   </style>
 </head>
 <body class="pc-embed-body">
   <% const actionUrl = embed ? "/functions/enquiry?embed=1" : "/functions/enquiry"; %>
   <% const data = formData || {}; %>
   <% const allowCustom = typeof allowCustomEventType !== 'undefined' ? allowCustomEventType : true; %>
+  <% const termsLink = (termsUrl || '').trim(); %>
+  <% const menusLink = (menusUrl || '').trim(); %>
+  <% const roomsLink = (roomsUrl || '').trim(); %>
   <main class="pc-embed-shell">
     <div class="card pc-embed-card border-0">
       <div class="card-header">
@@ -127,9 +138,17 @@
             </div>
           </div>
 
-          <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mt-2">
-            <div class="small text-muted">
-              View our <a href="<%= termsUrl %>" target="_blank" rel="noopener">standard terms</a>.
+          <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mt-2">
+            <div class="pc-embed-links">
+              <% if (termsLink) { %>
+                <a href="<%= termsLink %>" target="_blank" rel="noopener" class="btn btn-outline-secondary">View terms &amp; conditions</a>
+              <% } %>
+              <% if (menusLink) { %>
+                <a href="<%= menusLink %>" target="_blank" rel="noopener" class="btn btn-outline-secondary">View function menus</a>
+              <% } %>
+              <% if (roomsLink) { %>
+                <a href="<%= roomsLink %>" target="_blank" rel="noopener" class="btn btn-outline-secondary">View function rooms</a>
+              <% } %>
             </div>
             <button type="submit" class="btn btn-primary px-4">Submit enquiry</button>
           </div>

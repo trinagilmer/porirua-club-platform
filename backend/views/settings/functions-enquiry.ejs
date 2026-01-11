@@ -43,6 +43,26 @@
           <small class="text-muted">Used for the standard terms link on the enquiry form.</small>
         </div>
         <div>
+          <label class="form-label">Function menus URL</label>
+          <input
+            type="text"
+            name="enquiry_menus_url"
+            class="form-control"
+            value="<%= settings?.enquiry_menus_url || '' %>"
+          />
+          <small class="text-muted">Shown as a link button when provided.</small>
+        </div>
+        <div>
+          <label class="form-label">Function rooms URL</label>
+          <input
+            type="text"
+            name="enquiry_rooms_url"
+            class="form-control"
+            value="<%= settings?.enquiry_rooms_url || '' %>"
+          />
+          <small class="text-muted">Shown as a link button when provided.</small>
+        </div>
+        <div>
           <label class="form-label">Show these rooms on the enquiry form</label>
           <div class="border rounded-3 p-3 bg-light">
             <% const selectedRoomIds = new Set((settings?.enquiry_room_ids || []).map(id => String(id))); %>
