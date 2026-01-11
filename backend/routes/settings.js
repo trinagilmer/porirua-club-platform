@@ -2648,6 +2648,8 @@ router.post("/functions/enquiry", ensurePrivileged, async (req, res) => {
     await updateFunctionSettings({
       enquiry_notification_emails: req.body.enquiry_notification_emails,
       enquiry_terms_url: req.body.enquiry_terms_url,
+      enquiry_room_ids: req.body.enquiry_room_ids,
+      enquiry_allow_custom_event_type: req.body.enquiry_allow_custom_event_type,
     });
     req.flash("flashMessage", "Function enquiry settings updated.");
     req.flash("flashType", "success");
