@@ -6,7 +6,10 @@ const { sendMail: graphSendMail } = require("../services/graphService");
 const { sendTaskAssignmentEmail } = require("../services/taskMailer");
 const recurrenceService = require("../services/recurrenceService");
 const { getAppToken } = require("../utils/graphAuth");
-const { getFunctionSettings } = require("../services/functionSettings");
+const {
+  getFunctionSettings,
+  DEFAULT_FUNCTION_ENQUIRY_SETTINGS,
+} = require("../services/functionSettings");
 
 
 // 🧩 Utility: normalizeRecipients
@@ -161,6 +164,12 @@ async function renderEnquiryForm(req, res, options = {}) {
       `${baseUrl}/terms`
     ).trim();
 
+  const allowedRoomIds = (functionSettings?.enquiry_room_ids || []).map((id) => Number(id));
+  const rooms =
+    allowedRoomIds.length === 0
+      ? roomsRes.rows
+      : roomsRes.rows.filter((room) => allowedRoomIds.includes(Number(room.id)));
+
   res.status(options.status || 200).render("pages/functions/enquiry", {
     layout: false,
     title: "Function Enquiry",
@@ -169,8 +178,11 @@ async function renderEnquiryForm(req, res, options = {}) {
     errorMessage: options.errorMessage || null,
     formData: options.formData || null,
     eventTypes: eventTypesRes.rows || [],
-    rooms: roomsRes.rows || [],
+    rooms: rooms || [],
     termsUrl,
+    allowCustomEventType:
+      functionSettings?.enquiry_allow_custom_event_type ??
+      DEFAULT_FUNCTION_ENQUIRY_SETTINGS.enquiry_allow_custom_event_type,
   });
 }
 
@@ -213,6 +225,7 @@ router.post("/enquiry", async (req, res) => {
     attendees,
     budget,
     event_type,
+    event_type_custom,
     room_id,
     lead_source,
     notes,
@@ -234,6 +247,18 @@ router.post("/enquiry", async (req, res) => {
   const leadSourceValue = String(lead_source || "").trim() || "Website enquiry form";
   const contactPhoneValue = String(contact_phone || "").trim() || null;
   const safeNotes = String(notes || "").trim() || null;
+  const eventTypeValue =
+    String(event_type || "").trim().toLowerCase() === "other"
+      ? String(event_type_custom || "").trim()
+      : String(event_type || "").trim();
+
+  if (String(event_type || "").trim().toLowerCase() === "other" && !eventTypeValue) {
+    return renderEnquiryForm(req, res, {
+      status: 400,
+      errorMessage: "Please enter an event type.",
+      formData: req.body || {},
+    });
+  }
 
   let client;
   try {
@@ -279,7 +304,7 @@ router.post("/enquiry", async (req, res) => {
         attendees ? Number(attendees) : null,
         budget ? Number(budget) : null,
         room_id ? Number(room_id) : null,
-        event_type || null,
+        eventTypeValue || null,
         leadSourceValue,
       ]
     );
@@ -341,7 +366,7 @@ router.post("/enquiry", async (req, res) => {
           <p><strong>Time:</strong> ${[start_time, end_time].filter(Boolean).join(" - ") || "TBC"}</p>
           <p><strong>Guests:</strong> ${attendees || "TBC"}</p>
           <p><strong>Budget:</strong> ${budget || "TBC"}</p>
-          <p><strong>Event type:</strong> ${event_type || "TBC"}</p>
+          <p><strong>Event type:</strong> ${eventTypeValue || "TBC"}</p>
           <p><strong>Room:</strong> ${roomName || "TBC"}</p>
           <p><strong>Lead source:</strong> ${leadSourceValue}</p>
           <p><strong>Contact:</strong> ${trimmedContact} (${trimmedEmail}${contactPhoneValue ? `, ${contactPhoneValue}` : ""})</p>

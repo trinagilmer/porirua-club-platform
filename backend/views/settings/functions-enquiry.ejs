@@ -42,6 +42,49 @@
           />
           <small class="text-muted">Used for the standard terms link on the enquiry form.</small>
         </div>
+        <div>
+          <label class="form-label">Show these rooms on the enquiry form</label>
+          <div class="border rounded-3 p-3 bg-light">
+            <% const selectedRoomIds = new Set((settings?.enquiry_room_ids || []).map(id => String(id))); %>
+            <% if ((rooms || []).length === 0) { %>
+              <p class="text-muted mb-0">No rooms configured yet.</p>
+            <% } else { %>
+              <div class="row row-cols-1 row-cols-md-2 g-2">
+                <% rooms.forEach(function(room) { %>
+                  <div class="col">
+                    <div class="form-check">
+                      <input
+                        class="form-check-input"
+                        type="checkbox"
+                        name="enquiry_room_ids"
+                        id="room-<%= room.id %>"
+                        value="<%= room.id %>"
+                        <%= selectedRoomIds.has(String(room.id)) ? 'checked' : '' %>
+                      >
+                      <label class="form-check-label" for="room-<%= room.id %>">
+                        <%= room.name %><% if (room.capacity) { %> (<%= room.capacity %> ppl)<% } %>
+                      </label>
+                    </div>
+                  </div>
+                <% }) %>
+              </div>
+              <small class="text-muted d-block mt-2">Leave unchecked to show all rooms.</small>
+            <% } %>
+          </div>
+        </div>
+        <div class="form-check">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            id="allowCustomEventType"
+            name="enquiry_allow_custom_event_type"
+            value="true"
+            <%= settings?.enquiry_allow_custom_event_type ? 'checked' : '' %>
+          >
+          <label class="form-check-label" for="allowCustomEventType">
+            Allow custom event type entry when the list does not match.
+          </label>
+        </div>
         <div class="d-flex justify-content-end">
           <button type="submit" class="btn btn-primary">Save settings</button>
         </div>

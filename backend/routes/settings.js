@@ -2619,7 +2619,10 @@ router.post("/restaurant/emails", ensurePrivileged, updateRestaurantEmailTemplat
 
 router.get("/functions/enquiry", ensurePrivileged, async (req, res) => {
   try {
-    const settings = await getFunctionSettings();
+    const [settings, roomsRes] = await Promise.all([
+      getFunctionSettings(),
+      pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`),
+    ]);
     res.render("settings/functions-enquiry", {
       layout: "layouts/settings",
       title: "Settings - Function Enquiry",
@@ -2628,6 +2631,7 @@ router.get("/functions/enquiry", ensurePrivileged, async (req, res) => {
       user: req.session.user || null,
       baseUrl: getAppBaseUrl(req),
       settings,
+      rooms: roomsRes.rows || [],
       flashMessage: req.flash?.("flashMessage"),
       flashType: req.flash?.("flashType"),
     });
