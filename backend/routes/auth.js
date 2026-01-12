@@ -85,6 +85,7 @@ router.get("/login", (req, res) => {
     error: null,
     title: "Login",
     hideChrome: true,
+    success: req.query.success || null,
     next: req.query.next || "",
   });
 });
@@ -429,12 +430,8 @@ router.post("/accept-invite/:token", async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     await pool.query(`UPDATE users SET password_hash = $1 WHERE id = $2;`, [hash, invite.user_id]);
     await pool.query(`UPDATE user_invites SET used_at = NOW() WHERE id = $1;`, [invite.id]);
-    res.render("pages/login", {
-      error: null,
-      title: "Login",
-      hideChrome: true,
-      success: "Password set. You can log in now.",
-    });
+    const successMessage = "Password set. You can log in now.";
+    res.redirect(`/auth/login?success=${encodeURIComponent(successMessage)}`);
   } catch (err) {
     console.error("[Auth] Failed to accept invite:", err);
     res.status(500).render("pages/accept-invite", {
