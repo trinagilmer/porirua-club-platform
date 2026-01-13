@@ -151,11 +151,11 @@
 }
 
 .ent-card {
-  border: none;
+  border: 1px solid #d7e6f5;
   border-radius: 1.25rem;
   overflow: hidden;
-  background: #0f172a;
-  color: #fff;
+  background: #ebf5fb;
+  color: #0f172a;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 
   &:hover {
@@ -164,7 +164,15 @@
   }
 
   .card-body {
-    background: linear-gradient(160deg, rgba(15, 23, 42, 0.95), rgba(30, 64, 175, 0.9));
+    background: #ffffff;
+  }
+
+  .card-footer {
+    background: #ffffff;
+  }
+
+  .entertainment-card-img {
+    background: #e2edf5;
   }
 }
 

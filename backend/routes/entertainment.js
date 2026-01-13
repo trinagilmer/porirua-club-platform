@@ -30,6 +30,17 @@ function normalizeDisplayType(value) {
   return null;
 }
 
+function getAppBaseUrl(req) {
+  const envBase = (process.env.APP_URL || "").trim();
+  if (envBase) return envBase.replace(/\/$/, "");
+  if (req) {
+    const proto = req.headers["x-forwarded-proto"] || req.protocol;
+    const host = req.get("host");
+    if (host) return `${proto}://${host}`.replace(/\/$/, "");
+  }
+  return "";
+}
+
 router.get("/", async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -69,6 +80,7 @@ router.get("/", async (req, res) => {
         LEFT JOIN entertainment_acts a ON a.id = ea.act_id
         LEFT JOIN rooms r ON r.id = e.room_id
        WHERE e.status = 'published'
+         AND e.display_type <> 'regularevents'
          AND e.start_at < NOW()
        GROUP BY e.id, r.name
        ORDER BY e.start_at DESC
@@ -238,7 +250,8 @@ router.get("/:slugOrId", async (req, res) => {
         embed,
       });
     }
-    const shareUrl = `${process.env.APP_URL || ""}/entertainment/${event.slug || event.id}`;
+    const baseUrl = getAppBaseUrl(req);
+    const shareUrl = `${baseUrl}/entertainment/${event.slug || event.id}`;
     const feedbackSettings = await getFeedbackSettings();
     const embed = req.query.embed === "1";
     res.render("pages/entertainment/detail", {

@@ -1,5 +1,9 @@
 <% const entertainmentPrefill = typeof prefillEntertainment !== 'undefined' ? prefillEntertainment : null; %>
 <% const rangeSelection = typeof rangeFilter !== 'undefined' ? rangeFilter : 'upcoming'; %>
+<% const searchValue = typeof searchQuery !== 'undefined' ? searchQuery : ''; %>
+<% const adjunctValue = typeof adjunctFilter !== 'undefined' ? adjunctFilter : ''; %>
+<% const adjunctChoices = Array.isArray(adjunctOptions) ? adjunctOptions : []; %>
+<% const returnToValue = typeof returnTo !== 'undefined' && returnTo ? returnTo : '/settings/entertainment/events'; %>
 <% const entertainmentEvents = (events || []).filter(function(event) { return event.display_type !== 'regularevents'; }); %>
 <% const regularEvents = (events || []).filter(function(event) { return event.display_type === 'regularevents'; }); %>
 
@@ -16,14 +20,28 @@
       <a class="btn btn-outline-secondary" href="/settings/entertainment/acts">
         Acts directory
       </a>
-      <form method="GET" action="/settings/entertainment/events" class="d-flex align-items-center gap-2">
+      <form method="GET" action="/settings/entertainment/events" class="d-flex flex-wrap align-items-center gap-2">
         <label class="small text-muted" for="entRange">Show</label>
         <select id="entRange" name="range" class="form-select form-select-sm">
           <option value="upcoming" <%= rangeSelection === 'upcoming' ? 'selected' : '' %>>Upcoming</option>
           <option value="past" <%= rangeSelection === 'past' ? 'selected' : '' %>>Past</option>
           <option value="all" <%= rangeSelection === 'all' ? 'selected' : '' %>>All</option>
         </select>
+        <input
+          type="text"
+          name="q"
+          class="form-control form-control-sm"
+          placeholder="Search title, adjunct, acts"
+          value="<%= searchValue %>"
+        >
+        <select name="adjunct" class="form-select form-select-sm">
+          <option value="">All adjuncts</option>
+          <% adjunctChoices.forEach(function(adjunct) { %>
+            <option value="<%= adjunct %>" <%= adjunct === adjunctValue ? 'selected' : '' %>><%= adjunct %></option>
+          <% }) %>
+        </select>
         <button type="submit" class="btn btn-outline-secondary btn-sm">Apply</button>
+        <a class="btn btn-outline-secondary btn-sm" href="/settings/entertainment/events">Clear</a>
       </form>
       <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEntertainmentModal">
         + Add Event
@@ -142,6 +160,7 @@
                   <% } %>
                   <form action="/settings/entertainment/delete" method="POST" class="d-inline" onsubmit="return confirm('Delete <%= event.title %>?');">
                     <input type="hidden" name="id" value="<%= event.id %>">
+                    <input type="hidden" name="return_to" value="<%= returnToValue %>">
                     <% if (event.series_id) { %>
                       <select name="series_scope" class="form-select form-select-sm d-inline-block w-auto me-2">
                         <option value="single">This event only</option>
@@ -266,6 +285,7 @@
                   <% } %>
                   <form action="/settings/entertainment/delete" method="POST" class="d-inline" onsubmit="return confirm('Delete <%= event.title %>?');">
                     <input type="hidden" name="id" value="<%= event.id %>">
+                    <input type="hidden" name="return_to" value="<%= returnToValue %>">
                     <% if (event.series_id) { %>
                       <select name="series_scope" class="form-select form-select-sm d-inline-block w-auto me-2">
                         <option value="single">This event only</option>
@@ -291,6 +311,7 @@
 <div class="modal fade" id="addEntertainmentModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <form class="modal-content" action="/settings/entertainment/add" method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="return_to" value="<%= returnToValue %>">
       <div class="modal-header">
         <h5 class="modal-title">Add Entertainment Event</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -489,6 +510,7 @@
 <div class="modal fade" id="editEntertainmentModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <form class="modal-content" action="/settings/entertainment/edit" method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="return_to" value="<%= returnToValue %>">
       <div class="modal-header">
         <h5 class="modal-title">Edit Entertainment Event</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
