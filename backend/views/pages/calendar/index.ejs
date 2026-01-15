@@ -176,7 +176,7 @@
         </dl>
       </div>
       <div class="modal-footer justify-content-between">
-        <div class="text-muted small">Click “Open function” to jump to the full details.</div>
+        <div class="text-muted small">Use the buttons to open the full details.</div>
         <div class="d-flex gap-2 align-items-center flex-wrap">
           <% if (user && ['admin','owner'].includes((user.role || '').toLowerCase())) { %>
             <div class="btn-group dropup d-none" id="calendarConvertGroup">
@@ -192,6 +192,9 @@
           <% } %>
           <a href="#" target="_blank" rel="noopener" class="btn btn-outline-secondary" data-calendar-action="open-function">
             Open function
+          </a>
+          <a href="#" target="_blank" rel="noopener" class="btn btn-outline-secondary d-none" data-calendar-action="open-event">
+            Open event
           </a>
         </div>
       </div>

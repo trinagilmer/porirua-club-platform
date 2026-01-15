@@ -76,6 +76,21 @@
       <code><%= fn.id_uuid %></code>
     </div>
   </div>
+  <% if (linkedEntertainment && linkedEntertainment.length) { %>
+    <div class="alert alert-info d-flex flex-column gap-1 py-2 mb-3">
+      <div class="small text-muted text-uppercase">Linked entertainment event</div>
+      <% linkedEntertainment.forEach(function(evt) { %>
+        <div>
+          <a href="/entertainment/<%= evt.slug || evt.id %>" class="text-decoration-none fw-semibold">
+            <%= evt.title %>
+          </a>
+          <% if (evt.start_at) { %>
+            <span class="text-muted small">· <%= new Date(evt.start_at).toLocaleDateString('en-NZ') %></span>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
   <style>
     .overview-snapshot { display: none !important; }
   </style>

@@ -81,6 +81,7 @@
           contact: modalEl.querySelector('[data-calendar-field="contact"]'),
           attendees: modalEl.querySelector('[data-calendar-field="attendees"]'),
           link: modalEl.querySelector('[data-calendar-action="open-function"]'),
+          eventLink: modalEl.querySelector('[data-calendar-action="open-event"]'),
         }
       : {};
 
@@ -306,10 +307,24 @@
             }
           }
           if (modalFields.link && extended.detailUrl) {
+            let label = "Open function";
+            if (eventType === "restaurant") label = "Open booking";
+            if (eventType === "entertainment") {
+              label = extended.functionId ? "Open function" : "Open event";
+            }
+            modalFields.link.textContent = label;
             modalFields.link.href = extended.detailUrl;
             modalFields.link.classList.remove("d-none");
           } else if (modalFields.link) {
             modalFields.link.classList.add("d-none");
+          }
+          if (modalFields.eventLink) {
+            if (eventType === "entertainment" && extended.eventUrl && extended.functionId) {
+              modalFields.eventLink.href = extended.eventUrl;
+              modalFields.eventLink.classList.remove("d-none");
+            } else {
+              modalFields.eventLink.classList.add("d-none");
+            }
           }
           state.selectedEvent = {
             id: extended.sourceId || info.event.id,

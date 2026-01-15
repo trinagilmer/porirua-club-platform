@@ -318,9 +318,41 @@ function normalizeHexColor(value) {
   return null;
 }
 
+function normalizeUuid(value) {
+  const cleaned = String(value || "").trim();
+  if (!cleaned) return null;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleaned)
+    ? cleaned
+    : null;
+}
+
 async function ensureEntertainmentColorColumn() {
   await pool.query(
     "ALTER TABLE entertainment_events ADD COLUMN IF NOT EXISTS event_color TEXT;"
+  );
+}
+
+async function ensureEntertainmentFunctionLinkColumn() {
+  await pool.query(
+    "ALTER TABLE entertainment_events ADD COLUMN IF NOT EXISTS function_id UUID;"
+  );
+  await pool.query(
+    `
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conname = 'entertainment_events_function_id_fkey'
+      ) THEN
+        ALTER TABLE entertainment_events
+          ADD CONSTRAINT entertainment_events_function_id_fkey
+          FOREIGN KEY (function_id)
+          REFERENCES functions(id_uuid)
+          ON DELETE SET NULL;
+      END IF;
+    END $$;
+    `
   );
 }
 
@@ -2737,6 +2769,7 @@ function getEntertainmentReturnTo(req) {
 router.get("/entertainment/events", ensurePrivileged, async (req, res) => {
   try {
     await ensureEntertainmentColorColumn();
+    await ensureEntertainmentFunctionLinkColumn();
     const rangeRaw = String(req.query.range || "upcoming").toLowerCase();
     const range = ["upcoming", "past", "all"].includes(rangeRaw) ? rangeRaw : "upcoming";
     const searchQuery = String(req.query.q || "").trim();
@@ -2778,6 +2811,8 @@ router.get("/entertainment/events", ensurePrivileged, async (req, res) => {
              uc.name AS created_by_name,
              uu.name AS updated_by_name,
              r.name AS room_name,
+             fn.event_name AS function_name,
+             fn.event_date AS function_date,
              COALESCE(
                json_agg(
                  json_build_object('id', a.id, 'name', a.name)
@@ -2792,8 +2827,9 @@ router.get("/entertainment/events", ensurePrivileged, async (req, res) => {
         LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
         LEFT JOIN entertainment_acts a ON a.id = ea.act_id
         LEFT JOIN rooms r ON r.id = e.room_id
+        LEFT JOIN functions fn ON fn.id_uuid = e.function_id
        ${whereClause}
-       GROUP BY e.id, sc.series_color, uc.name, uu.name, r.name
+       GROUP BY e.id, sc.series_color, uc.name, uu.name, r.name, fn.id_uuid, fn.event_name, fn.event_date
        ORDER BY e.start_at ASC NULLS LAST;
       `
       ,
@@ -2818,6 +2854,14 @@ router.get("/entertainment/events", ensurePrivileged, async (req, res) => {
     const roomsRes = await pool.query(
       `SELECT id, name FROM rooms ORDER BY name ASC;`
     );
+    const functionsRes = await pool.query(
+      `
+      SELECT id_uuid, event_name, event_date, status
+        FROM functions
+       ORDER BY event_date DESC NULLS LAST
+       LIMIT 250;
+      `
+    );
     const prefillEntertainment = {
       title: req.query.title || "",
       start_date: req.query.prefill_date || req.query.start_date || "",
@@ -2833,6 +2877,7 @@ router.get("/entertainment/events", ensurePrivileged, async (req, res) => {
       adjunctOptions: adjunctsRes.rows.map((row) => row.adjunct_name),
       acts: actsRes.rows,
       rooms: roomsRes.rows,
+      functionOptions: functionsRes.rows,
       rangeFilter: range,
       searchQuery,
       adjunctFilter,
@@ -3036,6 +3081,8 @@ router.get("/entertainment/:id/json", ensurePrivileged, async (req, res) => {
       )
       SELECT e.*,
              COALESCE(e.event_color, sc.series_color) AS effective_event_color,
+             fn.event_name AS function_name,
+             fn.event_date AS function_date,
              COALESCE(
                json_agg(
                  json_build_object('id', a.id, 'name', a.name)
@@ -3047,8 +3094,9 @@ router.get("/entertainment/:id/json", ensurePrivileged, async (req, res) => {
         LEFT JOIN series_colors sc ON sc.series_id = e.series_id
         LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
         LEFT JOIN entertainment_acts a ON a.id = ea.act_id
+        LEFT JOIN functions fn ON fn.id_uuid = e.function_id
        WHERE e.id = $1
-       GROUP BY e.id, sc.series_color
+       GROUP BY e.id, sc.series_color, fn.id_uuid, fn.event_name, fn.event_date
        LIMIT 1;
       `,
       [id]
@@ -3151,19 +3199,21 @@ router.post(
     const displayTypeValue = display_type === "regularevents" ? "regularevents" : "entertainment";
     const eventColorValue = normalizeHexColor(event_color);
     const roomId = parseOptionalInteger(room_id);
+    const functionId = normalizeUuid(req.body.function_id);
 
     const recurrence = recurrenceService.parseRecurrenceForm(req.body);
     client = await pool.connect();
     await ensureEntertainmentColorColumn();
+    await ensureEntertainmentFunctionLinkColumn();
     await client.query("BEGIN");
     const insert = await client.query(
       `
       INSERT INTO entertainment_events
-        (title, slug, adjunct_name, external_url, organiser, room_id, display_type, event_color, price, description,
+        (title, slug, adjunct_name, external_url, organiser, room_id, function_id, display_type, event_color, price, description,
          image_url, start_at, end_at, status, series_id, series_order,
          created_by, updated_by, created_at, updated_at)
       VALUES
-        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NULL,NULL,$15,$16,NOW(),NOW())
+        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NULL,NULL,$16,$17,NOW(),NOW())
       RETURNING *;
       `,
       [
@@ -3173,6 +3223,7 @@ router.post(
         external_url || null,
         organiser || null,
         roomId,
+        functionId,
         displayTypeValue,
         eventColorValue,
         price || null,
@@ -3216,11 +3267,11 @@ router.post(
           const cloneInsert = await client.query(
             `
             INSERT INTO entertainment_events
-              (title, slug, adjunct_name, external_url, organiser, room_id, display_type, event_color, price, description,
+              (title, slug, adjunct_name, external_url, organiser, room_id, function_id, display_type, event_color, price, description,
                image_url, start_at, end_at, status, series_id, series_order,
                created_by, updated_by, created_at, updated_at)
             VALUES
-              ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),NOW())
+              ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW(),NOW())
             RETURNING id;
             `,
             [
@@ -3230,6 +3281,7 @@ router.post(
               external_url || null,
               organiser || null,
               roomId,
+              functionId,
               displayTypeValue,
               eventColorValue,
               price || null,
@@ -3282,6 +3334,7 @@ router.post(
     try {
       const returnTo = getEntertainmentReturnTo(req);
       await ensureEntertainmentColorColumn();
+      await ensureEntertainmentFunctionLinkColumn();
       const {
         id,
         title,
@@ -3324,6 +3377,7 @@ router.post(
     const roomId = parseOptionalInteger(room_id);
     const displayTypeValue = display_type === "regularevents" ? "regularevents" : "entertainment";
     const eventColorValue = normalizeHexColor(event_color);
+    const functionId = normalizeUuid(req.body.function_id);
     const scopeRaw = (series_scope || "").toLowerCase();
     const recurrence = recurrenceService.parseRecurrenceForm({
       recurrence_frequency,
@@ -3347,17 +3401,18 @@ router.post(
                  external_url = $3,
                  organiser = $4,
                  room_id = $5,
-                 event_color = COALESCE($6, event_color),
-                 price = $7,
-                 description = $8,
-                 display_type = $9,
-                 image_url = $10,
-                 start_at = COALESCE($11, start_at),
-                 end_at = $12,
-                 status = $13,
-                 updated_by = $14,
+                 function_id = $6,
+                 event_color = COALESCE($7, event_color),
+                 price = $8,
+                 description = $9,
+                 display_type = $10,
+                 image_url = $11,
+                 start_at = COALESCE($12, start_at),
+                 end_at = $13,
+                 status = $14,
+                 updated_by = $15,
                  updated_at = NOW()
-           WHERE id = $15;
+           WHERE id = $16;
           `,
           [
             title.trim(),
@@ -3365,6 +3420,7 @@ router.post(
             external_url || null,
             organiser || null,
             roomId,
+            functionId,
             eventColorValue,
             price || null,
             description || null,

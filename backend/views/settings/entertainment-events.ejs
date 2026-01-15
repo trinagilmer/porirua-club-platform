@@ -105,12 +105,20 @@
                   <% if (event.room_name) { %>
                     <small class="text-muted d-block">Room: <%= event.room_name %></small>
                   <% } %>
-                  <% if (event.adjunct_name) { %>
-                    <small class="text-muted d-block">Adjunct: <%= event.adjunct_name %></small>
-                  <% } %>
-                  <% if (event.acts && event.acts.length) { %>
-                    <small class="text-muted d-block">
-                      Acts:
+                <% if (event.adjunct_name) { %>
+                  <small class="text-muted d-block">Adjunct: <%= event.adjunct_name %></small>
+                <% } %>
+                <% if (event.function_id) { %>
+                  <small class="text-muted d-block">
+                    Function:
+                    <a href="/functions/<%= event.function_id %>" class="text-decoration-none">
+                      <%= event.function_name || event.function_id %><% if (event.function_date) { %> · <%= new Date(event.function_date).toLocaleDateString('en-NZ') %><% } %>
+                    </a>
+                  </small>
+                <% } %>
+                <% if (event.acts && event.acts.length) { %>
+                  <small class="text-muted d-block">
+                    Acts:
                       <%= event.acts.map(function(act) { return act.name; }).join(", ") %>
                     </small>
                   <% } %>
@@ -230,12 +238,20 @@
                   <% if (event.room_name) { %>
                     <small class="text-muted d-block">Room: <%= event.room_name %></small>
                   <% } %>
-                  <% if (event.adjunct_name) { %>
-                    <small class="text-muted d-block">Adjunct: <%= event.adjunct_name %></small>
-                  <% } %>
-                  <% if (event.acts && event.acts.length) { %>
-                    <small class="text-muted d-block">
-                      Acts:
+                <% if (event.adjunct_name) { %>
+                  <small class="text-muted d-block">Adjunct: <%= event.adjunct_name %></small>
+                <% } %>
+                <% if (event.function_id) { %>
+                  <small class="text-muted d-block">
+                    Function:
+                    <a href="/functions/<%= event.function_id %>" class="text-decoration-none">
+                      <%= event.function_name || event.function_id %><% if (event.function_date) { %> · <%= new Date(event.function_date).toLocaleDateString('en-NZ') %><% } %>
+                    </a>
+                  </small>
+                <% } %>
+                <% if (event.acts && event.acts.length) { %>
+                  <small class="text-muted d-block">
+                    Acts:
                       <%= event.acts.map(function(act) { return act.name; }).join(", ") %>
                     </small>
                   <% } %>
@@ -339,6 +355,18 @@
                 <option value="<%= room.id %>"><%= room.name %></option>
               <% }) %>
             </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Linked function</label>
+            <select name="function_id" class="form-select">
+              <option value="">No linked function</option>
+              <% (functionOptions || []).forEach(function(fn) { %>
+                <option value="<%= fn.id_uuid %>">
+                  <%= fn.event_name || 'Function' %><% if (fn.event_date) { %> · <%= new Date(fn.event_date).toLocaleDateString('en-NZ') %><% } %>
+                </option>
+              <% }) %>
+            </select>
+            <small class="text-muted">Optional: link to a catering function.</small>
           </div>
           <div class="col-md-4">
             <label class="form-label">Display as</label>
@@ -539,6 +567,18 @@
                 <option value="<%= room.id %>"><%= room.name %></option>
               <% }) %>
             </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Linked function</label>
+            <select name="function_id" id="entEditFunctionId" class="form-select">
+              <option value="">No linked function</option>
+              <% (functionOptions || []).forEach(function(fn) { %>
+                <option value="<%= fn.id_uuid %>">
+                  <%= fn.event_name || 'Function' %><% if (fn.event_date) { %> · <%= new Date(fn.event_date).toLocaleDateString('en-NZ') %><% } %>
+                </option>
+              <% }) %>
+            </select>
+            <small class="text-muted">Optional: link to a catering function.</small>
           </div>
           <div class="col-md-4">
             <label class="form-label">Display as</label>
@@ -827,6 +867,22 @@
         document.getElementById("entEditTitle").value = record.title || "";
         document.getElementById("entEditStatus").value = record.status || "draft";
         document.getElementById("entEditRoom").value = record.room_id || "";
+        const functionSelect = document.getElementById("entEditFunctionId");
+        if (functionSelect) {
+          const fnId = record.function_id || "";
+          const existing = Array.from(functionSelect.options).some((opt) => opt.value === fnId);
+          if (fnId && !existing) {
+            const labelDate = record.function_date
+              ? new Date(record.function_date).toLocaleDateString("en-NZ")
+              : "";
+            const opt = document.createElement("option");
+            opt.value = fnId;
+            opt.textContent = `${record.function_name || "Function"}${labelDate ? ` · ${labelDate}` : ""}`;
+            opt.selected = true;
+            functionSelect.appendChild(opt);
+          }
+          functionSelect.value = fnId;
+        }
         document.getElementById("entEditDisplayType").value =
           record.display_type === "regularevents" ? "regularevents" : "entertainment";
         document.getElementById("entEditAdjunct").value = record.adjunct_name || "";
@@ -948,6 +1004,22 @@
       setValue('input[name="title"]', record.title || "");
       setValue('select[name="status"]', record.status || "draft");
       setValue('select[name="room_id"]', record.room_id || "");
+      const addFunctionSelect = document.querySelector('select[name="function_id"]');
+      if (addFunctionSelect) {
+        const fnId = record.function_id || "";
+        const exists = Array.from(addFunctionSelect.options).some((opt) => opt.value === fnId);
+        if (fnId && !exists) {
+          const labelDate = record.function_date
+            ? new Date(record.function_date).toLocaleDateString("en-NZ")
+            : "";
+          const opt = document.createElement("option");
+          opt.value = fnId;
+          opt.textContent = `${record.function_name || "Function"}${labelDate ? ` · ${labelDate}` : ""}`;
+          opt.selected = true;
+          addFunctionSelect.appendChild(opt);
+        }
+        addFunctionSelect.value = fnId;
+      }
       setValue('select[name="display_type"]', record.display_type === "regularevents" ? "regularevents" : "entertainment");
       setValue('input[name="event_color"]', record.event_color || record.effective_event_color || "#6bb4de");
       setValue('input[name="start_date"]', nzDate(record.start_at));

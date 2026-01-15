@@ -36,6 +36,30 @@ function isTruthy(value) {
   return false;
 }
 
+async function ensureEntertainmentFunctionLinkColumn() {
+  await pool.query(
+    "ALTER TABLE entertainment_events ADD COLUMN IF NOT EXISTS function_id UUID;"
+  );
+  await pool.query(
+    `
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conname = 'entertainment_events_function_id_fkey'
+      ) THEN
+        ALTER TABLE entertainment_events
+          ADD CONSTRAINT entertainment_events_function_id_fkey
+          FOREIGN KEY (function_id)
+          REFERENCES functions(id_uuid)
+          ON DELETE SET NULL;
+      END IF;
+    END $$;
+    `
+  );
+}
+
 async function maybeSendTaskAssignmentEmail(req, task, assignedUserId, shouldNotify) {
   if (!shouldNotify || !task || !assignedUserId) return;
 
@@ -1793,6 +1817,17 @@ router.get("/:id", async (req, res) => {
       return acc;
     }, {});
 
+    await ensureEntertainmentFunctionLinkColumn();
+    const { rows: linkedEntertainment } = await pool.query(
+      `
+      SELECT id, slug, title, start_at
+        FROM entertainment_events
+       WHERE function_id = $1
+       ORDER BY start_at DESC;
+      `,
+      [functionId]
+    );
+
     // 4️⃣ Render function detail view
     res.render("pages/functions/overview", {
       layout: 'layouts/main',  // ✅ use main layout again
@@ -1810,6 +1845,7 @@ router.get("/:id", async (req, res) => {
       communications,
       feedbackEntries: feedbackRows,
       contactFeedback: contactFeedbackMap,
+      linkedEntertainment,
       proposalId: activeProposal?.id || null,
       proposalPreviewLink: activeProposal ? `/functions/${fn.id_uuid}/proposal/preview` : null,
       proposalAuditData: proposalAudit,

@@ -53,6 +53,30 @@ const RESTAURANT_STATUS_COLOURS = {
 };
 const RESTAURANT_STATUSES = new Set(["pending", "confirmed", "seated", "completed", "cancelled"]);
 
+async function ensureEntertainmentFunctionLinkColumn() {
+  await pool.query(
+    "ALTER TABLE entertainment_events ADD COLUMN IF NOT EXISTS function_id UUID;"
+  );
+  await pool.query(
+    `
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+          FROM pg_constraint
+         WHERE conname = 'entertainment_events_function_id_fkey'
+      ) THEN
+        ALTER TABLE entertainment_events
+          ADD CONSTRAINT entertainment_events_function_id_fkey
+          FOREIGN KEY (function_id)
+          REFERENCES functions(id_uuid)
+          ON DELETE SET NULL;
+      END IF;
+    END $$;
+    `
+  );
+}
+
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const CAPACITY_CONTACT_MESSAGE =
   "please contact the restaurant to complete this booking email:  chef@poriruaclub.co.nz or phone 04 237 6143 ext 2";
@@ -432,6 +456,8 @@ function mapEntertainmentEventRow(row) {
   const end = row.end_at ? new Date(row.end_at).toISOString() : null;
   const colour = row.event_color || "#fbcfe8";
   const priceValue = row.price !== null && row.price !== undefined ? Number(row.price) : null;
+  const eventUrl = `/entertainment/${row.slug || row.id}`;
+  const functionUrl = row.function_id ? `/functions/${row.function_id}` : null;
   return {
     id: `entertainment-${row.id}`,
     title: row.title,
@@ -444,12 +470,16 @@ function mapEntertainmentEventRow(row) {
       type: "entertainment",
       sourceId: row.id,
       organiser: row.organiser,
+      status: row.status,
       price: priceValue,
       currency: row.currency || "NZD",
       link: row.external_url,
       roomId: row.room_id || null,
       roomName: row.room_name || "Entertainment",
-      detailUrl: `/entertainment/${row.slug || row.id}`,
+      functionId: row.function_id || null,
+      functionName: row.function_name || null,
+      detailUrl: functionUrl || eventUrl,
+      eventUrl,
     },
   };
 }
@@ -660,8 +690,9 @@ async function fetchRestaurantBookingsBetween(startDate, endDate) {
 }
 
 async function fetchEntertainmentEventsBetween(startDate, endDate, roomIds = []) {
+  await ensureEntertainmentFunctionLinkColumn();
   const params = [];
-  const where = [`status = 'published'`];
+  const where = [`(e.status IS NULL OR e.status <> 'cancelled')`];
   if (startDate) {
     params.push(startDate);
     where.push(`start_at >= $${params.length}::date`);
@@ -675,9 +706,10 @@ async function fetchEntertainmentEventsBetween(startDate, endDate, roomIds = [])
     where.push(`room_id = ANY($${params.length}::int[])`);
   }
   const query = `
-    SELECT e.*, r.name AS room_name
+    SELECT e.*, r.name AS room_name, fn.event_name AS function_name
       FROM entertainment_events e
       LEFT JOIN rooms r ON r.id = e.room_id
+      LEFT JOIN functions fn ON fn.id_uuid = e.function_id
      ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
      ORDER BY start_at ASC;
   `;
