@@ -996,7 +996,14 @@ router.post("/restaurant/bookings", async (req, res) => {
   if (!isPrivileged(req)) {
     return res.redirect("/calendar/restaurant?error=Admin access required");
   }
+  const recurrenceFrequency = String(req.body.recurrence_frequency || "none").toLowerCase();
   const recurrence = recurrenceService.parseRecurrenceForm(req.body);
+  if (recurrenceFrequency !== "none" && !recurrence) {
+    return res.redirect(
+      "/calendar/restaurant?error=" +
+        encodeURIComponent("Recurring bookings require an end date.")
+    );
+  }
   const payload = {
     partyName: req.body.party_name,
     bookingDate: req.body.booking_date,
@@ -1012,10 +1019,28 @@ router.post("/restaurant/bookings", async (req, res) => {
     status: req.body.status || "confirmed",
     ownerId: req.session.user?.id || null,
   };
+  const occurrenceDates = recurrence
+    ? recurrenceService.generateOccurrenceDates({
+        startDate: payload.bookingDate,
+        recurrence,
+      })
+    : [payload.bookingDate];
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await createRestaurantBooking(payload, { db: client });
+    if (!occurrenceDates.length) {
+      throw new Error("Recurring bookings require a valid start/end date.");
+    }
+    const suppressEmail = Boolean(recurrence && occurrenceDates.length > 1);
+    for (const date of occurrenceDates) {
+      await createRestaurantBooking(
+        {
+          ...payload,
+          bookingDate: date,
+        },
+        { db: client, suppressEmail }
+      );
+    }
     await client.query("COMMIT");
     res.redirect("/calendar/restaurant?success=1");
   } catch (err) {

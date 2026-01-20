@@ -152,7 +152,7 @@
                   <button
                     class="btn btn-sm btn-outline-primary copy-event-btn"
                     type="button"
-                    data-copy-event='<%- JSON.stringify(event) %>'
+                    data-copy-event="<%- encodeURIComponent(JSON.stringify(event)) %>"
                   >
                     Copy
                   </button>
@@ -285,7 +285,7 @@
                   <button
                     class="btn btn-sm btn-outline-primary copy-event-btn"
                     type="button"
-                    data-copy-event='<%- JSON.stringify(event) %>'
+                    data-copy-event="<%- encodeURIComponent(JSON.stringify(event)) %>"
                   >
                     Copy
                   </button>
@@ -333,6 +333,9 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
+        <div class="alert alert-info d-none" id="entCopyNotice" role="alert">
+          Event copied into the form. Review the details and save.
+        </div>
         <div class="row g-3">
           <div class="col-md-8">
             <label class="form-label">Title</label>
@@ -988,10 +991,19 @@
     }
 
     const addModalEl = document.getElementById("addEntertainmentModal");
+    const copyNotice = document.getElementById("entCopyNotice");
     const openAddModal = () => {
       if (!addModalEl || !window.bootstrap) return;
       const modal = new window.bootstrap.Modal(addModalEl);
       modal.show();
+    };
+    const showCopyNotice = () => {
+      if (!copyNotice) return;
+      copyNotice.classList.remove("d-none");
+      window.clearTimeout(copyNotice._hideTimer);
+      copyNotice._hideTimer = window.setTimeout(() => {
+        copyNotice.classList.add("d-none");
+      }, 4000);
     };
 
     const applyAddRecord = (record) => {
@@ -1049,9 +1061,10 @@
         const raw = btn.getAttribute("data-copy-event");
         if (!raw) return;
         try {
-          const record = JSON.parse(raw);
+          const record = JSON.parse(decodeURIComponent(raw));
           applyAddRecord(record);
           openAddModal();
+          showCopyNotice();
         } catch (err) {
           console.error("Failed to parse copy event payload", err);
         }
