@@ -2767,6 +2767,7 @@ function getEntertainmentReturnTo(req) {
 }
 
 router.get("/entertainment/events", ensurePrivileged, async (req, res) => {
+  const returnTo = req.originalUrl || "/settings/entertainment/events";
   try {
     await ensureEntertainmentColorColumn();
     await ensureEntertainmentFunctionLinkColumn();
@@ -2867,7 +2868,6 @@ router.get("/entertainment/events", ensurePrivileged, async (req, res) => {
       start_date: req.query.prefill_date || req.query.start_date || "",
       start_time: req.query.prefill_time || req.query.start_time || "",
     };
-    const returnTo = req.originalUrl || "/settings/entertainment/events";
     res.render("settings/entertainment-events", {
       layout: "layouts/settings",
       title: "Settings - Entertainment Events",
