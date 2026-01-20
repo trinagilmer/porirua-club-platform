@@ -186,6 +186,7 @@ const OPEN_PATHS = [
   "/feedback",
   "/calendar/restaurant/book",
   "/terms",
+  "/functions/enquiry",
   "/functions/proposal/client", // public proposal links
   "/widgets",
   "/api/widgets",
