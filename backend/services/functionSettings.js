@@ -93,16 +93,27 @@ async function updateFunctionSettings(values = {}, db = pool) {
   await ensureFunctionSettingsTable(db);
   const current = await getFunctionSettings(db);
   const notificationEmails =
-    String(values.enquiry_notification_emails || current.enquiry_notification_emails || "").trim();
-  const termsUrl = String(values.enquiry_terms_url || current.enquiry_terms_url || "").trim();
+    values.enquiry_notification_emails !== undefined
+      ? String(values.enquiry_notification_emails || "").trim()
+      : String(current.enquiry_notification_emails || "").trim();
+  const termsUrl =
+    values.enquiry_terms_url !== undefined
+      ? String(values.enquiry_terms_url || "").trim()
+      : String(current.enquiry_terms_url || "").trim();
   const roomIds = normalizeRoomIds(values.enquiry_room_ids);
   const allowCustom =
     values.enquiry_allow_custom_event_type !== undefined
       ? parseBoolean(values.enquiry_allow_custom_event_type, true)
       : current.enquiry_allow_custom_event_type;
   const storedRoomIds = roomIds.length ? roomIds : null;
-  const menusUrl = String(values.enquiry_menus_url || current.enquiry_menus_url || "").trim();
-  const roomsUrl = String(values.enquiry_rooms_url || current.enquiry_rooms_url || "").trim();
+  const menusUrl =
+    values.enquiry_menus_url !== undefined
+      ? String(values.enquiry_menus_url || "").trim()
+      : String(current.enquiry_menus_url || "").trim();
+  const roomsUrl =
+    values.enquiry_rooms_url !== undefined
+      ? String(values.enquiry_rooms_url || "").trim()
+      : String(current.enquiry_rooms_url || "").trim();
 
   if (current?.id) {
     const { rows } = await db.query(
