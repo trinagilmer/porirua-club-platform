@@ -620,6 +620,14 @@
             <input type="url" name="external_url" id="entEditLink" class="form-control">
           </div>
           <div class="col-md-6">
+            <label class="form-label">Public link (no menu)</label>
+            <div class="input-group">
+              <input type="text" id="entEditPublicLink" class="form-control" readonly>
+              <button class="btn btn-outline-secondary" type="button" id="entEditPublicLinkCopy">Copy</button>
+            </div>
+            <small class="text-muted">Uses the clean public view for sharing.</small>
+          </div>
+          <div class="col-md-6">
             <label class="form-label">Organiser</label>
             <input type="text" name="organiser" id="entEditOrganiser" class="form-control">
           </div>
@@ -779,12 +787,21 @@
     const recMonthlyDay = document.getElementById("entRecMonthlyDay");
     const recMonthlyWeek = document.getElementById("entRecMonthlyWeek");
     const recSkipDates = document.getElementById("entRecSkipDates");
+    const publicLinkInput = document.getElementById("entEditPublicLink");
+    const publicLinkCopy = document.getElementById("entEditPublicLinkCopy");
 
     const setScopeVisibility = (visible) => {
       if (!seriesScopeWrap) return;
       seriesScopeWrap.classList.toggle("d-none", !visible);
       const target = seriesScopeSingle || seriesScopeFuture || seriesScopeAll;
       if (target) target.checked = true;
+    };
+
+    const buildPublicLink = (record) => {
+      const slugOrId = record?.slug || record?.id;
+      if (!slugOrId) return "";
+      const base = window.location.origin || "";
+      return `${base}/entertainment/${slugOrId}?embed=1`;
     };
 
     const upsertActOption = (select, act, selectIt = false) => {
@@ -902,6 +919,9 @@
           imageInsert.href = `/settings/entertainment/media?target=edit&event_id=${record.id}`;
         }
         document.getElementById("entEditDescription").value = record.description || "";
+        if (publicLinkInput) {
+          publicLinkInput.value = buildPublicLink(record);
+        }
         const colorInput = document.getElementById("entEditColor");
         if (colorInput) {
           colorInput.value = record.event_color || record.effective_event_color || "#6bb4de";
@@ -1005,6 +1025,20 @@
         copyNotice.classList.add("d-none");
       }, 4000);
     };
+
+    publicLinkCopy?.addEventListener("click", async () => {
+      const value = (publicLinkInput?.value || "").trim();
+      if (!value) return;
+      try {
+        await navigator.clipboard.writeText(value);
+        publicLinkCopy.textContent = "Copied";
+        window.setTimeout(() => {
+          publicLinkCopy.textContent = "Copy";
+        }, 1500);
+      } catch (err) {
+        console.error("Failed to copy public link", err);
+      }
+    });
 
     const applyAddRecord = (record) => {
       if (!record) return;

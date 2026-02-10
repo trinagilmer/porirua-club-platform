@@ -479,6 +479,27 @@ function friendlyUnit(meta = {}) {
   return type;
 }
 
+function isPerPersonUnit(value) {
+  const normalized = String(value || "").toLowerCase();
+  return (
+    normalized === "per_person" ||
+    normalized === "per-person" ||
+    normalized === "per person" ||
+    normalized === "pp"
+  );
+}
+
+function derivePerUnitPrice(meta = {}, unitPrice = 0) {
+  const qty = Number(meta.qty) || 1;
+  const base = meta.base != null ? Number(meta.base) : null;
+  if (Number.isFinite(base)) return base;
+  const unitType = String(meta.unit_type || "").toLowerCase();
+  if (isPerPersonUnit(unitType)) return Number(unitPrice) || 0;
+  const numericUnitPrice = Number(unitPrice) || 0;
+  if (qty > 1 && numericUnitPrice < qty) return numericUnitPrice;
+  return qty > 0 ? numericUnitPrice / qty : numericUnitPrice;
+}
+
 function parseIdList(value) {
   if (!value && value !== 0) return [];
   const rawList = Array.isArray(value)
@@ -517,7 +538,8 @@ function summarizeProposalMenus(items = []) {
 
     const qty = Number(meta.qty || item.qty || 1);
     const qtySafe = Number.isFinite(qty) && qty > 0 ? qty : 1;
-    const priceLine = excluded ? 0 : Number(item.unit_price) || 0;
+    const perUnit = derivePerUnitPrice(meta, Number(item.unit_price) || 0);
+    const priceLine = excluded ? 0 : perUnit * qtySafe;
 
     const rawCostEach = meta.cost_each !== undefined ? Number(meta.cost_each) : null;
     const rawCostTotal = meta.cost !== undefined ? Number(meta.cost) : null;
@@ -577,7 +599,8 @@ function buildMenuItemsByMenu(items = []) {
       costEach = rawCostTotal / qtySafe;
     }
     const costTotal = costEach != null ? costEach * qtySafe : null;
-    const priceTotal = Number(item.unit_price) || 0;
+    const perUnit = derivePerUnitPrice(meta, Number(item.unit_price) || 0);
+    const priceTotal = perUnit * qtySafe;
     const priceEach = qtySafe > 0 ? priceTotal / qtySafe : priceTotal;
     const entry = {
       label,
