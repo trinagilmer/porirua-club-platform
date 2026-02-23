@@ -77,6 +77,10 @@ async function ensureEntertainmentFunctionLinkColumn() {
   );
 }
 
+async function ensureFunctionEndDateColumn() {
+  await pool.query("ALTER TABLE functions ADD COLUMN IF NOT EXISTS end_date DATE;");
+}
+
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const CAPACITY_CONTACT_MESSAGE =
   "please contact the restaurant to complete this booking email:  chef@poriruaclub.co.nz or phone 04 237 6143 ext 2";
@@ -193,6 +197,15 @@ function composeDateTimeString(dateValue, timeValue) {
   return timePart ? `${datePart}T${timePart}` : datePart;
 }
 
+function addDaysToDateString(dateValue, days) {
+  const datePart = normaliseDate(dateValue);
+  if (!datePart) return null;
+  const dateObj = new Date(datePart);
+  if (Number.isNaN(dateObj.getTime())) return datePart;
+  dateObj.setDate(dateObj.getDate() + days);
+  return formatLocalDate(dateObj);
+}
+
 function addHour(dateTimeString) {
   if (!dateTimeString || !dateTimeString.includes("T")) return dateTimeString;
   const dateObj = new Date(dateTimeString);
@@ -202,10 +215,23 @@ function addHour(dateTimeString) {
 }
 
 function mapFunctionRow(row) {
+  const hasTime = row.start_time || row.end_time;
   const start = composeDateTimeString(row.event_date, row.start_time);
-  let end = composeDateTimeString(row.event_date, row.end_time);
-  if (!end && start && start.includes("T")) {
-    end = addHour(start);
+  let end = null;
+  if (row.end_date) {
+    if (!hasTime) {
+      end = addDaysToDateString(row.end_date, 1);
+    } else {
+      end = composeDateTimeString(row.end_date, row.end_time || row.start_time);
+      if (!row.end_time && end && end.includes("T")) {
+        end = addHour(end);
+      }
+    }
+  } else {
+    end = composeDateTimeString(row.event_date, row.end_time);
+    if (!end && start && start.includes("T")) {
+      end = addHour(start);
+    }
   }
   const allDay = !row.start_time && !row.end_time;
   const colour = STATUS_COLOURS[row.status] || "#6bb4de";
@@ -312,7 +338,8 @@ async function findServiceForSlot(bookingDate, bookingTime, explicitServiceId, d
     };
   }
 
-  const dateObj = new Date(targetDate);
+  // Parse as local date to avoid UTC shift when using YYYY-MM-DD strings.
+  const dateObj = new Date(`${targetDate}T00:00:00`);
   const dow = dateObj.getDay();
   const candidateTime = normaliseTime(bookingTime) || null;
 
@@ -559,7 +586,7 @@ async function createRestaurantBooking(payload, options = {}) {
   );
 
   const booking = result.rows[0];
-  if (!options.suppressEmail) {
+  if (!options.suppressEmail && process.env.NODE_ENV !== "test") {
     notifyRestaurantTeam(booking, service, options.req).catch((err) => {
       console.error("[Restaurant Calendar] Failed to send booking email:", err.message);
     });
@@ -805,12 +832,13 @@ router.get("/events", async (req, res) => {
     const events = [];
 
     if (includeFunctions) {
+      await ensureFunctionEndDateColumn();
       const whereParts = ["f.event_date IS NOT NULL"];
       const params = [];
 
       if (startDate) {
         params.push(startDate);
-        whereParts.push(`f.event_date >= $${params.length}`);
+        whereParts.push(`COALESCE(f.end_date, f.event_date) >= $${params.length}`);
       }
       if (endDate) {
         params.push(endDate);
@@ -830,6 +858,7 @@ router.get("/events", async (req, res) => {
           f.id_uuid,
           f.event_name,
           f.event_date,
+          f.end_date,
           f.start_time,
           f.end_time,
           f.status,
@@ -1484,7 +1513,12 @@ async function convertFunctionToEntertainment(functionId, userId) {
     if (!fn) throw new Error("Function not found");
     if (!fn.event_date) throw new Error("Function is missing a date.");
     const startAt = composeDateTimeString(fn.event_date, fn.start_time || fn.event_time || "00:00:00");
-    const endAt = fn.end_time ? composeDateTimeString(fn.event_date, fn.end_time) : null;
+    let endAt = null;
+    if (fn.end_date) {
+      endAt = composeDateTimeString(fn.end_date, fn.end_time || fn.start_time || fn.event_time || "00:00:00");
+    } else if (fn.end_time) {
+      endAt = composeDateTimeString(fn.event_date, fn.end_time);
+    }
     const slug = `${slugify(fn.event_name) || "event"}-${functionId.slice(0, 6)}`;
     const insert = await client.query(
       `
@@ -1519,6 +1553,7 @@ async function convertFunctionToEntertainment(functionId, userId) {
 }
 
 async function convertRestaurantToFunction(bookingId, userId) {
+  await ensureFunctionEndDateColumn();
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -1544,17 +1579,18 @@ async function convertRestaurantToFunction(bookingId, userId) {
     await client.query(
       `
       INSERT INTO functions (
-        id_uuid, event_name, status, event_date, start_time, end_time,
+        id_uuid, event_name, status, event_date, end_date, start_time, end_time,
         attendees, room_id, event_type, owner_id, created_at, updated_at, updated_by
       )
       VALUES (
-        $1,$2,$3,$4,$5,NULL,$6,NULL,$7,$8,NOW(),NOW(),$8
+        $1,$2,$3,$4,$5,$6,NULL,$7,NULL,$8,$9,NOW(),NOW(),$9
       );
       `,
       [
         fnId,
         booking.party_name || "Restaurant booking",
         statusValue,
+        booking.booking_date,
         booking.booking_date,
         booking.booking_time || null,
         booking.size || 0,
@@ -1574,6 +1610,7 @@ async function convertRestaurantToFunction(bookingId, userId) {
 }
 
 async function convertEntertainmentToFunction(eventId, userId) {
+  await ensureFunctionEndDateColumn();
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -1592,17 +1629,19 @@ async function convertEntertainmentToFunction(eventId, userId) {
     const startDate = event.start_at ? new Date(event.start_at) : null;
     const datePart = startDate ? formatLocalDate(startDate) : null;
     const timePart = startDate ? `${pad(startDate.getHours())}:${pad(startDate.getMinutes())}:00` : null;
+    const endDate = event.end_at ? new Date(event.end_at) : null;
+    const endDatePart = endDate ? formatLocalDate(endDate) : null;
     await client.query(
       `
       INSERT INTO functions (
-        id_uuid, event_name, status, event_date, start_time, end_time,
+        id_uuid, event_name, status, event_date, end_date, start_time, end_time,
         attendees, room_id, event_type, owner_id, created_at, updated_at, updated_by
       )
       VALUES (
-        $1,$2,'lead',$3,$4,$5,0,NULL,'Entertainment',$6,NOW(),NOW(),$6
+        $1,$2,'lead',$3,$4,$5,$6,0,NULL,'Entertainment',$7,NOW(),NOW(),$7
       );
       `,
-      [fnId, event.title || "Entertainment", datePart, timePart, null, userId || null]
+      [fnId, event.title || "Entertainment", datePart, endDatePart, timePart, null, userId || null]
     );
     await client.query(`DELETE FROM entertainment_events WHERE id = $1;`, [eventId]);
     await client.query("COMMIT");

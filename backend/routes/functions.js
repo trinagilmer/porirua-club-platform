@@ -142,6 +142,10 @@ async function ensureFunctionLeadSourceColumn() {
   await pool.query("ALTER TABLE functions ADD COLUMN IF NOT EXISTS lead_source TEXT;");
 }
 
+async function ensureFunctionEndDateColumn() {
+  await pool.query("ALTER TABLE functions ADD COLUMN IF NOT EXISTS end_date DATE;");
+}
+
 function getAppBaseUrl(req) {
   const envBase = (process.env.APP_URL || "").trim();
   if (envBase) return envBase.replace(/\/$/, "");
@@ -246,6 +250,7 @@ router.post("/enquiry", async (req, res) => {
     contact_phone,
     event_name,
     event_date,
+    end_date,
     start_time,
     end_time,
     attendees,
@@ -290,6 +295,7 @@ router.post("/enquiry", async (req, res) => {
   try {
     await ensureFunctionCancelColumn();
     await ensureFunctionLeadSourceColumn();
+    await ensureFunctionEndDateColumn();
     client = await pool.connect();
     await client.query("BEGIN");
 
@@ -301,6 +307,7 @@ router.post("/enquiry", async (req, res) => {
         status,
         cancelled_reason,
         event_date,
+        end_date,
         event_time,
         start_time,
         end_time,
@@ -317,13 +324,14 @@ router.post("/enquiry", async (req, res) => {
         updated_by
       )
       VALUES (
-        $1,$2,'lead',NULL,$3,$4,$5,$6,$7,$8,NULL,NULL,$9,$10,NULL,$11,NOW(),NOW(),NULL
+        $1,$2,'lead',NULL,$3,$4,$5,$6,$7,$8,$9,NULL,NULL,$10,$11,NULL,$12,NOW(),NOW(),NULL
       );
       `,
       [
         newFunctionId,
         trimmedName,
         event_date || null,
+        end_date || null,
         null,
         start_time || null,
         end_time || null,
@@ -388,7 +396,11 @@ router.post("/enquiry", async (req, res) => {
         const body = `
           <p>A new function enquiry has been submitted.</p>
           <p><strong>Event:</strong> ${trimmedName}</p>
-          <p><strong>Date:</strong> ${event_date || "TBC"}</p>
+          <p><strong>Date:</strong> ${
+            event_date && end_date
+              ? `${event_date} - ${end_date}`
+              : event_date || "TBC"
+          }</p>
           <p><strong>Time:</strong> ${[start_time, end_time].filter(Boolean).join(" - ") || "TBC"}</p>
           <p><strong>Guests:</strong> ${attendees || "TBC"}</p>
           <p><strong>Budget:</strong> ${budget || "TBC"}</p>
@@ -412,7 +424,11 @@ router.post("/enquiry", async (req, res) => {
             <p>Hi ${trimmedContact || "there"},</p>
             <p>Thanks for your function enquiry. We will be in touch with you shortly.</p>
             <p><strong>Event:</strong> ${trimmedName}</p>
-            <p><strong>Date:</strong> ${event_date || "TBC"}</p>
+          <p><strong>Date:</strong> ${
+            event_date && end_date
+              ? `${event_date} - ${end_date}`
+              : event_date || "TBC"
+          }</p>
             <p><strong>Time:</strong> ${[start_time, end_time].filter(Boolean).join(" - ") || "TBC"}</p>
             <p><strong>Guests:</strong> ${attendees || "TBC"}</p>
             <p><strong>Budget:</strong> ${budget || "TBC"}</p>
@@ -765,9 +781,10 @@ router.get("/:id/communications", async (req, res, next) => {
   const { id: functionId } = req.params; // UUID
 
   try {
+    await ensureFunctionEndDateColumn();
     // 1️⃣ Fetch the parent function
     const { rows: fnRows } = await pool.query(
-      `SELECT id_uuid, event_name, event_date, status, attendees, budget, totals_cost, totals_price, room_id, event_type 
+      `SELECT id_uuid, event_name, event_date, end_date, status, attendees, budget, totals_cost, totals_price, room_id, event_type 
        FROM functions 
        WHERE id_uuid = $1;`,
       [functionId]
@@ -859,6 +876,7 @@ router.get("/new", async (req, res, next) => {
     const seedValues = {
       event_name: req.query.event_name || "",
       event_date: req.query.event_date || req.query.date || "",
+      end_date: req.query.end_date || "",
       event_time: req.query.event_time || "",
       start_time: req.query.start_time || "",
       end_time: req.query.end_time || "",
@@ -887,6 +905,7 @@ router.post("/new", async (req, res) => {
   const {
     event_name,
     event_date,
+    end_date,
     event_time,
     start_time,
     end_time,
@@ -910,11 +929,23 @@ router.post("/new", async (req, res) => {
   const userId = req.session.user?.id || null;
   const statusValue = (status || "lead").trim() || "lead";
   const cancelReasonValue = statusValue === "cancelled" ? (cancelled_reason || "").trim() || null : null;
+  const endDateValue = end_date || null;
+  const eventDateValue = event_date || null;
+  let endDateOffsetDays = null;
+  if (eventDateValue && endDateValue) {
+    const start = new Date(eventDateValue);
+    const end = new Date(endDateValue);
+    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+      const diffMs = end.setHours(0, 0, 0, 0) - start.setHours(0, 0, 0, 0);
+      endDateOffsetDays = Math.round(diffMs / (24 * 60 * 60 * 1000));
+    }
+  }
 
   const recurrence = recurrenceService.parseRecurrenceForm(req.body);
   const client = await pool.connect();
   try {
     await ensureFunctionCancelColumn();
+    await ensureFunctionEndDateColumn();
     await client.query("BEGIN");
     await client.query(
       `
@@ -924,6 +955,7 @@ router.post("/new", async (req, res) => {
         status,
         cancelled_reason,
         event_date,
+        end_date,
         event_time,
         start_time,
         end_time,
@@ -939,7 +971,7 @@ router.post("/new", async (req, res) => {
         updated_by
       )
       VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW(),NOW(),$16
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW(),NOW(),$17
       );
       `,
       [
@@ -947,7 +979,8 @@ router.post("/new", async (req, res) => {
         trimmedName,
         statusValue,
         cancelReasonValue,
-        event_date || null,
+        eventDateValue,
+        endDateValue,
         event_time || null,
         start_time || null,
         end_time || null,
@@ -993,6 +1026,7 @@ router.post("/new", async (req, res) => {
               status,
               cancelled_reason,
               event_date,
+              end_date,
               event_time,
               start_time,
               end_time,
@@ -1010,7 +1044,7 @@ router.post("/new", async (req, res) => {
               updated_by
             )
             VALUES (
-              $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW(),NOW(),$18
+              $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),NOW(),$19
             );
             `,
             [
@@ -1019,6 +1053,11 @@ router.post("/new", async (req, res) => {
               statusValue,
               cancelReasonValue,
               date,
+              endDateOffsetDays !== null && Number.isFinite(endDateOffsetDays)
+                ? new Date(new Date(date).setDate(new Date(date).getDate() + endDateOffsetDays))
+                    .toISOString()
+                    .slice(0, 10)
+                : null,
               event_time || null,
               start_time || null,
               end_time || null,
@@ -1076,9 +1115,10 @@ router.get("/:id/communications/:messageId", async (req, res, next) => {
   const { id: functionId, messageId } = req.params;
 
   try {
+    await ensureFunctionEndDateColumn();
     // Fetch parent function
     const { rows: fnRows } = await pool.query(
-      `SELECT id_uuid, event_name, event_date, status
+      `SELECT id_uuid, event_name, event_date, end_date, status
        FROM functions 
        WHERE id_uuid = $1;`,
       [functionId]
@@ -1297,6 +1337,7 @@ router.post("/:id/edit", async (req, res) => {
   const {
     event_name,
     event_date,
+    end_date,
     event_time,
     start_time,
     end_time,
@@ -1317,29 +1358,32 @@ router.post("/:id/edit", async (req, res) => {
 
   try {
     await ensureFunctionCancelColumn();
+    await ensureFunctionEndDateColumn();
     await pool.query(`
       UPDATE functions
       SET
         event_name   = $1,
         event_date   = $2,
-        event_time   = $3,
-        start_time   = $4,
-        end_time     = $5,
-        attendees    = $6,
-        budget       = $7,
-        totals_price = $8,
-        totals_cost  = $9,
-        room_id      = $10,
-        event_type   = $11,
-        status       = $12,
-        cancelled_reason = $13,
-        owner_id     = $14,
+        end_date     = $3,
+        event_time   = $4,
+        start_time   = $5,
+        end_time     = $6,
+        attendees    = $7,
+        budget       = $8,
+        totals_price = $9,
+        totals_cost  = $10,
+        room_id      = $11,
+        event_type   = $12,
+        status       = $13,
+        cancelled_reason = $14,
+        owner_id     = $15,
         updated_at   = NOW(),
-        updated_by   = COALESCE($15, updated_by)
-    WHERE id_uuid = $16;`,
+        updated_by   = COALESCE($16, updated_by)
+    WHERE id_uuid = $17;`,
     [
       event_name,
       event_date || null,
+      end_date || null,
       event_time || null,
       start_time || null,
       end_time || null,
@@ -1456,6 +1500,7 @@ router.get("/:id/run-sheet", async (req, res) => {
       title: `Run Sheet - ${fn.event_name}`,
       fn,
       eventDate: fn.event_date,
+      endDate: fn.end_date,
       startTime: fn.start_time,
       endTime: fn.end_time,
       attendees: fn.attendees,
@@ -1894,11 +1939,12 @@ router.get("/:id/tasks", async (req, res) => {
   const { id: functionId } = req.params;
 
   try {
+    await ensureFunctionEndDateColumn();
     // 1️⃣ Fetch parent function info
     const { rows: fnRows } = await pool.query(
       `
       SELECT 
-        id_uuid, event_name, event_date, status, attendees, budget, 
+        id_uuid, event_name, event_date, end_date, status, attendees, budget, 
         totals_cost, totals_price, room_id, event_type 
       FROM functions 
       WHERE id_uuid = $1;
@@ -2177,12 +2223,14 @@ router.post("/:id/update-field", async (req, res) => {
   let { field, value } = req.body;
   await ensureFunctionCancelColumn();
   await ensureFunctionLeadSourceColumn();
+  await ensureFunctionEndDateColumn();
 
   // ✅ Define only allowed, safe-to-update columns
   const allowed = new Map([
     ["start_time", "start_time"],
     ["end_time", "end_time"],
     ["event_date", "event_date"],
+    ["end_date", "end_date"],
     ["event_time", "event_time"],
     ["status", "status"],
     ["cancelled_reason", "cancelled_reason"],

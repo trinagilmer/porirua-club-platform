@@ -24,7 +24,7 @@
       </h1>
       <div class="small text-muted">
         <% if (fn?.event_date) { %>
-          <span><%= new Date(fn.event_date).toLocaleDateString() %></span>
+          <span><%= formatNZDateRange(fn.event_date, fn.end_date, "dd/MM/yyyy") %></span>
         <% } %>
         <% if (startTime || endTime) { %>
           <span class="ms-3">

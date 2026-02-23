@@ -56,6 +56,22 @@ app.locals.formatNZDateTime = (date, time) => {
     return "";
   }
 };
+app.locals.formatNZDateRange = (startDate, endDate, pattern = "dd/MM/yyyy") => {
+  try {
+    if (!startDate) return "";
+    const start = startDate instanceof Date ? startDate : new Date(startDate);
+    if (Number.isNaN(start.getTime())) return "";
+    if (!endDate) return format(start, pattern);
+    const end = endDate instanceof Date ? endDate : new Date(endDate);
+    if (Number.isNaN(end.getTime())) return format(start, pattern);
+    const startKey = format(start, "yyyy-MM-dd");
+    const endKey = format(end, "yyyy-MM-dd");
+    if (startKey === endKey) return format(start, pattern);
+    return `${format(start, pattern)} - ${format(end, pattern)}`;
+  } catch {
+    return "";
+  }
+};
 app.locals.formatCurrency = (value) => {
   const num = Number(value) || 0;
   return num.toLocaleString("en-NZ", {

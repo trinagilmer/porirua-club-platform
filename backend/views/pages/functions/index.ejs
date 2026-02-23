@@ -104,7 +104,7 @@
 
               <!-- Date + Time -->
               <td>
-                <%= formatNZDate(e.event_date) %><br>
+                <%= formatNZDateRange(e.event_date, e.end_date, "dd/MM/yyyy") %><br>
                 <% if (e.event_time) { %>
                   <span class="subtext"><%= e.event_time.toString().slice(0, 5) %></span>
                 <% } %>

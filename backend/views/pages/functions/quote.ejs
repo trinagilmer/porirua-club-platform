@@ -478,6 +478,7 @@
     const attendees = Number(window.fnContext?.attendees || 0);
     const fnEventName = `<%- (fn.event_name || 'your booking').replace(/\\/g, '\\\\').replace(/\"/g, '\\"').replace(/` + "`" + `/g, '\\`" + "`" + `') %>`;
     const fnEventDate = `<%- fn.event_date || '' %>`;
+    const fnEndDate = `<%- fn.end_date || '' %>`;
 
     window.quoteActiveItemIds = new Set();
     const itemLookup = new Map();
@@ -1203,22 +1204,31 @@
       }
     }
 
-    function formatEventDateForEmail(value) {
-      if (!value) return '';
+    function formatEventDateForEmail(startValue, endValue) {
+      if (!startValue) return '';
       try {
-        return new Date(value).toLocaleDateString('en-NZ', {
+        const startLabel = new Date(startValue).toLocaleDateString('en-NZ', {
           weekday: 'short',
           day: 'numeric',
           month: 'short',
           year: 'numeric',
         });
+        if (!endValue) return startLabel;
+        const endLabel = new Date(endValue).toLocaleDateString('en-NZ', {
+          weekday: 'short',
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        });
+        if (!endLabel || endLabel === startLabel) return startLabel;
+        return `${startLabel} - ${endLabel}`;
       } catch (err) {
         return '';
       }
     }
 
     function seedEmailDraft() {
-      const friendlyDate = formatEventDateForEmail(fnEventDate);
+      const friendlyDate = formatEventDateForEmail(fnEventDate, fnEndDate);
       const name = clientNameInput.value || (clientEmailSelect?.selectedOptions?.[0]?.dataset?.name || '');
       clientEmailMessage.value =
         `Hi ${name || 'there'},\n\n` +

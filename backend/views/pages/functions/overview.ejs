@@ -27,6 +27,14 @@
     if (!value) return "-";
     return new Date(value).toLocaleDateString("en-NZ");
   }
+  function nzDateRange(startValue, endValue) {
+    if (!startValue) return "-";
+    const start = nzDate(startValue);
+    if (!endValue) return start;
+    const end = nzDate(endValue);
+    if (!end || end === start) return start;
+    return `${start} - ${end}`;
+  }
   function nzTime(value) {
     if (!value) return "--:--";
     var dateValue = value;
@@ -154,7 +162,7 @@
       </div>
       <div class="snapshot-row">
         <div class="snapshot-label">Event Date</div>
-        <div class="snapshot-value"><%= nzDate(fn.event_date) %></div>
+        <div class="snapshot-value"><%= nzDateRange(fn.event_date, fn.end_date) %></div>
         <div class="snapshot-updated"><%= formatUpdated(fieldAudit.event_date) %></div>
       </div>
       <div class="snapshot-row">
@@ -447,7 +455,7 @@
           <div class="row g-3 mb-3">
             <div class="col-sm-6">
               <label class="form-label text-muted small">Event date</label>
-              <p class="fw-semibold mb-0"><%= nzDate(fn.event_date) %></p>
+              <p class="fw-semibold mb-0"><%= nzDateRange(fn.event_date, fn.end_date) %></p>
             </div>
             <div class="col-sm-6">
               <label class="form-label text-muted small">Room / Guests</label>
@@ -660,6 +668,7 @@
     name: "<%= fn.event_name %>",
     status: "<%= fn.status %>",
     eventDate: "<%= formatDateInput(fn.event_date) %>",
+    endDate: "<%= formatDateInput(fn.end_date) %>",
     canManage: <%= canManage ? 'true' : 'false' %>
   };
 </script>

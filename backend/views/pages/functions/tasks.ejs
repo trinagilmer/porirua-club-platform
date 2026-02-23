@@ -138,7 +138,8 @@
     id: "<%= fn.id_uuid %>",
     name: "<%= fn.event_name %>",
     status: "<%= fn.status %>",
-    eventDate: "<%= fn.event_date ? fn.event_date.toISOString().split('T')[0] : '' %>"
+    eventDate: "<%= fn.event_date ? fn.event_date.toISOString().split('T')[0] : '' %>",
+    endDate: "<%= fn.end_date ? fn.end_date.toISOString().split('T')[0] : '' %>"
   };
 </script>
 

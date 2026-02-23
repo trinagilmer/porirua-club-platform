@@ -26,7 +26,7 @@
       <% if (msg.functions) { %>
         <div class="msg-function">
           🎉 <%= msg.functions.event_name %> 
-          <small>(<%= msg.functions.event_date ? new Date(msg.functions.event_date).toLocaleDateString() : '' %>)</small>
+          <small>(<%= formatNZDateRange(msg.functions.event_date, msg.functions.end_date, "dd/MM/yyyy") %>)</small>
         </div>
       <% } %>
     </div>

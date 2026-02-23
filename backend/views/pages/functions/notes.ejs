@@ -230,6 +230,7 @@
     const fnId       = <%- JSON.stringify(fn.id_uuid) %>;
     const eventName  = <%- JSON.stringify(fn.event_name || "") %>;
     const eventDate  = <%- JSON.stringify(fn.event_date || "") %>;
+    const endDate  = <%- JSON.stringify(fn.end_date || "") %>;
     const startTime  = <%- JSON.stringify(fn.start_time || "") %>;
     const endTime    = <%- JSON.stringify(fn.end_time || "") %>;
 
@@ -248,6 +249,7 @@
       event: {
         name: eventName,
         date: eventDate,
+        end_date: endDate,
         start_time: startTime,
         end_time: endTime,
       },

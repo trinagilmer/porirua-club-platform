@@ -88,12 +88,25 @@
     month: 'long',
     year: 'numeric',
   });
-  const eventDate = fn?.event_date
-    ? new Date(fn.event_date).toLocaleDateString('en-NZ', {
+  const formatLongDate = (value) => {
+    if (!value) return '';
+    try {
+      return new Date(value).toLocaleDateString('en-NZ', {
         day: 'numeric',
         month: 'long',
         year: 'numeric',
-      })
+      });
+    } catch (err) {
+      return '';
+    }
+  };
+  const eventDate = fn?.event_date
+    ? (() => {
+        const start = formatLongDate(fn.event_date);
+        const end = fn?.end_date ? formatLongDate(fn.end_date) : '';
+        if (!end || end === start) return start;
+        return `${start} - ${end}`;
+      })()
     : 'TBC';
   const safeTotals = totals || {
     subtotal: 0,
@@ -540,13 +553,18 @@
           : isPerPerson
           ? Number(window.fnContext?.attendees || 0) || 1
           : 1;
+        const metaBase = meta.base != null ? Number(meta.base) : null;
         let priceEach;
-        if (meta.base != null) {
-          priceEach = Number(meta.base);
-        } else if (isPerPerson && qty > 0) {
-          priceEach = price < qty ? price : price / qty;
+        const effectiveUnitPrice =
+          Number.isFinite(price) && price !== 0
+            ? price
+            : Number.isFinite(metaBase)
+            ? metaBase
+            : 0;
+        if (isPerPerson && qty > 0) {
+          priceEach = effectiveUnitPrice;
         } else {
-          priceEach = qty > 0 ? price / qty : price;
+          priceEach = qty > 0 ? effectiveUnitPrice / qty : effectiveUnitPrice;
         }
         const item = {
           id,

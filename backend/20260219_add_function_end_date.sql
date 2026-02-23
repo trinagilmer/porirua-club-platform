@@ -1,0 +1,2 @@
+ALTER TABLE functions
+  ADD COLUMN IF NOT EXISTS end_date DATE;

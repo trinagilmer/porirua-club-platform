@@ -4,6 +4,10 @@ const { pool } = require("../db");
 const { renderNote } = require("../services/templateRenderer");
 
 const router = express.Router();
+
+async function ensureFunctionEndDateColumn() {
+  await pool.query("ALTER TABLE functions ADD COLUMN IF NOT EXISTS end_date DATE;");
+}
 router.use(express.json());
 
 /* =========================================================
@@ -23,9 +27,10 @@ router.get("/functions/:id/notes", async (req, res) => {
   const { id: functionId } = req.params;
 
   try {
+    await ensureFunctionEndDateColumn();
     // -- Function core
     const { rows: fnRows } = await pool.query(
-      `SELECT id_uuid, event_name, event_date, status, room_id
+      `SELECT id_uuid, event_name, event_date, end_date, status, room_id
        FROM functions
        WHERE id_uuid = $1
        LIMIT 1;`,
@@ -223,9 +228,10 @@ router.post("/functions/:id/notes/preview", async (req, res) => {
   const { raw_html, rendered_html } = req.body;
 
   try {
+    await ensureFunctionEndDateColumn();
     // Function core for tokens
     const { rows: fnRows } = await pool.query(
-      `SELECT id_uuid, event_name, event_date, status, room_id
+      `SELECT id_uuid, event_name, event_date, end_date, status, room_id
          FROM functions
         WHERE id_uuid = $1
         LIMIT 1;`,
@@ -261,6 +267,7 @@ router.post("/functions/:id/notes/preview", async (req, res) => {
       event: {
         name: fn.event_name || "",
         date: fn.event_date || "",
+        end_date: fn.end_date || "",
         // If you later confirm start/end sources, set them here:
         start_time: null,
         end_time: null,

@@ -1,6 +1,19 @@
 /* eslint-disable no-useless-escape */
 const express = require("express");
 const router = express.Router();
+
+async function ensureFunctionEndDateColumn() {
+  await pool.query("ALTER TABLE functions ADD COLUMN IF NOT EXISTS end_date DATE;");
+}
+
+router.use(async (req, res, next) => {
+  try {
+    await ensureFunctionEndDateColumn();
+  } catch (err) {
+    console.warn("[Quote] Failed to ensure end_date column:", err.message);
+  }
+  next();
+});
 const { pool } = require("../db");
 const { renderNote } = require("../services/templateRenderer");
 const { sendMail: graphSendMail } = require("../services/graphService");
@@ -41,6 +54,7 @@ router.get("/proposal/client/:token", async (req, res) => {
       `SELECT f.id_uuid,
               f.event_name,
               f.event_date,
+              f.end_date,
               f.status,
               f.event_type,
               f.attendees,
@@ -241,6 +255,7 @@ router.post("/proposal/client/:token/accept", async (req, res) => {
           id_uuid: proposal.function_id,
           event_name: proposal.event_name,
           event_date: proposal.event_date,
+          end_date: proposal.end_date,
           start_time: proposal.start_time,
           end_time: proposal.end_time,
           attendees: proposal.attendees,
@@ -432,6 +447,7 @@ router.post("/proposal/client/:token/accept", async (req, res) => {
         id_uuid: proposal.function_id,
         event_name: proposal.event_name,
         event_date: proposal.event_date,
+        end_date: proposal.end_date,
         start_time: proposal.start_time,
         end_time: proposal.end_time,
         attendees: proposal.attendees,
@@ -626,6 +642,7 @@ async function findProposalByToken(token) {
     SELECT p.*,
            f.event_name,
            f.event_date,
+           f.end_date,
            f.start_time,
            f.end_time,
            f.attendees,
@@ -800,6 +817,7 @@ function buildNoteContext(fn, contacts = [], rooms = []) {
     name: safeFn?.event_name || "",
     event_name: safeFn?.event_name || "",
     date: safeFn?.event_date || "",
+    end_date: safeFn?.end_date || "",
     attendees: safeFn?.attendees || 0,
     start_time: safeFn?.start_time || "",
     end_time: safeFn?.end_time || "",
@@ -1081,6 +1099,7 @@ router.get("/:functionId/quote", async (req, res) => {
       `SELECT f.id_uuid,
               f.event_name,
               f.event_date,
+              f.end_date,
               f.status,
               f.event_type,
               f.attendees,
@@ -1800,7 +1819,7 @@ router.post("/proposal-items/:id/price", async (req, res) => {
     let updatedDescription = description;
     const meta = extractMetadata(description);
     if (parseBoolean(include)) {
-      if (Number.isFinite(numericUnitPrice) && meta.base !== undefined) {
+      if (Number.isFinite(numericUnitPrice)) {
         meta.base = numericUnitPrice;
       }
       const metaString = Object.entries(meta)
@@ -1961,6 +1980,7 @@ router.get("/:functionId/proposal", async (req, res) => {
       `SELECT f.id_uuid,
               f.event_name,
               f.event_date,
+              f.end_date,
               f.status,
               f.event_type,
               f.attendees,
@@ -2590,7 +2610,7 @@ router.post("/:functionId/quote/send-client-email", async (req, res) => {
     const {
       rows: [fn],
     } = await client.query(
-      `SELECT id_uuid, event_name, event_date, attendees FROM functions WHERE id_uuid = $1 LIMIT 1`,
+      `SELECT id_uuid, event_name, event_date, end_date, attendees FROM functions WHERE id_uuid = $1 LIMIT 1`,
       [functionId]
     );
 
@@ -2608,18 +2628,22 @@ router.post("/:functionId/quote/send-client-email", async (req, res) => {
 
     const link = `${getAppUrl(req)}/functions/proposal/client/${proposal.client_token}`;
     const fnName = fn?.event_name || "your booking";
-    const fnDate = fn?.event_date
-      ? new Date(fn.event_date).toLocaleDateString("en-NZ", {
-          weekday: "short",
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        })
-      : "";
+    const formatDate = (value) =>
+      value
+        ? new Date(value).toLocaleDateString("en-NZ", {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })
+        : "";
+    const fnDate = fn?.event_date ? formatDate(fn.event_date) : "";
+    const fnEndDate = fn?.end_date ? formatDate(fn.end_date) : "";
+    const fnDateLabel = fnEndDate && fnDate && fnEndDate !== fnDate ? `${fnDate} - ${fnEndDate}` : fnDate;
 
     const bodyMessage =
       (message && message.trim()) ||
-      `Here is your proposal for ${fnName}${fnDate ? ` on ${fnDate}` : ""}. Please review and confirm using the link below.`;
+      `Here is your proposal for ${fnName}${fnDateLabel ? ` on ${fnDateLabel}` : ""}. Please review and confirm using the link below.`;
 
     const subject = `${recipientName || fnName} - Porirua Club Events | Proposal`;
     const html = `

@@ -30,6 +30,14 @@
       return '';
     }
   }
+  function formatDateRange(startValue, endValue) {
+    if (!startValue) return '';
+    const start = formatDate(startValue);
+    if (!endValue) return start;
+    const end = formatDate(endValue);
+    if (!end || end === start) return start;
+    return `${start} - ${end}`;
+  }
   function formatTime(value) {
     if (!value) return '';
     try {
@@ -45,7 +53,7 @@
   const primaryContact =
     orderedContacts.find((contact) => contact.is_primary) || orderedContacts[0] || null;
   const hasContacts = orderedContacts.length > 0;
-  const eventDate = formatDate(proposal?.event_date);
+  const eventDate = formatDateRange(proposal?.event_date, proposal?.end_date);
   const printedDate = formatDate(new Date());
 %>
 
@@ -164,7 +172,7 @@
           <p class="text-uppercase small mb-1">Proposal</p>
           <h1 class="h4 mb-1"><%= proposal?.event_name || 'Function Proposal' %></h1>
           <p class="mb-0 text-white-50">
-            <%= proposal?.event_date ? new Date(proposal.event_date).toLocaleDateString('en-NZ') : '' %>
+            <%= eventDate || '' %>
             <% if (proposal?.room_id) { %> · Room assigned <% } %>
           </p>
         </div>
@@ -277,6 +285,7 @@
                   const allowQty = String(meta.client_allow_qty || '').toLowerCase() === 'true';
                   const qtyValue = Number(meta.qty || 1) || 1;
                   const unitPrice = Number(item.unit_price || 0);
+                  const metaBase = meta.base != null ? Number(meta.base) : null;
                   const unitType = String(meta.unit_type || '').toLowerCase();
                   const isPerPerson =
                     unitType === 'per_person' ||
@@ -284,12 +293,16 @@
                     unitType === 'per person' ||
                     unitType === 'pp';
                   let priceEach;
-                  if (meta.base != null) {
-                    priceEach = Number(meta.base);
-                  } else if (isPerPerson && qtyValue > 0) {
-                    priceEach = unitPrice < qtyValue ? unitPrice : unitPrice / qtyValue;
+                  const effectiveUnitPrice =
+                    Number.isFinite(unitPrice) && unitPrice !== 0
+                      ? unitPrice
+                      : Number.isFinite(metaBase)
+                      ? metaBase
+                      : 0;
+                  if (isPerPerson && qtyValue > 0) {
+                    priceEach = effectiveUnitPrice;
                   } else {
-                    priceEach = qtyValue > 0 ? unitPrice / qtyValue : unitPrice;
+                    priceEach = qtyValue > 0 ? effectiveUnitPrice / qtyValue : effectiveUnitPrice;
                   }
                   const lineTotal = priceEach * qtyValue;
                 %>

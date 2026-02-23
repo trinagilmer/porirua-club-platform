@@ -19,12 +19,18 @@
                    value="<%= fn.event_date ? fn.event_date.toISOString().slice(0,10) : '' %>" />
           </div>
 
-          <div class="col-md-6">
+          <div class="col-md-3">
+            <label class="form-label">End date</label>
+            <input type="date" name="end_date" class="form-control"
+                   value="<%= fn.end_date ? fn.end_date.toISOString().slice(0,10) : '' %>" />
+          </div>
+
+          <div class="col-md-3">
             <label class="form-label">Start Time</label>
             <input type="time" name="start_time" class="form-control" value="<%= fn.start_time || '' %>" />
           </div>
 
-          <div class="col-md-6">
+          <div class="col-md-3">
             <label class="form-label">End Time</label>
             <input type="time" name="end_time" class="form-control" value="<%= fn.end_time || '' %>" />
           </div>
@@ -122,7 +128,8 @@
     id: "<%= fn.id_uuid %>",
     name: "<%= fn.event_name %>",
     status: "<%= fn.status %>",
-    eventDate: "<%= fn.event_date ? fn.event_date.toISOString().split('T')[0] : '' %>"
+    eventDate: "<%= fn.event_date ? fn.event_date.toISOString().split('T')[0] : '' %>",
+    endDate: "<%= fn.end_date ? fn.end_date.toISOString().split('T')[0] : '' %>"
   };
 
   console.log("🛠️ Function Context (Edit):", window.fnContext);

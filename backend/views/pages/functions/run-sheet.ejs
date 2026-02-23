@@ -1,7 +1,20 @@
 <% locals.layout = 'layouts/main'; %>
 <%
+  const formatLongDate = (value) => {
+    if (!value) return '';
+    try {
+      return new Date(value).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' });
+    } catch (err) {
+      return '';
+    }
+  };
   const eventDateFormatted = eventDate
-    ? new Date(eventDate).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
+    ? (() => {
+        const startLabel = formatLongDate(eventDate);
+        const endLabel = endDate ? formatLongDate(endDate) : '';
+        if (!endLabel || endLabel === startLabel) return startLabel;
+        return `${startLabel} - ${endLabel}`;
+      })()
     : 'Not set';
   const formatTime = (value) => {
     if (!value) return '--:--';

@@ -1,12 +1,20 @@
 const { test, expect } = require("@playwright/test");
 
+function pad(value) {
+  return String(value).padStart(2, "0");
+}
+
+function formatLocalDate(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 function nextDateForDay(targetDow) {
   const now = new Date();
   const date = new Date(now);
   const currentDow = date.getDay();
   const delta = (targetDow - currentDow + 7) % 7 || 7;
   date.setDate(date.getDate() + delta);
-  return date.toISOString().slice(0, 10);
+  return formatLocalDate(date);
 }
 
 test("public restaurant booking submits", async ({ page }) => {

@@ -83,6 +83,24 @@
       >
     </div>
 
+    <div class="detail-item">
+      <label>End Date</label>
+      <input
+        type="date"
+        class="editable"
+        data-field="end_date"
+        data-id="<%= fn.id_uuid %>"
+        value="<%= (() => {
+          if (!fn.end_date) return '';
+          const d = new Date(fn.end_date);
+          if (isNaN(d.getTime())) return '';
+          const tzOffset = d.getTimezoneOffset() * 60000;
+          const local = new Date(d.getTime() - tzOffset);
+          return local.toISOString().split('T')[0];
+        })() %>"
+      >
+    </div>
+
     <!-- Time Range -->
     <div class="detail-row">
       <div class="detail-item half">
