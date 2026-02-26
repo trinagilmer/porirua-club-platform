@@ -18,7 +18,7 @@ $sidebar-text: #556173;
 .function-sidebar {
   display: flex;
   flex-direction: column;
-  width: 360px;
+  width: calc(240px + 2em);
   max-width: 100%;
   background-color: $sidebar-bg;
   border-right: 1px solid $sidebar-border;

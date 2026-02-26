@@ -37,7 +37,7 @@
 // ===========================================================
 .function-sidebar {
   flex-shrink: 0;
-  width: 320px; // matches sidebar.scss
+  width: calc(240px + 2em); // slightly wider per request
   background: #f2f5fa;
   border-right: 1px solid $neutral-200;
   overflow: hidden; // sidebar manages own scroll
