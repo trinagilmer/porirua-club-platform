@@ -79,7 +79,8 @@ async function seedCoreData(pool) {
   if (cols.has("password_hash")) pushField("password_hash", hash);
   if (cols.has("role_id")) {
     pushField("role_id", roleId);
-  } else if (cols.has("role")) {
+  }
+  if (cols.has("role")) {
     pushField("role", "owner");
   }
   if (cols.has("default_landing")) pushField("default_landing", "/dashboard");

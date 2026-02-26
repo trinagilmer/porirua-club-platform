@@ -47,6 +47,8 @@ router.get("/", async (req, res) => {
       `
       SELECT e.*,
              r.name AS room_name,
+             ar.additional_rooms,
+             ar.additional_room_names,
              COALESCE(
                json_agg(
                  json_build_object('id', a.id, 'name', a.name, 'external_url', a.external_url)
@@ -58,9 +60,25 @@ router.get("/", async (req, res) => {
         LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
         LEFT JOIN entertainment_acts a ON a.id = ea.act_id
         LEFT JOIN rooms r ON r.id = e.room_id
+        LEFT JOIN LATERAL (
+          SELECT COALESCE(
+                   jsonb_agg(
+                     jsonb_build_object('id', rr.id, 'name', rr.name)
+                     ORDER BY rr.name
+                   ) FILTER (WHERE rr.id IS NOT NULL),
+                   '[]'::jsonb
+                 ) AS additional_rooms,
+                 COALESCE(
+                   array_agg(rr.name ORDER BY rr.name) FILTER (WHERE rr.id IS NOT NULL),
+                   ARRAY[]::text[]
+                 ) AS additional_room_names
+            FROM entertainment_event_rooms eer
+            JOIN rooms rr ON rr.id = eer.room_id
+           WHERE eer.event_id = e.id
+        ) ar ON TRUE
        WHERE e.status = 'published'
          AND (e.start_at AT TIME ZONE 'Pacific/Auckland')::date >= (NOW() AT TIME ZONE 'Pacific/Auckland')::date
-       GROUP BY e.id, r.name
+       GROUP BY e.id, r.name, ar.additional_rooms, ar.additional_room_names
        ORDER BY e.start_at ASC;
       `
     );
@@ -68,6 +86,8 @@ router.get("/", async (req, res) => {
       `
       SELECT e.*,
              r.name AS room_name,
+             ar.additional_rooms,
+             ar.additional_room_names,
              COALESCE(
                json_agg(
                  json_build_object('id', a.id, 'name', a.name, 'external_url', a.external_url)
@@ -79,10 +99,26 @@ router.get("/", async (req, res) => {
         LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
         LEFT JOIN entertainment_acts a ON a.id = ea.act_id
         LEFT JOIN rooms r ON r.id = e.room_id
+        LEFT JOIN LATERAL (
+          SELECT COALESCE(
+                   jsonb_agg(
+                     jsonb_build_object('id', rr.id, 'name', rr.name)
+                     ORDER BY rr.name
+                   ) FILTER (WHERE rr.id IS NOT NULL),
+                   '[]'::jsonb
+                 ) AS additional_rooms,
+                 COALESCE(
+                   array_agg(rr.name ORDER BY rr.name) FILTER (WHERE rr.id IS NOT NULL),
+                   ARRAY[]::text[]
+                 ) AS additional_room_names
+            FROM entertainment_event_rooms eer
+            JOIN rooms rr ON rr.id = eer.room_id
+           WHERE eer.event_id = e.id
+        ) ar ON TRUE
        WHERE e.status = 'published'
          AND e.display_type <> 'regularevents'
          AND e.start_at < NOW()
-       GROUP BY e.id, r.name
+       GROUP BY e.id, r.name, ar.additional_rooms, ar.additional_room_names
        ORDER BY e.start_at DESC
        LIMIT 6;
       `
@@ -155,9 +191,27 @@ router.get("/events", async (req, res) => {
          ORDER BY series_id, series_order ASC NULLS LAST, start_at ASC
       )
       SELECT e.*, r.name AS room_name,
+             ar.additional_rooms,
+             ar.additional_room_names,
              COALESCE(e.event_color, sc.series_color) AS effective_event_color
         FROM entertainment_events e
         LEFT JOIN rooms r ON r.id = e.room_id
+        LEFT JOIN LATERAL (
+          SELECT COALESCE(
+                   jsonb_agg(
+                     jsonb_build_object('id', rr.id, 'name', rr.name)
+                     ORDER BY rr.name
+                   ) FILTER (WHERE rr.id IS NOT NULL),
+                   '[]'::jsonb
+                 ) AS additional_rooms,
+                 COALESCE(
+                   array_agg(rr.name ORDER BY rr.name) FILTER (WHERE rr.id IS NOT NULL),
+                   ARRAY[]::text[]
+                 ) AS additional_room_names
+            FROM entertainment_event_rooms eer
+            JOIN rooms rr ON rr.id = eer.room_id
+           WHERE eer.event_id = e.id
+        ) ar ON TRUE
         LEFT JOIN series_colors sc ON sc.series_id = e.series_id
        ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
        ORDER BY e.start_at ASC;
@@ -167,6 +221,13 @@ router.get("/events", async (req, res) => {
     const events = rows.map((row) => {
       const defaultColor = row.display_type === "regularevents" ? "#e8f5fc" : "#6bb4de";
       const color = row.effective_event_color || row.event_color || defaultColor;
+      const additionalRooms = Array.isArray(row.additional_rooms) ? row.additional_rooms : [];
+      const additionalRoomNames = Array.isArray(row.additional_room_names)
+        ? row.additional_room_names
+        : [];
+      const roomNames = [row.room_name, ...additionalRoomNames].filter(Boolean);
+      const roomIds = [row.room_id, ...additionalRooms.map((room) => room.id)]
+        .filter((id) => Number.isInteger(id));
       return {
         id: row.id,
         title: row.title,
@@ -181,6 +242,8 @@ router.get("/events", async (req, res) => {
           display_type: row.display_type || "entertainment",
           event_color: row.effective_event_color || row.event_color || null,
           room_name: row.room_name,
+          room_names: roomNames,
+          room_ids: roomIds,
           external_url: row.external_url,
         },
       };
@@ -201,6 +264,8 @@ router.get("/:slugOrId", async (req, res) => {
       query = `
         SELECT e.*,
                r.name AS room_name,
+               ar.additional_rooms,
+               ar.additional_room_names,
                COALESCE(
                  json_agg(
                    json_build_object('id', a.id, 'name', a.name, 'external_url', a.external_url)
@@ -212,8 +277,24 @@ router.get("/:slugOrId", async (req, res) => {
           LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
           LEFT JOIN entertainment_acts a ON a.id = ea.act_id
           LEFT JOIN rooms r ON r.id = e.room_id
+          LEFT JOIN LATERAL (
+            SELECT COALESCE(
+                     jsonb_agg(
+                       jsonb_build_object('id', rr.id, 'name', rr.name)
+                       ORDER BY rr.name
+                     ) FILTER (WHERE rr.id IS NOT NULL),
+                     '[]'::jsonb
+                   ) AS additional_rooms,
+                   COALESCE(
+                     array_agg(rr.name ORDER BY rr.name) FILTER (WHERE rr.id IS NOT NULL),
+                     ARRAY[]::text[]
+                   ) AS additional_room_names
+              FROM entertainment_event_rooms eer
+              JOIN rooms rr ON rr.id = eer.room_id
+             WHERE eer.event_id = e.id
+          ) ar ON TRUE
          WHERE e.id = $1
-         GROUP BY e.id, r.name
+         GROUP BY e.id, r.name, ar.additional_rooms, ar.additional_room_names
          LIMIT 1;
       `;
       params = [Number(key)];
@@ -221,6 +302,8 @@ router.get("/:slugOrId", async (req, res) => {
       query = `
         SELECT e.*,
                r.name AS room_name,
+               ar.additional_rooms,
+               ar.additional_room_names,
                COALESCE(
                  json_agg(
                    json_build_object('id', a.id, 'name', a.name, 'external_url', a.external_url)
@@ -232,8 +315,24 @@ router.get("/:slugOrId", async (req, res) => {
           LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
           LEFT JOIN entertainment_acts a ON a.id = ea.act_id
           LEFT JOIN rooms r ON r.id = e.room_id
+          LEFT JOIN LATERAL (
+            SELECT COALESCE(
+                     jsonb_agg(
+                       jsonb_build_object('id', rr.id, 'name', rr.name)
+                       ORDER BY rr.name
+                     ) FILTER (WHERE rr.id IS NOT NULL),
+                     '[]'::jsonb
+                   ) AS additional_rooms,
+                   COALESCE(
+                     array_agg(rr.name ORDER BY rr.name) FILTER (WHERE rr.id IS NOT NULL),
+                     ARRAY[]::text[]
+                   ) AS additional_room_names
+              FROM entertainment_event_rooms eer
+              JOIN rooms rr ON rr.id = eer.room_id
+             WHERE eer.event_id = e.id
+          ) ar ON TRUE
          WHERE e.slug = $1
-         GROUP BY e.id, r.name
+         GROUP BY e.id, r.name, ar.additional_rooms, ar.additional_room_names
          LIMIT 1;
       `;
       params = [key.toLowerCase()];

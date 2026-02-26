@@ -101,8 +101,10 @@
                 <div class="card-body">
                   <span class="ent-date text-muted text-uppercase small mb-2"><%= new Date(event.start_at).toLocaleDateString('en-NZ', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Pacific/Auckland' }) %></span>
                   <h3 class="h5 mb-2"><a href="/entertainment/<%= event.slug || event.id %><%= detailSuffix %>" class="stretched-link text-decoration-none text-dark"><%= event.title %></a></h3>
-                <% if (event.room_name) { %>
-                  <p class="text-muted small mb-1"><i class="bi bi-geo-alt me-1"></i><%= event.room_name %></p>
+                <% const extraRooms = Array.isArray(event.additional_room_names) ? event.additional_room_names : []; %>
+                <% const roomNames = [event.room_name].concat(extraRooms).filter(Boolean); %>
+                <% if (roomNames.length) { %>
+                  <p class="text-muted small mb-1"><i class="bi bi-geo-alt me-1"></i><%= roomNames.join(", ") %></p>
                 <% } %>
                 <% if (event.acts && event.acts.length) { %>
                   <p class="text-muted small mb-2">Acts: <%= event.acts.map(function(act) { return act.name; }).join(", ") %></p>
@@ -141,8 +143,10 @@
                 <div class="card-body">
                   <span class="ent-date text-primary text-uppercase small mb-2"><%= new Date(event.start_at).toLocaleDateString('en-NZ', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Pacific/Auckland' }) %></span>
                   <h3 class="h5 mb-2"><a href="/entertainment/<%= event.slug || event.id %><%= detailSuffix %>" class="stretched-link text-decoration-none"><%= event.title %></a></h3>
-                  <% if (event.room_name) { %>
-                    <p class="text-muted small mb-1"><i class="bi bi-geo-alt me-1"></i><%= event.room_name %></p>
+                  <% const extraRooms = Array.isArray(event.additional_room_names) ? event.additional_room_names : []; %>
+                  <% const roomNames = [event.room_name].concat(extraRooms).filter(Boolean); %>
+                  <% if (roomNames.length) { %>
+                    <p class="text-muted small mb-1"><i class="bi bi-geo-alt me-1"></i><%= roomNames.join(", ") %></p>
                   <% } %>
                   <% if (event.adjunct_name) { %>
                     <p class="text-muted small mb-1">Adjunct: <%= event.adjunct_name %></p>
@@ -192,8 +196,10 @@
                     <%= event.title %>
                   </a>
                 </h3>
-                <% if (event.room_name) { %>
-                  <p class="text-muted small mb-1"><i class="bi bi-geo-alt me-1"></i><%= event.room_name %></p>
+                <% const extraRooms = Array.isArray(event.additional_room_names) ? event.additional_room_names : []; %>
+                <% const roomNames = [event.room_name].concat(extraRooms).filter(Boolean); %>
+                <% if (roomNames.length) { %>
+                  <p class="text-muted small mb-1"><i class="bi bi-geo-alt me-1"></i><%= roomNames.join(", ") %></p>
                 <% } %>
                 <% if (event.description) { %>
                   <p class="text-muted small mb-0"><%= event.description.replace(/<[^>]+>/g, '').slice(0, 80) %>...</p>

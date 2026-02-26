@@ -1,6 +1,6 @@
 <main class="function-layout-two-col">
   <!-- 🧭 Sidebar -->
-  <%- include('../functions/sidebar', { fn, linkedContacts, rooms, eventTypes }) %>
+  <%- include('../functions/sidebar', { fn, linkedContacts, rooms, eventTypes, roomAllocations }) %>
 
   <!-- 🧩 Main Workspace -->
   <section class="function-workspace">
@@ -29,7 +29,8 @@
         activeTab, 
         rooms, 
         eventTypes, 
-        linkedContacts 
+        linkedContacts,
+        roomAllocations
       }) %>
     </div>
   </section>

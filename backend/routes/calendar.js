@@ -43,6 +43,26 @@ const STATUS_COLOURS = {
   balance_due: "#FDE68A",
   completed: "#D1D5DB",
 };
+const ROOM_COLOUR_FALLBACKS = [
+  "#6bb4de",
+  "#59c27a",
+  "#f5c044",
+  "#e25b5b",
+  "#8b6fde",
+  "#4a9ecc",
+  "#d86aa1",
+  "#5bbbd6",
+];
+
+function getRoomColourFallback(roomId) {
+  if (!roomId && roomId !== 0) return ROOM_COLOUR_FALLBACKS[0];
+  const key = String(roomId);
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) {
+    hash = (hash * 31 + key.charCodeAt(i)) % 100000;
+  }
+  return ROOM_COLOUR_FALLBACKS[hash % ROOM_COLOUR_FALLBACKS.length];
+}
 const DEFAULT_DAY_SLOT_MINUTES = 30;
 const RESTAURANT_STATUS_COLOURS = {
   pending: "#fde68a",
@@ -79,6 +99,20 @@ async function ensureEntertainmentFunctionLinkColumn() {
 
 async function ensureFunctionEndDateColumn() {
   await pool.query("ALTER TABLE functions ADD COLUMN IF NOT EXISTS end_date DATE;");
+}
+
+async function ensureFunctionRoomAllocationsTable(db = pool) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS function_room_allocations (
+      id SERIAL PRIMARY KEY,
+      function_id UUID NOT NULL REFERENCES functions(id_uuid) ON DELETE CASCADE,
+      room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+      start_at TIMESTAMP WITHOUT TIME ZONE NULL,
+      end_at TIMESTAMP WITHOUT TIME ZONE NULL,
+      notes TEXT NULL,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+    );
+  `);
 }
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -234,8 +268,36 @@ function mapFunctionRow(row) {
     }
   }
   const allDay = !row.start_time && !row.end_time;
-  const colour = STATUS_COLOURS[row.status] || "#6bb4de";
+  const statusKey = String(row.status || "").toLowerCase();
+  const baseColour = STATUS_COLOURS[statusKey] || "#6bb4de";
   const title = row.event_name || "Function";
+  const allocationRooms = Array.isArray(row.allocation_rooms) ? row.allocation_rooms : [];
+  const allocationRoomNames = Array.isArray(row.allocation_room_names)
+    ? row.allocation_room_names
+    : [];
+  const allocationRoomColors = Array.isArray(row.allocation_room_colors)
+    ? row.allocation_room_colors
+    : [];
+  const allocationRoomColorsFilled = allocationRooms.map((room, idx) => {
+    const raw = allocationRoomColors[idx];
+    return raw && String(raw).trim() ? raw : getRoomColourFallback(room.id);
+  });
+  const roomNameSet = new Set(
+    [row.room_name, ...allocationRoomNames].filter(Boolean).map((name) => String(name))
+  );
+  const roomNames = Array.from(roomNameSet);
+  const roomIdSet = new Set(
+    [row.room_id, ...allocationRooms.map((room) => room.id)]
+      .filter((id) => Number.isInteger(id))
+      .map((id) => Number(id))
+  );
+  const roomIds = Array.from(roomIdSet);
+  const primaryRoomColor = row.room_id
+    ? (row.room_color && String(row.room_color).trim()) || getRoomColourFallback(row.room_id)
+    : null;
+  const roomColor = primaryRoomColor || allocationRoomColorsFilled.find((c) => c) || null;
+  const forceStatusColour = ["completed", "cancelled"].includes(statusKey);
+  const colour = forceStatusColour ? baseColour : roomColor || baseColour;
   return {
     id: row.id_uuid,
     title,
@@ -251,6 +313,9 @@ function mapFunctionRow(row) {
       attendees: row.attendees || 0,
       roomId: row.room_id,
       roomName: row.room_name || "Unassigned",
+      roomNames,
+      roomIds,
+      roomColor: roomColor || null,
       contactName: row.contact_name || "",
       functionId: row.id_uuid,
       detailUrl: `/functions/${row.id_uuid}`,
@@ -485,6 +550,13 @@ function mapEntertainmentEventRow(row) {
   const priceValue = row.price !== null && row.price !== undefined ? Number(row.price) : null;
   const eventUrl = `/entertainment/${row.slug || row.id}`;
   const functionUrl = row.function_id ? `/functions/${row.function_id}` : null;
+  const additionalRooms = Array.isArray(row.additional_rooms) ? row.additional_rooms : [];
+  const additionalRoomNames = Array.isArray(row.additional_room_names)
+    ? row.additional_room_names
+    : [];
+  const roomNames = [row.room_name, ...additionalRoomNames].filter(Boolean);
+  const roomIds = [row.room_id, ...additionalRooms.map((room) => room.id)]
+    .filter((id) => Number.isInteger(id));
   return {
     id: `entertainment-${row.id}`,
     title: row.title,
@@ -503,6 +575,8 @@ function mapEntertainmentEventRow(row) {
       link: row.external_url,
       roomId: row.room_id || null,
       roomName: row.room_name || "Entertainment",
+      roomNames: roomNames,
+      roomIds: roomIds,
       functionId: row.function_id || null,
       functionName: row.function_name || null,
       detailUrl: functionUrl || eventUrl,
@@ -716,10 +790,10 @@ async function fetchRestaurantBookingsBetween(startDate, endDate) {
   return rows;
 }
 
-async function fetchEntertainmentEventsBetween(startDate, endDate, roomIds = []) {
-  await ensureEntertainmentFunctionLinkColumn();
-  const params = [];
-  const where = [`(e.status IS NULL OR e.status <> 'cancelled')`];
+  async function fetchEntertainmentEventsBetween(startDate, endDate, roomIds = []) {
+    await ensureEntertainmentFunctionLinkColumn();
+    const params = [];
+    const where = [`(e.status IS NULL OR e.status <> 'cancelled')`];
   if (startDate) {
     params.push(startDate);
     where.push(`start_at >= $${params.length}::date`);
@@ -728,18 +802,38 @@ async function fetchEntertainmentEventsBetween(startDate, endDate, roomIds = [])
     params.push(endDate);
     where.push(`start_at <= $${params.length}::date`);
   }
-  if (roomIds?.length) {
-    params.push(roomIds);
-    where.push(`room_id = ANY($${params.length}::int[])`);
-  }
-  const query = `
-    SELECT e.*, r.name AS room_name, fn.event_name AS function_name
-      FROM entertainment_events e
-      LEFT JOIN rooms r ON r.id = e.room_id
-      LEFT JOIN functions fn ON fn.id_uuid = e.function_id
-     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-     ORDER BY start_at ASC;
-  `;
+    if (roomIds?.length) {
+      params.push(roomIds);
+      const roomParam = `$${params.length}`;
+      where.push(
+        `(e.room_id = ANY(${roomParam}::int[]) OR e.id IN (SELECT event_id FROM entertainment_event_rooms WHERE room_id = ANY(${roomParam}::int[])))`
+      );
+    }
+    const query = `
+      SELECT e.*, r.name AS room_name, fn.event_name AS function_name,
+             er.additional_rooms, er.additional_room_names
+        FROM entertainment_events e
+        LEFT JOIN rooms r ON r.id = e.room_id
+        LEFT JOIN LATERAL (
+          SELECT COALESCE(
+                 jsonb_agg(
+                     jsonb_build_object('id', rr.id, 'name', rr.name, 'color', rr.color_code)
+                     ORDER BY rr.name
+                   ) FILTER (WHERE rr.id IS NOT NULL),
+                   '[]'::jsonb
+                 ) AS additional_rooms,
+                 COALESCE(
+                   array_agg(rr.name ORDER BY rr.name) FILTER (WHERE rr.id IS NOT NULL),
+                   ARRAY[]::text[]
+                 ) AS additional_room_names
+            FROM entertainment_event_rooms eer
+            JOIN rooms rr ON rr.id = eer.room_id
+           WHERE eer.event_id = e.id
+        ) er ON TRUE
+        LEFT JOIN functions fn ON fn.id_uuid = e.function_id
+       ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+       ORDER BY start_at ASC;
+    `;
   const { rows } = await pool.query(query, params);
   return rows;
 }
@@ -791,11 +885,15 @@ async function acquireGraphToken() {
 router.get("/", async (req, res) => {
   try {
     const daySlotMinutes = await fetchCalendarSettings();
-    const { rows: rooms } = await pool.query(
-      `SELECT id, name, capacity
+    const { rows: roomsRaw } = await pool.query(
+      `SELECT id, name, capacity, color_code
          FROM rooms
         ORDER BY name ASC`
     );
+    const rooms = roomsRaw.map((room) => ({
+      ...room,
+      color_code: (room.color_code && String(room.color_code).trim()) || getRoomColourFallback(room.id),
+    }));
 
     res.render("pages/calendar/index", {
       layout: "layouts/main",
@@ -833,6 +931,7 @@ router.get("/events", async (req, res) => {
 
     if (includeFunctions) {
       await ensureFunctionEndDateColumn();
+      await ensureFunctionRoomAllocationsTable();
       const whereParts = ["f.event_date IS NOT NULL"];
       const params = [];
 
@@ -846,7 +945,41 @@ router.get("/events", async (req, res) => {
       }
       if (roomIds.length) {
         params.push(roomIds);
-        whereParts.push(`f.room_id = ANY($${params.length}::int[])`);
+        const roomParam = `$${params.length}`;
+        const allocFilters = [];
+        if (startDate) {
+          params.push(startDate);
+          allocFilters.push(
+            `COALESCE(fra.end_at::date, COALESCE(f.end_date, f.event_date)) >= $${params.length}`
+          );
+        }
+        if (endDate) {
+          params.push(endDate);
+          allocFilters.push(
+            `COALESCE(fra.start_at::date, f.event_date) <= $${params.length}`
+          );
+        }
+        const allocClause = allocFilters.length ? ` AND ${allocFilters.join(" AND ")}` : "";
+        whereParts.push(`
+          (
+            EXISTS (
+              SELECT 1
+                FROM function_room_allocations fra
+               WHERE fra.function_id = f.id_uuid
+                 AND fra.room_id = ANY(${roomParam}::int[])
+                 ${allocClause}
+            )
+            OR (
+              f.room_id = ANY(${roomParam}::int[])
+              AND NOT EXISTS (
+                SELECT 1
+                  FROM function_room_allocations fra2
+                 WHERE fra2.function_id = f.id_uuid
+                   AND fra2.room_id = f.room_id
+              )
+            )
+          )
+        `);
       }
       if (functionStatuses.length) {
         params.push(functionStatuses);
@@ -865,9 +998,33 @@ router.get("/events", async (req, res) => {
           f.attendees,
           r.name AS room_name,
           r.id AS room_id,
+          r.color_code AS room_color,
+          fr.allocation_rooms,
+          fr.allocation_room_names,
+          fr.allocation_room_colors,
           c.name AS contact_name
         FROM functions f
         LEFT JOIN rooms r ON r.id = f.room_id
+        LEFT JOIN LATERAL (
+          SELECT COALESCE(
+                   jsonb_agg(
+                     jsonb_build_object('id', rr.id, 'name', rr.name)
+                     ORDER BY rr.name
+                   ) FILTER (WHERE rr.id IS NOT NULL),
+                   '[]'::jsonb
+                 ) AS allocation_rooms,
+                 COALESCE(
+                   array_agg(rr.name ORDER BY rr.name) FILTER (WHERE rr.id IS NOT NULL),
+                   ARRAY[]::text[]
+                 ) AS allocation_room_names
+                ,COALESCE(
+                   array_agg(rr.color_code ORDER BY rr.name) FILTER (WHERE rr.id IS NOT NULL),
+                   ARRAY[]::text[]
+                 ) AS allocation_room_colors
+            FROM function_room_allocations fra
+            JOIN rooms rr ON rr.id = fra.room_id
+           WHERE fra.function_id = f.id_uuid
+        ) fr ON TRUE
         LEFT JOIN function_contacts fc
           ON fc.function_id = f.id_uuid AND COALESCE(fc.is_primary, FALSE) = TRUE
         LEFT JOIN contacts c ON c.id = fc.contact_id

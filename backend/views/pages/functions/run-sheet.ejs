@@ -28,6 +28,23 @@
   const endTimeFormatted = formatTime(endTime);
   const safeNotes = Array.isArray(notes) ? notes : [];
   const safeMenus = Array.isArray(menus) ? menus : [];
+  const safeAllocations = Array.isArray(roomAllocations) ? roomAllocations : [];
+  const formatAllocDate = (value) => {
+    if (!value) return '';
+    try {
+      return new Date(value).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch (err) {
+      return '';
+    }
+  };
+  const formatAllocTime = (value) => {
+    if (!value) return '';
+    try {
+      return new Date(value).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' });
+    } catch (err) {
+      return '';
+    }
+  };
 %>
 
 <style>
@@ -91,6 +108,25 @@
           <p class="fw-semibold mb-3"><%= roomName || 'Unassigned' %></p>
           <p class="text-muted text-uppercase small mb-1">Guests</p>
           <p class="fw-semibold mb-0"><%= attendees || 0 %></p>
+          <% if (safeAllocations.length) { %>
+            <p class="text-muted text-uppercase small mb-1 mt-3">Room allocations</p>
+            <div class="small">
+              <% safeAllocations.forEach(function(a) { %>
+                <div class="mb-1">
+                  <strong><%= a.room_name %></strong>
+                  <% if (a.start_at || a.end_at) { %>
+                    <span class="text-muted">
+                      · <%= a.start_at ? formatAllocDate(a.start_at) + ' ' + formatAllocTime(a.start_at) : 'Function start' %>
+                      → <%= a.end_at ? formatAllocDate(a.end_at) + ' ' + formatAllocTime(a.end_at) : 'Function end' %>
+                    </span>
+                  <% } %>
+                  <% if (a.notes) { %>
+                    <div class="text-muted"><%= a.notes %></div>
+                  <% } %>
+                </div>
+              <% }) %>
+            </div>
+          <% } %>
         </div>
       </div>
     </div>

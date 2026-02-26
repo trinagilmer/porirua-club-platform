@@ -180,6 +180,33 @@
         <div class="snapshot-value"><%= fn.room_name || 'Unassigned' %></div>
         <div class="snapshot-updated"><%= formatUpdated(fieldAudit.room_id) %></div>
       </div>
+      <% const allocations = Array.isArray(roomAllocations) ? roomAllocations : []; %>
+      <div class="snapshot-row">
+        <div class="snapshot-label">Room allocations</div>
+        <div class="snapshot-value">
+          <% if (!allocations.length) { %>
+            <span class="text-muted">None</span>
+          <% } else { %>
+            <div class="d-flex flex-column gap-1">
+              <% allocations.forEach(function(a) { %>
+                <div>
+                  <strong><%= a.room_name %></strong>
+                  <% if (a.start_at || a.end_at) { %>
+                    <span class="text-muted">
+                      · <%= a.start_at ? nzDate(a.start_at) + ' ' + nzTime(a.start_at) : 'Function start' %>
+                      → <%= a.end_at ? nzDate(a.end_at) + ' ' + nzTime(a.end_at) : 'Function end' %>
+                    </span>
+                  <% } %>
+                  <% if (a.notes) { %>
+                    <div class="text-muted"><%= a.notes %></div>
+                  <% } %>
+                </div>
+              <% }) %>
+            </div>
+          <% } %>
+        </div>
+        <div class="snapshot-updated">-</div>
+      </div>
       <div class="snapshot-row">
         <div class="snapshot-label">Status</div>
         <div class="snapshot-value"><span class="badge bg-light text-dark text-uppercase tracking-wide"><%= fn.status || 'lead' %></span></div>

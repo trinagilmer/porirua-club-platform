@@ -112,9 +112,17 @@
   }
 
   .calendar-room-btn {
+    border-color: var(--room-color, $neutral-300);
+    color: $neutral-700;
+
+    &:hover {
+      border-color: var(--room-color, $brand);
+      color: $neutral-900;
+    }
+
     &.active {
-      background-color: $brand;
-      border-color: $brand;
+      background-color: var(--room-color, $brand);
+      border-color: var(--room-color, $brand);
       color: #fff;
       box-shadow: none;
     }

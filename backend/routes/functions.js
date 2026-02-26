@@ -146,6 +146,20 @@ async function ensureFunctionEndDateColumn() {
   await pool.query("ALTER TABLE functions ADD COLUMN IF NOT EXISTS end_date DATE;");
 }
 
+async function ensureFunctionRoomAllocationsTable(db = pool) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS function_room_allocations (
+      id SERIAL PRIMARY KEY,
+      function_id UUID NOT NULL REFERENCES functions(id_uuid) ON DELETE CASCADE,
+      room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+      start_at TIMESTAMP WITHOUT TIME ZONE NULL,
+      end_at TIMESTAMP WITHOUT TIME ZONE NULL,
+      notes TEXT NULL,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+    );
+  `);
+}
+
 function getAppBaseUrl(req) {
   const envBase = (process.env.APP_URL || "").trim();
   if (envBase) return envBase.replace(/\/$/, "");
@@ -669,6 +683,72 @@ function parseNullableNumber(value) {
   if (value === undefined || value === null || value === "") return null;
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
+}
+
+function normalizeArray(value) {
+  if (!value && value !== 0) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function normalizeTimeValue(value) {
+  if (!value) return "";
+  const raw = String(value).trim();
+  if (!raw) return "";
+  if (/^\d{2}:\d{2}:\d{2}$/.test(raw)) return raw;
+  if (/^\d{2}:\d{2}$/.test(raw)) return `${raw}:00`;
+  if (/^\d{2}$/.test(raw)) return `${raw}:00:00`;
+  return raw;
+}
+
+function combineDateTimeLocal(dateValue, timeValue, endOfDay = false) {
+  if (!dateValue) return null;
+  const datePart = String(dateValue).trim();
+  if (!datePart) return null;
+  let timePart = normalizeTimeValue(timeValue);
+  if (!timePart) timePart = endOfDay ? "23:59:00" : "00:00:00";
+  return `${datePart} ${timePart}`;
+}
+
+function parseRoomAllocations(body, defaults = {}) {
+  const roomIds = normalizeArray(body.allocation_room_id);
+  const startDates = normalizeArray(body.allocation_start_date);
+  const startTimes = normalizeArray(body.allocation_start_time);
+  const endDates = normalizeArray(body.allocation_end_date);
+  const endTimes = normalizeArray(body.allocation_end_time);
+  const notes = normalizeArray(body.allocation_notes);
+  const maxLen = Math.max(
+    roomIds.length,
+    startDates.length,
+    startTimes.length,
+    endDates.length,
+    endTimes.length,
+    notes.length
+  );
+  const rows = [];
+  for (let i = 0; i < maxLen; i += 1) {
+    const roomIdRaw = roomIds[i];
+    const roomId = parseInt(roomIdRaw, 10);
+    if (!Number.isInteger(roomId)) continue;
+    const startDate = startDates[i] || "";
+    const startTime = startTimes[i] || "";
+    const endDate = endDates[i] || "";
+    const endTime = endTimes[i] || "";
+    const hasStart = Boolean(startDate || startTime);
+    const hasEnd = Boolean(endDate || endTime);
+    const startAt = hasStart
+      ? combineDateTimeLocal(startDate || defaults.event_date, startTime, false)
+      : null;
+    const endAt = hasEnd
+      ? combineDateTimeLocal(endDate || startDate || defaults.end_date || defaults.event_date, endTime, true)
+      : null;
+    rows.push({
+      room_id: roomId,
+      start_at: startAt,
+      end_at: endAt,
+      notes: (notes[i] || "").trim() || null,
+    });
+  }
+  return rows;
 }
 
 async function loadFunctionFormLookups() {
@@ -1297,7 +1377,8 @@ router.get("/:id/edit", async (req, res, next) => {
     if (!fn) return res.status(404).send("Function not found");
 
     // 2️⃣ Load related data concurrently
-    const [linkedContactsRes, roomsRes, eventTypesRes, usersRes] = await Promise.all([
+    await ensureFunctionRoomAllocationsTable();
+    const [linkedContactsRes, roomsRes, eventTypesRes, usersRes, allocationsRes] = await Promise.all([
       pool.query(`
         SELECT c.id, c.name, c.email, c.phone, fc.is_primary
         FROM contacts c
@@ -1308,7 +1389,17 @@ router.get("/:id/edit", async (req, res, next) => {
       ),
       pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`),
       pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`),
-      pool.query(`SELECT id, name FROM users ORDER BY name ASC;`)
+      pool.query(`SELECT id, name FROM users ORDER BY name ASC;`),
+      pool.query(
+        `
+        SELECT fra.*, r.name AS room_name
+          FROM function_room_allocations fra
+          JOIN rooms r ON r.id = fra.room_id
+         WHERE fra.function_id = $1
+         ORDER BY fra.start_at NULLS FIRST, r.name ASC;
+        `,
+        [functionId]
+      )
     ]);
 
     // 3️⃣ Render edit page
@@ -1321,6 +1412,7 @@ router.get("/:id/edit", async (req, res, next) => {
       rooms: roomsRes.rows,
       eventTypes: eventTypesRes.rows,
       users: usersRes.rows,
+      roomAllocations: allocationsRes.rows || [],
       activeTab: "edit"
     });
 
@@ -1355,51 +1447,102 @@ router.post("/:id/edit", async (req, res) => {
   const userId = req.session.user?.id || null;
   const statusValue = (status || "").trim() || "lead";
   const cancelReasonValue = statusValue === "cancelled" ? (cancelled_reason || "").trim() || null : null;
+  const allocationRows = parseRoomAllocations(req.body, {
+    event_date,
+    end_date,
+  });
+  const invalidAllocation = allocationRows.find(
+    (row) => row.start_at && row.end_at && new Date(row.end_at) < new Date(row.start_at)
+  );
+  if (invalidAllocation) {
+    return res.status(400).send("Allocation end must be after start.");
+  }
 
   try {
     await ensureFunctionCancelColumn();
     await ensureFunctionEndDateColumn();
-    await pool.query(`
-      UPDATE functions
-      SET
-        event_name   = $1,
-        event_date   = $2,
-        end_date     = $3,
-        event_time   = $4,
-        start_time   = $5,
-        end_time     = $6,
-        attendees    = $7,
-        budget       = $8,
-        totals_price = $9,
-        totals_cost  = $10,
-        room_id      = $11,
-        event_type   = $12,
-        status       = $13,
-        cancelled_reason = $14,
-        owner_id     = $15,
-        updated_at   = NOW(),
-        updated_by   = COALESCE($16, updated_by)
-    WHERE id_uuid = $17;`,
-    [
-      event_name,
-      event_date || null,
-      end_date || null,
-      event_time || null,
-      start_time || null,
-      end_time || null,
-      attendees || null,
-      budget || null,
-      totals_price || 0,
-      totals_cost || 0,
-      room_id || null,
-      event_type || null,
-      statusValue,
-      cancelReasonValue,
-      owner_id || null,
-      userId,
-      functionId
-    ]
-    );
+    await ensureFunctionRoomAllocationsTable();
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `
+        UPDATE functions
+        SET
+          event_name   = $1,
+          event_date   = $2,
+          end_date     = $3,
+          event_time   = $4,
+          start_time   = $5,
+          end_time     = $6,
+          attendees    = $7,
+          budget       = $8,
+          totals_price = $9,
+          totals_cost  = $10,
+          room_id      = $11,
+          event_type   = $12,
+          status       = $13,
+          cancelled_reason = $14,
+          owner_id     = $15,
+          updated_at   = NOW(),
+          updated_by   = COALESCE($16, updated_by)
+        WHERE id_uuid = $17;
+        `,
+        [
+          event_name,
+          event_date || null,
+          end_date || null,
+          event_time || null,
+          start_time || null,
+          end_time || null,
+          attendees || null,
+          budget || null,
+          totals_price || 0,
+          totals_cost || 0,
+          room_id || null,
+          event_type || null,
+          statusValue,
+          cancelReasonValue,
+          owner_id || null,
+          userId,
+          functionId,
+        ]
+      );
+
+      await client.query(`DELETE FROM function_room_allocations WHERE function_id = $1;`, [
+        functionId,
+      ]);
+
+      if (allocationRows.length) {
+        const values = allocationRows
+          .map((_, idx) => {
+            const offset = idx * 4;
+            return `($1, $${offset + 2}::int, $${offset + 3}::timestamp, $${offset + 4}::timestamp, $${offset + 5}::text, NOW())`;
+          })
+          .join(", ");
+        const params = allocationRows.flatMap((row) => [
+          row.room_id,
+          row.start_at,
+          row.end_at,
+          row.notes,
+        ]);
+        await client.query(
+          `
+          INSERT INTO function_room_allocations
+            (function_id, room_id, start_at, end_at, notes, created_at)
+          VALUES ${values};
+          `,
+          [functionId, ...params]
+        );
+      }
+
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
 
     console.log(`✅ Function updated successfully (UUID: ${functionId}, Name: ${event_name})`);
     res.redirect(`/functions/${functionId}`);
@@ -1444,7 +1587,8 @@ router.get("/:id/run-sheet", async (req, res) => {
       return res.status(404).send("Function not found");
     }
 
-    const [notesRes, proposalLookupRes] = await Promise.all([
+    await ensureFunctionRoomAllocationsTable();
+    const [notesRes, proposalLookupRes, allocationsRes] = await Promise.all([
       pool.query(
         `SELECT id, note_type, rendered_html, content, created_at, updated_at
            FROM function_notes
@@ -1458,6 +1602,16 @@ router.get("/:id/run-sheet", async (req, res) => {
           WHERE function_id = $1
           ORDER BY created_at DESC
           LIMIT 1`,
+        [functionId]
+      ),
+      pool.query(
+        `
+        SELECT fra.*, r.name AS room_name
+          FROM function_room_allocations fra
+          JOIN rooms r ON r.id = fra.room_id
+         WHERE fra.function_id = $1
+         ORDER BY fra.start_at NULLS FIRST, r.name ASC;
+        `,
         [functionId]
       ),
     ]);
@@ -1505,6 +1659,7 @@ router.get("/:id/run-sheet", async (req, res) => {
       endTime: fn.end_time,
       attendees: fn.attendees,
       roomName: fn.room_name,
+      roomAllocations: allocationsRes.rows || [],
       notes: selectedNotes,
       menus: selectedMenus,
       includeCosts,
@@ -1545,6 +1700,7 @@ router.get("/:id", async (req, res) => {
     }
 
     // 2️⃣ Load related data concurrently (UUID-safe)
+    await ensureFunctionRoomAllocationsTable();
     const [
       linkedContactsRes,
       notesRes,
@@ -1556,6 +1712,7 @@ router.get("/:id", async (req, res) => {
       menuUpdatesRes,
       proposalLookupRes,
       acceptanceRes,
+      allocationsRes,
     ] = await Promise.all([
       // Contacts
       pool.query(
@@ -1690,6 +1847,16 @@ router.get("/:id", async (req, res) => {
           WHERE p.function_id = $1
           ORDER BY pae.id DESC
           LIMIT 1`,
+        [functionId]
+      ),
+      pool.query(
+        `
+        SELECT fra.*, r.name AS room_name
+          FROM function_room_allocations fra
+          JOIN rooms r ON r.id = fra.room_id
+         WHERE fra.function_id = $1
+         ORDER BY fra.start_at NULLS FIRST, r.name ASC;
+        `,
         [functionId]
       ),
     ]);
@@ -1921,7 +2088,8 @@ router.get("/:id", async (req, res) => {
       activeTab,
       rooms: roomsRes.rows,
       eventTypes: eventTypesRes.rows,
-      users: usersRes.rows
+      users: usersRes.rows,
+      roomAllocations: allocationsRes.rows || []
     });
 
   } catch (err) {

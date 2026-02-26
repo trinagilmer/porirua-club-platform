@@ -301,6 +301,13 @@ function parseIdArray(value) {
     .filter((num) => Number.isInteger(num));
 }
 
+function normalizeAdditionalRoomIds(values, primaryRoomId) {
+  const cleaned = (values || []).filter((num) => Number.isInteger(num));
+  const unique = new Set(cleaned);
+  if (Number.isInteger(primaryRoomId)) unique.delete(primaryRoomId);
+  return Array.from(unique);
+}
+
 function slugify(value) {
   return String(value || "")
     .trim()
@@ -555,6 +562,16 @@ async function syncEntertainmentEventActs(eventId, actIds, db = pool) {
     eventId,
     ...actIds,
   ]);
+}
+
+async function syncEntertainmentEventRooms(eventId, roomIds, db = pool) {
+  await db.query(`DELETE FROM entertainment_event_rooms WHERE event_id = $1;`, [eventId]);
+  if (!roomIds?.length) return;
+  const values = roomIds.map((_, idx) => `($1, $${idx + 2})`).join(",");
+  await db.query(
+    `INSERT INTO entertainment_event_rooms (event_id, room_id) VALUES ${values};`,
+    [eventId, ...roomIds]
+  );
 }
 
 // Use the settings layout for everything in this router
@@ -2807,32 +2824,51 @@ router.get("/entertainment/events", ensurePrivileged, async (req, res) => {
            AND event_color IS NOT NULL
          ORDER BY series_id, series_order ASC NULLS LAST, start_at ASC
       )
-      SELECT e.*,
-             COALESCE(e.event_color, sc.series_color) AS effective_event_color,
-             uc.name AS created_by_name,
-             uu.name AS updated_by_name,
-             r.name AS room_name,
-             fn.event_name AS function_name,
-             fn.event_date AS function_date,
-             COALESCE(
-               json_agg(
-                 json_build_object('id', a.id, 'name', a.name)
-                 ORDER BY a.name
-               ) FILTER (WHERE a.id IS NOT NULL),
-               '[]'
-             ) AS acts
-        FROM entertainment_events e
-        LEFT JOIN series_colors sc ON sc.series_id = e.series_id
-        LEFT JOIN users uc ON uc.id = e.created_by
-        LEFT JOIN users uu ON uu.id = e.updated_by
-        LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
-        LEFT JOIN entertainment_acts a ON a.id = ea.act_id
-        LEFT JOIN rooms r ON r.id = e.room_id
-        LEFT JOIN functions fn ON fn.id_uuid = e.function_id
-       ${whereClause}
-       GROUP BY e.id, sc.series_color, uc.name, uu.name, r.name, fn.id_uuid, fn.event_name, fn.event_date
-       ORDER BY e.start_at ASC NULLS LAST;
-      `
+        SELECT e.*,
+               COALESCE(e.event_color, sc.series_color) AS effective_event_color,
+               uc.name AS created_by_name,
+               uu.name AS updated_by_name,
+               r.name AS room_name,
+               er.additional_rooms,
+               er.additional_room_names,
+               fn.event_name AS function_name,
+               fn.event_date AS function_date,
+               COALESCE(
+                 json_agg(
+                   json_build_object('id', a.id, 'name', a.name)
+                   ORDER BY a.name
+                 ) FILTER (WHERE a.id IS NOT NULL),
+                 '[]'
+               ) AS acts
+          FROM entertainment_events e
+          LEFT JOIN series_colors sc ON sc.series_id = e.series_id
+          LEFT JOIN users uc ON uc.id = e.created_by
+          LEFT JOIN users uu ON uu.id = e.updated_by
+          LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
+          LEFT JOIN entertainment_acts a ON a.id = ea.act_id
+          LEFT JOIN rooms r ON r.id = e.room_id
+          LEFT JOIN LATERAL (
+            SELECT COALESCE(
+                     jsonb_agg(
+                       jsonb_build_object('id', rr.id, 'name', rr.name)
+                       ORDER BY rr.name
+                     ) FILTER (WHERE rr.id IS NOT NULL),
+                     '[]'::jsonb
+                   ) AS additional_rooms,
+                   COALESCE(
+                     array_agg(rr.name ORDER BY rr.name) FILTER (WHERE rr.id IS NOT NULL),
+                     ARRAY[]::text[]
+                   ) AS additional_room_names
+              FROM entertainment_event_rooms eer
+              JOIN rooms rr ON rr.id = eer.room_id
+             WHERE eer.event_id = e.id
+          ) er ON TRUE
+          LEFT JOIN functions fn ON fn.id_uuid = e.function_id
+         ${whereClause}
+         GROUP BY e.id, sc.series_color, uc.name, uu.name, r.name, er.additional_rooms, er.additional_room_names,
+                  fn.id_uuid, fn.event_name, fn.event_date
+         ORDER BY e.start_at ASC NULLS LAST;
+        `
       ,
       params
     );
@@ -3079,25 +3115,46 @@ router.get("/entertainment/:id/json", ensurePrivileged, async (req, res) => {
            AND event_color IS NOT NULL
          ORDER BY series_id, series_order ASC NULLS LAST, start_at ASC
       )
-      SELECT e.*,
-             COALESCE(e.event_color, sc.series_color) AS effective_event_color,
-             fn.event_name AS function_name,
-             fn.event_date AS function_date,
-             COALESCE(
-               json_agg(
-                 json_build_object('id', a.id, 'name', a.name)
-                 ORDER BY a.name
-               ) FILTER (WHERE a.id IS NOT NULL),
-               '[]'
-             ) AS acts
-        FROM entertainment_events e
-        LEFT JOIN series_colors sc ON sc.series_id = e.series_id
-        LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
-        LEFT JOIN entertainment_acts a ON a.id = ea.act_id
-        LEFT JOIN functions fn ON fn.id_uuid = e.function_id
-       WHERE e.id = $1
-       GROUP BY e.id, sc.series_color, fn.id_uuid, fn.event_name, fn.event_date
-       LIMIT 1;
+        SELECT e.*,
+               COALESCE(e.event_color, sc.series_color) AS effective_event_color,
+               r.name AS room_name,
+               er.additional_rooms,
+               er.additional_room_names,
+               fn.event_name AS function_name,
+               fn.event_date AS function_date,
+               COALESCE(
+                 json_agg(
+                   json_build_object('id', a.id, 'name', a.name)
+                   ORDER BY a.name
+                 ) FILTER (WHERE a.id IS NOT NULL),
+                 '[]'
+               ) AS acts
+          FROM entertainment_events e
+          LEFT JOIN series_colors sc ON sc.series_id = e.series_id
+          LEFT JOIN entertainment_event_acts ea ON ea.event_id = e.id
+          LEFT JOIN entertainment_acts a ON a.id = ea.act_id
+          LEFT JOIN rooms r ON r.id = e.room_id
+          LEFT JOIN LATERAL (
+            SELECT COALESCE(
+                     jsonb_agg(
+                       jsonb_build_object('id', rr.id, 'name', rr.name)
+                       ORDER BY rr.name
+                     ) FILTER (WHERE rr.id IS NOT NULL),
+                     '[]'::jsonb
+                   ) AS additional_rooms,
+                   COALESCE(
+                     array_agg(rr.name ORDER BY rr.name) FILTER (WHERE rr.id IS NOT NULL),
+                     ARRAY[]::text[]
+                   ) AS additional_room_names
+              FROM entertainment_event_rooms eer
+              JOIN rooms rr ON rr.id = eer.room_id
+             WHERE eer.event_id = e.id
+          ) er ON TRUE
+          LEFT JOIN functions fn ON fn.id_uuid = e.function_id
+         WHERE e.id = $1
+         GROUP BY e.id, sc.series_color, r.name, er.additional_rooms, er.additional_room_names,
+                  fn.id_uuid, fn.event_name, fn.event_date
+         LIMIT 1;
       `,
       [id]
     );
@@ -3165,23 +3222,23 @@ router.post(
   let client;
   try {
     const returnTo = getEntertainmentReturnTo(req);
-    const {
-      title,
-      start_date,
-      start_time,
-      end_date,
-      end_time,
-      adjunct_name,
-      external_url,
-      organiser,
-      room_id,
-      price,
-      description,
-      image_url,
-      status,
-      display_type,
-      event_color,
-    } = req.body;
+      const {
+        title,
+        start_date,
+        start_time,
+        end_date,
+        end_time,
+        adjunct_name,
+        external_url,
+        organiser,
+        room_id,
+        price,
+        description,
+        image_url,
+        status,
+        display_type,
+        event_color,
+      } = req.body;
 
     if (!title?.trim() || !start_date || !start_time) {
       req.flash("flashMessage", "⚠️ Title, date, and time are required.");
@@ -3194,18 +3251,27 @@ router.post(
     const slug = `${slugify(title) || "event"}-${Date.now()}`;
     const statusValue = (status || "draft").toLowerCase();
     const userId = req.session.user?.id || null;
-    const acts = parseIdArray(req.body.acts);
-    const imagePath = req.file ? `/uploads/entertainment/${req.file.filename}` : req.body.image_url || null;
-    const displayTypeValue = display_type === "regularevents" ? "regularevents" : "entertainment";
-    const eventColorValue = normalizeHexColor(event_color);
-    const roomId = parseOptionalInteger(room_id);
-    const functionId = normalizeUuid(req.body.function_id);
+      const acts = parseIdArray(req.body.acts);
+      const imagePath = req.file ? `/uploads/entertainment/${req.file.filename}` : req.body.image_url || null;
+      const displayTypeValue = display_type === "regularevents" ? "regularevents" : "entertainment";
+      const eventColorValue = normalizeHexColor(event_color);
+      const roomId = parseOptionalInteger(room_id);
+      const additionalRoomIds = normalizeAdditionalRoomIds(
+        parseIdArray(req.body.additional_room_ids),
+        roomId
+      );
+      const functionId = normalizeUuid(req.body.function_id);
 
-    const recurrence = recurrenceService.parseRecurrenceForm(req.body);
-    client = await pool.connect();
-    await ensureEntertainmentColorColumn();
-    await ensureEntertainmentFunctionLinkColumn();
-    await client.query("BEGIN");
+      const recurrence = recurrenceService.parseRecurrenceForm(req.body);
+      client = await pool.connect();
+      await ensureEntertainmentColorColumn();
+      await ensureEntertainmentFunctionLinkColumn();
+      if (!roomId) {
+        req.flash("flashMessage", "⚠️ A primary room is required.");
+        req.flash("flashType", "warning");
+        return res.redirect(returnTo);
+      }
+      await client.query("BEGIN");
     const insert = await client.query(
       `
       INSERT INTO entertainment_events
@@ -3237,10 +3303,11 @@ router.post(
       ]
     );
 
-    const insertedEvent = insert.rows[0];
-    if (insertedEvent?.id) {
-      await syncEntertainmentEventActs(insertedEvent.id, acts, client);
-    }
+      const insertedEvent = insert.rows[0];
+      if (insertedEvent?.id) {
+        await syncEntertainmentEventActs(insertedEvent.id, acts, client);
+        await syncEntertainmentEventRooms(insertedEvent.id, additionalRoomIds, client);
+      }
 
     if (recurrence && start_date) {
       const series = await recurrenceService.createSeriesRecord(client, {
@@ -3264,44 +3331,45 @@ router.post(
           const cloneSlug = `${slugify(title) || "event"}-${Date.now()}-${order}`;
           const cloneStart = combineDateAndTime(date, start_time);
           const cloneEnd = end_time ? combineDateAndTime(date, end_time) : null;
-          const cloneInsert = await client.query(
-            `
-            INSERT INTO entertainment_events
+            const cloneInsert = await client.query(
+              `
+              INSERT INTO entertainment_events
               (title, slug, adjunct_name, external_url, organiser, room_id, function_id, display_type, event_color, price, description,
                image_url, start_at, end_at, status, series_id, series_order,
                created_by, updated_by, created_at, updated_at)
             VALUES
               ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW(),NOW())
-            RETURNING id;
-            `,
-            [
-              title.trim(),
-              cloneSlug,
-              adjunct_name || null,
-              external_url || null,
-              organiser || null,
-              roomId,
-              functionId,
-              displayTypeValue,
-              eventColorValue,
-              price || null,
-              description || null,
-              imagePath,
-              cloneStart,
-              cloneEnd,
-              statusValue,
-              series.seriesId,
-              order,
-              userId,
-              userId,
-            ]
-          );
-          const cloneId = cloneInsert.rows[0]?.id;
-          if (cloneId) {
-            await syncEntertainmentEventActs(cloneId, acts, client);
+              RETURNING id;
+              `,
+              [
+                title.trim(),
+                cloneSlug,
+                adjunct_name || null,
+                external_url || null,
+                organiser || null,
+                roomId,
+                functionId,
+                displayTypeValue,
+                eventColorValue,
+                price || null,
+                description || null,
+                imagePath,
+                cloneStart,
+                cloneEnd,
+                statusValue,
+                series.seriesId,
+                order,
+                userId,
+                userId,
+              ]
+            );
+            const cloneId = cloneInsert.rows[0]?.id;
+            if (cloneId) {
+              await syncEntertainmentEventActs(cloneId, acts, client);
+              await syncEntertainmentEventRooms(cloneId, additionalRoomIds, client);
+            }
+            order += 1;
           }
-          order += 1;
-        }
       }
     }
 
@@ -3370,24 +3438,34 @@ router.post(
 
       const startTimeClean = typeof start_time === "string" ? start_time.trim() : "";
       const endTimeClean = typeof end_time === "string" ? end_time.trim() : "";
-    const statusValue = (status || "draft").toLowerCase();
-    const userId = req.session.user?.id || null;
-    const acts = parseIdArray(req.body.acts);
-    const imagePath = req.file ? `/uploads/entertainment/${req.file.filename}` : image_url || null;
-    const roomId = parseOptionalInteger(room_id);
-    const displayTypeValue = display_type === "regularevents" ? "regularevents" : "entertainment";
-    const eventColorValue = normalizeHexColor(event_color);
-    const functionId = normalizeUuid(req.body.function_id);
-    const scopeRaw = (series_scope || "").toLowerCase();
-    const recurrence = recurrenceService.parseRecurrenceForm({
-      recurrence_frequency,
-      recurrence_interval,
-      recurrence_end_date,
-      recurrence_weekdays,
-      recurrence_monthly_day,
-      recurrence_monthly_week,
-      recurrence_skip_dates,
-    });
+      const statusValue = (status || "draft").toLowerCase();
+      const userId = req.session.user?.id || null;
+      const acts = parseIdArray(req.body.acts);
+      const imagePath = req.file ? `/uploads/entertainment/${req.file.filename}` : image_url || null;
+      const roomId = parseOptionalInteger(room_id);
+      const additionalRoomIds = normalizeAdditionalRoomIds(
+        parseIdArray(req.body.additional_room_ids),
+        roomId
+      );
+      const displayTypeValue = display_type === "regularevents" ? "regularevents" : "entertainment";
+      const eventColorValue = normalizeHexColor(event_color);
+      const functionId = normalizeUuid(req.body.function_id);
+      const scopeRaw = (series_scope || "").toLowerCase();
+      if (!roomId) {
+        req.flash("flashMessage", "⚠️ A primary room is required.");
+        req.flash("flashType", "warning");
+        return res.redirect(returnTo);
+      }
+
+      const recurrence = recurrenceService.parseRecurrenceForm({
+        recurrence_frequency,
+        recurrence_interval,
+        recurrence_end_date,
+        recurrence_weekdays,
+        recurrence_monthly_day,
+        recurrence_monthly_week,
+        recurrence_skip_dates,
+      });
 
       const startAtSingle = start_date && startTimeClean ? combineDateAndTime(start_date, startTimeClean) : null;
       const endAtSingle = end_date && endTimeClean ? combineDateAndTime(end_date, endTimeClean) : null;
@@ -3434,6 +3512,7 @@ router.post(
           ]
         );
         await syncEntertainmentEventActs(eventId, acts, db);
+        await syncEntertainmentEventRooms(eventId, additionalRoomIds, db);
       };
 
       client = await pool.connect();
@@ -3550,12 +3629,13 @@ router.post(
               userId,
             ]
           );
-          const cloneId = cloneRows[0]?.id;
-          if (cloneId) {
-            await syncEntertainmentEventActs(cloneId, acts, client);
+            const cloneId = cloneRows[0]?.id;
+            if (cloneId) {
+              await syncEntertainmentEventActs(cloneId, acts, client);
+              await syncEntertainmentEventRooms(cloneId, additionalRoomIds, client);
+            }
+            order += 1;
           }
-          order += 1;
-        }
       } else {
         const effectiveScope = hasSeries && ["single", "all", "future"].includes(scopeRaw) ? scopeRaw : "single";
         if (effectiveScope === "single") {

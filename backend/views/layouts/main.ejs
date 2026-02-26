@@ -17,7 +17,7 @@
   />
 
   <!-- 🎨 Main compiled SCSS -->
-  <link rel="stylesheet" href="/css/main.css?v=2.0" />
+  <link rel="stylesheet" href="/css/main.css?v=2.1" />
 
   <!-- 💬 Page-specific CSS -->
   <% if (typeof pageCss !== 'undefined' && pageCss) { %>
@@ -131,6 +131,7 @@
         linkedContacts,
         rooms,
         eventTypes,
+        roomAllocations: typeof roomAllocations !== 'undefined' ? roomAllocations : [],
         activeTab: typeof activeTab !== 'undefined' && activeTab ? activeTab : 'overview'
       }) %>
     <% } else { %>

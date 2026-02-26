@@ -28,8 +28,10 @@
         <div class="card-body">
           <p class="text-muted text-uppercase small mb-1"><%= new Date(event.start_at).toLocaleDateString('en-NZ', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Pacific/Auckland' }) %></p>
           <h1 class="card-title mb-3"><%= event.title %></h1>
-          <% if (event.room_name) { %>
-            <p class="text-muted mb-2"><i class="bi bi-geo-alt me-1"></i><%= event.room_name %></p>
+          <% const extraRooms = Array.isArray(event.additional_room_names) ? event.additional_room_names : []; %>
+          <% const roomNames = [event.room_name].concat(extraRooms).filter(Boolean); %>
+          <% if (roomNames.length) { %>
+            <p class="text-muted mb-2"><i class="bi bi-geo-alt me-1"></i><%= roomNames.join(", ") %></p>
           <% } %>
           <% if (event.adjunct_name) { %>
             <p class="mb-2"><strong>Featuring:</strong> <%= event.adjunct_name %></p>
@@ -67,7 +69,7 @@
             <dt class="col-sm-5">Organiser</dt>
             <dd class="col-sm-7"><%= event.organiser || 'Porirua Club' %></dd>
             <dt class="col-sm-5">Room</dt>
-            <dd class="col-sm-7"><%= event.room_name || 'Unassigned' %></dd>
+            <dd class="col-sm-7"><%= roomNames.length ? roomNames.join(", ") : 'Unassigned' %></dd>
             <dt class="col-sm-5">Start</dt>
             <dd class="col-sm-7"><%= event.start_at ? new Date(event.start_at).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', dateStyle: 'medium', timeStyle: 'short' }) : 'TBC' %></dd>
             <% if (event.end_at) { %>

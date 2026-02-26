@@ -102,8 +102,10 @@
                 </td>
                 <td>
                   <div class="fw-semibold"><%= event.title %></div>
-                  <% if (event.room_name) { %>
-                    <small class="text-muted d-block">Room: <%= event.room_name %></small>
+                  <% const extraRooms = Array.isArray(event.additional_room_names) ? event.additional_room_names : []; %>
+                  <% const roomNames = [event.room_name].concat(extraRooms).filter(Boolean); %>
+                  <% if (roomNames.length) { %>
+                    <small class="text-muted d-block">Room: <%= roomNames.join(", ") %></small>
                   <% } %>
                 <% if (event.adjunct_name) { %>
                   <small class="text-muted d-block">Adjunct: <%= event.adjunct_name %></small>
@@ -235,8 +237,10 @@
                 </td>
                 <td>
                   <div class="fw-semibold"><%= event.title %></div>
-                  <% if (event.room_name) { %>
-                    <small class="text-muted d-block">Room: <%= event.room_name %></small>
+                  <% const extraRooms = Array.isArray(event.additional_room_names) ? event.additional_room_names : []; %>
+                  <% const roomNames = [event.room_name].concat(extraRooms).filter(Boolean); %>
+                  <% if (roomNames.length) { %>
+                    <small class="text-muted d-block">Room: <%= roomNames.join(", ") %></small>
                   <% } %>
                 <% if (event.adjunct_name) { %>
                   <small class="text-muted d-block">Adjunct: <%= event.adjunct_name %></small>
@@ -352,12 +356,20 @@
           </div>
           <div class="col-md-4">
             <label class="form-label">Room / Space</label>
-            <select name="room_id" class="form-select">
-              <option value="">Unassigned</option>
+            <select name="room_id" class="form-select" required>
               <% (rooms || []).forEach(function(room) { %>
                 <option value="<%= room.id %>"><%= room.name %></option>
               <% }) %>
             </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Additional rooms</label>
+            <select name="additional_room_ids" class="form-select" multiple size="4">
+              <% (rooms || []).forEach(function(room) { %>
+                <option value="<%= room.id %>"><%= room.name %></option>
+              <% }) %>
+            </select>
+            <small class="text-muted">Optional extra rooms for this event.</small>
           </div>
           <div class="col-md-4">
             <label class="form-label">Linked function</label>
@@ -564,12 +576,20 @@
           </div>
           <div class="col-md-4">
             <label class="form-label">Room / Space</label>
-            <select name="room_id" id="entEditRoom" class="form-select">
-              <option value="">Unassigned</option>
+            <select name="room_id" id="entEditRoom" class="form-select" required>
               <% (rooms || []).forEach(function(room) { %>
                 <option value="<%= room.id %>"><%= room.name %></option>
               <% }) %>
             </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Additional rooms</label>
+            <select name="additional_room_ids" id="entEditRooms" class="form-select" multiple size="4">
+              <% (rooms || []).forEach(function(room) { %>
+                <option value="<%= room.id %>"><%= room.name %></option>
+              <% }) %>
+            </select>
+            <small class="text-muted">Optional extra rooms for this event.</small>
           </div>
           <div class="col-md-4">
             <label class="form-label">Linked function</label>
@@ -887,6 +907,13 @@
         document.getElementById("entEditTitle").value = record.title || "";
         document.getElementById("entEditStatus").value = record.status || "draft";
         document.getElementById("entEditRoom").value = record.room_id || "";
+        const editRoomsSelect = document.getElementById("entEditRooms");
+        if (editRoomsSelect) {
+          const selectedIds = (record.additional_rooms || []).map((room) => Number(room.id));
+          Array.from(editRoomsSelect.options).forEach((option) => {
+            option.selected = selectedIds.includes(Number(option.value));
+          });
+        }
         const functionSelect = document.getElementById("entEditFunctionId");
         if (functionSelect) {
           const fnId = record.function_id || "";
@@ -1050,6 +1077,13 @@
       setValue('input[name="title"]', record.title || "");
       setValue('select[name="status"]', record.status || "draft");
       setValue('select[name="room_id"]', record.room_id || "");
+      const addRoomsSelect = document.querySelector('select[name="additional_room_ids"]');
+      if (addRoomsSelect) {
+        const selectedIds = (record.additional_rooms || []).map((room) => Number(room.id));
+        Array.from(addRoomsSelect.options).forEach((option) => {
+          option.selected = selectedIds.includes(Number(option.value));
+        });
+      }
       const addFunctionSelect = document.querySelector('select[name="function_id"]');
       if (addFunctionSelect) {
         const fnId = record.function_id || "";

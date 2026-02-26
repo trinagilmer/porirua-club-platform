@@ -271,7 +271,11 @@
           if (modalFields.schedule)
             modalFields.schedule.textContent = formatDateRange(info.event.start, info.event.end, info.event.allDay);
           const extended = info.event.extendedProps || {};
-          if (modalFields.room) modalFields.room.textContent = extended.roomName || "Unassigned";
+          if (modalFields.room) {
+            const roomNames = Array.isArray(extended.roomNames) ? extended.roomNames : [];
+            modalFields.room.textContent =
+              roomNames.length ? roomNames.join(", ") : extended.roomName || "Unassigned";
+          }
           if (modalFields.status) {
             const label = extended.status || "";
             modalFields.status.textContent = STATUS_LABELS[label] || label || label || "--";
@@ -380,6 +384,34 @@
     });
 
     const roomButtons = document.querySelectorAll(".calendar-room-btn");
+    const fallbackPalette = [
+      "#6bb4de",
+      "#59c27a",
+      "#f5c044",
+      "#e25b5b",
+      "#8b6fde",
+      "#4a9ecc",
+      "#d86aa1",
+      "#5bbbd6",
+    ];
+    const assignedRoomColors = new Map();
+    const getFallbackColor = (key) => {
+      if (!key) return fallbackPalette[0];
+      if (assignedRoomColors.has(key)) return assignedRoomColors.get(key);
+      let hash = 0;
+      for (let i = 0; i < key.length; i += 1) {
+        hash = (hash * 31 + key.charCodeAt(i)) % 100000;
+      }
+      const color = fallbackPalette[hash % fallbackPalette.length];
+      assignedRoomColors.set(key, color);
+      return color;
+    };
+    roomButtons.forEach((btn, idx) => {
+      const roomId = btn.dataset.roomId || String(idx);
+      const existing = btn.dataset.roomColor || "";
+      const color = existing.trim() || getFallbackColor(roomId);
+      btn.style.setProperty("--room-color", color);
+    });
     roomButtons.forEach((btn) => {
       btn.addEventListener("click", () => {
         const active = !btn.classList.contains("active");
@@ -586,7 +618,10 @@
           ? "All day"
           : new Date(event.start).toLocaleTimeString("en-NZ", { hour: "2-digit", minute: "2-digit" });
         const attendees = Number(event.extendedProps?.attendees || 0);
-        const room = event.extendedProps?.roomName || "";
+        const roomNames = Array.isArray(event.extendedProps?.roomNames)
+          ? event.extendedProps.roomNames
+          : [];
+        const room = roomNames.length ? roomNames.join(", ") : event.extendedProps?.roomName || "";
         li.innerHTML = `<strong>${timeText}</strong> ${event.title || ""}${
           attendees ? ` (${attendees} guests)` : ""
         } <span class="print-room">${room}</span>`;

@@ -184,6 +184,44 @@
       </select>
     </div>
 
+    <% const allocations = Array.isArray(roomAllocations) ? roomAllocations : []; %>
+    <% const formatAllocDate = (value) => {
+         if (!value) return '';
+         const d = value instanceof Date ? value : new Date(value);
+         if (Number.isNaN(d.getTime())) return '';
+         return d.toLocaleDateString('en-NZ', { year: 'numeric', month: 'short', day: 'numeric' });
+       };
+    %>
+    <% const formatAllocTime = (value) => {
+         if (!value) return '';
+         const d = value instanceof Date ? value : new Date(value);
+         if (Number.isNaN(d.getTime())) return '';
+         return d.toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', hour12: false });
+       };
+    %>
+    <div class="detail-item">
+      <label>Room allocations</label>
+      <% if (!allocations.length) { %>
+        <div class="text-muted small">No room allocations set.</div>
+      <% } else { %>
+        <ul class="list-unstyled small mb-0">
+          <% allocations.forEach(a => { %>
+            <% const startLabel = a.start_at ? `${formatAllocDate(a.start_at)} ${formatAllocTime(a.start_at)}`.trim() : ''; %>
+            <% const endLabel = a.end_at ? `${formatAllocDate(a.end_at)} ${formatAllocTime(a.end_at)}`.trim() : ''; %>
+            <li class="mb-1">
+              <strong><%= a.room_name %></strong>
+              <% if (startLabel || endLabel) { %>
+                <span class="text-muted">· <%= startLabel || 'Function start' %> → <%= endLabel || 'Function end' %></span>
+              <% } %>
+              <% if (a.notes) { %>
+                <div class="text-muted"><%= a.notes %></div>
+              <% } %>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+    </div>
+
     <!-- Event Type -->
     <div class="detail-item">
       <label>Event Type</label>

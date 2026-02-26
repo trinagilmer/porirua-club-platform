@@ -41,7 +41,13 @@
       <% } else { %>
         <div class="calendar-room-grid" role="group" aria-label="Room filters">
           <% roomsList.forEach(function(room) { %>
-            <button type="button" class="btn btn-outline-secondary btn-sm calendar-room-btn active" data-room-id="<%= room.id %>" aria-pressed="true">
+            <button
+              type="button"
+              class="btn btn-outline-secondary btn-sm calendar-room-btn active"
+              data-room-id="<%= room.id %>"
+              data-room-color="<%= room.color_code || '' %>"
+              style="<%= room.color_code ? `--room-color: ${room.color_code}` : '' %>"
+              aria-pressed="true">
               <%= room.name %>
             </button>
           <% }) %>
