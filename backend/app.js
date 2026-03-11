@@ -20,7 +20,7 @@ if (!isTestEnv) {
 const express = require("express");
 const expressLayouts = require("express-ejs-layouts");
 const session = require("express-session");
-const { pool } = require("./db");
+const { createPool } = require("./db");
 const PgSession = require("connect-pg-simple")(session);
 const { format } = require("date-fns");
 
@@ -90,7 +90,15 @@ app.use(express.json());
 const sessionStore = isTestEnv
   ? new session.MemoryStore()
   : new PgSession({
-      pool,
+      // Keep session I/O isolated from request query load to reduce timeout risk.
+      pool: createPool({
+        max: Number.parseInt(process.env.PG_SESSION_POOL_MAX || "2", 10),
+        idleTimeoutMillis: Number.parseInt(process.env.PG_SESSION_IDLE_TIMEOUT_MS || "10000", 10),
+        connectionTimeoutMillis: Number.parseInt(
+          process.env.PG_SESSION_CONNECT_TIMEOUT_MS || "10000",
+          10
+        ),
+      }),
       tableName: "session",
       createTableIfMissing: false,
     });

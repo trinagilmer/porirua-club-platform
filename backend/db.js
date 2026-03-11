@@ -27,24 +27,44 @@ const ssl =
         rejectUnauthorized: false, // Supabase/Render can use managed/self-signed certs.
       };
 
-const pool = new Pool({
+function envInt(name, fallback) {
+  const raw = process.env[name];
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function createPool(overrides = {}) {
+  const pool = new Pool({
   connectionString,
   ssl,
   keepAlive: true,
-  max: 5,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 20000,
-});
+  max: envInt("PG_POOL_MAX", 5),
+  idleTimeoutMillis: envInt("PG_IDLE_TIMEOUT_MS", 30000),
+  connectionTimeoutMillis: envInt("PG_CONNECT_TIMEOUT_MS", 20000),
+    ...overrides,
+  });
 
-pool.on("connect", (client) => {
-  client.query("SET statement_timeout = 15000").catch(() => {});
-  client.query("SET idle_in_transaction_session_timeout = 15000").catch(() => {});
-});
+  pool.on("connect", (client) => {
+    client.query(`SET statement_timeout = ${envInt("PG_STATEMENT_TIMEOUT_MS", 15000)}`).catch(() => {});
+    client
+      .query(
+        `SET idle_in_transaction_session_timeout = ${envInt(
+          "PG_IDLE_IN_TX_TIMEOUT_MS",
+          15000
+        )}`
+      )
+      .catch(() => {});
+  });
 
-pool.on("connect", () => console.log("✅ PostgreSQL (SSL) connection established."));
-pool.on("error", (err) => console.error("💥 Unexpected PostgreSQL error:", err.message));
+  pool.on("connect", () => console.log("✅ PostgreSQL (SSL) connection established."));
+  pool.on("error", (err) => console.error("💥 Unexpected PostgreSQL error:", err.message));
 
-module.exports = { pool };
+  return pool;
+}
+
+const pool = createPool();
+
+module.exports = { pool, createPool };
 
 
 
