@@ -87,6 +87,53 @@ app.locals.formatCurrency = (value) => {
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
+const OPEN_PATHS = [
+  "/",                  // landing (remove if you want it protected)
+  "/auth",              // /auth/* (login, callback, logout)
+  "/public",            // static (also already served above)
+  "/health",            // health probe
+  "/entertainment",
+  "/feedback",
+  "/calendar/restaurant/book",
+  "/terms",
+  "/functions/enquiry",
+  "/functions/proposal/client", // public proposal links
+  "/widgets",
+  "/api/widgets",
+  "/favicon.ico",
+  "/robots.txt",
+];
+
+const SESSION_OPTIONAL_OPEN_PATHS = [
+  "/",
+  "/health",
+  "/entertainment",
+  "/feedback",
+  "/terms",
+  "/functions/enquiry",
+  "/functions/proposal/client",
+  "/widgets",
+  "/api/widgets",
+  "/favicon.ico",
+  "/robots.txt",
+];
+
+function matchesPathPrefix(reqPath, candidatePath) {
+  return reqPath === candidatePath || reqPath.startsWith(candidatePath + "/");
+}
+
+function isOpenPath(reqPath) {
+  return OPEN_PATHS.some((candidatePath) => matchesPathPrefix(reqPath, candidatePath));
+}
+
+function shouldLoadSession(req) {
+  if (isTestEnv) return true;
+  if (!isOpenPath(req.path)) return true;
+  return !SESSION_OPTIONAL_OPEN_PATHS.some((candidatePath) =>
+    matchesPathPrefix(req.path, candidatePath)
+  );
+}
+
 const sessionStore = isTestEnv
   ? new session.MemoryStore()
   : new PgSession({
@@ -103,15 +150,18 @@ const sessionStore = isTestEnv
       createTableIfMissing: false,
     });
 
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || "changeme",
-    resave: false,
-    saveUninitialized: false,
-    store: sessionStore,
-    // cookie: { secure: true, sameSite: "lax" } // tune for prod
-  })
-);
+const sessionMiddleware = session({
+  secret: process.env.SESSION_SECRET || "changeme",
+  resave: false,
+  saveUninitialized: false,
+  store: sessionStore,
+  // cookie: { secure: true, sameSite: "lax" } // tune for prod
+});
+
+app.use((req, res, next) => {
+  if (!shouldLoadSession(req)) return next();
+  return sessionMiddleware(req, res, next);
+});
 
 /* =========================================================
    👤 USER CONTEXT (available in all templates)
@@ -153,12 +203,16 @@ app.use(setActiveTab);
    💬 FLASH MESSAGES
 ========================================================= */
 const flash = require("connect-flash");
-app.use(flash());
+const flashMiddleware = flash();
+app.use((req, res, next) => {
+  if (!req.session) return next();
+  return flashMiddleware(req, res, next);
+});
 
 // Make flash messages available to all templates
 app.use((req, res, next) => {
-  res.locals.flashMessage = req.flash("flashMessage")[0];
-  res.locals.flashType = req.flash("flashType")[0];
+  res.locals.flashMessage = typeof req.flash === "function" ? req.flash("flashMessage")[0] : null;
+  res.locals.flashType = typeof req.flash === "function" ? req.flash("flashType")[0] : null;
   next();
 });
 
@@ -201,28 +255,6 @@ if (process.env.NODE_ENV !== "production") {
    🔐 GLOBAL AUTH GUARD (whitelist + JSON-friendly 401s)
    - Mounted AFTER static/session, BEFORE routes
 ========================================================= */
-const OPEN_PATHS = [
-  "/",                  // landing (remove if you want it protected)
-  "/auth",              // /auth/* (login, callback, logout)
-  "/public",            // static (also already served above)
-  "/health",            // health probe
-  "/entertainment",
-  "/feedback",
-  "/calendar/restaurant/book",
-  "/terms",
-  "/functions/enquiry",
-  "/functions/proposal/client", // public proposal links
-  "/widgets",
-  "/api/widgets",
-  "/favicon.ico",
-  "/robots.txt",
-];
-
-function isOpenPath(reqPath) {
-  // allow exact matches or subpaths (e.g., /auth/..., /public/...)
-  return OPEN_PATHS.some((p) => reqPath === p || reqPath.startsWith(p + "/"));
-}
-
 app.use((req, res, next) => {
   if (isOpenPath(req.path)) return next();
 
