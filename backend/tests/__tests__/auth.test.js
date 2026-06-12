@@ -9,6 +9,13 @@ describe("auth flow", () => {
     const res = await agent.get("/auth/login");
     expect(res.status).toBe(200);
     expect(res.text).toContain("Login");
+    expect(res.text).not.toContain("/auth/register");
+  });
+
+  test("public registration page is unavailable", async () => {
+    const agent = createAgent();
+    const res = await agent.get("/auth/register");
+    expect(res.status).toBe(404);
   });
 
   test("login succeeds with seeded admin", async () => {

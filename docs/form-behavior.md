@@ -10,11 +10,6 @@ It is intended to guide test coverage and QA for all major data entry points.
 - Validation: email + password must match a record in `users`.
 - Output: redirects to `next`, `default_landing`, or `/dashboard`. Invalid creds show error.
 
-### Register (`/auth/register`)
-- Fields: `name`, `email`, `password` (all required).
-- Validation: email must be unique.
-- Output: creates `users` row and logs in; redirects to `/dashboard`.
-
 ### Forgot Password (`/auth/forgot-password`)
 - Fields: `email` (required).
 - Validation: none beyond required.
@@ -87,4 +82,3 @@ It is intended to guide test coverage and QA for all major data entry points.
 
 - Most forms are protected by session auth; public routes are `/auth/*`, `/calendar/restaurant/book`, `/entertainment`, `/feedback`, and `/widgets`.
 - Capacity validation errors use the public contact message above.
-

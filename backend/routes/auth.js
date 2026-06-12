@@ -309,32 +309,6 @@ router.post("/reset-password/:token", async (req, res) => {
   }
 });
 
-// --- REGISTER ---
-router.get("/register", (req, res) => {
-  res.render("pages/register", { error: null, title: "Register" });
-});
-
-router.post("/register", async (req, res, next) => {
-  try {
-    const { name, email, password } = req.body;
-
-    const { rows: existing } = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
-    if (existing.length)
-      return res.render("pages/register", { error: "Email already in use", title: "Register" });
-
-    const hash = await bcrypt.hash(password, 10);
-    const { rows } = await pool.query(
-      "INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role",
-      [name, email, hash, "user"]
-    );
-
-    req.session.user = rows[0];
-    res.redirect("/dashboard");
-  } catch (err) {
-    next(err);
-  }
-});
-
 // --- ACCEPT INVITE ---
 router.get("/accept-invite/:token", async (req, res) => {
   try {
