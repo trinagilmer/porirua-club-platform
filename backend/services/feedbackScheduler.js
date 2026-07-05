@@ -3,7 +3,7 @@ const { sendMail } = require("./graphService");
 const { getFeedbackSettings, renderTemplate } = require("./feedbackService");
 const { getAppToken } = require("../utils/graphAuth");
 
-const APP_URL = (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
+const APP_URL = (process.env.APP_URL || "https://portal.poriruaclub.co.nz").replace(/\/$/, "");
 const JOB_INTERVAL = Number(process.env.FEEDBACK_JOB_INTERVAL_MS) || 1000 * 60 * 30;
 
 function formatDate(value) {

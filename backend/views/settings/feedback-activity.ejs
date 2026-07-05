@@ -256,12 +256,13 @@
               <th>NPS</th>
               <th>Status</th>
               <th>Comments</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             <% if (!responses || !responses.length) { %>
               <tr>
-                <td colspan="8" class="text-muted text-center py-4">No feedback requests yet.</td>
+                <td colspan="9" class="text-muted text-center py-4">No feedback requests yet.</td>
               </tr>
             <% } else { %>
               <% responses.forEach(function(response) { %>
@@ -306,6 +307,17 @@
                       </div>
                     <% } else { %>
                       <span class="text-muted">-</span>
+                    <% } %>
+                  </td>
+                  <td>
+                    <% if (response.sent_at && response.contact_email) { %>
+                      <form action="/settings/feedback/resend" method="POST" class="d-inline">
+                        <input type="hidden" name="response_id" value="<%= response.id %>">
+                        <input type="hidden" name="return_to" value="<%= '/settings/feedback/activity?' + new URLSearchParams(filters || {}).toString() %>">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">Resend link</button>
+                      </form>
+                    <% } else { %>
+                      <span class="text-muted small">-</span>
                     <% } %>
                   </td>
                 </tr>

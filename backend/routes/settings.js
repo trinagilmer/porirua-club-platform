@@ -243,7 +243,7 @@ async function sendSurveyNow(entityType, entityId, settings) {
     NAME: entry.contact_name || entry.party_name || "there",
     EVENT_NAME: type === "function" ? entry.event_name : entry.party_name,
     EVENT_DATE: formatDate(entry.event_date || entry.booking_date || ""),
-    SURVEY_LINK: `${(process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "")}/feedback/${responseRow.token}`,
+    SURVEY_LINK: `${(process.env.APP_URL || "https://portal.poriruaclub.co.nz").replace(/\/$/, "")}/feedback/${responseRow.token}`,
   };
   const subject = renderTemplate(settings.email_subject, context);
   let body = renderTemplate(settings.email_body_html, context);
@@ -293,6 +293,24 @@ async function sendSurveyNow(entityType, entityId, settings) {
   } catch (err) {
     console.warn("[Settings] Feedback message log skipped:", err.message);
   }
+}
+
+async function resendSurveyByResponseId(responseId, settings) {
+  const { rows } = await pool.query(
+    `
+    SELECT id, entity_type, entity_id, contact_email
+      FROM feedback_responses
+     WHERE id = $1
+     LIMIT 1;
+    `,
+    [responseId]
+  );
+  const response = rows[0] || null;
+  if (!response) throw new Error("Feedback request not found.");
+  if (!response.contact_email || !String(response.contact_email).trim()) {
+    throw new Error("No contact email available for this feedback request.");
+  }
+  await sendSurveyNow(response.entity_type, response.entity_id, settings);
 }
 
 function parseIdArray(value) {
@@ -428,7 +446,7 @@ function getAppBaseUrl(req) {
       return `${proto}://${host}`.replace(/\/$/, "");
     }
   }
-  return (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
+  return (process.env.APP_URL || "https://portal.poriruaclub.co.nz").replace(/\/$/, "");
 }
 
 async function sendUserInviteEmail({ toEmail, toName, inviteToken, baseUrl }) {
@@ -764,6 +782,25 @@ router.post("/feedback/send-now", ensurePrivileged, async (req, res) => {
     req.flash("flashType", "error");
   }
   res.redirect("/settings/feedback/automation");
+});
+
+router.post("/feedback/resend", ensurePrivileged, async (req, res) => {
+  const fallbackRedirect = "/settings/feedback/activity";
+  const returnTo = String(req.body?.return_to || "").trim();
+  const redirectTo = returnTo.startsWith("/settings/feedback/activity") ? returnTo : fallbackRedirect;
+  try {
+    const responseId = parseOptionalInteger(req.body?.response_id);
+    if (!responseId) throw new Error("Select a feedback request to resend.");
+    const settings = await getFeedbackSettings();
+    await resendSurveyByResponseId(responseId, settings);
+    req.flash("flashMessage", "Survey link resent.");
+    req.flash("flashType", "success");
+  } catch (err) {
+    console.error("[Settings] Feedback resend failed:", err);
+    req.flash("flashMessage", err.message || "Unable to resend survey link.");
+    req.flash("flashType", "error");
+  }
+  res.redirect(redirectTo);
 });
 
 router.get("/feedback/activity", ensurePrivileged, async (req, res) => {

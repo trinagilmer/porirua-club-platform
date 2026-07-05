@@ -3,6 +3,24 @@
 
 <div class="function-dashboard container-fluid py-4">
 <%
+  const dashboardTitles = {
+    active: 'Active bookings at a glance',
+    lead: 'Lead functions',
+    confirmed: 'Confirmed functions',
+    past: 'Past functions',
+    cancelled: 'Cancelled functions',
+    unscheduled: 'Unscheduled functions',
+    all: 'All functions'
+  };
+  const dashboardDescriptions = {
+    active: 'Use the filters below to focus on leads, confirmed bookings, or cancelled items without the clutter.',
+    lead: 'Review open leads and search upcoming enquiries quickly.',
+    confirmed: 'View confirmed functions and narrow them down by date, type, or contact.',
+    past: 'Search and reopen completed past functions without losing them behind the active view.',
+    cancelled: 'Review cancelled functions and the related contacts or event details.',
+    unscheduled: 'Find functions that still need a date assigned.',
+    all: 'Search across the full functions list, including past bookings.'
+  };
   function buildFunctionsLink(overrides) {
     const merged = {
       status: statusFilter || 'active',
@@ -49,8 +67,8 @@
   </div>
 
   <div class="dashboard-intro mb-3">
-    <h2 class="mb-1">Active bookings at a glance</h2>
-    <p class="mb-0">Use the filters below to focus on leads, confirmed bookings, or cancelled items without the clutter.</p>
+    <h2 class="mb-1"><%= dashboardTitles[statusFilter] || dashboardTitles.active %></h2>
+    <p class="mb-0"><%= dashboardDescriptions[statusFilter] || dashboardDescriptions.active %></p>
   </div>
 
   <form class="row g-2 align-items-end mb-3" method="GET" action="/functions">
@@ -93,10 +111,10 @@
 
   <!-- Status Filters -->
   <div class="status-filters mb-4">
-    <% ['active','lead','confirmed','cancelled','unscheduled'].forEach(st => { %>
+    <% ['active','lead','confirmed','past','cancelled','unscheduled'].forEach(st => { %>
       <a href="<%= buildFunctionsLink({ status: st, page: 1 }) %>"
          class="filter-pill <%= statusFilter === st ? 'active' : '' %>">
-        <%= st === 'active' ? 'All active' : st === 'unscheduled' ? 'Unscheduled' : st.charAt(0).toUpperCase() + st.slice(1) %>
+        <%= st === 'active' ? 'All active' : st === 'unscheduled' ? 'Unscheduled' : st === 'past' ? 'Past' : st.charAt(0).toUpperCase() + st.slice(1) %>
       </a>
     <% }) %>
     <a href="<%= buildFunctionsLink({ mine: myOnly ? '' : 'true', page: 1 }) %>" class="filter-pill <%= myOnly ? 'active' : '' %>">My events</a>
@@ -236,6 +254,7 @@
     <small class="text-muted">
       Showing <%= events.length %> of <%= totalCount || events.length %> functions
       <% if (q) { %>for "<%= q %>"<% } %>
+      <% if (!hasExplicitStatus && q) { %> · searched across all statuses<% } %>
       <% if ((paymentFilter || 'all') !== 'all') { %> · payment filter: <%= paymentFilter.replace('_', ' ') %><% } %>
     </small>
     <% if ((totalPages || 1) > 1) { %>

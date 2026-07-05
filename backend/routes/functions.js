@@ -1044,6 +1044,8 @@ router.get("/", async (req, res, next) => {
     const userId = req.session.user?.id || null;
     const paymentFilter = String(req.query.payment || "all").trim().toLowerCase();
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const rawStatusFilter = String(req.query.status || "").trim().toLowerCase();
+    const hasExplicitStatus = Object.prototype.hasOwnProperty.call(req.query || {}, "status");
     
     // When payment filter is applied, set appropriate status scope
     // deposit_due and balance_due only apply to confirmed functions
@@ -1064,6 +1066,11 @@ router.get("/", async (req, res, next) => {
     const eventType = String(req.query.eventType || "").trim();
     const dateFrom = String(req.query.dateFrom || "").trim();
     const dateTo = String(req.query.dateTo || "").trim();
+    const hasSearchFilters = Boolean(q || eventType || dateFrom || dateTo);
+    const isDefaultActiveSearch = rawStatusFilter === "active" && hasSearchFilters && paymentFilter === "all";
+    if ((!hasExplicitStatus && q && paymentFilter === "all") || isDefaultActiveSearch) {
+      statusFilter = "all";
+    }
     const pageSize = 50;
     const offset = (page - 1) * pageSize;
 
@@ -1071,6 +1078,7 @@ router.get("/", async (req, res, next) => {
       active: ["lead", "confirmed"],
       lead: ["lead"],
       confirmed: ["confirmed"],
+      past: ["lead", "confirmed"],
       cancelled: ["cancelled"],
       unscheduled: ["lead", "confirmed", "cancelled"],
       all: ["lead", "confirmed", "cancelled"],
@@ -1078,6 +1086,7 @@ router.get("/", async (req, res, next) => {
 
     const statuses = statusGroups[statusFilter] || statusGroups.active;
     const isActiveView = statusFilter === "active";
+    const isPastView = statusFilter === "past";
     const isUnscheduledView = statusFilter === "unscheduled";
     const normalizedStatusSql = `
       CASE
@@ -1150,6 +1159,11 @@ router.get("/", async (req, res, next) => {
 
     if (isActiveView) {
       conditions.push(`(COALESCE(f.end_date, f.event_date) IS NULL OR COALESCE(f.end_date, f.event_date) >= CURRENT_DATE)`);
+    }
+
+    if (isPastView) {
+      conditions.push(`COALESCE(f.end_date, f.event_date) IS NOT NULL`);
+      conditions.push(`COALESCE(f.end_date, f.event_date) < CURRENT_DATE`);
     }
 
     if (isUnscheduledView) {
@@ -1238,7 +1252,7 @@ router.get("/", async (req, res, next) => {
         WHERE fc.function_id = f.id_uuid
       ) contact_data ON TRUE
       WHERE ${whereClause}
-      ORDER BY f.event_date ASC NULLS LAST, f.created_at DESC
+      ORDER BY ${isPastView ? "f.event_date DESC NULLS LAST" : "f.event_date ASC NULLS LAST"}, f.created_at DESC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2};
     `;
 
@@ -1326,6 +1340,7 @@ router.get("/", async (req, res, next) => {
       eventTypeOptions: eventTypeRows,
       paymentCounts,
       statusFilter,
+      hasExplicitStatus,
     });
   } catch (err) {
     console.error("❌ Error loading dashboard:", err);
