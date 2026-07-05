@@ -5,6 +5,16 @@
   helpers.formatTime = helpers.formatTime || function (value) { return value || ""; };
   const reportMeta = (report && report.meta) || null;
   const reportOptions = Array.isArray(reportTypes) ? reportTypes : [];
+  const groupedReports = reportGroups || {};
+  const currentReport = reportOptions.find(function(option) { return option.value === filters.type; }) || null;
+  function buildLink(type) {
+    const params = new URLSearchParams({
+      type,
+      start_date: filters.startDate || "",
+      end_date: filters.endDate || "",
+    });
+    return `/reports?${params.toString()}`;
+  }
   function formatMetaValue(value, format) {
     if (format === "currency") return helpers.formatCurrency(value);
     if (format === "date") return helpers.formatDisplayDate(value);
@@ -13,30 +23,66 @@
   }
 %>
 <div class="container-fluid py-4 reports-page">
-  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
-    <div>
-      <h1 class="mb-1">Reports</h1>
-      <p class="text-muted mb-0">Download ready-to-share data from functions, restaurant bookings, and entertainment.</p>
-    </div>
-    <div class="d-flex gap-2">
-      <a class="btn btn-outline-primary" href="/reports">
-        <i class="bi bi-grid me-1"></i>
-        All reports
-      </a>
-      <a class="btn btn-outline-primary" href="/calendar">
-        <i class="bi bi-calendar3 me-1"></i>
-        Back to calendar
-      </a>
-      <a class="btn btn-outline-secondary" href="/settings">
-        <i class="bi bi-gear me-1"></i>
-        Settings
-      </a>
-    </div>
-  </div>
+  <section class="reports-print-header print-only">
+    <div class="reports-print-header__eyebrow">Porirua Club</div>
+    <h1 class="reports-print-header__title"><%= currentReport ? currentReport.label : 'Report' %></h1>
+    <p class="reports-print-header__range mb-0"><%= filters.startDate %> to <%= filters.endDate %></p>
+  </section>
+  <div class="row g-4 align-items-start">
+    <aside class="col-12 col-xl-3 no-print">
+      <div class="card shadow-sm border-0 reports-sidebar sticky-xl-top" style="top: 88px;">
+        <div class="card-body p-3 p-lg-4">
+          <div class="mb-4">
+            <p class="text-uppercase text-muted small mb-2">Detailed reports</p>
+            <h1 class="h3 mb-2">Reports</h1>
+            <p class="text-muted mb-0">Switch reports without losing your selected date range.</p>
+          </div>
 
-  <section class="card shadow-sm mb-4">
-    <div class="card-body">
-      <form class="row g-3 align-items-end" method="GET" action="/reports">
+          <% Object.entries(groupedReports).forEach(function(entry) { %>
+            <% const group = entry[0]; const items = entry[1]; %>
+            <div class="mb-4">
+              <div class="reports-nav-label"><%= group %></div>
+              <nav class="nav flex-column gap-2">
+                <% items.forEach(function(item) { %>
+                  <a class="reports-nav-link <%= filters.type === item.value ? 'active' : '' %>" href="<%= buildLink(item.value) %>">
+                    <span><%= item.label %></span>
+                    <i class="bi <%= filters.type === item.value ? 'bi-dot' : 'bi-arrow-up-right-circle' %>"></i>
+                  </a>
+                <% }) %>
+              </nav>
+            </div>
+          <% }) %>
+
+          <div class="d-grid gap-2">
+            <a class="btn btn-outline-primary" href="/reports">
+              <i class="bi bi-grid me-1"></i>
+              Overview dashboard
+            </a>
+            <a class="btn btn-outline-primary" href="/calendar">
+              <i class="bi bi-calendar3 me-1"></i>
+              Back to calendar
+            </a>
+            <a class="btn btn-outline-secondary" href="/settings">
+              <i class="bi bi-gear me-1"></i>
+              Settings
+            </a>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="col-12 col-xl-9">
+      <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+          <p class="text-uppercase text-muted small mb-2">Report view</p>
+          <h2 class="mb-1"><%= currentReport ? currentReport.label : 'Reports' %></h2>
+          <p class="text-muted mb-0">Download ready-to-share data from functions, restaurant bookings, and entertainment.</p>
+        </div>
+      </div>
+
+      <section class="card shadow-sm mb-4 border-0 reports-hero-card">
+        <div class="card-body">
+          <form class="row g-3 align-items-end" method="GET" action="/reports">
         <div class="col-md-3 col-sm-6">
           <label class="form-label">Report type</label>
           <select name="type" class="form-select">
@@ -60,6 +106,10 @@
             <i class="bi bi-filter-circle me-1"></i>
             Run report
           </button>
+          <button type="button" class="btn btn-outline-secondary no-print" id="reportPdfExportBtn">
+            <i class="bi bi-file-earmark-pdf me-1"></i>
+            PDF
+          </button>
           <a
             class="btn btn-outline-secondary"
             href="/reports/export?<%= new URLSearchParams({
@@ -72,9 +122,10 @@
             Excel
           </a>
         </div>
-      </form>
-    </div>
-  </section>
+          </form>
+          <p class="text-muted small mt-3 mb-0 no-print">Use PDF for a clean printable report and Excel for raw spreadsheet export.</p>
+        </div>
+      </section>
 
   <% if (!report || !report.rows || !report.rows.length) { %>
     <div class="alert alert-light border">
@@ -387,4 +438,139 @@
       </section>
     <% } %>
   <% } %>
+    </main>
+  </div>
 </div>
+
+<style>
+  .reports-page {
+    --reports-ink: #111827;
+    --reports-accent: #6bb4de;
+    --reports-accent-dark: #4a9ecc;
+    --reports-line: rgba(107, 180, 222, 0.18);
+  }
+  .print-only {
+    display: none;
+  }
+  .reports-print-header {
+    margin-bottom: 1.5rem;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid #d8e3ec;
+    border-radius: 1rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+  }
+  .reports-print-header__eyebrow {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #4b5563;
+    margin-bottom: 0.4rem;
+    font-weight: 700;
+  }
+  .reports-print-header__title {
+    font-size: 1.8rem;
+    margin-bottom: 0.25rem;
+    color: #111827;
+  }
+  .reports-print-header__range {
+    color: #4b5563;
+    font-size: 0.95rem;
+  }
+  .reports-sidebar {
+    background:
+      radial-gradient(circle at top left, rgba(107, 180, 222, 0.18), transparent 36%),
+      linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    border: 1px solid #e5e7eb;
+  }
+  .reports-nav-label {
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--reports-ink);
+    margin-bottom: 0.65rem;
+  }
+  .reports-nav-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: 0.9rem;
+    color: #4b5563;
+    text-decoration: none;
+    background: rgba(255, 255, 255, 0.65);
+    border: 1px solid transparent;
+    transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  }
+  .reports-nav-link:hover {
+    transform: translateX(2px);
+    border-color: rgba(107, 180, 222, 0.3);
+    background: #ffffff;
+    color: #111827;
+  }
+  .reports-nav-link.active {
+    background: linear-gradient(135deg, #6BB4DE 0%, #4A9ECC 100%);
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(74, 158, 204, 0.25);
+  }
+  .reports-hero-card {
+    background:
+      radial-gradient(circle at top right, rgba(107, 180, 222, 0.18), transparent 28%),
+      linear-gradient(135deg, #f8fbff 0%, #ffffff 52%, #f7fbff 100%);
+    border: 1px solid #e5e7eb;
+  }
+  @media print {
+    @page {
+      size: A4 portrait;
+      margin: 12mm;
+    }
+    body,
+    html {
+      background: #ffffff !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .print-only {
+      display: block !important;
+    }
+    .reports-page {
+      padding: 0 !important;
+    }
+    .reports-page .row,
+    .reports-page [class*="col-"] {
+      display: block !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      flex: 0 0 100% !important;
+    }
+    .reports-page .card {
+      break-inside: avoid;
+      box-shadow: none !important;
+      border: 1px solid #d8e3ec !important;
+    }
+    .reports-sidebar,
+    .no-print,
+    .btn,
+    a[href^="/reports/export"] {
+      display: none !important;
+    }
+    .table {
+      font-size: 0.9rem;
+    }
+    .table a {
+      color: inherit !important;
+      text-decoration: none !important;
+    }
+  }
+</style>
+
+<script>
+  (function() {
+    const pdfButton = document.getElementById('reportPdfExportBtn');
+    if (!pdfButton) return;
+    pdfButton.addEventListener('click', function() {
+      window.print();
+    });
+  })();
+</script>

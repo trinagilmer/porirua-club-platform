@@ -1,10 +1,17 @@
 <%
-  const reportGroups = {};
-  (reportCards || []).forEach(function(card) {
-    const group = card.category || "Other";
-    if (!reportGroups[group]) reportGroups[group] = [];
-    reportGroups[group].push(card);
-  });
+  const groupedReports = reportGroups || {};
+  const categoryEntries = Object.entries(groupedReports);
+  const overviewCards = (overview && overview.cards) || [];
+  const overviewHighlights = (overview && overview.highlights) || [];
+  const highlightGroups = overviewHighlights.reduce(function(acc, item) {
+    const group = item.group || "Overview";
+    if (!acc[group]) acc[group] = [];
+    acc[group].push(item);
+    return acc;
+  }, {});
+  const highlightGroupEntries = Object.entries(highlightGroups);
+  const breakdowns = (overview && overview.breakdowns) || {};
+  const chartData = (overview && overview.chartData) || { labels: [], functions: [], restaurant: [], entertainment: [], revenue: [] };
   function buildLink(type) {
     const params = new URLSearchParams({
       type,
@@ -13,73 +20,743 @@
     });
     return `/reports?${params.toString()}`;
   }
+  function formatBreakdownLabel(value) {
+    return String(value || "-")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, function(letter) { return letter.toUpperCase(); });
+  }
 %>
-<div class="container-fluid py-4 reports-page">
-  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
-    <div>
-      <h1 class="mb-1">Reports</h1>
-      <p class="text-muted mb-0">Pick a report and export to Excel when you need to share data.</p>
-    </div>
-    <div class="d-flex gap-2">
-      <a class="btn btn-outline-primary" href="/calendar">
-        <i class="bi bi-calendar3 me-1"></i>
-        Back to calendar
-      </a>
-      <a class="btn btn-outline-secondary" href="/settings">
-        <i class="bi bi-gear me-1"></i>
-        Settings
-      </a>
-    </div>
-  </div>
 
-  <section class="card shadow-sm mb-4">
-    <div class="card-body">
-      <form class="row g-3 align-items-end" method="GET" action="/reports">
-        <div class="col-md-3 col-sm-6">
-          <label class="form-label">Default start date</label>
-          <input type="date" name="start_date" class="form-control" value="<%= filters.startDate %>">
+<div class="container-fluid py-4 reports-page">
+  <section class="reports-print-header print-only">
+    <div class="reports-print-header__eyebrow">Porirua Club</div>
+    <h1 class="reports-print-header__title">Reports Overview</h1>
+    <p class="reports-print-header__range mb-0"><%= filters.startDate %> to <%= filters.endDate %></p>
+  </section>
+  <section class="reports-print-summary print-only">
+    <div class="reports-print-stats">
+      <% overviewCards.forEach(function(card) { %>
+        <article class="reports-print-stat">
+          <div class="reports-print-stat__label"><%= card.label %></div>
+          <div class="reports-print-stat__value"><%= card.value %></div>
+          <div class="reports-print-stat__detail"><%= card.detail %></div>
+        </article>
+      <% }) %>
+    </div>
+    <div class="reports-print-takeaways">
+      <div class="reports-print-takeaways__label">Quick takeaways</div>
+      <div class="reports-print-takeaway-groups">
+        <% highlightGroupEntries.forEach(function(groupEntry) { %>
+          <section class="reports-print-takeaway-group">
+            <div class="reports-print-takeaway-group__title"><%= groupEntry[0] %></div>
+            <div class="reports-print-takeaways__grid">
+              <% groupEntry[1].forEach(function(item) { %>
+                <article class="reports-print-takeaway">
+                  <div class="reports-print-takeaway__title"><%= item.title %></div>
+                  <div class="reports-print-takeaway__value"><%= formatBreakdownLabel(item.value) %></div>
+                </article>
+              <% }) %>
+            </div>
+          </section>
+        <% }) %>
+      </div>
+    </div>
+    <div class="reports-print-chart-card">
+      <div class="reports-print-chart-card__head">
+        <div>
+          <div class="reports-print-chart-card__label">Activity trend</div>
+          <h2 class="reports-print-chart-card__title">Daily volume across the platform</h2>
         </div>
-        <div class="col-md-3 col-sm-6">
-          <label class="form-label">Default end date</label>
-          <input type="date" name="end_date" class="form-control" value="<%= filters.endDate %>">
-        </div>
-        <div class="col-md-4 col-sm-12">
-          <p class="text-muted small mb-0">
-            Use these dates when launching any report below. You can override dates in the report view.
-          </p>
-        </div>
-        <div class="col-md-2 col-sm-6">
-          <button type="submit" class="btn btn-outline-primary w-100">Update dates</button>
-        </div>
-      </form>
+        <p class="reports-print-chart-card__meta">Counts per day for functions, restaurant bookings, and entertainment events.</p>
+      </div>
+      <img id="reportsOverviewPrintSummaryChart" class="reports-print-summary-chart" alt="Reports overview activity trend chart" />
     </div>
   </section>
+  <div class="row g-4 align-items-start">
+    <aside class="col-12 col-xl-3 no-print">
+      <div class="card shadow-sm border-0 reports-sidebar sticky-xl-top" style="top: 88px;">
+        <div class="card-body p-3 p-lg-4">
+          <div class="mb-4">
+            <p class="text-uppercase text-muted small mb-2">Reports hub</p>
+            <h1 class="h3 mb-2">Reports</h1>
+            <p class="text-muted mb-0">Start from the overview, then jump straight into a detailed report from the left.</p>
+          </div>
 
-  <% Object.keys(reportGroups).forEach(function(group) { %>
-    <section class="mb-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="h5 mb-0"><%= group %></h2>
+          <div class="reports-range-pill mb-4">
+            <div class="small text-uppercase text-muted mb-1">Current range</div>
+            <strong><%= filters.startDate %></strong>
+            <span class="text-muted">to</span>
+            <strong><%= filters.endDate %></strong>
+          </div>
+
+          <% categoryEntries.forEach(function(entry) { %>
+            <% const group = entry[0]; const items = entry[1]; %>
+            <div class="mb-4">
+              <div class="reports-nav-label"><%= group %></div>
+              <nav class="nav flex-column gap-2">
+                <% items.forEach(function(item) { %>
+                  <a class="reports-nav-link" href="<%= buildLink(item.value) %>">
+                    <span><%= item.label %></span>
+                    <i class="bi bi-arrow-up-right-circle"></i>
+                  </a>
+                <% }) %>
+              </nav>
+            </div>
+          <% }) %>
+
+          <div class="d-grid gap-2">
+            <a class="btn btn-outline-primary" href="/calendar">
+              <i class="bi bi-calendar3 me-1"></i>
+              Back to calendar
+            </a>
+            <a class="btn btn-outline-secondary" href="/settings">
+              <i class="bi bi-gear me-1"></i>
+              Settings
+            </a>
+          </div>
+        </div>
       </div>
-      <div class="row g-3">
-        <% reportGroups[group].forEach(function(card) { %>
-          <div class="col-lg-4 col-md-6">
-            <div class="card h-100 shadow-sm">
-              <div class="card-body d-flex flex-column">
-                <div class="d-flex align-items-center gap-2 mb-2">
-                  <div class="rounded-circle bg-light text-primary d-inline-flex align-items-center justify-content-center" style="width:40px;height:40px;">
-                    <i class="bi <%= card.icon %>"></i>
-                  </div>
-                  <h3 class="h6 mb-0"><%= card.title %></h3>
-                </div>
-                <p class="text-muted small flex-grow-1"><%= card.description %></p>
-                <a class="btn btn-outline-primary mt-2" href="<%= buildLink(card.type) %>">
-                  Run report
-                </a>
+    </aside>
+
+    <main class="col-12 col-xl-9">
+      <section class="card shadow-sm border-0 mb-4 reports-hero-card">
+        <div class="card-body p-4 p-xl-5">
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+            <div>
+              <p class="text-uppercase text-muted small mb-2">Overview dashboard</p>
+              <h2 class="mb-2">Your key reporting signals in one view</h2>
+              <p class="text-muted mb-0">This page gives you the headline movement across functions, restaurant, and entertainment before you drill into a single report.</p>
+            </div>
+            <div class="reports-hero-accent">
+              <span>Live overview</span>
+            </div>
+          </div>
+
+          <form class="row g-3 align-items-end" method="GET" action="/reports">
+            <div class="col-md-4 col-sm-6">
+              <label class="form-label">Overview start date</label>
+              <input type="date" name="start_date" class="form-control" value="<%= filters.startDate %>">
+            </div>
+            <div class="col-md-4 col-sm-6">
+              <label class="form-label">Overview end date</label>
+              <input type="date" name="end_date" class="form-control" value="<%= filters.endDate %>">
+            </div>
+            <div class="col-md-4 col-sm-12 d-flex gap-2">
+              <button type="submit" class="btn btn-primary flex-grow-1">Refresh overview</button>
+              <button type="button" class="btn btn-outline-secondary no-print" id="reportsOverviewPdfBtn">
+                <i class="bi bi-file-earmark-pdf me-1"></i>
+                Export PDF
+              </button>
+            </div>
+          </form>
+          <p class="text-muted small mt-3 mb-0 no-print">Export PDF opens the browser print flow with this overview formatted for Save as PDF.</p>
+        </div>
+      </section>
+
+      <section class="row g-3 mb-4 reports-kpi-section">
+        <% overviewCards.forEach(function(card) { %>
+          <div class="col-sm-6 col-xxl-3">
+            <div class="card shadow-sm border-0 h-100 report-kpi-card">
+              <div class="card-body">
+                <p class="text-uppercase text-muted small mb-2"><%= card.label %></p>
+                <h3 class="display-6 mb-2"><%= card.value %></h3>
+                <p class="mb-0 text-muted small"><%= card.detail %></p>
               </div>
             </div>
           </div>
         <% }) %>
-      </div>
-    </section>
-  <% }) %>
+      </section>
+
+      <section class="row g-4 mb-4 reports-chart-section">
+        <div class="col-12 col-xxl-8">
+          <div class="card shadow-sm border-0 h-100">
+            <div class="card-body p-4">
+              <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                <div>
+                  <p class="text-uppercase text-muted small mb-1">Activity trend</p>
+                  <h3 class="h5 mb-0">Daily volume across the platform</h3>
+                </div>
+                <p class="text-muted small mb-0">Counts per day for functions, restaurant bookings, and entertainment events.</p>
+              </div>
+              <div style="height: 320px;">
+                <canvas id="reportsOverviewTrend"></canvas>
+                <img id="reportsOverviewTrendPrintImage" class="reports-print-chart" alt="Reports overview activity trend chart" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-xxl-4">
+          <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body p-4">
+              <p class="text-uppercase text-muted small mb-1">Highlights</p>
+              <h3 class="h5 mb-3">Quick takeaways</h3>
+              <div class="d-flex flex-column gap-3">
+                <% highlightGroupEntries.forEach(function(groupEntry) { %>
+                  <section class="reports-highlight-group">
+                    <div class="reports-highlight-group__title"><%= groupEntry[0] %></div>
+                    <div class="d-flex flex-column gap-3">
+                      <% groupEntry[1].forEach(function(item) { %>
+                        <div class="reports-highlight-item">
+                          <div class="small text-muted text-uppercase"><%= item.title %></div>
+                          <div class="fw-semibold"><%= formatBreakdownLabel(item.value) %></div>
+                          <div class="small text-muted"><%= item.meta %></div>
+                        </div>
+                      <% }) %>
+                    </div>
+                  </section>
+                <% }) %>
+              </div>
+            </div>
+          </div>
+
+          <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+              <p class="text-uppercase text-muted small mb-1">Function status mix</p>
+              <h3 class="h5 mb-3">Pipeline snapshot</h3>
+              <div class="d-flex flex-column gap-2">
+                <% Object.entries(breakdowns.functions || {}).forEach(function(entry) { %>
+                  <div class="reports-breakdown-row">
+                    <span><%= formatBreakdownLabel(entry[0]) %></span>
+                    <strong><%= entry[1] %></strong>
+                  </div>
+                <% }) %>
+                <% if (!Object.keys(breakdowns.functions || {}).length) { %>
+                  <p class="text-muted small mb-0">No function activity in the selected range.</p>
+                <% } %>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="row g-4 mb-4 reports-secondary-section">
+        <div class="col-12 col-lg-6">
+          <div class="card shadow-sm border-0 h-100">
+            <div class="card-body p-4">
+              <p class="text-uppercase text-muted small mb-1">Restaurant status mix</p>
+              <h3 class="h5 mb-3">Booking flow</h3>
+              <div class="d-flex flex-wrap gap-2">
+                <% Object.entries(breakdowns.restaurant || {}).forEach(function(entry) { %>
+                  <span class="badge rounded-pill text-bg-light reports-pill"><%= formatBreakdownLabel(entry[0]) %>: <%= entry[1] %></span>
+                <% }) %>
+                <% if (!Object.keys(breakdowns.restaurant || {}).length) { %>
+                  <span class="text-muted small">No restaurant activity in the selected range.</span>
+                <% } %>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-lg-6">
+          <div class="card shadow-sm border-0 h-100">
+            <div class="card-body p-4">
+              <p class="text-uppercase text-muted small mb-1">Entertainment status mix</p>
+              <h3 class="h5 mb-3">Events snapshot</h3>
+              <div class="d-flex flex-wrap gap-2">
+                <% Object.entries(breakdowns.entertainment || {}).forEach(function(entry) { %>
+                  <span class="badge rounded-pill text-bg-light reports-pill"><%= formatBreakdownLabel(entry[0]) %>: <%= entry[1] %></span>
+                <% }) %>
+                <% if (!Object.keys(breakdowns.entertainment || {}).length) { %>
+                  <span class="text-muted small">No entertainment activity in the selected range.</span>
+                <% } %>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card shadow-sm border-0 reports-launch-section">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <p class="text-uppercase text-muted small mb-1">Quick launch</p>
+              <h3 class="h5 mb-0">Popular detailed reports</h3>
+            </div>
+          </div>
+          <div class="row g-3">
+            <% (reportCards || []).slice(0, 6).forEach(function(card) { %>
+              <div class="col-md-6 col-xxl-4">
+                <a class="card h-100 shadow-sm border-0 text-decoration-none reports-launch-card" href="<%= buildLink(card.type) %>">
+                  <div class="card-body">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                      <div class="reports-launch-icon"><i class="bi <%= card.icon %>"></i></div>
+                      <h4 class="h6 mb-0 text-dark"><%= card.title %></h4>
+                    </div>
+                    <p class="text-muted small mb-0"><%= card.description %></p>
+                  </div>
+                </a>
+              </div>
+            <% }) %>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
 </div>
+
+<style>
+  .reports-page {
+    --reports-ink: #111827;
+    --reports-accent: #6bb4de;
+    --reports-accent-dark: #4a9ecc;
+    --reports-wash: #eef5fb;
+    --reports-line: rgba(107, 180, 222, 0.18);
+  }
+  .print-only {
+    display: none;
+  }
+  .reports-print-header {
+    margin-bottom: 1.5rem;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid #d8e3ec;
+    border-radius: 1rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+  }
+  .reports-print-header__eyebrow {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #4b5563;
+    margin-bottom: 0.4rem;
+    font-weight: 700;
+  }
+  .reports-print-header__title {
+    font-size: 1.8rem;
+    margin-bottom: 0.25rem;
+    color: #111827;
+  }
+  .reports-print-header__range {
+    color: #4b5563;
+    font-size: 0.95rem;
+  }
+  .reports-print-summary {
+    display: none;
+  }
+  .reports-print-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+  }
+  .reports-print-stat {
+    border: 1px solid #d8e3ec;
+    border-radius: 0.8rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    padding: 0.65rem 0.75rem;
+  }
+  .reports-print-stat__label {
+    font-size: 0.62rem;
+    line-height: 1.2;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #4b5563;
+    margin-bottom: 0.2rem;
+  }
+  .reports-print-stat__value {
+    font-size: 1.35rem;
+    line-height: 1;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 0.2rem;
+  }
+  .reports-print-stat__detail {
+    font-size: 0.66rem;
+    line-height: 1.25;
+    color: #4b5563;
+  }
+  .reports-print-chart-card {
+    border: 1px solid #d8e3ec;
+    border-radius: 0.85rem;
+    background: #ffffff;
+    padding: 0.65rem 0.8rem 0.8rem;
+  }
+  .reports-print-takeaways {
+    border: 1px solid #d8e3ec;
+    border-radius: 0.8rem;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+    padding: 0.55rem 0.7rem;
+    margin-bottom: 0.6rem;
+  }
+  .reports-print-takeaways__label {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #4b5563;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+  }
+  .reports-print-takeaway-groups {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 0.55rem;
+  }
+  .reports-print-takeaway-group {
+    min-width: 0;
+  }
+  .reports-print-takeaway-group__title {
+    font-size: 0.58rem;
+    line-height: 1.2;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+  }
+  .reports-print-takeaways__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+  .reports-print-takeaway {
+    padding: 0.15rem 0.2rem;
+    min-width: 0;
+  }
+  .reports-print-takeaway__title {
+    font-size: 0.58rem;
+    line-height: 1.2;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6b7280;
+    font-weight: 700;
+    margin-bottom: 0.15rem;
+  }
+  .reports-print-takeaway__value {
+    font-size: 0.82rem;
+    line-height: 1.15;
+    color: #111827;
+    font-weight: 700;
+    margin-bottom: 0;
+  }
+  .reports-print-chart-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 0.45rem;
+  }
+  .reports-print-chart-card__label {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #4b5563;
+    font-weight: 700;
+  }
+  .reports-print-chart-card__title {
+    font-size: 0.95rem;
+    line-height: 1.15;
+    color: #111827;
+    margin: 0.1rem 0 0;
+  }
+  .reports-print-chart-card__meta {
+    font-size: 0.66rem;
+    line-height: 1.25;
+    color: #4b5563;
+    max-width: 260px;
+    margin: 0;
+    text-align: right;
+  }
+  .reports-print-summary-chart {
+    display: block;
+    width: 100%;
+    height: 104mm;
+    object-fit: contain;
+  }
+  .reports-sidebar {
+    background:
+      radial-gradient(circle at top left, rgba(107, 180, 222, 0.18), transparent 36%),
+      linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    border: 1px solid #e5e7eb;
+  }
+  .reports-nav-label {
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--reports-ink);
+    margin-bottom: 0.65rem;
+  }
+  .reports-nav-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: 0.9rem;
+    color: #4b5563;
+    text-decoration: none;
+    background: rgba(255, 255, 255, 0.65);
+    border: 1px solid transparent;
+    transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  }
+  .reports-nav-link:hover {
+    transform: translateX(2px);
+    border-color: rgba(107, 180, 222, 0.3);
+    background: #ffffff;
+    color: #111827;
+  }
+  .reports-range-pill {
+    padding: 0.9rem 1rem;
+    border-radius: 1rem;
+    background: rgba(107, 180, 222, 0.12);
+    border: 1px solid rgba(107, 180, 222, 0.22);
+  }
+  .reports-hero-card {
+    background:
+      radial-gradient(circle at top right, rgba(107, 180, 222, 0.22), transparent 28%),
+      linear-gradient(135deg, #f8fbff 0%, #ffffff 52%, #f7fbff 100%);
+    border: 1px solid #e5e7eb;
+  }
+  .reports-hero-accent {
+    padding: 0.55rem 0.85rem;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #6BB4DE 0%, #4A9ECC 100%);
+    color: #fff;
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .report-kpi-card {
+    border-top: 4px solid var(--reports-accent);
+  }
+  .reports-highlight-item + .reports-highlight-item {
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--reports-line);
+  }
+  .reports-highlight-group + .reports-highlight-group {
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--reports-line);
+  }
+  .reports-highlight-group__title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #4b5563;
+    margin-bottom: 0.75rem;
+  }
+  .reports-breakdown-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid var(--reports-line);
+  }
+  .reports-breakdown-row:last-child {
+    border-bottom: 0;
+  }
+  .reports-pill {
+    font-size: 0.85rem;
+    padding: 0.55rem 0.8rem;
+  }
+  .reports-launch-card {
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .reports-launch-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 1rem 2.5rem rgba(74, 158, 204, 0.12);
+  }
+  .reports-launch-icon {
+    width: 2.4rem;
+    height: 2.4rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.8rem;
+    background: var(--reports-wash);
+    color: var(--reports-accent);
+  }
+  .reports-print-chart {
+    display: none;
+    width: 100%;
+    height: 320px;
+    object-fit: contain;
+  }
+  @media print {
+    @page {
+      size: A4 landscape;
+      margin: 8mm;
+    }
+    body,
+    html {
+      background: #ffffff !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .print-only {
+      display: block !important;
+    }
+    .reports-print-summary {
+      display: block !important;
+    }
+    .reports-page {
+      padding: 0 !important;
+    }
+    .reports-print-header {
+      margin-bottom: 0.5rem;
+      padding: 0.7rem 0.9rem;
+      border-radius: 0.75rem;
+    }
+    .reports-print-header__eyebrow {
+      font-size: 0.64rem;
+      margin-bottom: 0.2rem;
+    }
+    .reports-print-header__title {
+      font-size: 1.1rem;
+      margin-bottom: 0.1rem;
+    }
+    .reports-print-header__range {
+      font-size: 0.78rem;
+    }
+    .reports-page .row,
+    .reports-page [class*="col-"] {
+      display: block !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      flex: 0 0 100% !important;
+    }
+    .reports-page main {
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+    .reports-page .card {
+      break-inside: avoid;
+      box-shadow: none !important;
+      border: 1px solid #d8e3ec !important;
+    }
+    .reports-page .row,
+    .reports-hero-card,
+    .reports-kpi-section,
+    .reports-chart-section,
+    .reports-secondary-section,
+    .reports-hero-accent,
+    .reports-launch-section,
+    .reports-sidebar,
+    .no-print {
+      display: none !important;
+    }
+    .reports-print-header,
+    .reports-print-summary {
+      break-inside: avoid;
+    }
+    .reports-print-chart {
+      display: none !important;
+    }
+    #reportsOverviewTrend {
+      display: none !important;
+    }
+  }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  (function() {
+    const chartData = <%- JSON.stringify(chartData || {}) %>;
+    const canvas = document.getElementById('reportsOverviewTrend');
+    const pdfButton = document.getElementById('reportsOverviewPdfBtn');
+    const printImage = document.getElementById('reportsOverviewTrendPrintImage');
+    const printSummaryImage = document.getElementById('reportsOverviewPrintSummaryChart');
+    if (pdfButton) {
+      pdfButton.addEventListener('click', function() {
+        if (canvas && printImage) syncPrintChartImage();
+        window.print();
+      });
+    }
+    if (!canvas || !chartData.labels || !chartData.labels.length) return;
+    const ctx = canvas.getContext('2d');
+    const overviewChart = new Chart(ctx, {
+      data: {
+        labels: chartData.labels,
+        datasets: [
+          {
+            type: 'bar',
+            label: 'Functions',
+            data: chartData.functions,
+            backgroundColor: 'rgba(107, 180, 222, 0.88)',
+            borderColor: '#4a9ecc',
+            borderWidth: 1,
+            borderRadius: 8,
+          },
+          {
+            type: 'bar',
+            label: 'Restaurant',
+            data: chartData.restaurant,
+            backgroundColor: 'rgba(166, 214, 174, 0.88)',
+            borderColor: '#7eb488',
+            borderWidth: 1,
+            borderRadius: 8,
+          },
+          {
+            type: 'line',
+            label: 'Entertainment',
+            data: chartData.entertainment,
+            borderColor: '#2f7d68',
+            backgroundColor: 'rgba(47, 125, 104, 0.14)',
+            pointBackgroundColor: '#2f7d68',
+            pointBorderColor: '#ffffff',
+            pointRadius: 4,
+            tension: 0.35,
+            fill: false,
+            yAxisID: 'y',
+          },
+          {
+            type: 'line',
+            label: 'Function revenue',
+            data: chartData.revenue,
+            borderColor: '#c96f1a',
+            backgroundColor: 'rgba(201, 111, 26, 0.14)',
+            pointBackgroundColor: '#c96f1a',
+            pointBorderColor: '#ffffff',
+            pointRadius: 4,
+            tension: 0.3,
+            fill: false,
+            yAxisID: 'y1',
+          }
+        ]
+      },
+      options: {
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: 'Activity count' }
+          },
+          y1: {
+            beginAtZero: true,
+            position: 'right',
+            grid: { drawOnChartArea: false },
+            title: { display: true, text: 'Revenue (NZD)' }
+          }
+        }
+      }
+    });
+
+    function syncPrintChartImage() {
+      if (!canvas) return;
+      try {
+        const chartDataUrl = canvas.toDataURL('image/png');
+        if (printImage) printImage.src = chartDataUrl;
+        if (printSummaryImage) printSummaryImage.src = chartDataUrl;
+      } catch (error) {
+        if (printImage) printImage.removeAttribute('src');
+        if (printSummaryImage) printSummaryImage.removeAttribute('src');
+      }
+    }
+
+    syncPrintChartImage();
+    window.addEventListener('beforeprint', syncPrintChartImage);
+    if (window.matchMedia) {
+      const mediaQuery = window.matchMedia('print');
+      if (mediaQuery && mediaQuery.addEventListener) {
+        mediaQuery.addEventListener('change', function(event) {
+          if (event.matches) syncPrintChartImage();
+        });
+      }
+    }
+    if (overviewChart) {
+      setTimeout(syncPrintChartImage, 150);
+    }
+  })();
+</script>

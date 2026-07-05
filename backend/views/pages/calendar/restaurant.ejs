@@ -43,9 +43,81 @@
     max-height: 420px;
     overflow-y: auto;
   }
+  .restaurant-admin-page {
+    font-size: 1.06rem;
+  }
+  .restaurant-admin-page h1 {
+    font-size: 2rem;
+  }
+  .restaurant-admin-page .text-muted,
+  .restaurant-admin-page p,
+  .restaurant-admin-page .form-label,
+  .restaurant-admin-page .form-control,
+  .restaurant-admin-page .form-select,
+  .restaurant-admin-page .input-group-text,
+  .restaurant-admin-page .btn,
+  .restaurant-admin-page .badge,
+  .restaurant-admin-page .list-group-item,
+  .restaurant-admin-page small {
+    font-size: 0.98rem;
+  }
+  .restaurant-admin-page .btn.btn-sm,
+  .restaurant-admin-page .form-control-sm,
+  .restaurant-admin-page .form-select-sm,
+  .restaurant-admin-page .input-group.input-group-sm > .form-control,
+  .restaurant-admin-page .input-group.input-group-sm > .input-group-text {
+    font-size: 0.98rem;
+  }
+  .restaurant-admin-page .card-body h5 {
+    font-size: 1.2rem;
+  }
+  .restaurant-admin-page .calendar-shell {
+    font-size: 1.02rem;
+  }
+  .restaurant-admin-page .calendar-shell .fc-timegrid-slot {
+    height: 3.35rem;
+  }
+  .restaurant-admin-page .calendar-shell .fc .fc-toolbar-title {
+    font-size: 1.5rem;
+  }
+  .restaurant-admin-page .calendar-shell .fc-button {
+    font-size: 0.96rem !important;
+    padding: 0.45rem 0.8rem !important;
+  }
+  .restaurant-admin-page .calendar-shell .fc-col-header-cell-cushion,
+  .restaurant-admin-page .calendar-shell .fc-timegrid-axis-cushion,
+  .restaurant-admin-page .calendar-shell .fc-timegrid-slot-label-cushion,
+  .restaurant-admin-page .calendar-shell .fc-daygrid-day-number,
+  .restaurant-admin-page .calendar-shell .fc-list-day-text,
+  .restaurant-admin-page .calendar-shell .fc-list-day-side-text {
+    font-size: 0.98rem;
+  }
+  .restaurant-admin-page .calendar-shell .fc .fc-small,
+  .restaurant-admin-page .calendar-shell .fc .fc-small * {
+    font-size: 0.92em !important;
+  }
+  .restaurant-admin-page .calendar-shell .fc-event,
+  .restaurant-admin-page .calendar-shell .fc-event * {
+    font-size: 0.95rem !important;
+    line-height: 1.3;
+  }
+  .restaurant-admin-page .calendar-shell .fc-timegrid-event {
+    min-height: 2.4rem;
+  }
+  .restaurant-admin-page .calendar-shell .fc-timegrid-event .fc-event-main {
+    padding: 0.1rem 0.2rem;
+  }
+  .restaurant-admin-page .restaurant-calendar-event-line {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
+    line-height: 1.25;
+  }
 </style>
 
-<div class="<%= isEmbed ? 'calendar-embed-shell' : 'calendar-page px-4 py-4' %>">
+<div class="<%= isEmbed ? 'calendar-embed-shell' : 'calendar-page px-4 py-4 restaurant-admin-page' %>">
   <% if (!isEmbed) { %>
     <div class="d-flex justify-content-between flex-wrap gap-2 mb-4">
       <div>

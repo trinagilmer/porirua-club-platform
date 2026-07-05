@@ -23,15 +23,36 @@ const session = require("express-session");
 const { createPool } = require("./db");
 const PgSession = require("connect-pg-simple")(session);
 const { format } = require("date-fns");
+const { formatInTimeZone } = require("date-fns-tz");
 
 const app = express();
 
 /* =========================================================
    🌐 GLOBAL EJS HELPERS (Date/Time Formatting)
 ========================================================= */
+function normalizeNzDateValue(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return new Date(`${trimmed}T12:00:00`);
+  }
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatNzCalendarDate(value, pattern = "dd/MM/yyyy") {
+  const normalized = normalizeNzDateValue(value);
+  if (!normalized) return "";
+  return formatInTimeZone(normalized, "Pacific/Auckland", pattern);
+}
+
 app.locals.formatNZDate = (date) => {
   try {
-    return date ? format(date, "dd/MM/yyyy") : "";
+    return formatNzCalendarDate(date, "dd/MM/yyyy");
   } catch {
     return "";
   }
@@ -50,7 +71,9 @@ app.locals.formatNZTime = (time) => {
 app.locals.formatNZDateTime = (date, time) => {
   try {
     if (!date) return "";
-    const d = new Date(`${format(date, "yyyy-MM-dd")}T${time || "00:00:00"}`);
+    const dateKey = formatNzCalendarDate(date, "yyyy-MM-dd");
+    if (!dateKey) return "";
+    const d = new Date(`${dateKey}T${time || "00:00:00"}`);
     return format(d, "dd/MM/yyyy h:mm a");
   } catch {
     return "";
@@ -59,15 +82,15 @@ app.locals.formatNZDateTime = (date, time) => {
 app.locals.formatNZDateRange = (startDate, endDate, pattern = "dd/MM/yyyy") => {
   try {
     if (!startDate) return "";
-    const start = startDate instanceof Date ? startDate : new Date(startDate);
-    if (Number.isNaN(start.getTime())) return "";
-    if (!endDate) return format(start, pattern);
-    const end = endDate instanceof Date ? endDate : new Date(endDate);
-    if (Number.isNaN(end.getTime())) return format(start, pattern);
-    const startKey = format(start, "yyyy-MM-dd");
-    const endKey = format(end, "yyyy-MM-dd");
-    if (startKey === endKey) return format(start, pattern);
-    return `${format(start, pattern)} - ${format(end, pattern)}`;
+    const startLabel = formatNzCalendarDate(startDate, pattern);
+    if (!startLabel) return "";
+    if (!endDate) return startLabel;
+    const endLabel = formatNzCalendarDate(endDate, pattern);
+    if (!endLabel) return startLabel;
+    const startKey = formatNzCalendarDate(startDate, "yyyy-MM-dd");
+    const endKey = formatNzCalendarDate(endDate, "yyyy-MM-dd");
+    if (startKey === endKey) return startLabel;
+    return `${startLabel} - ${endLabel}`;
   } catch {
     return "";
   }

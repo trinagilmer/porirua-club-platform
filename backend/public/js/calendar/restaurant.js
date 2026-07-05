@@ -95,6 +95,48 @@
     const slotMinutes = window.calendarConfig?.daySlotMinutes || 30;
     const today = new Date();
     const todayIso = `${String(today.getFullYear()).padStart(4, "0")}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const formatEventTime = (dateObj) => {
+      if (!(dateObj instanceof Date) || Number.isNaN(dateObj.getTime())) return "";
+      return dateObj.toLocaleTimeString("en-NZ", {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    };
+    const normaliseSlotKey = (dateObj) => {
+      if (!(dateObj instanceof Date) || Number.isNaN(dateObj.getTime())) return null;
+      const hours = dateObj.getHours();
+      const minutes = Math.floor(dateObj.getMinutes() / slotMinutes) * slotMinutes;
+      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`;
+    };
+    const updateCrowdedSlotHeights = () => {
+      const isTimeGridView = calendar.view && String(calendar.view.type || "").startsWith("timeGrid");
+      calendarEl
+        .querySelectorAll(".fc-timegrid-slot-lane[data-time], .fc-timegrid-slot-label[data-time]")
+        .forEach((cell) => {
+          cell.style.height = "";
+          cell.style.minHeight = "";
+        });
+      if (!isTimeGridView) return;
+
+      const slotCounts = new Map();
+      calendar.getEvents().forEach((event) => {
+        if (!event.start) return;
+        const key = normaliseSlotKey(event.start);
+        if (!key) return;
+        slotCounts.set(key, (slotCounts.get(key) || 0) + 1);
+      });
+
+      slotCounts.forEach((count, key) => {
+        if (count <= 1) return;
+        const remHeight = 3.35 + Math.min(count - 1, 3) * 1.15;
+        calendarEl
+          .querySelectorAll(`.fc-timegrid-slot-lane[data-time="${key}"], .fc-timegrid-slot-label[data-time="${key}"]`)
+          .forEach((cell) => {
+            cell.style.height = `${remHeight}rem`;
+            cell.style.minHeight = `${remHeight}rem`;
+          });
+      });
+    };
     const isWithinService = (dateObj) => {
       if (!hasServices) return true;
       const dow = dateObj.getDay();
@@ -127,10 +169,34 @@
       titleFormat: { year: "numeric", month: "long" },
       events: "/calendar/restaurant/events",
       eventDisplay: "block",
-      displayEventTime: true,
+      displayEventTime: false,
+      eventMinHeight: 38,
       businessHours,
       selectable: true,
       selectMirror: true,
+      eventContent: (arg) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "restaurant-calendar-event-line";
+        const partySize = arg.event.extendedProps?.partySize || 0;
+        const status = arg.event.extendedProps?.status
+          ? String(arg.event.extendedProps.status).replace(/_/g, " ")
+          : "";
+        const segments = [
+          formatEventTime(arg.event.start),
+          arg.event.title,
+          partySize ? `${partySize} guests` : "",
+          status ? status.charAt(0).toUpperCase() + status.slice(1) : "",
+        ].filter(Boolean);
+        wrapper.textContent = segments.join(" · ");
+        wrapper.title = wrapper.textContent;
+        return { domNodes: [wrapper] };
+      },
+      eventsSet: () => {
+        window.requestAnimationFrame(updateCrowdedSlotHeights);
+      },
+      datesSet: () => {
+        window.requestAnimationFrame(updateCrowdedSlotHeights);
+      },
       selectAllow: (selectionInfo) => {
         return isWithinService(selectionInfo.start);
       },
@@ -219,6 +285,7 @@
     });
 
     calendar.render();
+  window.requestAnimationFrame(updateCrowdedSlotHeights);
 
     // Recurring toggle
     const toggle = document.getElementById("rb-recurring-toggle");

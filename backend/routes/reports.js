@@ -143,6 +143,189 @@ function parseRange(query) {
   return getDefaultRange();
 }
 
+function getReportGroups() {
+  return REPORT_TYPES.reduce((acc, report) => {
+    const category = report.category || "Other";
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(report);
+    return acc;
+  }, {});
+}
+
+function formatShortDateLabel(value) {
+  if (!value) return "";
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-NZ", { day: "numeric", month: "short" });
+}
+
+function createDateBucketMap(range) {
+  const buckets = new Map();
+  const cursor = new Date(range.start.getFullYear(), range.start.getMonth(), range.start.getDate());
+  const end = new Date(range.end.getFullYear(), range.end.getMonth(), range.end.getDate());
+  while (cursor <= end) {
+    const key = formatDateInput(cursor);
+    buckets.set(key, {
+      label: formatShortDateLabel(key),
+      functions: 0,
+      restaurant: 0,
+      entertainment: 0,
+      revenue: 0,
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return buckets;
+}
+
+async function loadOverviewData(range) {
+  const params = [formatDateInput(range.start), formatDateInput(range.end)];
+  const [functionRows, restaurantRows, entertainmentRows] = await Promise.all([
+    pool.query(
+      `
+      SELECT event_date, status, COALESCE(totals_price, 0) AS totals_price, COALESCE(attendees, 0) AS attendees
+        FROM functions
+       WHERE event_date BETWEEN $1 AND $2
+         AND COALESCE(status, '') <> 'cancelled';
+      `,
+      params
+    ),
+    pool.query(
+      `
+      SELECT booking_date, status, COALESCE(size, 0) AS size
+        FROM restaurant_bookings
+       WHERE booking_date BETWEEN $1 AND $2;
+      `,
+      params
+    ),
+    pool.query(
+      `
+      SELECT start_at::date AS event_date, status
+        FROM entertainment_events
+       WHERE start_at::date BETWEEN $1 AND $2;
+      `,
+      params
+    ),
+  ]);
+
+  const buckets = createDateBucketMap(range);
+  const functionStatusCounts = {};
+  const restaurantStatusCounts = {};
+  const entertainmentStatusCounts = {};
+
+  const functionSummary = functionRows.rows.reduce(
+    (acc, row) => {
+      const dateKey = formatDateInput(row.event_date);
+      const bucket = buckets.get(dateKey);
+      if (bucket) {
+        bucket.functions += 1;
+        bucket.revenue += Number(row.totals_price) || 0;
+      }
+      const status = String(row.status || "lead").toLowerCase();
+      functionStatusCounts[status] = (functionStatusCounts[status] || 0) + 1;
+      acc.count += 1;
+      acc.revenue += Number(row.totals_price) || 0;
+      acc.attendees += Number(row.attendees) || 0;
+      return acc;
+    },
+    { count: 0, revenue: 0, attendees: 0 }
+  );
+
+  const restaurantSummary = restaurantRows.rows.reduce(
+    (acc, row) => {
+      const dateKey = formatDateInput(row.booking_date);
+      const bucket = buckets.get(dateKey);
+      if (bucket) bucket.restaurant += 1;
+      const status = String(row.status || "pending").toLowerCase();
+      restaurantStatusCounts[status] = (restaurantStatusCounts[status] || 0) + 1;
+      acc.count += 1;
+      acc.guests += Number(row.size) || 0;
+      return acc;
+    },
+    { count: 0, guests: 0 }
+  );
+
+  const entertainmentSummary = entertainmentRows.rows.reduce(
+    (acc, row) => {
+      const dateKey = formatDateInput(row.event_date);
+      const bucket = buckets.get(dateKey);
+      if (bucket) bucket.entertainment += 1;
+      const status = String(row.status || "scheduled").toLowerCase();
+      entertainmentStatusCounts[status] = (entertainmentStatusCounts[status] || 0) + 1;
+      acc.count += 1;
+      return acc;
+    },
+    { count: 0 }
+  );
+
+  const bucketValues = Array.from(buckets.values());
+  const leadFunctionCount = functionStatusCounts.lead || 0;
+  const confirmedFunctionCount = functionStatusCounts.confirmed || 0;
+  const confirmedRestaurantCount = restaurantStatusCounts.confirmed || 0;
+
+  return {
+    cards: [
+      {
+        label: "Functions booked",
+        value: functionSummary.count,
+        detail: `${formatCurrency(functionSummary.revenue)} revenue`,
+      },
+      {
+        label: "Expected attendees",
+        value: functionSummary.attendees,
+        detail: functionSummary.count ? `${Math.round(functionSummary.attendees / functionSummary.count)} avg per function` : "No functions in range",
+      },
+      {
+        label: "Restaurant bookings",
+        value: restaurantSummary.count,
+        detail: `${restaurantSummary.guests} total guests`,
+      },
+      {
+        label: "Entertainment events",
+        value: entertainmentSummary.count,
+        detail: `${Object.keys(entertainmentStatusCounts).length || 0} statuses tracked`,
+      },
+    ],
+    highlights: [
+      {
+        group: "Functions",
+        title: "Leads",
+        value: leadFunctionCount,
+        meta: `${functionSummary.count} total functions`,
+      },
+      {
+        group: "Functions",
+        title: "Confirmed",
+        value: confirmedFunctionCount,
+        meta: `${functionSummary.attendees} expected attendees`,
+      },
+      {
+        group: "Functions",
+        title: "Function revenue",
+        value: formatCurrency(functionSummary.revenue),
+        meta: functionSummary.count ? `${Math.round(functionSummary.revenue / functionSummary.count) || 0} average per function` : "No functions in range",
+      },
+      {
+        group: "Restaurant",
+        title: "Confirmed bookings",
+        value: confirmedRestaurantCount,
+        meta: `${restaurantSummary.count} total bookings`,
+      },
+    ],
+    breakdowns: {
+      functions: functionStatusCounts,
+      restaurant: restaurantStatusCounts,
+      entertainment: entertainmentStatusCounts,
+    },
+    chartData: {
+      labels: bucketValues.map((bucket) => bucket.label),
+      functions: bucketValues.map((bucket) => bucket.functions),
+      restaurant: bucketValues.map((bucket) => bucket.restaurant),
+      entertainment: bucketValues.map((bucket) => bucket.entertainment),
+      revenue: bucketValues.map((bucket) => Number(bucket.revenue.toFixed(2))),
+    },
+  };
+}
+
 async function loadFunctionReport(range) {
   const params = [formatDateInput(range.start), formatDateInput(range.end)];
   const { rows } = await pool.query(
@@ -730,9 +913,11 @@ function formatCurrency(value) {
 
 router.get("/", ensurePrivileged, async (req, res) => {
   try {
+    const reportGroups = getReportGroups();
     const hasType = typeof req.query.type === "string" && req.query.type.trim() !== "";
     if (!hasType) {
       const range = parseRange(req.query || {});
+      const overview = await loadOverviewData(range);
       return res.render("pages/reports/landing", {
         layout: "layouts/main",
         title: "Reports",
@@ -740,7 +925,9 @@ router.get("/", ensurePrivileged, async (req, res) => {
         pageType: "reports",
         user: req.session.user || null,
         reportTypes: REPORT_TYPES,
+        reportGroups,
         reportCards: REPORT_CARDS,
+        overview,
         filters: {
           startDate: formatDateInput(range.start),
           endDate: formatDateInput(range.end),
@@ -762,6 +949,7 @@ router.get("/", ensurePrivileged, async (req, res) => {
         endDate: formatDateInput(range.end),
       },
       reportTypes: REPORT_TYPES,
+      reportGroups,
       report: {
         rows,
         summary,

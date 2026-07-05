@@ -5,7 +5,34 @@
 <% const zones = locals.zones || []; %>
 <% const tables = locals.tables || []; %>
 
-<div class="container py-4">
+<style>
+  .restaurant-booking-detail-page {
+    font-size: 1.06rem;
+  }
+  .restaurant-booking-detail-page h2 {
+    font-size: 1.85rem;
+  }
+  .restaurant-booking-detail-page h5 {
+    font-size: 1.2rem;
+  }
+  .restaurant-booking-detail-page .text-muted,
+  .restaurant-booking-detail-page p,
+  .restaurant-booking-detail-page dt,
+  .restaurant-booking-detail-page dd,
+  .restaurant-booking-detail-page .form-label,
+  .restaurant-booking-detail-page .form-control,
+  .restaurant-booking-detail-page .form-select,
+  .restaurant-booking-detail-page .btn,
+  .restaurant-booking-detail-page small,
+  .restaurant-booking-detail-page textarea {
+    font-size: 1rem;
+  }
+  .restaurant-booking-detail-page .btn.btn-sm {
+    font-size: 0.98rem;
+  }
+</style>
+
+<div class="container py-4 restaurant-booking-detail-page">
   <a href="/calendar/restaurant" class="btn btn-outline-secondary btn-sm mb-3">
     <i class="bi bi-arrow-left-short me-1"></i> Back to restaurant calendar
   </a>
