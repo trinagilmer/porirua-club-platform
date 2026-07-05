@@ -9,13 +9,13 @@
       .trim();
   };
   const resolvedBuilderHeading =
-    typeof builderHeading !== 'undefined'
+    typeof builderHeading !== 'undefined' && String(builderHeading || '').trim()
       ? builderHeading
-      : 'Proposal Builder';
+      : 'Customer Send Settings';
   const resolvedBuilderDescription =
-    typeof builderDescription !== 'undefined'
+    typeof builderDescription !== 'undefined' && String(builderDescription || '').trim()
       ? builderDescription
-      : 'Choose what flows through to the customer proposal, including notes, contacts, and terms.';
+      : 'Choose what the customer sees when you send this quote.';
   const normalizedClientStatus = String(clientStatus || '').toLowerCase().trim();
   const normalizedProposalStatus = String(proposalStatus || '').toLowerCase().trim();
   const statusValue = normalizedClientStatus || normalizedProposalStatus || 'draft';
@@ -70,43 +70,16 @@ const builderContacts = Array.isArray(contacts)
         </span>
       </div>
     </div>
-    <div class="d-flex flex-column flex-lg-row gap-3 align-items-lg-center">
-      <div class="btn-toolbar gap-2">
-        <% if (resolvedShowClientActions) { %>
-          <div class="dropdown">
-            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" <%= resolvedClientLink ? '' : 'disabled' %>>
-              <i class="bi bi-link-45deg me-1"></i> Client link
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-              <li>
-                <a class="dropdown-item" href="#" id="viewClientLinkBtn" data-link="<%= resolvedClientLink || '' %>">View client link</a>
-              </li>
-              <li>
-                <a class="dropdown-item" href="#" id="copyClientLinkBtn" data-link="<%= resolvedClientLink || '' %>">Copy client link</a>
-              </li>
-              <li>
-                <a class="dropdown-item" href="#" id="sendClientLinkBtn">Email client link</a>
-              </li>
-            </ul>
-          </div>
-        <% } %>
-        <button type="button" class="btn btn-outline-secondary btn-sm" data-role="print-btn" <%= resolvedClientLink ? '' : 'disabled' %>>
-          <i class="bi bi-printer me-1"></i> Print
-        </button>
-        <button type="button" class="btn btn-success btn-sm" data-role="save-btn">
-          <i class="bi bi-save me-1"></i> Save
-        </button>
-      </div>
-    </div>
+    <div class="text-muted small">Complete each section below, then save.</div>
   </div>
 
   <div class="row g-4 mt-2 proposal-builder__grid">
     <div class="col-lg-7">
-      <section class="proposal-panel mb-3">
-        <div class="proposal-panel__header d-flex flex-column flex-xl-row gap-2 justify-content-between align-items-xl-center">
-          <span>Notes &amp; Sections</span>
+      <details class="proposal-panel mb-3" open>
+        <summary class="proposal-panel__header d-flex flex-column flex-xl-row gap-2 justify-content-between align-items-xl-center">
+          <span>Step 1: Notes &amp; Sections <span class="proposal-summary-chip" data-role="summary-sections"><%= builderSections.length %> section<%= builderSections.length === 1 ? '' : 's' %></span></span>
           <% if (functionNotesList.length) { %>
-            <div class="d-flex gap-2 flex-wrap">
+            <div class="d-flex gap-2 flex-wrap" onclick="event.stopPropagation();">
               <select class="form-select form-select-sm" data-role="note-picker">
                 <option value="">Insert function note...</option>
                 <% functionNotesList.forEach(note => { %>
@@ -120,7 +93,7 @@ const builderContacts = Array.isArray(contacts)
               <button type="button" class="btn btn-sm btn-outline-secondary" data-role="add-note">Add Note</button>
             </div>
           <% } %>
-        </div>
+        </summary>
         <div class="proposal-panel__body">
           <ul class="proposal-section-list list-unstyled mb-0" data-role="sections-list">
             <% if (!builderSections.length) { %>
@@ -138,10 +111,10 @@ const builderContacts = Array.isArray(contacts)
             <% } %>
           </ul>
         </div>
-      </section>
+      </details>
 
-      <section class="proposal-panel">
-        <div class="proposal-panel__header">Terms &amp; Conditions</div>
+      <details class="proposal-panel">
+        <summary class="proposal-panel__header">Step 2: Terms &amp; Conditions <span class="proposal-summary-chip" data-role="summary-terms"><%= selectedTermIds.length %> selected</span></summary>
         <div class="proposal-panel__body">
           <% if (termsLibraryList.length) { %>
             <div class="proposal-terms-list vstack gap-2 mb-3">
@@ -164,12 +137,12 @@ const builderContacts = Array.isArray(contacts)
             Selected standard terms appear first, followed by any custom additions. Terms are rendered on a separate page.
           </div>
         </div>
-      </section>
+      </details>
     </div>
 
     <div class="col-lg-5">
-      <section class="proposal-panel mb-3">
-        <div class="proposal-panel__header">Contacts Included</div>
+      <details class="proposal-panel mb-3" open>
+        <summary class="proposal-panel__header">Step 3: Contacts Included <span class="proposal-summary-chip" data-role="summary-contacts"><%= includeContactIds.length %> selected</span></summary>
         <div class="proposal-panel__body">
           <% if (!builderContacts.length) { %>
             <div class="alert alert-secondary mb-0">No contacts linked to this function yet.</div>
@@ -194,8 +167,38 @@ const builderContacts = Array.isArray(contacts)
             </div>
           <% } %>
         </div>
-      </section>
+      </details>
 
+    </div>
+  </div>
+
+  <div class="proposal-builder-footer">
+    <div class="text-muted small">Step 4: Save and send to customer.</div>
+    <div class="btn-toolbar gap-2">
+      <% if (resolvedShowClientActions) { %>
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" <%= resolvedClientLink ? '' : 'disabled' %>>
+            <i class="bi bi-link-45deg me-1"></i> Client link
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+            <li>
+              <a class="dropdown-item" href="#" id="viewClientLinkBtn" data-link="<%= resolvedClientLink || '' %>">View client link</a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="#" id="copyClientLinkBtn" data-link="<%= resolvedClientLink || '' %>">Copy client link</a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="#" id="sendClientLinkBtn">Email client link</a>
+            </li>
+          </ul>
+        </div>
+      <% } %>
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-role="print-btn" <%= resolvedClientLink ? '' : 'disabled' %>>
+        <i class="bi bi-printer me-1"></i> Print
+      </button>
+      <button type="button" class="btn btn-success btn-sm" data-role="save-btn">
+        <i class="bi bi-save me-1"></i> Save
+      </button>
     </div>
   </div>
 

@@ -14,6 +14,8 @@
   var allNotes = typeof notes !== "undefined" ? notes : [];
   var menuSummary = typeof overviewMenus !== "undefined" ? overviewMenus : [];
   var financialTotals = typeof totals !== "undefined" ? totals : {};
+  var paymentHistory =
+    typeof payments !== "undefined" && Array.isArray(payments) ? payments : [];
   var proposalPreview = typeof proposalPreviewLink !== "undefined" ? proposalPreviewLink : null;
   var proposalAudit = typeof proposalAuditData !== "undefined" ? proposalAuditData : null;
   var communicationsFeed =
@@ -22,6 +24,9 @@
       : grouped
       ? Object.values(grouped).flat()
       : [];
+  var categoriesList = Array.isArray(categories) ? categories : [];
+  var menusList = Array.isArray(menus) ? menus : [];
+  var eventTypeList = Array.isArray(eventTypes) ? eventTypes : [];
 
   function nzDate(value) {
     if (!value) return "-";
@@ -78,172 +83,292 @@
 %>
 
 <div class="function-body function-overview py-4 px-4">
-  <div class="alert alert-secondary d-flex align-items-center gap-3 py-2 mb-3">
-    <div>
-      <div class="small text-muted text-uppercase">Function ID</div>
-      <code><%= fn.id_uuid %></code>
-    </div>
-  </div>
-  <% if (linkedEntertainment && linkedEntertainment.length) { %>
-    <div class="alert alert-info d-flex flex-column gap-1 py-2 mb-3">
-      <div class="small text-muted text-uppercase">Linked entertainment event</div>
-      <% linkedEntertainment.forEach(function(evt) { %>
-        <div>
-          <a href="/entertainment/<%= evt.slug || evt.id %>" class="text-decoration-none fw-semibold">
-            <%= evt.title %>
-          </a>
-          <% if (evt.start_at) { %>
-            <span class="text-muted small">· <%= new Date(evt.start_at).toLocaleDateString('en-NZ') %></span>
-          <% } %>
-        </div>
-      <% }) %>
-    </div>
-  <% } %>
-  <style>
-    .overview-snapshot { display: none !important; }
-  </style>
-  <% const canManage = user && ['admin','owner'].includes((user.role || '').toLowerCase()); %>
-  <div class="overview-toolbar d-flex flex-wrap align-items-center gap-2 mb-3 w-100">
-    <% if (canManage) { %>
-      <div class="overview-actions d-flex flex-wrap gap-2">
-        <button class="btn btn-outline-secondary btn-sm" data-action="archive-function">
-          <i class="bi bi-archive me-1"></i> Archive Function
-        </button>
-        <button class="btn btn-outline-danger btn-sm" data-action="delete-function">
-          <i class="bi bi-trash me-1"></i> Delete Function
-        </button>
-      </div>
-    <% } %>
-    <div class="ms-auto d-flex">
-      <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#runSheetModal">
-        <i class="bi bi-clipboard-check me-1"></i> Run sheet
-      </button>
-    </div>
-  </div>
-  <!-- Snapshot -->
-  <section class="overview-card overview-snapshot">
+
+  <%
+    const canManage = user && ['admin','owner'].includes((user.role || '').toLowerCase());
+    const allocations = Array.isArray(roomAllocations) ? roomAllocations : [];
+  %>
+
+  <!-- ── 1. BOOKING DETAIL ── -->
+  <section class="overview-card overview-detail mb-3">
     <div class="overview-card__header">
       <div>
-        <p class="overview-card__title mb-1">Function Snapshot</p>
-        <p class="overview-card__subtitle mb-0">Key details at a glance</p>
+        <p class="overview-card__title mb-0">Booking detail</p>
+        <p class="text-muted small mb-0">Quick booking summary</p>
       </div>
-      <div class="btn-group">
-        <a href="/functions/<%= fn.id_uuid %>/edit" class="btn btn-sm btn-outline-primary">Edit function</a>
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <a href="/functions/<%= fn.id_uuid %>/edit" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-pencil me-1"></i>Edit
+        </a>
+        <form method="POST" action="/functions/<%= fn.id_uuid %>/clone" class="d-inline" onsubmit="return confirm('Create a clone of this function?');">
+          <button type="submit" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-files me-1"></i>Clone
+          </button>
+        </form>
+        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#runSheetModal">
+          <i class="bi bi-clipboard-check me-1"></i>Run sheet
+        </button>
+        <% if (canManage) { %>
+          <button class="btn btn-sm btn-outline-secondary" data-action="archive-function">
+            <i class="bi bi-archive me-1"></i>Archive
+          </button>
+          <button class="btn btn-sm btn-outline-danger" data-action="delete-function">
+            <i class="bi bi-trash me-1"></i>Delete
+          </button>
+        <% } %>
       </div>
     </div>
-    <div class="snapshot-grid">
-      <div class="snapshot-row">
-        <div class="snapshot-label">Primary Contact</div>
-        <div class="snapshot-value">
-          <% if (primaryContact && primaryContact.name) { %>
-            <strong><%= primaryContact.name %></strong><br>
-            <span class="text-muted small"><%= primaryContact.email || 'no email' %> • <%= primaryContact.phone || 'no phone' %></span>
-          <% } else { %>
-            <span class="text-muted">Not assigned</span>
-          <% } %>
+
+    <div class="overview-detail-grid">
+      <div class="overview-detail-col">
+        <div class="overview-detail-row">
+          <span class="overview-detail-label">Status</span>
+          <span class="badge text-uppercase
+            <%= fn.status === 'confirmed' ? 'bg-success' : fn.status === 'cancelled' ? 'bg-danger' : 'bg-secondary' %>">
+            <%= fn.status || 'lead' %>
+          </span>
         </div>
-        <div class="snapshot-updated"><%= formatUpdated(fieldAudit.primary_contact) %></div>
-      </div>
-      <div class="snapshot-row">
-        <div class="snapshot-label">Additional Contacts</div>
-        <div class="snapshot-value">
-          <% if (secondaryContacts.length) { %>
-            <%= secondaryContacts.map(function (c) { return c.name; }).join(', ') %>
-          <% } else { %>
-            <span class="text-muted">None linked</span>
-          <% } %>
+        <div class="overview-detail-row">
+          <span class="overview-detail-label">Primary contact</span>
+          <span>
+            <% if (primaryContact && primaryContact.name) { %>
+              <strong><%= primaryContact.name %></strong>
+              <span class="text-muted small d-block"><%= primaryContact.email || '' %><% if (primaryContact.phone) { %> · <%= primaryContact.phone %><% } %></span>
+            <% } else { %>
+              <span class="text-muted">Not assigned</span>
+            <% } %>
+          </span>
         </div>
-        <div class="snapshot-updated"><%= formatUpdated(fieldAudit.contacts) %></div>
+        <% if (secondaryContacts.length) { %>
+          <div class="overview-detail-row">
+            <span class="overview-detail-label">Other contacts</span>
+            <span><%= secondaryContacts.map(function(c){ return c.name; }).join(', ') %></span>
+          </div>
+        <% } %>
+        <div class="overview-detail-row">
+          <span class="overview-detail-label">Event type</span>
+          <select class="form-select form-select-sm overview-inline-edit" data-field="event_type">
+            <option value="">Not set</option>
+            <% eventTypeList.forEach(function(t) { %>
+              <option value="<%= t.name %>" <%= fn.event_type === t.name ? 'selected' : '' %>><%= t.name %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="overview-detail-row">
+          <span class="overview-detail-label">Attendees</span>
+          <input type="number" min="0" class="form-control form-control-sm overview-inline-edit" data-field="attendees" value="<%= fn.attendees || 0 %>">
+        </div>
+        <div class="overview-detail-row">
+          <span class="overview-detail-label">Budget</span>
+          <input type="number" step="0.01" min="0" class="form-control form-control-sm overview-inline-edit" data-field="budget" value="<%= fn.budget || '' %>" placeholder="Not set">
+        </div>
+        <% if (fn.status === 'cancelled' && fn.cancelled_reason) { %>
+          <div class="overview-detail-row">
+            <span class="overview-detail-label">Cancellation reason</span>
+            <span class="text-danger"><%= fn.cancelled_reason %></span>
+          </div>
+        <% } %>
       </div>
-      <div class="snapshot-row">
-        <div class="snapshot-label">Attendees</div>
-        <div class="snapshot-value"><%= fn.attendees || 0 %></div>
-        <div class="snapshot-updated"><%= formatUpdated(fieldAudit.attendees) %></div>
-      </div>
-      <div class="snapshot-row">
-        <div class="snapshot-label">Event Date</div>
-        <div class="snapshot-value"><%= nzDateRange(fn.event_date, fn.end_date) %></div>
-        <div class="snapshot-updated"><%= formatUpdated(fieldAudit.event_date) %></div>
-      </div>
-      <div class="snapshot-row">
-        <div class="snapshot-label">Start Time</div>
-        <div class="snapshot-value"><%= nzTime(fn.start_time) %></div>
-        <div class="snapshot-updated"><%= formatUpdated(fieldAudit.start_time) %></div>
-      </div>
-      <div class="snapshot-row">
-        <div class="snapshot-label">End Time</div>
-        <div class="snapshot-value"><%= nzTime(fn.end_time) %></div>
-        <div class="snapshot-updated"><%= formatUpdated(fieldAudit.end_time) %></div>
-      </div>
-      <div class="snapshot-row">
-        <div class="snapshot-label">Room / Space</div>
-        <div class="snapshot-value"><%= fn.room_name || 'Unassigned' %></div>
-        <div class="snapshot-updated"><%= formatUpdated(fieldAudit.room_id) %></div>
-      </div>
-      <% const allocations = Array.isArray(roomAllocations) ? roomAllocations : []; %>
-      <div class="snapshot-row">
-        <div class="snapshot-label">Additional rooms</div>
-        <div class="snapshot-value">
-          <% if (!allocations.length) { %>
-            <span class="text-muted">None</span>
-          <% } else { %>
-            <div class="d-flex flex-column gap-1">
+
+      <div class="overview-detail-col">
+        <div class="overview-detail-row">
+          <span class="overview-detail-label">Date</span>
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <input type="date" class="form-control form-control-sm overview-inline-edit" data-field="event_date" value="<%= formatDateInput(fn.event_date) %>">
+            <span class="text-muted small">to</span>
+            <input type="date" class="form-control form-control-sm overview-inline-edit" data-field="end_date" value="<%= formatDateInput(fn.end_date) %>">
+          </div>
+        </div>
+        <div class="overview-detail-row">
+          <span class="overview-detail-label">Time</span>
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <input type="time" class="form-control form-control-sm overview-inline-edit" data-field="start_time" value="<%= fn.start_time ? String(fn.start_time).slice(0,5) : '' %>">
+            <span class="text-muted small">to</span>
+            <input type="time" class="form-control form-control-sm overview-inline-edit" data-field="end_time" value="<%= fn.end_time ? String(fn.end_time).slice(0,5) : '' %>">
+          </div>
+        </div>
+        <div class="overview-detail-row">
+          <span class="overview-detail-label">Room</span>
+          <select class="form-select form-select-sm overview-inline-edit" data-field="room_id">
+            <option value="">Unassigned</option>
+            <% (rooms || []).forEach(function(r) { %>
+              <option value="<%= r.id %>" <%= String(fn.room_id || '') === String(r.id) ? 'selected' : '' %>><%= r.name %></option>
+            <% }) %>
+          </select>
+        </div>
+        <% if (allocations.length) { %>
+          <div class="overview-detail-row">
+            <span class="overview-detail-label">Additional rooms</span>
+            <span>
               <% allocations.forEach(function(a) { %>
                 <div>
                   <strong><%= a.room_name %></strong>
                   <% if (a.start_at || a.end_at) { %>
-                    <span class="text-muted">
-                      · <%= a.start_at ? nzDate(a.start_at) + ' ' + nzTime(a.start_at) : 'Function start' %>
-                      → <%= a.end_at ? nzDate(a.end_at) + ' ' + nzTime(a.end_at) : 'Function end' %>
+                    <span class="text-muted small">
+                      · <%= a.start_at ? nzTime(a.start_at) : 'start' %> → <%= a.end_at ? nzTime(a.end_at) : 'end' %>
                     </span>
-                  <% } %>
-                  <% if (a.notes) { %>
-                    <div class="text-muted"><%= a.notes %></div>
                   <% } %>
                 </div>
               <% }) %>
+            </span>
+          </div>
+        <% } %>
+      </div>
+    </div>
+
+    <% if (linkedEntertainment && linkedEntertainment.length) { %>
+      <div class="alert alert-info d-flex flex-column gap-1 py-2 mt-3 mb-0">
+        <div class="small text-muted text-uppercase">Linked entertainment</div>
+        <% linkedEntertainment.forEach(function(evt) { %>
+          <div>
+            <a href="/entertainment/<%= evt.slug || evt.id %>" class="text-decoration-none fw-semibold"><%= evt.title %></a>
+            <% if (evt.start_at) { %><span class="text-muted small"> · <%= new Date(evt.start_at).toLocaleDateString('en-NZ') %></span><% } %>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
+
+  <!-- ── 2. NOTES & CALLS ── -->
+  <section class="overview-card overview-notes mb-3">
+    <div class="overview-card__header">
+      <p class="overview-card__title mb-0">Notes &amp; calls</p>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" data-action="add-note" data-function="<%= fn.id_uuid %>">Add note</button>
+        <button class="btn btn-sm btn-outline-secondary" data-action="log-call" data-function="<%= fn.id_uuid %>">Log call</button>
+      </div>
+    </div>
+    <div class="notes-list">
+      <% if (!notesList.length) { %>
+        <div class="empty-state">No notes logged yet.</div>
+      <% } else { %>
+        <% notesList.forEach(function (note) { %>
+          <article class="note-card" data-note-id="<%= note.id %>">
+            <div class="note-card__head">
+              <div>
+                <span class="note-card__type">
+                  <i class="bi <%= note.type === 'call' ? 'bi-telephone' : 'bi-journal-text' %> me-1"></i>
+                  <%= note.title || note.note_type || 'Untitled' %>
+                </span>
+                <% if (note.contact_name) { %>
+                  <span class="badge bg-light text-dark ms-2"><%= note.contact_name %></span>
+                <% } %>
+              </div>
+              <a href="/functions/<%= fn.id_uuid %>/notes?focus=<%= note.id %>#note-<%= note.id %>" class="btn btn-link btn-sm p-0">Open</a>
             </div>
-          <% } %>
-        </div>
-        <div class="snapshot-updated">-</div>
-      </div>
-      <div class="snapshot-row">
-        <div class="snapshot-label">Status</div>
-        <div class="snapshot-value"><span class="badge bg-light text-dark text-uppercase tracking-wide"><%= fn.status || 'lead' %></span></div>
-        <div class="snapshot-updated"><%= formatUpdated(fieldAudit.status) %></div>
-      </div>
-      <% if (fn.status === 'cancelled' && fn.cancelled_reason) { %>
-        <div class="snapshot-row">
-          <div class="snapshot-label">Cancellation reason</div>
-          <div class="snapshot-value"><%= fn.cancelled_reason %></div>
-          <div class="snapshot-updated"><%= formatUpdated(fieldAudit.cancelled_reason) %></div>
-        </div>
+            <p class="note-card__preview mb-2"><%= (note.preview || note.content || '').substring(0, 140) %><%= (note.preview || note.content || '').length > 140 ? '…' : '' %></p>
+            <div class="note-card__meta">
+              <span>Updated <%= nzDate(note.updated_at || note.created_at) %></span>
+            </div>
+          </article>
+        <% }) %>
       <% } %>
     </div>
   </section>
 
-  <!-- Financial summary -->
-  <section class="overview-card overview-financial">
+  <!-- ── 3. ROOM HIRE ── -->
+  <section class="overview-card overview-room-charges mb-3">
     <div class="overview-card__header">
       <div>
-        <p class="overview-card__title mb-1">Financial Summary</p>
-        <p class="overview-card__subtitle mb-1">Totals reflected from the live quote</p>
+        <p class="overview-card__title mb-0">Room hire</p>
+        <% const roomSummary = typeof roomChargeSummary !== 'undefined' ? roomChargeSummary : { has_items: false, all_matched: false, mismatch_count: 0, items: [], booked_room_name: fn.room_name || '' }; %>
+        <span class="text-muted small"><%= roomSummary.booked_room_name || 'Unassigned' %>
+          <% if (roomSummary.has_items && roomSummary.all_matched) { %>
+            · <span class="text-success">matched</span>
+          <% } else if (roomSummary.has_items && !roomSummary.all_matched) { %>
+            · <span class="text-warning"><%= roomSummary.mismatch_count %> mismatch</span>
+          <% } %>
+        </span>
+      </div>
+      <a href="/functions/<%= fn.id_uuid %>/quote" class="btn btn-sm btn-outline-primary">Open quote</a>
+    </div>
+    <% if (!roomSummary.has_items) { %>
+      <div class="empty-state">No room charge lines added to the quote yet.</div>
+    <% } else { %>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Room charge</th>
+              <th>Quote room</th>
+              <th class="text-end">Qty</th>
+              <th class="text-end">Unit</th>
+              <th class="text-end">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% roomSummary.items.forEach(function(item) { %>
+              <tr>
+                <td><%= item.label %></td>
+                <td>
+                  <%= item.room_name || 'Not tagged' %>
+                  <% if (!item.room_match) { %><span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-1">check</span><% } %>
+                </td>
+                <td class="text-end"><%= item.qty %></td>
+                <td class="text-end">$<%= Number(item.unit_price || 0).toFixed(2) %></td>
+                <td class="text-end">$<%= Number(item.total || 0).toFixed(2) %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+
+  <!-- ── 4. MENUS ── -->
+  <section class="overview-card overview-menus mb-3">
+    <div class="overview-card__header">
+      <p class="overview-card__title mb-0">Menus</p>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#overviewQuickItemModal">Quick add item</button>
+        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#overviewQuickMenuModal">Add saved menu</button>
+        <a href="/functions/<%= fn.id_uuid %>/quote" class="btn btn-sm btn-outline-primary">Open quote</a>
+      </div>
+    </div>
+    <div class="menu-list">
+      <% if (!menuSummary.length) { %>
+        <div class="empty-state">No menus attached to this quote.</div>
+      <% } else { %>
+        <% menuSummary.forEach(function (menu) { %>
+          <article class="menu-row" data-menu-id="<%= menu.id || '' %>" data-is-menu="<%= menu.is_menu ? 'true' : 'false' %>" data-menu-items='<%- JSON.stringify(menu.items || []) %>'>
+            <div class="menu-row__body">
+              <div>
+                <p class="menu-row__title mb-0"><%= menu.name || ('Menu ' + menu.id) %></p>
+                <p class="menu-row__meta text-muted small mb-0">
+                  <%= menu.category || 'Catering' %>
+                  <% if (menu.qty) { %> &bull; <%= menu.qty %> <%= menu.unit || 'each' %><% } %>
+                </p>
+              </div>
+              <div class="text-end">
+                <div class="fw-semibold">$<%= Number(menu.total_price || 0).toFixed(2) %></div>
+                <small class="text-muted">Cost $<%= Number(menu.total_cost || 0).toFixed(2) %></small>
+              </div>
+            </div>
+            <div class="menu-row__actions">
+              <button class="btn btn-sm btn-outline-secondary" data-action="view-menu" data-menu-id="<%= menu.id || '' %>">View items</button>
+              <% if (menu.is_menu && menu.id) { %>
+                <button class="btn btn-sm btn-outline-primary" data-action="edit-menu" data-menu-id="<%= menu.id %>">Edit in quote</button>
+              <% } else { %>
+                <a href="/functions/<%= fn.id_uuid %>/quote" class="btn btn-sm btn-outline-primary">Open quote</a>
+              <% } %>
+            </div>
+          </article>
+        <% }) %>
+      <% } %>
+    </div>
+  </section>
+
+  <!-- ── 5. FINANCIAL SUMMARY ── -->
+  <section class="overview-card overview-financial mb-3">
+    <div class="overview-card__header">
+      <div>
+        <p class="overview-card__title mb-0">Financial summary</p>
         <% if (proposalAudit) { %>
-          <p class="text-muted small mb-0">
-            Proposal status:
-            <span class="badge bg-light text-dark text-uppercase"><%= proposalAudit.status %></span>
-            · <%= formatUpdated(proposalAudit) %>
-          </p>
-          <p class="text-muted small mb-0">Update this inside the proposal builder on the quote page.</p>
-        <% } %>
-        <% if (totals && totals.audit) { %>
-          <p class="text-muted small mb-0">Updated <%= formatUpdated(totals.audit) %></p>
-        <% } %>
-        <% if (proposalAudit && proposalAudit.created_at) { %>
-          <p class="text-muted small mb-0">Created <%= formatCreated(proposalAudit) %></p>
+          <span class="text-muted small">Proposal: <span class="badge bg-light text-dark text-uppercase"><%= proposalAudit.status %></span></span>
         <% } %>
       </div>
-      <div class="btn-group">
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-primary <%= proposalId ? '' : 'disabled' %>" data-bs-toggle="modal" data-bs-target="#quickPaymentModal" <%= proposalId ? '' : 'disabled' %>>Record payment</button>
         <a href="/functions/<%= fn.id_uuid %>/quote#totals" class="btn btn-sm btn-outline-secondary">Adjust in quote</a>
         <% if (proposalPreview) { %>
           <a href="<%= proposalPreview %>" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">View proposal</a>
@@ -272,125 +397,22 @@
         <strong>$<%= Number(financialTotals.deposit_amount || 0).toFixed(2) %></strong>
       </div>
       <div class="financial-item">
-        <span>Total Paid</span>
+        <span>Total paid</span>
         <strong>$<%= Number(financialTotals.total_paid || 0).toFixed(2) %></strong>
       </div>
-      <div class="financial-item">
-        <span>Remaining Due</span>
-        <strong class="text-danger">$<%= Number(financialTotals.remaining_due || 0).toFixed(2) %></strong>
+      <div class="financial-item financial-item--total">
+        <span>Remaining due</span>
+        <strong class="<%= Number(financialTotals.remaining_due || 0) > 0 ? 'text-danger' : 'text-success' %>">
+          $<%= Number(financialTotals.remaining_due || 0).toFixed(2) %>
+        </strong>
       </div>
-    </div>
-  </section>
-  <!-- Notes & Calls -->
-  <section class="overview-card overview-notes">
-    <div class="overview-card__header">
-      <div>
-        <p class="overview-card__title mb-1">Notes &amp; Calls</p>
-        <p class="overview-card__subtitle mb-0">Operational detail and logged conversations</p>
-      </div>
-      <div class="btn-group gap-2">
-        <button class="btn btn-sm btn-outline-secondary" data-action="add-note" data-function="<%= fn.id_uuid %>">Add note</button>
-        <button class="btn btn-sm btn-outline-primary" data-action="log-call" data-function="<%= fn.id_uuid %>">Log call</button>
-      </div>
-    </div>
-    <div class="notes-list">
-      <% if (!notesList.length) { %>
-        <div class="empty-state">No notes logged yet.</div>
-      <% } else { %>
-        <% notesList.forEach(function (note) { %>
-          <article class="note-card" data-note-id="<%= note.id %>">
-            <div class="note-card__head">
-              <div>
-                <span class="note-card__type">
-                  <i class="bi <%= note.type === 'call' ? 'bi-telephone' : 'bi-journal-text' %> me-1"></i>
-                  <%= note.title || note.note_type || 'Untitled' %>
-                </span>
-                <% if (note.contact_name) { %>
-                  <span class="badge bg-light text-dark ms-2"><%= note.contact_name %></span>
-                <% } %>
-              </div>
-              <a href="/functions/<%= fn.id_uuid %>/notes?focus=<%= note.id %>#note-<%= note.id %>" class="btn btn-link btn-sm p-0">Open</a>
-            </div>
-              <p class="note-card__preview mb-2"><%= (note.preview || note.content || '').substring(0, 140) %><%= (note.preview || note.content || '').length > 140 ? '…' : '' %></p>
-            <div class="note-card__meta">
-              <% const updatedLabel = note.updated_by_name || note.updated_by_initials || ''; %>
-              <span>Updated <%= nzDate(note.updated_at || note.created_at) %> <%= updatedLabel %></span>
-            </div>
-          </article>
-        <% }) %>
-      <% } %>
-    </div>
-  </section>
-  <!-- Menu Overview -->
-  <section class="overview-card overview-menus">
-    <div class="overview-card__header">
-      <div>
-        <p class="overview-card__title mb-1">Menus &amp; Choices</p>
-        <p class="overview-card__subtitle mb-0">Items currently priced on the quote</p>
-      </div>
-      <a href="/functions/<%= fn.id_uuid %>/quote" class="btn btn-sm btn-outline-primary">Open quote</a>
-    </div>
-    <div class="menu-list">
-      <% if (!menuSummary.length) { %>
-        <div class="empty-state">No menus attached to this quote.</div>
-      <% } else { %>
-        <% menuSummary.forEach(function (menu) { %>
-          <article class="menu-row" data-menu-id="<%= menu.id %>" data-menu-items='<%- JSON.stringify(menu.items || []) %>'>
-            <div class="menu-row__body">
-              <div>
-                <p class="menu-row__title mb-1"><%= menu.name %></p>
-                <p class="menu-row__meta mb-0 text-muted"><%= menu.category || 'Uncategorised' %> &bull; Qty <%= menu.qty || 0 %> &bull; <%= menu.unit || 'each' %></p>
-              </div>
-              <div class="menu-row__totals text-end">
-                <div class="fw-semibold">$<%= Number(menu.total_price || 0).toFixed(2) %></div>
-                <small class="text-muted">Cost $<%= Number(menu.total_cost || 0).toFixed(2) %></small>
-              </div>
-            </div>
-            <div class="menu-row__actions">
-              <div class="text-muted small d-flex flex-column menu-row__audit">
-                <% if (menu.audit && menu.audit.created_at) { %>
-                  <span>Created <%= formatCreated(menu.audit) %></span>
-                <% } %>
-                <% if (menu.audit && menu.audit.updated_at) { %>
-                  <span>Updated <%= formatUpdated(menu.audit) %></span>
-                <% } %>
-              </div>
-              <div class="btn-group gap-2">
-                <button class="btn btn-sm btn-outline-secondary" data-action="view-menu" data-menu-id="<%= menu.id %>">View items</button>
-                <button class="btn btn-sm btn-outline-primary" data-action="edit-menu" data-menu-id="<%= menu.id %>" title="Opens the quote builder for this menu">Edit in quote</button>
-              </div>
-            </div>
-          </article>
-        <% }) %>
-      <% } %>
     </div>
   </section>
 
-  <!-- Menu Items Modal -->
-  <div class="modal fade" id="menuItemsModal" tabindex="-1" aria-labelledby="menuItemsModalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="menuItemsModalTitle">Menu items</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body" id="menuItemsModalBody">
-          <p class="text-muted mb-0">No items recorded for this menu.</p>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Feedback -->
-  <section class="overview-card overview-feedback">
+  <!-- ── 6. FEEDBACK ── -->
+  <section class="overview-card overview-feedback mb-3">
     <div class="overview-card__header">
-      <div>
-        <p class="overview-card__title mb-1">Recent Feedback</p>
-        <p class="overview-card__subtitle mb-0">Latest survey responses for this function</p>
-      </div>
+      <p class="overview-card__title mb-0">Feedback</p>
       <a href="/settings/feedback" class="btn btn-sm btn-outline-secondary">View surveys</a>
     </div>
     <div class="feedback-feed">
@@ -432,13 +454,10 @@
     </div>
   </section>
 
-  <!-- Communications -->
-  <section class="overview-card overview-communications">
+  <!-- ── 7. COMMUNICATIONS ── -->
+  <section class="overview-card overview-communications mb-3">
     <div class="overview-card__header">
-      <div>
-        <p class="overview-card__title mb-1">Recent Communications</p>
-        <p class="overview-card__subtitle mb-0">Emails, proposals, and surveys</p>
-      </div>
+      <p class="overview-card__title mb-0">Recent communications</p>
       <a href="/functions/<%= fn.id_uuid %>/communications" class="btn btn-sm btn-outline-secondary">View all</a>
     </div>
     <div class="comms-feed">
@@ -470,6 +489,25 @@
 </div>
 
 <!-- Run Sheet Modal -->
+
+<!-- Menu Items Modal -->
+<div class="modal fade" id="menuItemsModal" tabindex="-1" aria-labelledby="menuItemsModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="menuItemsModalTitle">Menu items</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="menuItemsModalBody">
+        <p class="text-muted mb-0">No items recorded for this menu.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal fade" id="runSheetModal" tabindex="-1" aria-labelledby="runSheetModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
@@ -567,12 +605,172 @@
           </div>
           <div class="mb-0">
             <label for="quickNoteContent" class="form-label">Details</label>
-            <textarea id="quickNoteContent" class="form-control" rows="4" placeholder="Add note details"></textarea>
+            <div id="quickNoteEditor" class="bg-white border rounded"></div>
+            <textarea id="quickNoteContent" class="form-control d-none" rows="4" placeholder="Add note details"></textarea>
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
           <button type="submit" class="btn btn-primary">Save note</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Quick Payment Modal -->
+<div class="modal fade" id="quickPaymentModal" tabindex="-1" aria-labelledby="quickPaymentModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form id="quickPaymentForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="quickPaymentModalLabel">Record payment</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Recent payments</label>
+            <% const recentPayments = Array.isArray(paymentHistory) ? paymentHistory.slice(0, 5) : []; %>
+            <% if (!recentPayments.length) { %>
+              <div class="text-muted small border rounded p-2">No payments recorded yet.</div>
+            <% } else { %>
+              <div class="border rounded p-2">
+                <% recentPayments.forEach((payment) => { %>
+                  <div class="d-flex justify-content-between align-items-start small <%= payment === recentPayments[recentPayments.length - 1] ? '' : 'mb-2 border-bottom pb-2' %>">
+                    <div>
+                      <div class="fw-semibold"><%= payment.payment_type || 'Payment' %></div>
+                      <div class="text-muted"><%= payment.paid_on ? new Date(payment.paid_on).toLocaleDateString('en-NZ') : '-' %> · <%= payment.method || 'other' %></div>
+                    </div>
+                    <div class="fw-semibold">$<%= Number(payment.amount || 0).toFixed(2) %></div>
+                  </div>
+                <% }) %>
+              </div>
+            <% } %>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Payment description</label>
+            <input type="text" name="payment_type" class="form-control" placeholder="e.g. Deposit" required>
+          </div>
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label">Date paid</label>
+              <input type="date" name="paid_on" class="form-control" value="<%= new Date().toISOString().slice(0,10) %>" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Amount ($)</label>
+              <input type="number" step="0.01" min="0" name="amount" class="form-control" required>
+            </div>
+          </div>
+          <div class="mt-3">
+            <label class="form-label">Payment method</label>
+            <select name="method" class="form-select">
+              <option value="online">Online</option>
+              <option value="till">Till</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save payment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Quick Add Item Modal -->
+<div class="modal fade" id="overviewQuickItemModal" tabindex="-1" aria-labelledby="overviewQuickItemModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form id="overviewQuickItemForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="overviewQuickItemModalLabel">Quick add quote item</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Category</label>
+            <select class="form-select" name="category" id="overviewQuickItemCategory" required>
+              <option value="">Select category...</option>
+              <option value="Room">Room charge</option>
+              <option value="Food">Food</option>
+              <option value="Drinks">Drinks</option>
+              <option value="Extras">Extras</option>
+              <option value="Service">Service charge</option>
+            </select>
+          </div>
+          <div class="mb-3 d-none" id="overviewQuickItemRoomWrap">
+            <label class="form-label">Room for this charge</label>
+            <select class="form-select" name="room_id">
+              <option value="">Use booked room</option>
+              <% (rooms || []).forEach(function(room) { %>
+                <option value="<%= room.id %>"><%= room.name %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Item name</label>
+            <input class="form-control" name="name" placeholder="e.g. Room setup" required>
+          </div>
+          <div class="row g-2">
+            <div class="col-4">
+              <label class="form-label">Qty</label>
+              <input type="number" class="form-control" name="qty" min="1" step="1" value="1" required>
+            </div>
+            <div class="col-4">
+              <label class="form-label">Unit price</label>
+              <input type="number" class="form-control" name="unit_price" min="0" step="0.01" required>
+            </div>
+            <div class="col-4">
+              <label class="form-label">Cost each</label>
+              <input type="number" class="form-control" name="cost_each" min="0" step="0.01">
+            </div>
+          </div>
+          <div class="form-check mt-3">
+            <input class="form-check-input" type="checkbox" value="true" id="overviewQuickItemSelectable" name="client_selectable">
+            <label class="form-check-label" for="overviewQuickItemSelectable">Client can select this item</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add item</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Quick Add Menu Modal -->
+<div class="modal fade" id="overviewQuickMenuModal" tabindex="-1" aria-labelledby="overviewQuickMenuModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form id="overviewQuickMenuForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="overviewQuickMenuModalLabel">Add saved menu</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Category</label>
+            <select class="form-select" id="overviewMenuCategorySelect">
+              <option value="">Select category...</option>
+              <% categoriesList.forEach(function(c) { %>
+                <option value="<%= c.id %>"><%= c.name %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="mb-0">
+            <label class="form-label">Menu</label>
+            <select class="form-select" id="overviewMenuSelect" name="menu_id" required disabled>
+              <option value="">Select menu...</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="overviewAddMenuSubmit" disabled>Add menu</button>
         </div>
       </form>
     </div>
@@ -587,17 +785,89 @@
   eventTypes: eventTypes || []
 }) %>
 
+<link rel="stylesheet" href="/vendor/quill/quill.snow.css">
+<script src="/vendor/quill/quill.min.js"></script>
+
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     var fnId = "<%= fn.id_uuid %>";
+    var proposalId = "<%= proposalId || '' %>";
+    var menusData = <%- JSON.stringify(menusList || []) %>;
     var modalEl = document.getElementById('quickNoteModal');
     var modalForm = document.getElementById('quickNoteModalForm');
     var typeField = document.getElementById('quickNoteType');
     var contentField = document.getElementById('quickNoteContent');
+    var quickNoteEditorEl = document.getElementById('quickNoteEditor');
     var modalTitle = modalEl ? modalEl.querySelector('.quick-note-title') : null;
     var modal = modalEl && window.bootstrap && window.bootstrap.Modal
       ? new window.bootstrap.Modal(modalEl)
       : null;
+
+    var quickPaymentModalEl = document.getElementById('quickPaymentModal');
+    var quickPaymentForm = document.getElementById('quickPaymentForm');
+    var quickPaymentModal = quickPaymentModalEl && window.bootstrap && window.bootstrap.Modal
+      ? new window.bootstrap.Modal(quickPaymentModalEl)
+      : null;
+
+    var quickItemForm = document.getElementById('overviewQuickItemForm');
+    var quickItemCategory = document.getElementById('overviewQuickItemCategory');
+    var quickItemRoomWrap = document.getElementById('overviewQuickItemRoomWrap');
+    var quickMenuForm = document.getElementById('overviewQuickMenuForm');
+    var menuCategorySelect = document.getElementById('overviewMenuCategorySelect');
+    var menuSelect = document.getElementById('overviewMenuSelect');
+    var addMenuSubmit = document.getElementById('overviewAddMenuSubmit');
+
+    async function updateOverviewField(el) {
+      const field = el.dataset.field;
+      if (!field) return;
+      const value = el.value == null ? '' : String(el.value).trim();
+      if ((el.dataset.lastValue ?? '') === value) return;
+      const previous = el.dataset.lastValue ?? '';
+      el.dataset.lastValue = value;
+      try {
+        const res = await fetch(`/functions/${fnId}/update-field`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ field, value }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to save field');
+      } catch (err) {
+        console.error(err);
+        el.dataset.lastValue = previous;
+        alert(err.message || 'Failed to save field');
+      }
+    }
+
+    document.querySelectorAll('.overview-inline-edit').forEach(function(el) {
+      el.dataset.lastValue = String(el.value ?? '').trim();
+      const eventName = (el.tagName === 'SELECT' || el.type === 'date' || el.type === 'time' || el.type === 'number') ? 'change' : 'blur';
+      el.addEventListener(eventName, function() { updateOverviewField(el); });
+      if (eventName !== 'blur') {
+        el.addEventListener('blur', function() { updateOverviewField(el); });
+      }
+    });
+
+    var quickNoteQuill = null;
+    function ensureQuickNoteQuill() {
+      if (quickNoteQuill) return quickNoteQuill;
+      if (!quickNoteEditorEl || !window.Quill) return null;
+      quickNoteQuill = new window.Quill('#quickNoteEditor', {
+        theme: 'snow',
+        modules: {
+          toolbar: [
+            ['bold', 'italic', 'underline'],
+            [{ list: 'ordered' }, { list: 'bullet' }],
+            ['link'],
+            ['clean']
+          ]
+        }
+      });
+      if (quickNoteQuill && quickNoteQuill.root) {
+        quickNoteQuill.root.style.minHeight = '130px';
+      }
+      return quickNoteQuill;
+    }
 
     function openQuickModal(type) {
       if (!modalEl) {
@@ -610,7 +880,10 @@
       if (modalTitle) {
         modalTitle.textContent = type === 'call' ? 'Log call' : 'Add note';
       }
-      if (contentField) {
+      var noteEditor = ensureQuickNoteQuill();
+      if (noteEditor) {
+        noteEditor.setText('');
+      } else if (contentField) {
         contentField.value = "";
       }
       if (modal) {
@@ -632,7 +905,11 @@
 
     if (modalForm) modalForm.addEventListener('submit', async function (event) {
       event.preventDefault();
-      const content = contentField ? contentField.value.trim() : '';
+      const noteEditor = ensureQuickNoteQuill();
+      const renderedHtml = noteEditor ? noteEditor.root.innerHTML.trim() : '';
+      const content = noteEditor
+        ? noteEditor.getText().trim()
+        : (contentField ? contentField.value.trim() : '');
       const note_type = typeField ? typeField.value : 'proposal';
       if (!content) {
         alert('Please enter note details.');
@@ -642,7 +919,11 @@
         const res = await fetch(`/functions/${fnId}/notes/new`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content, note_type }),
+          body: JSON.stringify({
+            content,
+            rendered_html: renderedHtml || null,
+            note_type,
+          }),
         });
         const data = await res.json();
         if (!data.success) {
@@ -655,6 +936,110 @@
         alert(err.message || 'Failed to save note');
       }
     });
+
+    if (quickPaymentForm) {
+      quickPaymentForm.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        if (!proposalId) {
+          alert('No active proposal found. Open quote to create one first.');
+          if (quickPaymentModal) quickPaymentModal.hide();
+          return;
+        }
+        const formData = new FormData(quickPaymentForm);
+        const payload = Object.fromEntries(formData.entries());
+        try {
+          const res = await fetch(`/functions/${proposalId}/payments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (!data.success) {
+            throw new Error(data.error || 'Unable to save payment');
+          }
+          if (quickPaymentModal) quickPaymentModal.hide();
+          window.location.reload();
+        } catch (err) {
+          console.error(err);
+          alert(err.message || 'Failed to save payment');
+        }
+      });
+    }
+
+    if (quickItemCategory && quickItemRoomWrap) {
+      const syncQuickItemRoom = function() {
+        const isRoom = String(quickItemCategory.value || '').toLowerCase() === 'room' || String(quickItemCategory.value || '').toLowerCase() === 'room charge';
+        quickItemRoomWrap.classList.toggle('d-none', !isRoom);
+      };
+      quickItemCategory.addEventListener('change', syncQuickItemRoom);
+      syncQuickItemRoom();
+    }
+
+    if (quickItemForm) {
+      quickItemForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const payload = Object.fromEntries(new FormData(quickItemForm).entries());
+        try {
+          const res = await fetch(`/functions/${fnId}/quote/add-item`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || 'Failed to add item');
+          window.location.reload();
+        } catch (err) {
+          console.error(err);
+          alert(err.message || 'Failed to add item');
+        }
+      });
+    }
+
+    function populateMenusByCategory() {
+      if (!menuCategorySelect || !menuSelect) return;
+      const categoryId = Number(menuCategorySelect.value);
+      menuSelect.innerHTML = '<option value="">Select menu...</option>';
+      if (!categoryId) {
+        menuSelect.disabled = true;
+        if (addMenuSubmit) addMenuSubmit.disabled = true;
+        return;
+      }
+      const filtered = menusData.filter(function(m) { return Number(m.category_id) === categoryId; });
+      filtered.forEach(function(m) {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = m.name + (m.description ? (' - ' + m.description) : '');
+        menuSelect.appendChild(opt);
+      });
+      menuSelect.disabled = filtered.length === 0;
+      if (addMenuSubmit) addMenuSubmit.disabled = filtered.length === 0;
+    }
+
+    menuCategorySelect?.addEventListener('change', populateMenusByCategory);
+    menuSelect?.addEventListener('change', function() {
+      if (addMenuSubmit) addMenuSubmit.disabled = !menuSelect.value;
+    });
+
+    if (quickMenuForm) {
+      quickMenuForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const menuId = menuSelect ? menuSelect.value : '';
+        if (!menuId) return;
+        try {
+          const res = await fetch(`/functions/${fnId}/quote/add-menu`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ menu_id: menuId }),
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || 'Failed to add menu');
+          window.location.reload();
+        } catch (err) {
+          console.error(err);
+          alert(err.message || 'Failed to add menu');
+        }
+      });
+    }
 
     var runSheetForm = document.getElementById('runSheetForm');
     var runSheetPreviewBtn = document.getElementById('runSheetPreviewBtn');

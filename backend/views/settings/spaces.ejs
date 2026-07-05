@@ -25,15 +25,26 @@
     <div class="list-group shadow-sm">
       <% rooms.forEach(room => { %>
         <div class="list-group-item d-flex justify-content-between align-items-center">
-          <div>
+          <div class="d-flex align-items-center gap-3">
+            <span
+              class="rounded-circle border flex-shrink-0"
+              style="width:18px;height:18px;background:<%= room.color_code || '#6BB4DE' %>;border-color:rgba(15,23,42,0.12)!important;"
+              aria-hidden="true"
+            ></span>
+            <div>
             <strong><%= room.name %></strong>
             <small class="text-muted ms-2">Capacity: <%= room.capacity || 'N/A' %></small>
+            <% if (room.color_code) { %>
+              <small class="text-muted ms-2">Colour: <%= room.color_code %></small>
+            <% } %>
+            </div>
           </div>
           <div>
             <button class="btn btn-sm btn-outline-secondary"
                     data-id="<%= room.id %>"
                     data-name="<%= room.name %>"
                     data-capacity="<%= room.capacity %>"
+                    data-color-code="<%= room.color_code || '#6BB4DE' %>"
                     data-bs-toggle="modal"
                     data-bs-target="#settingsRoomEditModal">
               Edit
@@ -89,6 +100,20 @@
               placeholder="Capacity"
             />
           </div>
+          <div class="mb-3">
+            <label for="settingsNewRoomColor" class="form-label">Calendar colour</label>
+            <div class="d-flex align-items-center gap-2">
+              <input
+                type="color"
+                id="settingsNewRoomColor"
+                name="color_code"
+                class="form-control form-control-color"
+                value="#6BB4DE"
+                title="Choose room colour"
+              />
+              <small class="text-muted">Used for room hire colouring in the calendar.</small>
+            </div>
+          </div>
         </div>
 
         <div class="modal-footer">
@@ -135,6 +160,20 @@
               placeholder="Capacity"
             />
           </div>
+          <div class="mb-3">
+            <label for="editRoomColor" class="form-label">Calendar colour</label>
+            <div class="d-flex align-items-center gap-2">
+              <input
+                type="color"
+                id="editRoomColor"
+                name="color_code"
+                class="form-control form-control-color"
+                value="#6BB4DE"
+                title="Choose room colour"
+              />
+              <small class="text-muted">Used for room hire colouring in the calendar.</small>
+            </div>
+          </div>
         </div>
 
         <div class="modal-footer">
@@ -159,10 +198,12 @@
       const id = button.getAttribute("data-id");
       const name = button.getAttribute("data-name");
       const capacity = button.getAttribute("data-capacity");
+      const colorCode = button.getAttribute("data-color-code") || "#6BB4DE";
 
       editModal.querySelector("#editRoomId").value = id;
       editModal.querySelector("#editRoomName").value = name;
       editModal.querySelector("#editRoomCapacity").value = capacity;
+      editModal.querySelector("#editRoomColor").value = colorCode;
     });
   });
 </script>

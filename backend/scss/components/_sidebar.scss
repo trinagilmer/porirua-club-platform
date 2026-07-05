@@ -46,9 +46,6 @@ $sidebar-text: #556173;
     padding: 1.25rem 1.25rem 1rem 0.2rem;
     margin-right: -8px; // pushes scrollbar to edge
 
-    scrollbar-width: thin;
-    scrollbar-color: $sidebar-scrollbar transparent;
-
     &::-webkit-scrollbar {
       width: 8px;
     }

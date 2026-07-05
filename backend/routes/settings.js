@@ -38,6 +38,8 @@ const {
   getFunctionSettings,
   updateFunctionSettings,
 } = require("../services/functionSettings");
+const { backfillTemplateHtmlFallback } = require("../services/templateFallback");
+const { sanitizeRichHtml } = require("../services/htmlSanitizer");
 
 const CALENDAR_SLOT_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
 const DEFAULT_CALENDAR_SLOT = 30;
@@ -336,6 +338,12 @@ function normalizeUuid(value) {
 async function ensureEntertainmentColorColumn() {
   await pool.query(
     "ALTER TABLE entertainment_events ADD COLUMN IF NOT EXISTS event_color TEXT;"
+  );
+}
+
+async function ensureRoomColorCodeColumn() {
+  await pool.query(
+    "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS color_code TEXT;"
   );
 }
 
@@ -778,6 +786,20 @@ router.get("/feedback/activity", ensurePrivileged, async (req, res) => {
       acc[row.status] = row.count;
       return acc;
     }, {});
+
+    const messageConditions = [];
+    const messageParams = [];
+    if (from) {
+      messageParams.push(from);
+      messageConditions.push(`COALESCE(m.received_at, m.created_at) >= $${messageParams.length}`);
+    }
+    if (to) {
+      messageParams.push(to);
+      messageConditions.push(`COALESCE(m.received_at, m.created_at) <= $${messageParams.length}`);
+    }
+    const messageWhereClause = messageConditions.length ? `WHERE ${messageConditions.join(" AND ")}` : "";
+    const messageReplyWhereClause = `${messageWhereClause ? `${messageWhereClause} AND` : "WHERE"} m.message_type = 'inbound'
+      AND (m.related_contact IS NOT NULL OR m.related_function IS NOT NULL)`;
     const conditions = [];
     const params = [];
     if (type) {
@@ -805,6 +827,53 @@ router.get("/feedback/activity", ensurePrivileged, async (req, res) => {
       conditions.push(`COALESCE(r.completed_at, r.sent_at, r.created_at) <= $${params.length}`);
     }
     const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const surveyConditions = [];
+    const surveyParams = [];
+    if (from) {
+      surveyParams.push(from);
+      surveyConditions.push(`COALESCE(r.sent_at, r.created_at) >= $${surveyParams.length}`);
+    }
+    if (to) {
+      surveyParams.push(to);
+      surveyConditions.push(`COALESCE(r.sent_at, r.created_at) <= $${surveyParams.length}`);
+    }
+    const surveyWhereClause = surveyConditions.length ? `WHERE ${surveyConditions.join(" AND ")}` : "";
+
+    const [messageStatsRows, recentReplyRows] = await Promise.all([
+      pool.query(
+        `
+        SELECT
+          COUNT(*) FILTER (WHERE r.sent_at IS NOT NULL)::int AS survey_sent_count,
+          COUNT(*) FILTER (WHERE r.status = 'completed')::int AS completed_count,
+          COUNT(*) FILTER (WHERE r.status = 'completed' AND r.completed_at IS NOT NULL)::int AS completed_with_timestamp_count
+        FROM feedback_responses r
+        ${surveyWhereClause};
+        `,
+        surveyParams
+      ),
+      pool.query(
+        `
+        SELECT
+          m.id,
+          m.subject,
+          m.from_email,
+          COALESCE(m.received_at, m.created_at) AS received_at,
+          m.related_contact,
+          m.related_function,
+          c.name AS contact_name,
+          f.event_name AS function_name
+        FROM messages m
+        LEFT JOIN contacts c ON m.related_contact = c.id
+        LEFT JOIN functions f ON m.related_function = f.id_uuid
+        ${messageReplyWhereClause}
+        ORDER BY COALESCE(m.received_at, m.created_at) DESC
+        LIMIT 8;
+        `,
+        messageParams
+      ),
+    ]);
+
+    const messageStats = messageStatsRows.rows[0] || {};
     const { rows: responses } = await pool.query(
       `
       SELECT r.*,
@@ -978,6 +1047,16 @@ router.get("/feedback/activity", ensurePrivileged, async (req, res) => {
       summaryOverall,
       summaryFunctions,
       summaryRestaurant,
+      surveyActivity: {
+        sentCount: messageStats.survey_sent_count || 0,
+        completedCount: messageStats.completed_count || 0,
+        inboxReplyCount: (await pool.query(
+          `SELECT COUNT(*)::int AS count FROM messages m ${messageWhereClause} ${messageWhereClause ? 'AND' : 'WHERE'} m.message_type = 'inbound';`,
+          messageParams
+        )).rows[0]?.count || 0,
+        linkedReplyCount: recentReplyRows.rowCount || 0,
+        recentReplies: recentReplyRows.rows || [],
+      },
       topIssues,
       chartData,
       completionRate,
@@ -1602,6 +1681,7 @@ router.get("/event-types", async (req, res) => {
 ========================================================= */
 router.get("/spaces", async (req, res) => {
   try {
+    await ensureRoomColorCodeColumn();
     const { rows: rooms } = await pool.query("SELECT * FROM rooms ORDER BY name ASC;");
 
     res.render("settings/spaces", {
@@ -1712,7 +1792,8 @@ router.post("/event-types/delete", async (req, res) => {
 // ➕ Add
 router.post("/spaces/add", async (req, res) => {
   try {
-    const { name, capacity } = req.body;
+    await ensureRoomColorCodeColumn();
+    const { name, capacity, color_code } = req.body;
 
     if (!name || !name.trim()) {
       req.flash("flashMessage", "⚠️ Please enter a valid room name.");
@@ -1720,9 +1801,16 @@ router.post("/spaces/add", async (req, res) => {
       return res.redirect("/settings/spaces");
     }
 
+    const normalizedColor = color_code ? normalizeHexColor(color_code) : null;
+    if (color_code && !normalizedColor) {
+      req.flash("flashMessage", "⚠️ Please choose a valid room colour.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/spaces");
+    }
+
     const result = await pool.query(
-      "INSERT INTO rooms (name, capacity) VALUES ($1, $2) RETURNING id, name;",
-      [name.trim(), capacity || null]
+      "INSERT INTO rooms (name, capacity, color_code) VALUES ($1, $2, $3) RETURNING id, name;",
+      [name.trim(), capacity || null, normalizedColor]
     );
 
     req.flash("flashMessage", `✅ "${result.rows[0].name}" added successfully!`);
@@ -1739,7 +1827,8 @@ router.post("/spaces/add", async (req, res) => {
 // ✏️ Edit
 router.post("/spaces/edit", async (req, res) => {
   try {
-    const { id, name, capacity } = req.body;
+    await ensureRoomColorCodeColumn();
+    const { id, name, capacity, color_code } = req.body;
 
     if (!id || !name || !name.trim()) {
       req.flash("flashMessage", "⚠️ Invalid room data.");
@@ -1747,9 +1836,17 @@ router.post("/spaces/edit", async (req, res) => {
       return res.redirect("/settings/spaces");
     }
 
-    await pool.query("UPDATE rooms SET name=$1, capacity=$2 WHERE id=$3", [
+    const normalizedColor = color_code ? normalizeHexColor(color_code) : null;
+    if (color_code && !normalizedColor) {
+      req.flash("flashMessage", "⚠️ Please choose a valid room colour.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/spaces");
+    }
+
+    await pool.query("UPDATE rooms SET name=$1, capacity=$2, color_code=$3 WHERE id=$4", [
       name.trim(),
       capacity || null,
+      normalizedColor,
       id,
     ]);
 
@@ -1802,11 +1899,12 @@ router.post("/spaces/delete", async (req, res) => {
 // LIST
 router.get("/note-templates", async (req, res) => {
   try {
-    const { rows: templates } = await pool.query(
-      `SELECT id, name, category, description, content
+    const { rows: templateRows } = await pool.query(
+      `SELECT id, name, category, description, content, content_json
          FROM note_templates
         ORDER BY name ASC;`
     );
+    const templates = await backfillTemplateHtmlFallback(pool, templateRows);
 
     const { rows: mergeFields } = await pool.query(
       `SELECT key, label, description, entity, formatter
@@ -1841,6 +1939,7 @@ router.get("/note-templates", async (req, res) => {
 router.post("/note-templates/add", async (req, res) => {
   try {
     const { name, category, description, content } = req.body;
+    const safeContent = sanitizeRichHtml(content || "");
 
     if (!name || !name.trim()) {
       req.flash("flashMessage", "⚠️ Please provide a template name.");
@@ -1851,7 +1950,7 @@ router.post("/note-templates/add", async (req, res) => {
     await pool.query(
       `INSERT INTO note_templates (name, category, description, content, created_by)
        VALUES ($1, NULLIF($2,''), NULLIF($3,''), $4, $5);`,
-      [name.trim(), category || null, description || null, content || "", req.session.user?.id || null]
+      [name.trim(), category || null, description || null, safeContent, req.session.user?.id || null]
     );
 
     req.flash("flashMessage", "✅ Template created.");
@@ -1869,6 +1968,7 @@ router.post("/note-templates/add", async (req, res) => {
 router.post("/note-templates/edit", async (req, res) => {
   try {
     const { id, name, category, description, content } = req.body;
+    const safeContent = sanitizeRichHtml(content || "");
 
     if (!id || !name || !name.trim()) {
       req.flash("flashMessage", "⚠️ Invalid template data.");
@@ -1884,7 +1984,7 @@ router.post("/note-templates/edit", async (req, res) => {
               content = $4,
               updated_at = NOW()
         WHERE id = $5;`,
-      [name.trim(), category || null, description || null, content || "", id]
+      [name.trim(), category || null, description || null, safeContent, id]
     );
 
     req.flash("flashMessage", "✅ Template updated.");
@@ -1928,10 +2028,8 @@ router.get("/note-templates/api/:id", async (req, res) => {
     return res.status(400).json({ success: false, error: "Invalid template id." });
   }
   try {
-    const {
-      rows,
-    } = await pool.query(
-      `SELECT id, name, category, description, content
+    const { rows } = await pool.query(
+      `SELECT id, name, category, description, content, content_json
          FROM note_templates
         WHERE id = $1
         LIMIT 1`,
@@ -1940,7 +2038,8 @@ router.get("/note-templates/api/:id", async (req, res) => {
     if (!rows.length) {
       return res.status(404).json({ success: false, error: "Template not found." });
     }
-    res.json({ success: true, data: rows[0] });
+    const [template] = await backfillTemplateHtmlFallback(pool, rows);
+    res.json({ success: true, data: template });
   } catch (err) {
     console.error("Error loading note template:", err);
     res.status(500).json({ success: false, error: "Failed to load template." });
@@ -3220,6 +3319,7 @@ router.post(
   entertainmentImageUpload.single("image_file"),
   async (req, res) => {
   let client;
+  let isAjaxRequest = false;
   try {
     const returnTo = getEntertainmentReturnTo(req);
       const {
@@ -3241,6 +3341,9 @@ router.post(
       } = req.body;
 
     if (!title?.trim() || !start_date || !start_time) {
+      if (isAjaxRequest) {
+        return res.status(400).json({ success: false, error: "Title, date, and time are required." });
+      }
       req.flash("flashMessage", "⚠️ Title, date, and time are required.");
       req.flash("flashType", "warning");
       return res.redirect(returnTo);
@@ -3267,6 +3370,9 @@ router.post(
       await ensureEntertainmentColorColumn();
       await ensureEntertainmentFunctionLinkColumn();
       if (!roomId) {
+        if (isAjaxRequest) {
+          return res.status(400).json({ success: false, error: "A primary room is required." });
+        }
         req.flash("flashMessage", "⚠️ A primary room is required.");
         req.flash("flashType", "warning");
         return res.redirect(returnTo);
@@ -3374,6 +3480,17 @@ router.post(
     }
 
     await client.query("COMMIT");
+    if (isAjaxRequest) {
+      return res.json({
+        success: true,
+        event: {
+          id: insertedEvent?.id || null,
+          title: insertedEvent?.title || title.trim(),
+          start_at: insertedEvent?.start_at || startAt,
+          end_at: insertedEvent?.end_at || endAt,
+        },
+      });
+    }
     req.flash("flashMessage", "✅ Entertainment event added.");
     req.flash("flashType", "success");
     res.redirect(returnTo);
@@ -3383,6 +3500,9 @@ router.post(
       if (client) await client.query("ROLLBACK");
     } catch (rollbackErr) {
       console.error("❌ Failed rolling back entertainment insert:", rollbackErr);
+    }
+    if (isAjaxRequest) {
+      return res.status(500).json({ success: false, error: "Failed to add entertainment event." });
     }
     req.flash("flashMessage", "❌ Failed to add entertainment event.");
     req.flash("flashType", "error");
@@ -3399,7 +3519,8 @@ router.post(
   entertainmentImageUpload.single("image_file"),
   async (req, res) => {
     let client;
-    try {
+  let isAjaxRequest = false;
+  try {
       const returnTo = getEntertainmentReturnTo(req);
       await ensureEntertainmentColorColumn();
       await ensureEntertainmentFunctionLinkColumn();
@@ -3452,6 +3573,9 @@ router.post(
       const functionId = normalizeUuid(req.body.function_id);
       const scopeRaw = (series_scope || "").toLowerCase();
       if (!roomId) {
+        if (isAjaxRequest) {
+          return res.status(400).json({ success: false, error: "A primary room is required." });
+        }
         req.flash("flashMessage", "⚠️ A primary room is required.");
         req.flash("flashType", "warning");
         return res.redirect(returnTo);

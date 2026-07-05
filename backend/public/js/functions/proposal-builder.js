@@ -122,6 +122,9 @@
     const includeContactInputs = builder.querySelectorAll("[data-role='include-contact']");
     const termCheckboxes = builder.querySelectorAll("[data-role='term-select']");
     const termsInput = builder.querySelector("[data-role='terms-input']");
+    const sectionsSummary = builder.querySelector("[data-role='summary-sections']");
+    const termsSummary = builder.querySelector("[data-role='summary-terms']");
+    const contactsSummary = builder.querySelector("[data-role='summary-contacts']");
     const printBtn = builder.querySelector("[data-role='print-btn']");
     const saveBtn = builder.querySelector("[data-role='save-btn']");
     const clientLink = (builder.dataset.clientLink || "").trim();
@@ -132,6 +135,24 @@
     if (sectionsList && !sectionsList.querySelector("[data-role='section-index']")) {
       ensureEmptySection(sectionsList);
     }
+
+    const updateSummaries = () => {
+      const sectionCount = sectionsList
+        ? sectionsList.querySelectorAll(".proposal-section-item").length
+        : 0;
+      const termCount = Array.from(termCheckboxes || []).filter((checkbox) => checkbox.checked).length;
+      const contactCount = Array.from(includeContactInputs || []).filter((input) => input.checked).length;
+
+      if (sectionsSummary) {
+        sectionsSummary.textContent = `${sectionCount} section${sectionCount === 1 ? "" : "s"}`;
+      }
+      if (termsSummary) {
+        termsSummary.textContent = `${termCount} selected`;
+      }
+      if (contactsSummary) {
+        contactsSummary.textContent = `${contactCount} selected`;
+      }
+    };
 
     ingestItems(builder);
 
@@ -145,6 +166,7 @@
     };
     termCheckboxes.forEach((checkbox) => {
       checkbox.addEventListener("change", syncTermIds);
+      checkbox.addEventListener("change", updateSummaries);
     });
     syncTermIds();
 
@@ -158,6 +180,7 @@
       } else {
         renumberSections(sectionsList);
       }
+      updateSummaries();
     });
 
     addNoteBtn?.addEventListener("click", () => {
@@ -173,7 +196,14 @@
       const noteBody = note.rendered_content || note.rendered_html || note.content || "";
       appendSection(sectionsList, noteBody);
       notePicker.value = "";
+      updateSummaries();
     });
+
+    includeContactInputs.forEach((input) => {
+      input.addEventListener("change", updateSummaries);
+    });
+
+    updateSummaries();
 
     viewClientLinkBtn?.addEventListener("click", (event) => {
       event.preventDefault();

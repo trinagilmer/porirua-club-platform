@@ -1,7 +1,7 @@
 <!-- ===== Function Tabs ===== -->
 <div class="tabs-bar mb-4">
   <select class="tabs-select" aria-label="Function navigation">
-    <option value="/functions/<%= fn.id_uuid %>" <%= activeTab === 'info' ? 'selected' : '' %>>Info</option>
+      <option value="/functions/<%= fn.id_uuid %>" <%= activeTab === 'overview' ? 'selected' : '' %>>Overview</option>
     <option value="/functions/<%= fn.id_uuid %>/tasks" <%= activeTab === 'tasks' ? 'selected' : '' %>>Tasks</option>
     <option value="/functions/<%= fn.id_uuid %>/notes" <%= activeTab === 'notes' ? 'selected' : '' %>>Notes</option>
     <option value="/functions/<%= fn.id_uuid %>/communications" <%= activeTab === 'communications' ? 'selected' : '' %>>Communications</option>
@@ -9,7 +9,7 @@
     <option value="/functions/<%= fn.id_uuid %>/edit" <%= activeTab === 'edit' ? 'selected' : '' %>>Edit</option>
   </select>
   <a href="/functions/<%= fn.id_uuid %>"
-     class="<%= activeTab === 'info' ? 'active' : '' %>">Info</a>
+       class="<%= activeTab === 'overview' ? 'active' : '' %>">Overview</a>
 
   <a href="/functions/<%= fn.id_uuid %>/tasks"
      class="<%= activeTab === 'tasks' ? 'active' : '' %>">Tasks</a>

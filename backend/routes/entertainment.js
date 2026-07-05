@@ -132,13 +132,15 @@ router.get("/", async (req, res) => {
       ? viewParam
       : "month";
     const embed = req.query.embed === "1";
-    const safeInitialView = embed && !hasViewParam ? "pinboard" : initialView;
+    const safeInitialView = !hasViewParam && embed ? "pinboard" : initialView;
     const typeParam = normalizeDisplayType(req.query.type) || "entertainment";
     res.render("pages/entertainment/index", {
       layout: "layouts/main",
       hideChrome: embed,
+      hideManageEvents: true,
       title: "Entertainment",
       active: "entertainment",
+      user: req.session?.user || null,
       entertainmentEvents,
       regularEvents,
       pastEvents: pastRows,

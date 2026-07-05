@@ -4,106 +4,117 @@
   window.calendarConfig = Object.assign({}, window.calendarConfig || {}, <%- JSON.stringify(calendarConfig || {}) %>);
 </script>
 
-<div class="calendar-page px-4 py-4 calendar-print-shell">
+<div class="calendar-page calendar-print-shell">
   <div class="calendar-print-header">
     <h1 class="calendar-print-title" id="calendarPrintTitle"></h1>
   </div>
 
-  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3 no-print">
-    <div class="flex-grow-1">
-      <h1 class="page-title mb-1">
-        <span>Function Calendar</span>
-        <span class="calendar-view-label" id="calendarViewLabel"></span>
-      </h1>
-      <p class="text-muted mb-0">Track room bookings across functions, restaurant reservations, and club events.</p>
-    </div>
-    <div class="d-flex flex-wrap gap-2 justify-content-end align-items-center">
-      <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="exitDayViewBtn">
-        Back to overview
-      </button>
-      <button type="button" class="btn btn-primary btn-sm" id="calendarPrintBtn">
-        <i class="bi bi-printer me-1"></i> Print calendar
-      </button>
-      <a href="/calendar/restaurant" class="btn btn-outline-primary btn-sm">
-        Restaurant calendar
-      </a>
-    </div>
-  </div>
+  <div class="calendar-layout no-print">
+    <aside class="calendar-sidebar">
+      <section class="calendar-controls card shadow-sm p-3">
+        <div class="calendar-sidebar-header mb-3">
+          <p class="calendar-sidebar-kicker mb-1">Calendar controls</p>
+          <h2 class="calendar-sidebar-title mb-1">Function Calendar</h2>
+          <p class="text-muted small mb-0">Filter what staff see before opening a day.</p>
+        </div>
 
-  <section class="calendar-controls card shadow-sm p-3 mb-4 no-print">
-    <div class="calendar-room-toggle mb-4">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <label class="form-label mb-0">Rooms / Spaces</label>
-        <small class="text-muted">Click to toggle rooms. All are shown by default.</small>
-      </div>
-      <% if (!roomsList.length) { %>
-        <p class="text-muted small mb-0">No rooms have been set up yet.</p>
-      <% } else { %>
-        <div class="calendar-room-grid" role="group" aria-label="Room filters">
-          <% roomsList.forEach(function(room) { %>
-            <button
-              type="button"
-              class="btn btn-outline-secondary btn-sm calendar-room-btn active"
-              data-room-id="<%= room.id %>"
-              data-room-color="<%= room.color_code || '' %>"
-              style="<%= room.color_code ? `--room-color: ${room.color_code}` : '' %>"
-              aria-pressed="true">
-              <%= room.name %>
+        <div class="calendar-room-toggle mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <label class="form-label mb-0">Rooms / Spaces</label>
+            <small class="text-muted">Click to toggle rooms. All are shown by default.</small>
+          </div>
+          <% if (!roomsList.length) { %>
+            <p class="text-muted small mb-0">No rooms have been set up yet.</p>
+          <% } else { %>
+            <div class="calendar-room-grid" role="group" aria-label="Room filters">
+              <% roomsList.forEach(function(room) { %>
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary btn-sm calendar-room-btn active"
+                  data-room-id="<%= room.id %>"
+                  data-room-color="<%= room.color_code || '' %>"
+                  style="<%= room.color_code ? `--room-color: ${room.color_code}` : '' %>"
+                  aria-pressed="true">
+                  <%= room.name %>
+                </button>
+              <% }) %>
+            </div>
+            <div class="calendar-room-legend mt-2" aria-label="Calendar room legend">
+              <span class="calendar-room-legend-item">
+                <span class="calendar-room-legend-swatch" style="--legend-color: #D1D5DB;"></span>
+                <span>Grey = unassigned room</span>
+              </span>
+            </div>
+          <% } %>
+        </div>
+
+        <div class="row g-3 align-items-center">
+          <div class="col-12">
+            <span class="form-label d-block">Show bookings</span>
+            <div class="btn-group flex-wrap" role="group" aria-label="Calendar source filters">
+              <input class="btn-check" type="checkbox" id="toggleFunctions" data-calendar-type="functions" checked>
+              <label class="btn btn-outline-primary btn-sm" for="toggleFunctions">Functions</label>
+
+              <input class="btn-check" type="checkbox" id="toggleRestaurant" data-calendar-type="restaurant">
+              <label class="btn btn-outline-primary btn-sm" for="toggleRestaurant">Restaurant</label>
+
+              <input class="btn-check" type="checkbox" id="toggleEntertainment" data-calendar-type="entertainment">
+              <label class="btn btn-outline-primary btn-sm" for="toggleEntertainment">Entertainment</label>
+            </div>
+            <small class="text-muted d-block mt-1">Toggle any combination to focus the calendar.</small>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-light w-100" id="calendarClearFilters">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>
+              Reset filters
             </button>
-          <% }) %>
+          </div>
         </div>
-      <% } %>
-    </div>
-    <div class="row g-3 align-items-center">
-      <div class="col-12 col-md-8">
-        <span class="form-label d-block">Show bookings</span>
-        <div class="btn-group flex-wrap" role="group" aria-label="Calendar source filters">
-          <input class="btn-check" type="checkbox" id="toggleFunctions" data-calendar-type="functions" checked>
-          <label class="btn btn-outline-primary btn-sm" for="toggleFunctions">Functions</label>
 
-          <input class="btn-check" type="checkbox" id="toggleRestaurant" data-calendar-type="restaurant">
-          <label class="btn btn-outline-primary btn-sm" for="toggleRestaurant">Restaurant</label>
+        <div class="mt-3">
+          <span class="form-label d-block">Function status</span>
+          <div class="btn-group flex-wrap" role="group" aria-label="Function status filters">
+            <input class="btn-check" type="checkbox" id="statusLead" data-function-status="lead" checked>
+            <label class="btn btn-outline-secondary btn-sm" for="statusLead">Lead</label>
 
-          <input class="btn-check" type="checkbox" id="toggleEntertainment" data-calendar-type="entertainment">
-          <label class="btn btn-outline-primary btn-sm" for="toggleEntertainment">Entertainment</label>
+            <input class="btn-check" type="checkbox" id="statusConfirmed" data-function-status="confirmed" checked>
+            <label class="btn btn-outline-secondary btn-sm" for="statusConfirmed">Confirmed</label>
+
+            <input class="btn-check" type="checkbox" id="statusCancelled" data-function-status="cancelled">
+            <label class="btn btn-outline-secondary btn-sm" for="statusCancelled">Cancelled</label>
+          </div>
+          <small class="text-muted d-block mt-1">Cancelled functions are hidden unless selected.</small>
         </div>
-        <small class="text-muted d-block mt-1">Toggle any combination to focus the calendar.</small>
+      </section>
+    </aside>
+
+    <section class="calendar-main-column">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div class="flex-grow-1">
+          <h1 class="page-title mb-1">
+            <span>Function Calendar</span>
+            <span class="calendar-view-label" id="calendarViewLabel"></span>
+          </h1>
+          <p class="text-muted mb-0">Track room bookings across functions, restaurant reservations, and club events.</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2 justify-content-end align-items-center">
+          <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="exitDayViewBtn">
+            Back to overview
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" id="calendarPrintBtn">
+            <i class="bi bi-printer me-1"></i> Print calendar
+          </button>
+          <a href="/calendar/restaurant" class="btn btn-outline-primary btn-sm">
+            Restaurant calendar
+          </a>
+        </div>
       </div>
-      <div class="col-12 col-md-4 text-md-end">
-        <button class="btn btn-light w-100 w-md-auto" id="calendarClearFilters">
-          <i class="bi bi-arrow-counterclockwise me-1"></i>
-          Reset filters
-        </button>
-      </div>
-    </div>
-    <div class="mt-3">
-      <span class="form-label d-block">Function status</span>
-      <div class="btn-group flex-wrap" role="group" aria-label="Function status filters">
-        <input class="btn-check" type="checkbox" id="statusLead" data-function-status="lead" checked>
-        <label class="btn btn-outline-secondary btn-sm" for="statusLead">Lead</label>
 
-        <input class="btn-check" type="checkbox" id="statusQualified" data-function-status="qualified" checked>
-        <label class="btn btn-outline-secondary btn-sm" for="statusQualified">Qualified</label>
-
-        <input class="btn-check" type="checkbox" id="statusConfirmed" data-function-status="confirmed" checked>
-        <label class="btn btn-outline-secondary btn-sm" for="statusConfirmed">Confirmed</label>
-
-        <input class="btn-check" type="checkbox" id="statusBalance" data-function-status="balance_due">
-        <label class="btn btn-outline-secondary btn-sm" for="statusBalance">Balance due</label>
-
-        <input class="btn-check" type="checkbox" id="statusCompleted" data-function-status="completed">
-        <label class="btn btn-outline-secondary btn-sm" for="statusCompleted">Completed</label>
-
-        <input class="btn-check" type="checkbox" id="statusCancelled" data-function-status="cancelled">
-        <label class="btn btn-outline-secondary btn-sm" for="statusCancelled">Cancelled</label>
-      </div>
-      <small class="text-muted d-block mt-1">Cancelled functions are hidden unless selected.</small>
-    </div>
-  </section>
-
-  <section class="calendar-wrapper card shadow-sm p-3 calendar-area">
-    <div id="functionCalendar" class="calendar-shell calendar-area" aria-live="polite"></div>
-  </section>
+      <section class="calendar-wrapper card shadow-sm p-3 calendar-area">
+        <div id="functionCalendar" class="calendar-shell calendar-area" aria-live="polite"></div>
+      </section>
+    </section>
+  </div>
 
   <!-- Print-only layouts -->
   <section class="calendar-print-wrapper">
@@ -221,20 +232,169 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <p class="text-muted small mb-3">Select the item type to start a new booking for the highlighted date.</p>
-        <div class="d-grid gap-2">
-          <button type="button" class="btn btn-primary" data-calendar-add-target="functions">
-            Add Function
-          </button>
-          <button type="button" class="btn btn-outline-primary" data-calendar-add-target="restaurant">
-            Add Restaurant Booking
-          </button>
-          <button type="button" class="btn btn-outline-primary" data-calendar-add-target="entertainment">
-            Add Entertainment Event
-          </button>
+        <div data-calendar-add-chooser>
+          <p class="text-muted small mb-3">Select the item type to start a new booking for the highlighted date.</p>
+          <div class="d-grid gap-2">
+            <button type="button" class="btn btn-primary" data-calendar-add-target="functions">
+              Add Function
+            </button>
+            <button type="button" class="btn btn-outline-primary" data-calendar-add-target="restaurant">
+              Add Restaurant Booking
+            </button>
+            <button type="button" class="btn btn-outline-primary" data-calendar-add-target="entertainment">
+              Add Entertainment Event
+            </button>
+          </div>
+        </div>
+
+        <form method="POST" action="/functions/new" class="d-none" data-calendar-function-form>
+          <div class="d-flex justify-content-between align-items-center mb-3 gap-2">
+            <div>
+              <p class="calendar-sidebar-kicker mb-1">Quick create</p>
+              <h6 class="mb-0">Add function</h6>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-calendar-add-back>Back</button>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label">Event name</label>
+              <input type="text" class="form-control" name="event_name" data-calendar-function-name required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Date</label>
+              <input type="date" class="form-control" name="event_date" data-calendar-function-date>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Start time</label>
+              <input type="time" class="form-control" name="start_time" data-calendar-function-time>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Room / Space</label>
+              <select class="form-select" name="room_id">
+                <option value="">Unassigned</option>
+                <% roomsList.forEach(function(room) { %>
+                  <option value="<%= room.id %>"><%= room.name %></option>
+                <% }) %>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Status</label>
+              <select class="form-select" name="status">
+                <option value="lead" selected>Lead</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Attendees</label>
+              <input type="number" class="form-control" name="attendees" min="0">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Budget ($)</label>
+              <input type="number" class="form-control" name="budget" step="0.01" min="0">
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center gap-2 mt-3">
+            <a href="/functions/new" class="btn btn-link px-0 text-decoration-none" data-calendar-full-form-link>
+              Open full form instead
+            </a>
+            <button type="submit" class="btn btn-primary">Create Function</button>
+          </div>
+        </form>
+        <form method="POST" action="/settings/entertainment/add" enctype="multipart/form-data" class="d-none" data-calendar-entertainment-form>
+          <input type="hidden" name="return_to" value="/settings/entertainment/events">
+          <div class="d-flex justify-content-between align-items-center mb-3 gap-2">
+            <div>
+              <p class="calendar-sidebar-kicker mb-1">Quick create</p>
+              <h6 class="mb-0">Add entertainment event</h6>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-calendar-add-back-ent>Back</button>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label">Event title</label>
+              <input type="text" class="form-control" name="title" data-calendar-ent-title required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Date</label>
+              <input type="date" class="form-control" name="start_date" data-calendar-ent-date required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Start time</label>
+              <input type="time" class="form-control" name="start_time" data-calendar-ent-time required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Room / Space</label>
+              <select class="form-select" name="room_id" required>
+                <option value="">Select room...</option>
+                <% roomsList.forEach(function(room) { %>
+                  <option value="<%= room.id %>"><%= room.name %></option>
+                <% }) %>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Status</label>
+              <select class="form-select" name="status">
+                <option value="published" selected>Published</option>
+                <option value="draft">Draft</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Type</label>
+              <select class="form-select" name="display_type">
+                <option value="entertainment" selected>Entertainment</option>
+                <option value="regularevents">Regular event</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Image URL (optional)</label>
+              <input type="url" class="form-control" name="image_url" placeholder="https://...">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Upload image (optional)</label>
+              <input type="file" class="form-control" name="image_file" accept="image/*">
+              <small class="text-muted">You can upload a file directly instead of pasting a URL.</small>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center gap-2 mt-3">
+            <a href="/settings/entertainment/events" class="btn btn-link px-0 text-decoration-none" data-calendar-ent-full-form-link>
+              Open full event module
+            </a>
+            <button type="submit" class="btn btn-primary" data-calendar-ent-submit>Create Entertainment Event</button>
+          </div>
+          <div class="small mt-2 text-muted" data-calendar-ent-status></div>
+        </form>
+
+        <div class="d-none" data-calendar-restaurant-module>
+          <div class="d-flex justify-content-between align-items-center mb-3 gap-2">
+            <div>
+              <p class="calendar-sidebar-kicker mb-1">Quick create</p>
+              <h6 class="mb-0">Restaurant booking admin</h6>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-calendar-add-back-restaurant>Back</button>
+          </div>
+          <div class="ratio ratio-16x9 border rounded-3 overflow-hidden bg-light">
+            <iframe
+              title="Restaurant booking admin module"
+              data-calendar-restaurant-iframe
+              src="about:blank"
+              loading="lazy"
+              referrerpolicy="same-origin"
+              style="border:0;width:100%;height:100%;">
+            </iframe>
+          </div>
+          <div class="d-flex justify-content-between align-items-center gap-2 mt-3">
+            <a href="/calendar/restaurant" class="btn btn-link px-0 text-decoration-none" data-calendar-restaurant-full-link>
+              Open full restaurant module
+            </a>
+          </div>
         </div>
       </div>
-      <div class="modal-footer justify-content-between">
+      <div class="modal-footer justify-content-between" data-calendar-add-footer>
         <small class="text-muted">Need a closer look?</small>
         <button type="button" class="btn btn-link text-decoration-none" id="calendarAddViewDay">
           View day in calendar

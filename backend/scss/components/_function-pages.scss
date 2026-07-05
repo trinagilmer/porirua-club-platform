@@ -27,7 +27,7 @@
   @media (max-width: $breakpoint-lg) {
     flex-direction: column;
     height: auto;
-    min-height: auto;
+    min-height: 0;
   }
 }
 
@@ -92,68 +92,7 @@
 // ===========================================================
 // 🧭 FUNCTION TABS — Minimal underline nav
 // ===========================================================
-.function-tabs {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  border-bottom: 1px solid $neutral-200;
-  margin-bottom: 1.5rem;
-  margin-left: 2.0rem;
-  padding-bottom: 0.5rem;
-  flex-wrap: wrap;
-
-  a {
-    color: $neutral-600;
-    font-weight: 500;
-    text-decoration: none;
-    padding-bottom: 0.25rem;
-    border-bottom: 2px solid transparent;
-    transition: color $transition-fast, border-color $transition-fast;
-
-    &:hover {
-      color: $brand-dark;
-      border-bottom-color: rgba($brand, 0.25);
-    }
-
-    &.active {
-      color: $brand;
-      border-bottom-color: $brand;
-      font-weight: 600;
-    }
-  }
-
-}
-
-.tabs-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  border-bottom: 1px solid $neutral-200;
-  padding: 0.25rem 0.5rem;
-  background: $white;
-  flex-wrap: wrap;
-
-  a {
-    display: inline-block;
-    text-decoration: none;
-    padding: 0.5rem 0.85rem;
-    border-radius: 6px 6px 0 0;
-    font-weight: 500;
-    color: $neutral-600;
-    transition: background $transition-fast, color $transition-fast;
-
-    &:hover {
-      background: $neutral-100;
-      color: $neutral-900;
-    }
-
-    &.active {
-      background: $brand;
-      color: $white;
-      font-weight: 600;
-    }
-  }
-}
+// .function-tabs and .tabs-bar removed — navigation is now sidebar-only
 
 .tabs-select,
 .sidebar-toggle {
@@ -161,26 +100,6 @@
 }
 
 @media (max-width: 768px) {
-  .tabs-bar {
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .tabs-bar a {
-    white-space: nowrap;
-  }
-
-  .tabs-select {
-    display: block;
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .tabs-bar a {
-    display: none;
-  }
-
   .sidebar-toggle {
     display: inline-flex;
     align-items: center;
@@ -188,19 +107,195 @@
   }
 }
 
-.function-tabs-wrapper {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  background: $white;
-  padding-top: 0.25rem;
-}
-  .tabs-bar.mb-4 {
-    margin-left: 2.0rem;
-  }
+
 
 // ===========================================================
-// ?? FUNCTION TABS + SIDEBAR MOBILE CONTROLS
+// ✨ FUNCTION FORM UX
+// ===========================================================
+.function-form-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid $neutral-200;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, rgba($brand-soft, 0.45), rgba($white, 0.98) 70%);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+
+  h2 {
+    color: $neutral-900;
+    font-size: 1.12rem;
+    font-weight: 700;
+    margin-bottom: 0.2rem;
+  }
+
+  p {
+    color: $neutral-700;
+    font-size: 0.92rem;
+    margin-bottom: 0;
+  }
+}
+
+.function-form-hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.function-form-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.38rem 0.75rem;
+  border-radius: 999px;
+  background: $white;
+  border: 1px solid rgba($brand, 0.18);
+  color: $brand-dark;
+  font-size: 0.8rem;
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.function-form-help {
+  display: block;
+  margin-top: 0.4rem;
+  color: $neutral-600;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.payment-stack {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid $neutral-200;
+  border-radius: 0.8rem;
+  background: linear-gradient(180deg, $neutral-50, $white);
+}
+
+.function-form-card {
+  border: 1px solid $neutral-200;
+  border-radius: 1rem;
+  box-shadow: 0 14px 35px rgba(15, 23, 42, 0.05);
+  overflow: hidden;
+}
+
+.function-form-card .form-label {
+  font-weight: 600;
+  color: $neutral-800;
+}
+
+.function-form-card .form-control,
+.function-form-card .form-select,
+.function-form-card textarea {
+  border-radius: 0.7rem;
+  border-color: $neutral-300;
+}
+
+/* Edit page: let the Quill notes editor grow with content instead of trapping scroll */
+#editNoteEditor.ql-container {
+  min-height: 220px;
+  height: auto;
+}
+
+#editNoteEditor .ql-editor {
+  min-height: 220px;
+  height: auto;
+  overflow-y: visible;
+}
+
+// ===========================================================
+// ✨ SIMPLE FUNCTION WORKSPACE
+// ===========================================================
+.function-layout-two-col--simple {
+  display: flex;
+  height: auto;
+  overflow: visible;
+
+  @media (max-width: $breakpoint-lg) {
+    display: block;
+  }
+}
+
+.function-workspace--simple {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  height: auto;
+  overflow: visible;
+}
+
+.function-body--simple {
+  padding: 0 0 2rem 0;
+  height: auto;
+  overflow: visible;
+}
+
+.function-nav-block {
+  padding-top: 0.5rem;
+
+  h4 {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8ea3b5;
+    margin-bottom: 0.5rem;
+    padding: 0 0.2rem;
+  }
+}
+
+.function-side-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+
+  a {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.55rem 0.85rem;
+    border-radius: 0.5rem;
+    color: $neutral-600;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    background: transparent;
+    border: 1px solid transparent;
+    transition: background $transition-fast, border-color $transition-fast, color $transition-fast;
+
+    &:hover {
+      background: rgba($white, 0.8);
+      border-color: $neutral-200;
+      color: $neutral-900;
+    }
+
+    &.active {
+      background: $white;
+      border-color: rgba($brand, 0.3);
+      color: $brand-dark;
+      font-weight: 600;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.07);
+    }
+  }
+}
+
+.function-quick-actions {
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  margin-top: 0.25rem;
+
+  .btn {
+    font-size: 0.85rem;
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.85rem;
+  }
+}
+
+// ===========================================================
+// ?? SIDEBAR MOBILE CONTROLS
 // ===========================================================
 .tabs-select,
 .sidebar-toggle {
@@ -228,21 +323,6 @@
 }
 
 @media (max-width: 768px) {
-  .tabs-bar {
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .tabs-bar a {
-    display: none;
-  }
-
-  .tabs-select {
-    display: block;
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
   .sidebar-toggle {
     display: inline-flex;
     align-items: center;
@@ -303,10 +383,6 @@
 
   body.contact-panel-open {
     overflow: hidden;
-  }
-
-  body.contact-panel-open .tabs-bar {
-    display: none;
   }
 
   body.contact-panel-open .function-sidebar {
@@ -427,7 +503,7 @@
   border: 1px solid #e0e4ee;
   border-radius: 16px;
   background: $white;
-  padding: 1.5rem;
+  padding: 1.1rem 1.2rem;
   width: 100%;
 
   &.thin {
@@ -514,7 +590,7 @@
   background: $white;
 
   &__header {
-    padding: 1rem 1.25rem;
+    padding: 0.75rem 1rem;
     border-bottom: 1px solid #eef1f7;
     display: flex;
     justify-content: space-between;
@@ -557,7 +633,7 @@
 
 .quote-actions {
   .btn {
-    min-width: 160px;
+    min-width: 124px;
   }
 
   @media (max-width: 768px) {
@@ -571,7 +647,7 @@
 }
 
 .proposal-builder-wrapper {
-  margin-top: 1.5rem;
+  margin-top: 0.75rem;
 }
 
 .proposal-builder-toggle {
@@ -593,7 +669,7 @@
   border: 1px solid #e3e7ef;
   border-radius: 16px;
   background: $white;
-  padding: 1.5rem;
+  padding: 1rem;
 
   &, p, li, label, .form-control, .form-select, .btn, textarea, input {
     font-size: 12.8px;
@@ -611,6 +687,19 @@
 
 .proposal-builder__subtitle {
   font-size: 0.875rem;
+}
+
+.proposal-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.5rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 600;
+  vertical-align: middle;
 }
 
 .contact-panel .contact-edit-header {
@@ -670,18 +759,69 @@
   background: $white;
 
   &__header {
-    padding: 0.85rem 1.1rem;
+    padding: 0.7rem 0.9rem;
     border-bottom: 1px solid #eef1f6;
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
+    list-style: none;
+    cursor: pointer;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
   }
 
   &__body {
-    padding: 1rem 1.1rem 1.2rem;
+    padding: 0.8rem 0.9rem 0.95rem;
 
     @media (max-width: 768px) {
-      padding: 0.9rem;
+      padding: 0.75rem;
     }
+  }
+}
+
+.proposal-builder-footer {
+  position: sticky;
+  bottom: 0;
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  z-index: 4;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: stretch;
+
+    .btn-toolbar {
+      justify-content: flex-end;
+    }
+  }
+}
+
+details.proposal-panel {
+  summary.proposal-panel__header {
+    position: relative;
+    padding-right: 2rem;
+  }
+
+  summary.proposal-panel__header::after {
+    content: "\25be";
+    position: absolute;
+    right: 0.9rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #64748b;
+    font-size: 0.75rem;
+  }
+
+  &[open] summary.proposal-panel__header::after {
+    content: "\25b4";
   }
 }
 
@@ -769,53 +909,83 @@
   }
 }
 
-.overview-snapshot .snapshot-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
-
-  @media (min-width: 1024px) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+.overview-hero {
+  // hero styles removed — see .overview-detail-grid below
 }
 
-.snapshot-row {
-  background: #f8f9ff;
-  border: 1px solid #edf0f7;
-  border-radius: 12px;
-  padding: 0.85rem;
-  display: grid;
-  grid-template-columns: 1.2fr 1fr 0.8fr;
-  gap: 0.75rem;
-  align-items: center;
+/* Ensure function detail pages can scroll — override prior global rule that hid overflow */
+body[data-page=function-detail],
+body.function-detail {
+  height: auto !important;
+  min-height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
 
-  @media (max-width: 992px) {
+/* Let the top-level content wrapper grow naturally on detail/edit pages */
+body[data-page=function-detail] .main-content,
+body.function-detail .main-content {
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
+
+/* Allow the function workspace to expand instead of forcing a fixed viewport height */
+body[data-page=function-detail] .function-layout-two-col,
+body.function-detail .function-layout-two-col {
+  height: auto !important;
+  overflow: visible !important;
+}
+
+/* Ensure the detail workspace uses document scroll, not a fixed internal pane */
+body[data-page=function-detail] .function-workspace,
+body.function-detail .function-workspace,
+body[data-page=function-detail] .function-body,
+body.function-detail .function-body {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.overview-snapshot .snapshot-grid {
+  // snapshot grid removed — see .overview-detail-grid below
+}
+
+.overview-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem 2rem;
+  margin-top: 0.75rem;
+
+  @media (max-width: 768px) {
     grid-template-columns: 1fr;
   }
 }
 
-.snapshot-label {
-  font-size: 0.8rem;
+.overview-detail-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.overview-detail-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid $neutral-100;
+
+  &:last-child { border-bottom: none; }
+}
+
+.overview-detail-label {
+  font-size: 0.78rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: $neutral-500;
+  flex-shrink: 0;
+  min-width: 110px;
 }
-
-.snapshot-value {
-  font-weight: 600;
-  color: $neutral-900;
-}
-
-.snapshot-updated {
-  font-size: 0.75rem;
-  color: $neutral-500;
-  text-align: right;
-
-  @media (max-width: 992px) {
-    text-align: left;
-  }
-}
-
 .notes-list,
 .menu-list,
 .comms-feed {

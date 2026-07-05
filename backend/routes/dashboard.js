@@ -45,7 +45,7 @@ router.get("/", async (req, res, next) => {
     // 3️⃣ --- Upcoming Functions (next 30 days) ---
     const { rows: upcoming } = await pool.query(`
       SELECT 
-        f.id_uuid AS id,              -- ✅ switched from f.id
+        f.id_uuid AS id,
         f.event_name, 
         COALESCE(f.status, fs.name) AS status, 
         f.event_date, 
@@ -57,6 +57,7 @@ router.get("/", async (req, res, next) => {
       LEFT JOIN function_statuses fs ON f.status_id = fs.id
       LEFT JOIN rooms r ON r.id = f.room_id
       WHERE f.event_date BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '30 days')
+        AND COALESCE(f.status, fs.name) NOT IN ('cancelled')
       ORDER BY f.event_date ASC
       LIMIT 10
     `);

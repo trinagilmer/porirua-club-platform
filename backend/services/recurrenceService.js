@@ -93,7 +93,18 @@ function parseRecurrenceForm(body = {}) {
   const endDate = formatDateOnly(toDateOnly(body.recurrence_end_date || body.recurrence_until));
   if (!endDate) return null;
   const weekdaySource = body.recurrence_weekdays ?? body["recurrence_weekdays[]"];
-  const weekdays = normalizeIntegerArray(weekdaySource, 0, 6);
+  let weekdays = normalizeIntegerArray(weekdaySource, 0, 6);
+  const monthlyWeekdayRaw = parseInt(body.recurrence_monthly_weekday, 10);
+  const monthlyWeekday = Number.isNaN(monthlyWeekdayRaw)
+    ? null
+    : Math.max(0, Math.min(monthlyWeekdayRaw, 6));
+  if (frequency === "monthly_weekday") {
+    if (monthlyWeekday !== null) {
+      weekdays = [monthlyWeekday];
+    } else if (weekdays.length) {
+      weekdays = [weekdays[0]];
+    }
+  }
   const monthlyDay = body.recurrence_monthly_day
     ? Math.max(1, Math.min(parseInt(body.recurrence_monthly_day, 10), 31))
     : null;

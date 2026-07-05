@@ -11,6 +11,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Highlight a category card when clicked so the drawer behaviour feels scoped.
   page.addEventListener('click', (event) => {
+    const deleteBtn = event.target.closest('.delete-menu-btn');
+    if (deleteBtn) {
+      event.preventDefault();
+      const menuId = Number(deleteBtn.dataset.id || 0);
+      const menuName = String(deleteBtn.dataset.name || 'this menu').trim();
+      if (!Number.isInteger(menuId) || menuId <= 0) return;
+
+      const confirmed = window.confirm(`Delete menu "${menuName}"? This cannot be undone.`);
+      if (!confirmed) return;
+
+      deleteBtn.disabled = true;
+      fetch(`/settings/menus/menu/${menuId}`, { method: 'DELETE' })
+        .then(async (res) => {
+          const payload = await res.json().catch(() => ({}));
+          if (!res.ok || payload.success === false) {
+            throw new Error(payload.error || 'Failed to delete menu.');
+          }
+          window.location.reload();
+        })
+        .catch((err) => {
+          console.error('Delete menu error:', err);
+          window.alert(err.message || 'Failed to delete menu.');
+          deleteBtn.disabled = false;
+        });
+      return;
+    }
+
     const block = event.target.closest('.menu-category-block');
     if (!block) return;
 

@@ -17,10 +17,7 @@
       <a class="btn btn-outline-secondary" href="/settings/entertainment/public">
         Public page settings
       </a>
-      <a class="btn btn-outline-secondary" href="/settings/entertainment/acts">
-        Acts directory
-      </a>
-      <form method="GET" action="/settings/entertainment/events" class="d-flex flex-wrap align-items-center gap-2">
+<form method="GET" action="/settings/entertainment/events" class="d-flex flex-wrap align-items-center gap-2">
         <label class="small text-muted" for="entRange">Show</label>
         <select id="entRange" name="range" class="form-select form-select-sm">
           <option value="upcoming" <%= rangeSelection === 'upcoming' ? 'selected' : '' %>>Upcoming</option>
@@ -31,7 +28,7 @@
           type="text"
           name="q"
           class="form-control form-control-sm"
-          placeholder="Search title, adjunct, acts"
+          placeholder="Search title or organiser"
           value="<%= searchValue %>"
         >
         <select name="adjunct" class="form-select form-select-sm">
@@ -118,13 +115,7 @@
                     </a>
                   </small>
                 <% } %>
-                <% if (event.acts && event.acts.length) { %>
-                  <small class="text-muted d-block">
-                    Acts:
-                      <%= event.acts.map(function(act) { return act.name; }).join(", ") %>
-                    </small>
-                  <% } %>
-                </td>
+</td>
                 <td>
                   <div class="d-flex align-items-center gap-2">
                     <span class="rounded-circle border" style="width:14px;height:14px;background:<%= event.effective_event_color || event.event_color || '#6bb4de' %>;"></span>
@@ -253,13 +244,7 @@
                     </a>
                   </small>
                 <% } %>
-                <% if (event.acts && event.acts.length) { %>
-                  <small class="text-muted d-block">
-                    Acts:
-                      <%= event.acts.map(function(act) { return act.name; }).join(", ") %>
-                    </small>
-                  <% } %>
-                </td>
+</td>
                 <td>
                   <div class="d-flex align-items-center gap-2">
                     <span class="rounded-circle border" style="width:14px;height:14px;background:<%= event.effective_event_color || event.event_color || '#6bb4de' %>;"></span>
@@ -429,59 +414,21 @@
             <input type="number" name="price" class="form-control" min="0" step="0.50">
           </div>
           <div class="col-md-6">
-            <label class="form-label">Image</label>
+            <label class="form-label">Event image</label>
             <div class="d-flex gap-2">
-              <input type="url" name="image_url" class="form-control" id="entAddImageUrl" placeholder="Paste image URL" value="<%= (mediaSelection && mediaSelection.target === 'add') ? mediaSelection.imageUrl : '' %>">
-              <a class="btn btn-outline-secondary" href="/settings/entertainment/media?target=add">Insert</a>
+              <input type="url" name="image_url" class="form-control" id="entAddImageUrl" placeholder="Selected image from library" readonly value="<%= (mediaSelection && mediaSelection.target === 'add') ? mediaSelection.imageUrl : '' %>">
+              <a class="btn btn-outline-secondary" href="/settings/entertainment/media?target=add">Choose</a>
             </div>
-            <small class="text-muted">Paste a URL or choose from the media library.</small>
+            <small class="text-muted">Choose from media library or upload a new file below.</small>
           </div>
           <div class="col-md-6">
-            <label class="form-label">Or Upload Image</label>
+            <label class="form-label">Upload image</label>
             <input type="file" name="image_file" accept="image/*" class="form-control">
             <small class="text-muted">Max 5MB. Will be cropped to fit.</small>
           </div>
           <div class="col-12">
-            <label class="form-label">Acts</label>
-            <select name="acts[]" class="form-select" multiple>
-              <% (acts || []).forEach(function(act) { %>
-                <option value="<%= act.id %>"><%= act.name %></option>
-              <% }) %>
-            </select>
-            <small class="text-muted">Hold Ctrl (Windows) or Cmd (Mac) to select multiple acts.</small>
-          </div>
-          <div class="col-12">
             <label class="form-label">Description</label>
             <textarea name="description" rows="4" class="form-control"></textarea>
-          </div>
-          <div class="col-12">
-            <div class="border rounded-3 p-3 bg-light-subtle">
-              <div class="d-flex justify-content-between align-items-center">
-                <div>
-                  <div class="fw-semibold small mb-1">Quick add act</div>
-                  <div class="text-muted small">Create a new act without leaving this form.</div>
-                </div>
-                <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleQuickAct">
-                  Add act
-                </button>
-              </div>
-              <div class="mt-3 d-none" id="quickActForm">
-                <div class="row g-2">
-                  <div class="col-md-6">
-                    <label class="form-label form-label-sm">Act name</label>
-                    <input type="text" class="form-control form-control-sm" id="quickActName" placeholder="e.g. The Originals">
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label form-label-sm">External URL (optional)</label>
-                    <input type="url" class="form-control form-control-sm" id="quickActUrl" placeholder="https://...">
-                  </div>
-                  <div class="col-12 d-flex align-items-center gap-2">
-                    <button type="button" class="btn btn-sm btn-primary" id="quickActSubmit">Save act</button>
-                    <span class="small text-muted" id="quickActStatus"></span>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
           <div class="col-12">
             <div class="border rounded-3 p-3 bg-light-subtle">
@@ -491,10 +438,8 @@
                   <label class="form-label">Frequency</label>
                   <select name="recurrence_frequency" class="form-select">
                     <option value="none">Does not repeat</option>
-                    <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
-                    <option value="monthly_date">Monthly (date)</option>
-                    <option value="monthly_weekday">Monthly (weekday)</option>
+                    <option value="monthly_weekday">Monthly (Nth weekday)</option>
                   </select>
                 </div>
                 <div class="col-md-4">
@@ -506,7 +451,7 @@
                   <input type="date" name="recurrence_end_date" class="form-control">
                 </div>
               </div>
-              <div class="mt-2">
+              <div class="mt-2" data-weekdays-row>
                 <label class="form-label">Weekdays</label>
                 <div class="d-flex flex-wrap gap-2">
                   <% ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].forEach(function(day, idx) { %>
@@ -517,11 +462,7 @@
                   <% }) %>
                 </div>
               </div>
-              <div class="row g-3 mt-2">
-                <div class="col-md-6">
-                  <label class="form-label">Monthly day</label>
-                  <input type="number" name="recurrence_monthly_day" class="form-control" min="1" max="31">
-                </div>
+              <div class="row g-3 mt-2" data-monthly-week-row>
                 <div class="col-md-6">
                   <label class="form-label">Monthly weekday</label>
                   <select name="recurrence_monthly_week" class="form-select">
@@ -533,10 +474,27 @@
                     <option value="-1">Last</option>
                   </select>
                 </div>
+                <div class="col-md-6">
+                  <label class="form-label">Day of week</label>
+                  <select name="recurrence_monthly_weekday" class="form-select">
+                    <option value="0">Sunday</option>
+                    <option value="1">Monday</option>
+                    <option value="2">Tuesday</option>
+                    <option value="3">Wednesday</option>
+                    <option value="4">Thursday</option>
+                    <option value="5">Friday</option>
+                    <option value="6">Saturday</option>
+                  </select>
+                  <small class="text-muted">Example: First Sunday or Third Wednesday.</small>
+                </div>
               </div>
               <div class="mt-2">
                 <label class="form-label">Skip dates</label>
                 <textarea name="recurrence_skip_dates" rows="2" class="form-control" placeholder="YYYY-MM-DD separated by commas"></textarea>
+              </div>
+              <div class="mt-2 d-none" data-recurrence-preview>
+                <small class="text-muted">Recurrence preview:</small>
+                <div class="small fw-semibold" data-recurrence-preview-text></div>
               </div>
             </div>
           </div>
@@ -656,26 +614,18 @@
             <input type="number" name="price" id="entEditPrice" class="form-control" min="0" step="0.50">
           </div>
           <div class="col-md-6">
-            <label class="form-label">Image</label>
+            <label class="form-label">Event image</label>
             <div class="d-flex gap-2">
-              <input type="url" name="image_url" class="form-control" id="entEditImage" placeholder="Paste image URL">
-              <a class="btn btn-outline-secondary" id="entEditImageInsert" href="/settings/entertainment/media?target=edit">Insert</a>
+              <input type="url" name="image_url" class="form-control" id="entEditImage" placeholder="Selected image from library" readonly>
+              <a class="btn btn-outline-secondary" id="entEditImageInsert" href="/settings/entertainment/media?target=edit">Choose</a>
             </div>
-            <small class="text-muted">Paste a URL or choose from the media library.</small>
+            <small class="text-muted">Choose from media library or upload a new file below.</small>
           </div>
           <div class="col-md-6">
-            <label class="form-label">Or Upload Image</label>
+            <label class="form-label">Upload image</label>
             <input type="file" name="image_file" accept="image/*" class="form-control">
           </div>
-          <div class="col-12">
-            <label class="form-label">Acts</label>
-            <select name="acts[]" id="entEditActs" class="form-select" multiple>
-              <% (acts || []).forEach(function(act) { %>
-                <option value="<%= act.id %>"><%= act.name %></option>
-              <% }) %>
-            </select>
-          </div>
-          <div class="col-12">
+<div class="col-12">
             <label class="form-label">Description</label>
             <textarea name="description" id="entEditDescription" rows="4" class="form-control"></textarea>
           </div>
@@ -687,10 +637,8 @@
                   <label class="form-label">Frequency</label>
                   <select name="recurrence_frequency" id="entRecFreq" class="form-select">
                     <option value="none">Does not repeat</option>
-                    <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
-                    <option value="monthly_date">Monthly (date)</option>
-                    <option value="monthly_weekday">Monthly (weekday)</option>
+                    <option value="monthly_weekday">Monthly (Nth weekday)</option>
                   </select>
                 </div>
                 <div class="col-md-4">
@@ -702,7 +650,7 @@
                   <input type="date" name="recurrence_end_date" id="entRecEndDate" class="form-control">
                 </div>
               </div>
-              <div class="mt-2">
+              <div class="mt-2" data-weekdays-row>
                 <label class="form-label">Weekdays</label>
                 <div class="d-flex flex-wrap gap-2">
                   <% ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].forEach(function(day, idx) { %>
@@ -713,11 +661,7 @@
                   <% }) %>
                 </div>
               </div>
-              <div class="row g-3 mt-2">
-                <div class="col-md-6">
-                  <label class="form-label">Monthly day</label>
-                  <input type="number" name="recurrence_monthly_day" id="entRecMonthlyDay" class="form-control" min="1" max="31">
-                </div>
+              <div class="row g-3 mt-2" data-monthly-week-row>
                 <div class="col-md-6">
                   <label class="form-label">Monthly weekday</label>
                   <select name="recurrence_monthly_week" id="entRecMonthlyWeek" class="form-select">
@@ -729,10 +673,27 @@
                     <option value="-1">Last</option>
                   </select>
                 </div>
+                <div class="col-md-6">
+                  <label class="form-label">Day of week</label>
+                  <select name="recurrence_monthly_weekday" id="entRecMonthlyWeekday" class="form-select">
+                    <option value="0">Sunday</option>
+                    <option value="1">Monday</option>
+                    <option value="2">Tuesday</option>
+                    <option value="3">Wednesday</option>
+                    <option value="4">Thursday</option>
+                    <option value="5">Friday</option>
+                    <option value="6">Saturday</option>
+                  </select>
+                  <small class="text-muted">Example: First Sunday or Third Wednesday.</small>
+                </div>
               </div>
               <div class="mt-2">
                 <label class="form-label">Skip dates</label>
                 <textarea name="recurrence_skip_dates" id="entRecSkipDates" rows="2" class="form-control" placeholder="YYYY-MM-DD separated by commas"></textarea>
+              </div>
+              <div class="mt-2 d-none" data-recurrence-preview>
+                <small class="text-muted">Recurrence preview:</small>
+                <div class="small fw-semibold" data-recurrence-preview-text></div>
               </div>
               <small class="text-muted">Use these fields to turn a single draft into a series.</small>
             </div>
@@ -804,8 +765,8 @@
     const recFreq = document.getElementById("entRecFreq");
     const recInterval = document.getElementById("entRecInterval");
     const recEndDate = document.getElementById("entRecEndDate");
-    const recMonthlyDay = document.getElementById("entRecMonthlyDay");
     const recMonthlyWeek = document.getElementById("entRecMonthlyWeek");
+    const recMonthlyWeekday = document.getElementById("entRecMonthlyWeekday");
     const recSkipDates = document.getElementById("entRecSkipDates");
     const publicLinkInput = document.getElementById("entEditPublicLink");
     const publicLinkCopy = document.getElementById("entEditPublicLinkCopy");
@@ -816,6 +777,139 @@
       const target = seriesScopeSingle || seriesScopeFuture || seriesScopeAll;
       if (target) target.checked = true;
     };
+
+    const setCheckedWeekday = (container, weekday) => {
+      if (!container) return;
+      const checkboxes = Array.from(container.querySelectorAll('input[name="recurrence_weekdays[]"]'));
+      checkboxes.forEach((cb) => {
+        cb.checked = Number(cb.value) === Number(weekday);
+      });
+    };
+
+    const bindRecurrenceUi = (form) => {
+      if (!form) return;
+      const freqEl = form.querySelector('select[name="recurrence_frequency"]');
+      const intervalEl = form.querySelector('input[name="recurrence_interval"]');
+      const endDateEl = form.querySelector('input[name="recurrence_end_date"]');
+      const monthlyWeekEl = form.querySelector('select[name="recurrence_monthly_week"]');
+      const monthlyWeekRow = form.querySelector("[data-monthly-week-row]");
+      const weekdayWrap = form.querySelector("[data-weekdays-row]");
+      const weekdayChecks = Array.from(form.querySelectorAll('input[name="recurrence_weekdays[]"]'));
+      const monthlyWeekdayEl = form.querySelector('select[name="recurrence_monthly_weekday"]');
+      const skipDatesEl = form.querySelector('textarea[name="recurrence_skip_dates"]');
+      const previewWrap = form.querySelector("[data-recurrence-preview]");
+      const previewText = form.querySelector("[data-recurrence-preview-text]");
+
+      const weekdayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const monthWeekNames = {
+        1: "first",
+        2: "second",
+        3: "third",
+        4: "fourth",
+        "-1": "last",
+      };
+
+      const getCheckedWeekday = () => {
+        const checked = weekdayChecks.find((cb) => cb.checked);
+        return checked ? Number(checked.value) : null;
+      };
+
+      const syncMonthlyWeekdayFromChecks = () => {
+        if (!monthlyWeekdayEl) return;
+        const checkedWeekday = getCheckedWeekday();
+        if (checkedWeekday !== null) {
+          monthlyWeekdayEl.value = String(checkedWeekday);
+        }
+      };
+
+      const syncChecksFromMonthlyWeekday = () => {
+        if (!monthlyWeekdayEl) return;
+        setCheckedWeekday(form, Number(monthlyWeekdayEl.value || 0));
+      };
+
+      const buildPreview = () => {
+        const freq = (freqEl?.value || "none").toLowerCase();
+        if (freq === "none") {
+          if (previewWrap) previewWrap.classList.add("d-none");
+          if (previewText) previewText.textContent = "";
+          return;
+        }
+
+        const interval = Math.max(1, parseInt(intervalEl?.value, 10) || 1);
+        const endDate = (endDateEl?.value || "").trim();
+        const skipCount = (skipDatesEl?.value || "")
+          .split(/[\s,]+/)
+          .map((s) => s.trim())
+          .filter(Boolean).length;
+
+        let summary = "";
+        if (freq === "weekly") {
+          const selectedDays = weekdayChecks
+            .filter((cb) => cb.checked)
+            .map((cb) => weekdayNames[Number(cb.value)] || cb.value);
+          const dayText = selectedDays.length ? selectedDays.join(", ") : "selected day(s)";
+          summary = `Every ${interval > 1 ? `${interval} weeks` : "week"} on ${dayText}`;
+        } else if (freq === "monthly_weekday") {
+          const weekLabel = monthWeekNames[monthlyWeekEl?.value || ""] || "chosen";
+          const weekdayLabel = weekdayNames[Number(monthlyWeekdayEl?.value || 0)] || "weekday";
+          summary = `Every ${interval > 1 ? `${interval} months` : "month"} on the ${weekLabel} ${weekdayLabel}`;
+        }
+
+        if (endDate) {
+          summary += ` until ${endDate}`;
+        } else {
+          summary += " with no end date";
+        }
+        if (skipCount > 0) {
+          summary += ` (${skipCount} skip date${skipCount === 1 ? "" : "s"})`;
+        }
+
+        if (previewText) previewText.textContent = summary;
+        if (previewWrap) previewWrap.classList.remove("d-none");
+      };
+
+      const applyState = () => {
+        const freq = (freqEl?.value || "none").toLowerCase();
+        const isWeekly = freq === "weekly";
+        const isMonthlyWeekday = freq === "monthly_weekday";
+        if (weekdayWrap) {
+          weekdayWrap.classList.toggle("d-none", !isWeekly);
+        }
+        if (monthlyWeekRow) {
+          monthlyWeekRow.classList.toggle("d-none", !isMonthlyWeekday);
+        }
+        if (isMonthlyWeekday) {
+          syncMonthlyWeekdayFromChecks();
+          syncChecksFromMonthlyWeekday();
+        }
+        if (!isWeekly && !isMonthlyWeekday) {
+          weekdayChecks.forEach((cb) => {
+            cb.checked = false;
+          });
+        }
+        buildPreview();
+      };
+
+      monthlyWeekdayEl?.addEventListener("change", syncChecksFromMonthlyWeekday);
+      monthlyWeekEl?.addEventListener("change", buildPreview);
+      intervalEl?.addEventListener("input", buildPreview);
+      endDateEl?.addEventListener("change", buildPreview);
+      skipDatesEl?.addEventListener("input", buildPreview);
+      weekdayChecks.forEach((cb) => cb.addEventListener("change", buildPreview));
+
+      form.addEventListener("submit", () => {
+        if ((freqEl?.value || "none").toLowerCase() === "monthly_weekday") {
+          syncChecksFromMonthlyWeekday();
+        }
+        buildPreview();
+      });
+
+      freqEl?.addEventListener("change", applyState);
+      applyState();
+    };
+
+    bindRecurrenceUi(document.querySelector("#addEntertainmentModal form"));
+    bindRecurrenceUi(document.querySelector("#editEntertainmentModal form"));
 
     const buildPublicLink = (record) => {
       const slugOrId = record?.slug || record?.id;
@@ -892,13 +986,13 @@
       if (!button) return;
       const eventData = button.getAttribute("data-event");
       const eventId = button.getAttribute("data-event-id");
-      const applyRecord = (record) => {
+      const applyRecord = (record, recurrence) => {
         // Reset recurrence inputs
         if (recFreq) recFreq.value = "none";
         if (recInterval) recInterval.value = "1";
         if (recEndDate) recEndDate.value = "";
-        if (recMonthlyDay) recMonthlyDay.value = "";
         if (recMonthlyWeek) recMonthlyWeek.value = "";
+        if (recMonthlyWeekday) recMonthlyWeekday.value = "0";
         if (recSkipDates) recSkipDates.value = "";
         document.querySelectorAll('input[name="recurrence_weekdays[]"]').forEach((cb) => {
           cb.checked = false;
@@ -976,6 +1070,28 @@
         }
         if (record.series_id) {
           setScopeVisibility(true);
+          if (recurrence) {
+            if (recFreq) recFreq.value = recurrence.frequency || "none";
+            if (recInterval) recInterval.value = recurrence.interval || 1;
+            if (recEndDate) recEndDate.value = recurrence.endDate || "";
+            if (recMonthlyWeek) recMonthlyWeek.value = recurrence.monthlyWeek || "";
+            if (recSkipDates) {
+              recSkipDates.value = Array.isArray(recurrence.skipDates)
+                ? recurrence.skipDates.join(", ")
+                : "";
+            }
+            if (Array.isArray(recurrence.weekdays) && recurrence.weekdays.length) {
+              if (recMonthlyWeekday) {
+                recMonthlyWeekday.value = String(recurrence.weekdays[0]);
+              }
+              document
+                .querySelectorAll('input[name="recurrence_weekdays[]"]')
+                .forEach((cb) => {
+                  cb.checked = recurrence.weekdays.includes(Number(cb.value));
+                });
+            }
+            recFreq?.dispatchEvent(new Event("change"));
+          }
         } else {
           setScopeVisibility(false);
         }
@@ -994,7 +1110,7 @@
         .then((resp) => resp.json())
         .then((payload) => {
           if (!payload?.success || !payload.event) throw new Error("No event data");
-          applyRecord(payload.event);
+          applyRecord(payload.event, payload.recurrence || null);
         })
         .catch((err) => {
           console.error("Failed to load event data", err);

@@ -63,31 +63,76 @@
 
 <style>
   .quote-actions.sticky-top { top: 70px; z-index: 9; }
-  .quote-menu-base-row { background: #eef2f6 !important; }
-  .quote-menu-title { font-weight: 700; font-size: 0.95rem; }
-  .quote-menu-item { font-size: 0.95rem; }
+  .quote-menu-base-row { background: #f7f9fc !important; }
+  .quote-menu-title { font-weight: 600; font-size: 0.92rem; }
+  .quote-menu-item { font-size: 0.9rem; }
   .quote-item-excluded { color: #c1121f !important; }
-  .quote-badge-show { background: #2f9d5d; color: #fff; }
-  .quote-badge-hide { background: #f1f3f5; color: #6c757d; border: 1px solid #d0d5db; }
-  .quote-badge-client { background: #4c6ef5; color: #fff; }
-  .quote-badge-locked { background: #f1f3f5; color: #6c757d; border: 1px solid #d0d5db; }
+  .quote-badge-show { background: #e8f7ee; color: #1f7a46; border: 1px solid #b9e7ca; }
+  .quote-badge-hide { background: #f3f4f6; color: #6b7280; border: 1px solid #d9dde3; }
+  .quote-badge-client { background: #e8efff; color: #3458d1; border: 1px solid #c8d7ff; }
+  .quote-badge-locked { background: #f3f4f6; color: #6b7280; border: 1px solid #d9dde3; }
+  .quote-line-input { min-width: 84px; }
+  .quote-subtotal-row td { border-top: 2px solid #dfe6ef; background: #fafbfd; }
+  .quote-subtotal-label { letter-spacing: 0.02em; color: #344054; }
+  .quote-subtotal-value { font-size: 1.02rem; }
+  .quote-menu-caption .badge { font-weight: 600; }
+  .quote-menu-caption .text-muted { font-size: 0.78rem; }
+  .quote-quick-sheet { border: 1px solid #e2e8f0; border-radius: 0.85rem; padding: 0.75rem; background: #f8fafc; }
+  .quote-quick-sheet .btn { border-radius: 999px; }
+  .quote-kicker { font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; font-weight: 700; }
+  .quote-step-head { border: 1px solid #dbe7f2; border-radius: 0.9rem; background: linear-gradient(180deg, #f8fbff, #ffffff); padding: 0.9rem 1rem; }
+  .quote-step-head h2 { font-size: 1rem; margin-bottom: 0.2rem; }
+  .quote-step-head p { margin-bottom: 0; color: #475569; font-size: 0.85rem; }
+  .proposal-builder-wrapper { background: #f0f4f9 !important; border-color: #d1dde9 !important; }
+  .proposal-builder-wrapper .proposal-builder-toggle { background: #e8eef8; padding: 1rem; border-radius: 0.9rem 0.9rem 0 0; border-bottom: 1px solid #d1dde9; }
 </style>
 
 <div class="function-body py-4 px-4 quote-page">
   <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3 mb-4">
     <div>
-      <h1 class="h4 mb-1"><%= fn.event_name || 'Untitled Function' %></h1>
-      <div class="text-muted small">Quote builder • Configure menus, pricing, and proposal selections.</div>
+      <p class="fw-semibold mb-1">Quote builder</p>
+      <div class="text-muted small">Build quote lines and totals here, then send options to the client below.</div>
     </div>
     <div class="btn-toolbar gap-2">
-      <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newQuoteModal">
-        <i class="bi bi-journal-plus me-1"></i> New Quote
+      <a class="btn btn-outline-secondary" href="/functions/<%= fn.id_uuid %>">
+        <i class="bi bi-arrow-left me-1"></i> Back
+      </a>
+      <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addItemModal">
+        <i class="bi bi-plus-square me-1"></i> Add Charge
       </button>
       <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#addMenuModal">
         <i class="bi bi-list-plus me-1"></i> Add Menu
       </button>
+      <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newQuoteModal">
+        <i class="bi bi-journal-plus me-1"></i> New Version
+      </button>
     </div>
   </div>
+
+  <section class="quote-quick-sheet mb-3">
+    <div class="row g-3 align-items-end">
+      <div class="col-lg-6 col-xl-5">
+        <label class="form-label mb-1">Booked room (calendar + quote)</label>
+        <select class="form-select form-select-sm" id="quoteBookedRoomSelect">
+          <option value="">Select room...</option>
+          <% (rooms || []).forEach((room) => { %>
+            <option value="<%= room.id %>" <%= String(fn.room_id || '') === String(room.id) ? 'selected' : '' %>><%= room.name %></option>
+          <% }); %>
+        </select>
+        <div class="form-text">Changing this updates the function room used by the calendar and aligns room charges.</div>
+      </div>
+      <div class="col-lg-6 col-xl-7">
+        <label class="form-label mb-1">Quick add</label>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <button type="button" class="btn btn-sm btn-outline-primary" data-quick-item-preset="room" data-quick-item-label="Room" data-quick-item-name="Room hire">Room</button>
+          <button type="button" class="btn btn-sm btn-outline-primary" data-quick-item-preset="food" data-quick-item-label="Food" data-quick-item-name="Food package">Food</button>
+          <button type="button" class="btn btn-sm btn-outline-primary" data-quick-item-preset="drinks" data-quick-item-label="Drinks" data-quick-item-name="Drinks package">Drinks</button>
+          <button type="button" class="btn btn-sm btn-outline-primary" data-quick-item-preset="extras" data-quick-item-label="Extras" data-quick-item-name="Extra service">Extras</button>
+          <button type="button" class="btn btn-sm btn-outline-primary" data-quick-item-preset="service" data-quick-item-label="Service" data-quick-item-name="Service charge">Service</button>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <div class="quote-stage">
     <div id="quoteSaveBar" class="alert alert-warning d-none">
@@ -119,7 +164,7 @@
       <div class="quote-card thin">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <span class="fw-semibold">Quote Totals</span>
-          <div class="quote-actions d-flex gap-2 flex-wrap sticky-top bg-white border rounded p-2 shadow-sm">
+          <div class="quote-actions d-flex gap-2 flex-wrap bg-white border rounded p-2 shadow-sm">
             <% if (proposals[0]?.client_selection) { %>
               <button id="applyClientSelectionBtn" class="btn btn-sm btn-success">
                 Apply client selections
@@ -181,17 +226,20 @@
     </section>
   </div>
 
-    <section class="quote-card proposal-builder-wrapper" id="proposalBuilderCard">
-      <div class="proposal-builder-toggle">
-        <div>
-          <p class="fw-semibold mb-1">Proposal Builder</p>
-          <p class="text-muted small mb-0">Choose which notes, contacts, and terms flow through to the customer proposal.</p>
-        </div>
+  <section class="quote-card proposal-builder-wrapper" id="proposalBuilderCard">
+    <div class="proposal-builder-toggle">
+      <div>
+        <p class="fw-semibold mb-1">Send to customer</p>
+        <p class="text-muted small mb-0">Select what to include before sending.</p>
       </div>
-      <div class="collapse show mt-3" id="quoteProposalBuilderCollapse">
-        <%- include('../../partials/proposal/builder', {
-          fn,
-          proposalId: proposals[0]?.id || null,
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#quoteProposalBuilderCollapse" aria-expanded="true" aria-controls="quoteProposalBuilderCollapse">
+        Show or hide
+      </button>
+    </div>
+    <div class="collapse show mt-3" id="quoteProposalBuilderCollapse">
+      <%- include('../../partials/proposal/builder', {
+        fn,
+        proposalId: proposals[0]?.id || null,
         proposalItems,
         templates,
         contacts: linkedContacts || [],
@@ -200,8 +248,8 @@
         clientStatus,
         clientLink,
         showClientActions: true,
-        builderHeading: '',
-        builderDescription: ''
+        builderHeading: 'Customer send settings',
+        builderDescription: 'Control notes, terms, and contacts that appear in the client quote.'
       }) %>
     </div>
   </section>
@@ -273,6 +321,93 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
           <button type="submit" class="btn btn-primary" id="sendClientEmailSubmit">Send email</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Add One-off Item Modal -->
+<div class="modal fade" id="addItemModal" tabindex="-1" aria-labelledby="addItemModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form id="quickQuoteItemForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addItemModalLabel">Add One-off Quote Item</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Item type</label>
+            <select class="form-select" name="category" id="quickQuoteItemCategory" required>
+              <option value="">Select type...</option>
+              <option value="Room">Room charge</option>
+              <option value="Food">Food</option>
+              <option value="Drinks">Drinks</option>
+              <option value="Extras">Extras</option>
+              <option value="Service">Service charge</option>
+            </select>
+          </div>
+          <div class="mb-3 d-none" id="quickItemRoomWrap">
+            <label class="form-label">Room for this charge</label>
+            <select class="form-select" name="room_id" id="quickItemRoomSelect">
+              <option value="">Use booked room</option>
+              <% (rooms || []).forEach((room) => { %>
+                <option value="<%= room.id %>"><%= room.name %></option>
+              <% }); %>
+            </select>
+            <div class="form-text">If selected, this room becomes the booked room on the function calendar.</div>
+          </div>
+          <div class="mb-3 d-none" id="quickItemPresetWrap">
+            <label class="form-label">Preset item (optional)</label>
+            <select class="form-select" id="quickItemPresetSelect">
+              <option value="">Select a saved item...</option>
+            </select>
+            <div class="form-text" id="quickItemPresetHelp">Choose a saved room/service charge to prefill name and price.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Item name</label>
+            <input type="text" class="form-control" name="name" placeholder="e.g. Room hire - Main Hall" required>
+          </div>
+          <div class="row g-2">
+            <div class="col-4">
+              <label class="form-label">Qty</label>
+              <input type="number" class="form-control" name="qty" min="1" step="1" value="1" required>
+            </div>
+            <div class="col-4">
+              <label class="form-label">Unit price ($)</label>
+              <input type="number" class="form-control" name="unit_price" min="0" step="0.01" required>
+            </div>
+            <div class="col-4">
+              <label class="form-label">Unit cost ($)</label>
+              <input type="number" class="form-control" name="cost_each" min="0" step="0.01" placeholder="Optional">
+            </div>
+          </div>
+          <div class="form-check mt-3">
+            <input class="form-check-input" type="checkbox" name="client_selectable" id="quickItemClientSelectable" value="true">
+            <label class="form-check-label" for="quickItemClientSelectable">
+              Client can select this item in proposal
+            </label>
+          </div>
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" name="save_for_reuse" id="quickItemSaveForReuse" value="true">
+            <label class="form-check-label" for="quickItemSaveForReuse">
+              Save this as a reusable menu item (optional)
+            </label>
+          </div>
+          <div class="mt-2 d-none" id="quickItemReuseCategoryWrap">
+            <label class="form-label">Reusable menu category</label>
+            <select class="form-select" name="reuse_category_id" id="quickItemReuseCategory">
+              <option value="">Auto-match from item type</option>
+              <% (categories || []).forEach((c) => { %>
+                <option value="<%= c.id %>"><%= c.name %></option>
+              <% }); %>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="quickQuoteItemSubmitBtn">Add item</button>
         </div>
       </form>
     </div>
@@ -472,6 +607,9 @@
     const openDrawerBtn = document.getElementById('openMenuDrawerBtn');
     const createMenuBtn = document.getElementById('createMenuFromModalBtn');
     const existingMenuIds = Array.isArray(window.quoteMenuData?.existingMenuIds) ? window.quoteMenuData.existingMenuIds : [];
+    const menuCategoryNames = (window.quoteMenuData?.categories || [])
+      .map((c) => String(c.name || '').trim())
+      .filter(Boolean);
 
     const fnId = window.fnContext?.id;
     const proposalId = window.fnContext?.proposalId;
@@ -607,6 +745,40 @@
 
     const isChildRow = (text) => /^\s*(Choice:|Add-on:)/i.test(text);
 
+    function firstCategoryMatch(patterns = []) {
+      const lower = menuCategoryNames.map((name) => ({ name, lower: name.toLowerCase() }));
+      for (const pattern of patterns) {
+        const found = lower.find((entry) => entry.lower.includes(pattern));
+        if (found) return found.name;
+      }
+      return null;
+    }
+
+    function resolveDisplayCategory(rawCategory) {
+      const source = String(rawCategory || '').trim();
+      const normalized = source.toLowerCase();
+      if (!normalized) return 'Uncategorised';
+
+      if (normalized.includes('room') || normalized.includes('service')) {
+        return 'Rooms and Services';
+      }
+
+      if (normalized.includes('catering') || normalized.includes('food')) {
+        return 'Catering and Food';
+      }
+
+      if (normalized.includes('drink') || normalized.includes('bar')) {
+        return 'Bar and Drinks';
+      }
+
+      if (normalized.includes('extra')) {
+        return 'Extras';
+      }
+
+      const exact = menuCategoryNames.find((name) => name.toLowerCase() === normalized);
+      return exact || source;
+    }
+
     function buildModel() {
       window.quoteActiveItemIds = new Set();
       itemLookup.clear();
@@ -623,15 +795,33 @@
 
         if (!isChildRow(text)) {
           const menuTitle = text.replace(/^Menu:\s*/i, '').trim();
-          const categoryName = meta.category || 'Uncategorised';
-          const baseCostValue =
+          const categoryName = resolveDisplayCategory(meta.category || 'Uncategorised');
+          const baseQty = Number(meta.qty) > 0 ? Number(meta.qty) : 1;
+          const basePriceEach =
+            meta.base !== undefined && meta.base !== null
+              ? Number(meta.base)
+              : baseQty > 1
+              ? (price < baseQty ? price : price / baseQty)
+              : price;
+          const basePriceLine = (meta.excluded ? 0 : (Number.isFinite(basePriceEach) ? basePriceEach : 0) * baseQty);
+          const baseCostEachValue =
+            meta.cost_each !== undefined && meta.cost_each !== null
+              ? Number(meta.cost_each)
+              : null;
+          const baseCostTotalValue =
             meta.cost !== undefined && meta.cost !== null
               ? Number(meta.cost)
               : null;
-          const baseCost =
-            baseCostValue !== null && Number.isFinite(baseCostValue)
-              ? baseCostValue
-              : null;
+          const baseCostEach = Number.isFinite(baseCostEachValue)
+            ? baseCostEachValue
+            : Number.isFinite(baseCostTotalValue) && baseQty > 0
+            ? baseCostTotalValue / baseQty
+            : null;
+          const baseCost = Number.isFinite(baseCostEach)
+            ? baseCostEach * baseQty
+            : Number.isFinite(baseCostTotalValue)
+            ? baseCostTotalValue
+            : null;
           if (!categories.has(categoryName)) categories.set(categoryName, []);
           const clientSelectableFlag = selectable || String(meta.client_selectable || "").toLowerCase() === "true";
           const clientAllowQtyFlag = String(meta.client_allow_qty || "").toLowerCase() === "true";
@@ -639,7 +829,9 @@
             menuId: Number(meta.menu_id) || null,
             baseId: id,
             title: menuTitle,
-            basePrice: price,
+            basePrice: basePriceLine,
+            basePriceEach: Number.isFinite(basePriceEach) ? basePriceEach : 0,
+            baseQty,
             baseExcluded: Boolean(meta.excluded),
             baseHidden: Boolean(meta.hide_proposal),
             baseCost,
@@ -651,8 +843,9 @@
           itemLookup.set(id, {
             id,
             name: menuTitle,
-            price,
-            qty: 1,
+            price: basePriceLine,
+            priceEach: Number.isFinite(basePriceEach) ? basePriceEach : 0,
+            qty: baseQty,
             excluded: Boolean(meta.excluded),
             isBase: true,
           });
@@ -776,6 +969,7 @@
         const listGroup = card.querySelector('.list-group');
 
         menus.forEach((menu) => {
+          const hasMenuId = Number(menu.menuId) > 0;
           const listItem = document.createElement('div');
           listItem.className = 'list-group-item';
           listItem.innerHTML = `
@@ -785,23 +979,23 @@
                   <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
                     <div>
                       <div class="fw-semibold">${menu.title}</div>
-                      <div class="text-muted small">Menu ID: ${menu.menuId || 'n/a'}</div>
+                      <div class="text-muted small">${hasMenuId ? 'Menu bundle' : 'One-off quote item'}</div>
                       <div class="d-flex flex-wrap gap-2 mt-1">
-                        <span class="badge ${menu.baseHidden ? 'quote-badge-hide' : 'quote-badge-show'}">${menu.baseHidden ? 'Hidden from proposal' : 'Shown in proposal'}</span>
-                        <span class="badge ${menu.clientSelectable ? 'quote-badge-client' : 'quote-badge-locked'}">${menu.clientSelectable ? 'Client can choose' : 'Client view locked'}</span>
+                        <span class="badge ${menu.baseHidden ? 'quote-badge-hide' : 'quote-badge-show'}">${menu.baseHidden ? 'Hidden' : 'Shown'}</span>
+                        <span class="badge ${menu.clientSelectable ? 'quote-badge-client' : 'quote-badge-locked'}">${menu.clientSelectable ? 'Client chooses' : 'Locked'}</span>
                       </div>
                     </div>
                     <div class="dropdown">
                       <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                        Menu options
+                        ${hasMenuId ? 'Menu options' : 'Item options'}
                       </button>
                       <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                        <li><a class="dropdown-item menu-edit" href="#" data-menu-id="${menu.menuId || ''}">Edit menu</a></li>
-                        <li><a class="dropdown-item menu-resync" href="#" data-menu-id="${menu.menuId || ''}">Resync prices</a></li>
-                        <li><a class="dropdown-item menu-client-select" href="#" data-menu-id="${menu.menuId || ''}" data-selectable="${menu.clientSelectable ? 'true' : 'false'}">${menu.clientSelectable ? 'Lock client view' : 'Allow client selection'}</a></li>
-                        <li><a class="dropdown-item menu-hide-proposal" href="#" data-menu-id="${menu.menuId || ''}" data-hidden="${menu.baseHidden ? 'true' : 'false'}">${menu.baseHidden ? 'Show in proposal' : 'Hide from proposal'}</a></li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item text-danger menu-remove" href="#" data-menu-id="${menu.menuId || ''}">Remove menu</a></li>
+                        ${hasMenuId ? `<li><a class="dropdown-item menu-edit" href="#" data-menu-id="${menu.menuId || ''}">Edit menu</a></li>` : ''}
+                        ${hasMenuId ? `<li><a class="dropdown-item menu-resync" href="#" data-menu-id="${menu.menuId || ''}">Resync prices</a></li>` : ''}
+                        ${hasMenuId ? `<li><a class="dropdown-item menu-client-select" href="#" data-menu-id="${menu.menuId || ''}" data-selectable="${menu.clientSelectable ? 'true' : 'false'}">${menu.clientSelectable ? 'Lock client view' : 'Allow client selection'}</a></li>` : ''}
+                        ${hasMenuId ? `<li><a class="dropdown-item menu-hide-proposal" href="#" data-menu-id="${menu.menuId || ''}" data-hidden="${menu.baseHidden ? 'true' : 'false'}">${menu.baseHidden ? 'Show in proposal' : 'Hide from proposal'}</a></li>` : ''}
+                        ${hasMenuId ? '<li><hr class="dropdown-divider"></li>' : ''}
+                        <li><a class="dropdown-item text-danger menu-remove" href="#" data-menu-id="${hasMenuId ? menu.menuId : ''}" data-base-id="${menu.baseId || ''}">${hasMenuId ? 'Remove menu' : 'Remove item'}</a></li>
                       </ul>
                     </div>
                   </div>
@@ -810,17 +1004,17 @@
                     <tr>
                       <th style="width: 40px;"></th>
                       <th>Item</th>
-                      <th style="width: 100px;">Qty</th>
-                      <th style="width: 110px;">Price</th>
-                      <th style="width: 110px;">Cost</th>
-                      <th class="text-end" style="width: 120px;">Total</th>
+                      <th style="width: 90px;">Qty</th>
+                      <th style="width: 105px;">Price</th>
+                      <th style="width: 105px;">Cost</th>
+                      <th class="text-end" style="width: 110px;">Total</th>
                     </tr>
                   </thead>
                   <tbody></tbody>
                   <tfoot>
-                    <tr>
-                    <td colspan="4" class="text-end fw-semibold">Subtotal</td>
-                    <td class="text-end fw-semibold menu-subtotal" data-base="${menu.basePrice}">${formatCurrency(menu.basePrice)}</td>
+                    <tr class="quote-subtotal-row">
+                    <td colspan="5" class="text-end fw-semibold quote-subtotal-label">Subtotal</td>
+                    <td class="text-end fw-semibold menu-subtotal quote-subtotal-value" data-base="${menu.basePrice}">${formatCurrency(menu.basePrice)}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -831,20 +1025,20 @@
           // Base line
           const baseRow = document.createElement('tr');
           baseRow.dataset.id = menu.baseId;
-          baseRow.classList.add('table-secondary', 'quote-menu-base-row');
+          baseRow.classList.add('quote-menu-base-row');
           baseRow.innerHTML = `
             <td class="text-center">
               <input class="form-check-input include-toggle" type="checkbox" ${menu.baseExcluded ? '' : 'checked'}>
             </td>
             <td class="quote-menu-title ${menu.baseExcluded ? 'quote-item-excluded' : ''}"><strong>${menu.title}</strong></td>
             <td>
-              <input type="number" class="form-control form-control-sm qty-input" min="1" value="1">
+              <input type="number" class="form-control form-control-sm quote-line-input qty-input" min="1" value="${menu.baseQty || 1}">
             </td>
             <td>
-              <input type="number" class="form-control form-control-sm price-input" step="0.01" min="0" value="${(menu.basePrice || 0).toFixed(2)}">
+              <input type="number" class="form-control form-control-sm quote-line-input price-input" step="0.01" min="0" value="${(menu.basePriceEach || 0).toFixed(2)}">
             </td>
             <td>
-              <input type="number" class="form-control form-control-sm cost-input" step="0.01" min="0" value="${Number.isFinite(menu.baseCost) && menu.baseCost !== null ? menu.baseCost.toFixed(2) : '0.00'}">
+              <input type="number" class="form-control form-control-sm quote-line-input cost-input" step="0.01" min="0" value="${Number.isFinite(menu.baseCost) && menu.baseCost !== null ? menu.baseCost.toFixed(2) : '0.00'}">
             </td>
             <td class="text-end">
               <span class="line-total">${formatCurrency(menu.basePrice || 0)}</span>
@@ -863,13 +1057,13 @@
                 </td>
                 <td class="quote-menu-item ${item.excluded ? 'quote-item-excluded' : ''}">${item.name}</td>
                 <td>
-                  <input type="number" class="form-control form-control-sm qty-input" min="1" value="${qtyValue}">
+                  <input type="number" class="form-control form-control-sm quote-line-input qty-input" min="1" value="${qtyValue}">
                 </td>
                 <td>
-                  <input type="number" class="form-control form-control-sm price-input" step="0.01" min="0" value="${(item.priceEach || 0).toFixed(2)}">
+                  <input type="number" class="form-control form-control-sm quote-line-input price-input" step="0.01" min="0" value="${(item.priceEach || 0).toFixed(2)}">
               </td>
               <td>
-                <input type="number" class="form-control form-control-sm cost-input" step="0.01" min="0" value="${item.costEach != null && Number.isFinite(item.costEach) ? item.costEach.toFixed(2) : '0.00'}">
+                <input type="number" class="form-control form-control-sm quote-line-input cost-input" step="0.01" min="0" value="${item.costEach != null && Number.isFinite(item.costEach) ? item.costEach.toFixed(2) : '0.00'}">
               </td>
               <td class="text-end">
                 <span class="line-total">${formatCurrency(includeChecked ? item.price : 0)}</span>
@@ -963,20 +1157,29 @@
       if (removeBtn) {
         event.preventDefault();
         const menuId = removeBtn.dataset.menuId;
-        if (!menuId) return;
-        if (!confirm('Remove this menu (and related choices) from the quote?')) return;
+        const baseItemId = Number(removeBtn.dataset.baseId || 0);
+        const hasMenuId = Number(menuId) > 0;
+        if (!hasMenuId && !Number.isInteger(baseItemId)) return;
+        if (!confirm(hasMenuId ? 'Remove this menu (and related choices) from the quote?' : 'Remove this quote item?')) return;
         try {
-          const res = await fetch(`/functions/${fnId}/quote/remove-menu`, {
+          const endpoint = hasMenuId
+            ? `/functions/${fnId}/quote/remove-menu`
+            : `/functions/${fnId}/quote/remove-item`;
+          const payload = hasMenuId
+            ? { menu_id: menuId }
+            : { item_id: baseItemId };
+
+          const res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ menu_id: menuId }),
+            body: JSON.stringify(payload),
           });
           const data = await res.json();
-          if (!data.success) throw new Error(data.error || 'Failed to remove menu');
+          if (!data.success) throw new Error(data.error || (hasMenuId ? 'Failed to remove menu' : 'Failed to remove item'));
           location.reload();
         } catch (err) {
           console.error(err);
-          quoteToast(err.message || 'Failed to remove menu', 'danger');
+          quoteToast(err.message || (hasMenuId ? 'Failed to remove menu' : 'Failed to remove item'), 'danger');
         }
         return;
       }
@@ -1194,6 +1397,245 @@
     const clientEmailMessage = document.getElementById('clientEmailMessage');
     const sendClientEmailSubmit = document.getElementById('sendClientEmailSubmit');
     const applyClientSelectionBtn = document.getElementById('applyClientSelectionBtn');
+    const quickQuoteItemForm = document.getElementById('quickQuoteItemForm');
+    const quickQuoteItemSubmitBtn = document.getElementById('quickQuoteItemSubmitBtn');
+    const quickItemSaveForReuse = document.getElementById('quickItemSaveForReuse');
+    const quickItemReuseCategoryWrap = document.getElementById('quickItemReuseCategoryWrap');
+    const quickItemReuseCategory = document.getElementById('quickItemReuseCategory');
+    const quickQuoteItemCategory = document.getElementById('quickQuoteItemCategory');
+    const quickItemRoomWrap = document.getElementById('quickItemRoomWrap');
+    const quickItemRoomSelect = document.getElementById('quickItemRoomSelect');
+    const quickItemPresetWrap = document.getElementById('quickItemPresetWrap');
+    const quickItemPresetSelect = document.getElementById('quickItemPresetSelect');
+    const quickItemPresetHelp = document.getElementById('quickItemPresetHelp');
+    const quoteBookedRoomSelect = document.getElementById('quoteBookedRoomSelect');
+    const quickItemPresetButtons = Array.from(document.querySelectorAll('[data-quick-item-preset]'));
+    const quickItemModalEl = document.getElementById('addItemModal');
+    const quickItemNameInput = quickQuoteItemForm?.querySelector('[name="name"]');
+    const quickItemUnitPriceInput = quickQuoteItemForm?.querySelector('[name="unit_price"]');
+
+    function normalizeCategoryName(value) {
+      return String(value || '').trim().toLowerCase();
+    }
+
+    function isRoomCategoryName(value) {
+      const n = normalizeCategoryName(value);
+      return n === 'room' || n === 'room charge' || n.includes('room');
+    }
+
+    function isServiceCategoryName(value) {
+      const n = normalizeCategoryName(value);
+      return n === 'service' || n === 'services' || n.includes('service');
+    }
+
+    function getPresetMenusForType(type) {
+      const categories = window.quoteMenuData?.categories || [];
+      const menus = window.quoteMenuData?.menus || [];
+      const categoryIds = categories
+        .filter((c) => {
+          if (type === 'room') return isRoomCategoryName(c.name);
+          if (type === 'service') return isServiceCategoryName(c.name);
+          return false;
+        })
+        .map((c) => Number(c.id))
+        .filter((id) => Number.isInteger(id) && id > 0);
+
+      if (!categoryIds.length) return [];
+      return menus
+        .filter((m) => categoryIds.includes(Number(m.category_id)))
+        .map((m) => ({
+          id: Number(m.id),
+          name: String(m.name || '').trim(),
+          description: String(m.description || '').trim(),
+          price: Number(m.price),
+        }))
+        .filter((m) => m.id > 0 && m.name)
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    function renderQuickItemPresetOptions(type) {
+      if (!quickItemPresetSelect || !quickItemPresetWrap) return;
+      quickItemPresetSelect.innerHTML = '<option value="">Select a saved item...</option>';
+
+      if (type !== 'room' && type !== 'service') {
+        quickItemPresetWrap.classList.add('d-none');
+        return;
+      }
+
+      const presets = getPresetMenusForType(type);
+      if (!presets.length) {
+        quickItemPresetWrap.classList.add('d-none');
+        if (quickItemPresetHelp) {
+          quickItemPresetHelp.textContent = type === 'room'
+            ? 'No saved room presets found. You can still enter a room charge manually.'
+            : 'No saved service presets found. You can still enter a service charge manually.';
+        }
+        return;
+      }
+
+      presets.forEach((preset) => {
+        const option = document.createElement('option');
+        option.value = String(preset.id);
+        option.dataset.name = preset.name;
+        option.dataset.price = Number.isFinite(preset.price) ? String(preset.price) : '';
+        option.textContent = Number.isFinite(preset.price)
+          ? `${preset.name} - $${preset.price.toFixed(2)}`
+          : preset.name;
+        quickItemPresetSelect.appendChild(option);
+      });
+
+      if (quickItemPresetHelp) {
+        quickItemPresetHelp.textContent = type === 'room'
+          ? 'Choose a saved room preset to prefill name and price (optional).'
+          : 'Choose a saved service preset to prefill name and price (optional).';
+      }
+      quickItemPresetWrap.classList.remove('d-none');
+    }
+
+    quoteBookedRoomSelect?.addEventListener('change', async () => {
+      const roomId = Number(quoteBookedRoomSelect.value || 0);
+      if (!roomId || !fnId) return;
+      quoteBookedRoomSelect.disabled = true;
+      try {
+        const res = await fetch(`/functions/${fnId}/quote/sync-room`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room_id: roomId }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to sync room');
+        quoteToast(`Booked room updated to ${data.room?.name || 'selected room'}.`, 'success');
+        location.reload();
+      } catch (err) {
+        console.error(err);
+        quoteToast(err.message || 'Failed to sync room', 'danger');
+      } finally {
+        quoteBookedRoomSelect.disabled = false;
+      }
+    });
+
+    function syncQuickItemCategoryUi() {
+      const category = String(quickQuoteItemCategory?.value || '').toLowerCase();
+      const isRoom = category === 'room' || category === 'room charge';
+      const isService = category === 'service' || category === 'services' || category === 'service charge';
+      quickItemRoomWrap?.classList.toggle('d-none', !isRoom);
+      if (!isRoom && quickItemRoomSelect) {
+        quickItemRoomSelect.value = '';
+      }
+      if (isRoom && quickItemRoomSelect && quoteBookedRoomSelect?.value && !quickItemRoomSelect.value) {
+        quickItemRoomSelect.value = quoteBookedRoomSelect.value;
+      }
+      if (quickItemPresetSelect) quickItemPresetSelect.value = '';
+      renderQuickItemPresetOptions(isRoom ? 'room' : isService ? 'service' : null);
+    }
+
+    quickQuoteItemCategory?.addEventListener('change', syncQuickItemCategoryUi);
+
+    quickItemRoomSelect?.addEventListener('change', () => {
+      const category = String(quickQuoteItemCategory?.value || '').toLowerCase();
+      const isRoom = category === 'room' || category === 'room charge';
+      const roomId = Number(quickItemRoomSelect.value || 0);
+      if (!isRoom || !roomId) return;
+
+      if (quickItemNameInput && !quickItemNameInput.value.trim()) {
+        const roomName = quickItemRoomSelect.options[quickItemRoomSelect.selectedIndex]?.text || 'Room';
+        quickItemNameInput.value = `Room hire (${roomName})`;
+      }
+    });
+
+    quickItemPresetSelect?.addEventListener('change', () => {
+      const selected = quickItemPresetSelect.options[quickItemPresetSelect.selectedIndex];
+      if (!selected || !selected.value) return;
+      const presetName = String(selected.dataset.name || '').trim();
+      const presetPrice = Number(selected.dataset.price || 0);
+      if (quickItemNameInput && presetName) {
+        quickItemNameInput.value = presetName;
+      }
+      if (quickItemUnitPriceInput && Number.isFinite(presetPrice)) {
+        quickItemUnitPriceInput.value = presetPrice.toFixed(2);
+      }
+    });
+
+    quickItemSaveForReuse?.addEventListener('change', () => {
+      quickItemReuseCategoryWrap?.classList.toggle('d-none', !quickItemSaveForReuse.checked);
+      if (!quickItemSaveForReuse.checked && quickItemReuseCategory) {
+        quickItemReuseCategory.value = '';
+      }
+    });
+
+    quickItemPresetButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (!quickQuoteItemForm) return;
+        const categoryInput = quickQuoteItemForm.querySelector('[name="category"]');
+        const nameInput = quickQuoteItemForm.querySelector('[name="name"]');
+        const unitPriceInput = quickQuoteItemForm.querySelector('[name="unit_price"]');
+        const categoryLabel = String(btn.dataset.quickItemLabel || '').trim();
+        const suggestedName = String(btn.dataset.quickItemName || '').trim();
+        if (categoryInput && categoryLabel) categoryInput.value = categoryLabel;
+        if (nameInput && !nameInput.value.trim()) nameInput.value = suggestedName;
+        syncQuickItemCategoryUi();
+        const modal = bootstrap.Modal.getOrCreateInstance(quickItemModalEl);
+        modal.show();
+        setTimeout(() => unitPriceInput?.focus(), 120);
+      });
+    });
+
+    quickQuoteItemForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!fnId) return;
+      if (quickQuoteItemSubmitBtn) quickQuoteItemSubmitBtn.disabled = true;
+      try {
+        const formData = new FormData(quickQuoteItemForm);
+        const payload = {
+          category: String(formData.get('category') || '').trim(),
+          name: String(formData.get('name') || '').trim(),
+          room_id:
+            formData.get('room_id') === '' || formData.get('room_id') == null
+              ? null
+              : Number(formData.get('room_id')),
+          qty: Number(formData.get('qty') || 1),
+          unit_price: Number(formData.get('unit_price') || 0),
+          cost_each:
+            formData.get('cost_each') === '' || formData.get('cost_each') == null
+              ? null
+              : Number(formData.get('cost_each')),
+          client_selectable: formData.get('client_selectable') === 'true',
+          save_for_reuse: formData.get('save_for_reuse') === 'true',
+          reuse_category_id:
+            formData.get('reuse_category_id') === '' || formData.get('reuse_category_id') == null
+              ? null
+              : Number(formData.get('reuse_category_id')),
+        };
+
+        const res = await fetch(`/functions/${fnId}/quote/add-item`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to add item');
+
+        const modal = bootstrap.Modal.getInstance(document.getElementById('addItemModal'));
+        modal?.hide();
+        quickQuoteItemForm.reset();
+        if (quickItemReuseCategoryWrap) quickItemReuseCategoryWrap.classList.add('d-none');
+        if (quickItemRoomWrap) quickItemRoomWrap.classList.add('d-none');
+        if (quickItemPresetWrap) quickItemPresetWrap.classList.add('d-none');
+        if (data.saveWarning) {
+          quoteToast(data.saveWarning, 'warning');
+        } else if (data.reusableMenuId) {
+          quoteToast('Item added and saved for reuse.', 'success');
+        } else {
+          quoteToast('Item added to quote.', 'success');
+        }
+        location.reload();
+      } catch (err) {
+        console.error(err);
+        quoteToast(err.message || 'Failed to add item', 'danger');
+      } finally {
+        if (quickQuoteItemSubmitBtn) quickQuoteItemSubmitBtn.disabled = false;
+      }
+    });
 
     async function readJsonSafe(res) {
       const text = await res.text();

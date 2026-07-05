@@ -31,10 +31,7 @@ const FUNCTION_STATUSES = [
 ];
 const DEFAULT_FUNCTION_STATUS_FILTER = [
   "lead",
-  "qualified",
   "confirmed",
-  "balance_due",
-  "completed",
 ];
 const STATUS_COLOURS = {
   lead: "#CBD5F5", // muted indigo
@@ -44,14 +41,23 @@ const STATUS_COLOURS = {
   completed: "#D1D5DB",
 };
 const ROOM_COLOUR_FALLBACKS = [
-  "#6bb4de",
-  "#59c27a",
-  "#f5c044",
-  "#e25b5b",
-  "#8b6fde",
-  "#4a9ecc",
-  "#d86aa1",
-  "#5bbbd6",
+  "#6bb4de", // bright blue
+  "#D99B26", // warm amber gold
+  "#D96B6B", // terracotta rose
+  "#689F7D", // sage olive green
+  "#A55B8F", // plum / mulberry
+  "#339395", // deep teal
+  "#8b6fde", // violet
+  "#4a9ecc", // medium teal blue
+  "#d86aa1", // pink
+  "#5bbbd6", // sky blue
+  "#fbbf24", // amber
+  "#34d399", // emerald
+  "#60a5fa", // light blue
+  "#a78bfa", // soft violet
+  "#fb923c", // orange
+  "#e25b5b", // coral red
+  "#7c9f35", // olive green
 ];
 
 function getRoomColourFallback(roomId) {
@@ -63,6 +69,23 @@ function getRoomColourFallback(roomId) {
   }
   return ROOM_COLOUR_FALLBACKS[hash % ROOM_COLOUR_FALLBACKS.length];
 }
+
+function getNamedRoomColour(roomName) {
+  const normalizedName = String(roomName || "").trim().toLowerCase();
+  if (!normalizedName) return null;
+  if (normalizedName.includes("restaurant")) return "#bbf7d0";
+  if (normalizedName.includes("courtesy van")) return "#339395";
+  return null;
+}
+
+function resolveRoomColour(roomId, roomName, rawColour) {
+  const namedColour = getNamedRoomColour(roomName);
+  if (namedColour) return namedColour;
+  const explicitColour = String(rawColour || "").trim();
+  if (explicitColour) return explicitColour;
+  return getRoomColourFallback(roomId);
+}
+
 const DEFAULT_DAY_SLOT_MINUTES = 30;
 const RESTAURANT_STATUS_COLOURS = {
   pending: "#fde68a",
@@ -269,6 +292,7 @@ function mapFunctionRow(row) {
   }
   const allDay = !row.start_time && !row.end_time;
   const statusKey = String(row.status || "").toLowerCase();
+  const isLead = statusKey === "lead";
   const baseColour = STATUS_COLOURS[statusKey] || "#6bb4de";
   const title = row.event_name || "Function";
   const allocationRooms = Array.isArray(row.allocation_rooms) ? row.allocation_rooms : [];
@@ -280,7 +304,7 @@ function mapFunctionRow(row) {
     : [];
   const allocationRoomColorsFilled = allocationRooms.map((room, idx) => {
     const raw = allocationRoomColors[idx];
-    return raw && String(raw).trim() ? raw : getRoomColourFallback(room.id);
+    return resolveRoomColour(room.id, room.name, raw);
   });
   const roomNameSet = new Set(
     [row.room_name, ...allocationRoomNames].filter(Boolean).map((name) => String(name))
@@ -293,11 +317,15 @@ function mapFunctionRow(row) {
   );
   const roomIds = Array.from(roomIdSet);
   const primaryRoomColor = row.room_id
-    ? (row.room_color && String(row.room_color).trim()) || getRoomColourFallback(row.room_id)
+    ? resolveRoomColour(row.room_id, row.room_name, row.room_color)
     : null;
   const roomColor = primaryRoomColor || allocationRoomColorsFilled.find((c) => c) || null;
+  const unassignedRoomColour = "#D1D5DB";
   const forceStatusColour = ["completed", "cancelled"].includes(statusKey);
-  const colour = forceStatusColour ? baseColour : roomColor || baseColour;
+  const colour = forceStatusColour
+    ? baseColour
+    : roomColor || (roomIds.length === 0 ? unassignedRoomColour : baseColour);
+  const opacity = isLead ? 0.45 : 1;
   return {
     id: row.id_uuid,
     title,
@@ -305,7 +333,10 @@ function mapFunctionRow(row) {
     end,
     allDay,
     backgroundColor: colour,
-    borderColor: colour,
+    borderColor: isLead ? "#94a3b8" : colour,
+    textColor: isLead ? "#475569" : undefined,
+    classNames: isLead ? ["fc-event--lead"] : [],
+    style: `opacity: ${opacity}; border-style: ${isLead ? "dashed" : "solid"}; ${isLead ? "text-decoration: line-through; text-decoration-color: rgba(148, 163, 184, 0.7); text-decoration-thickness: 1px;" : ""}`,
     extendedProps: {
       type: "functions",
       sourceId: row.id_uuid,
@@ -892,7 +923,7 @@ router.get("/", async (req, res) => {
     );
     const rooms = roomsRaw.map((room) => ({
       ...room,
-      color_code: (room.color_code && String(room.color_code).trim()) || getRoomColourFallback(room.id),
+      color_code: resolveRoomColour(room.id, room.name, room.color_code),
     }));
 
     res.render("pages/calendar/index", {
@@ -932,7 +963,7 @@ router.get("/events", async (req, res) => {
     if (includeFunctions) {
       await ensureFunctionEndDateColumn();
       await ensureFunctionRoomAllocationsTable();
-      const whereParts = ["f.event_date IS NOT NULL"];
+      const whereParts = ["f.event_date IS NOT NULL", "LOWER(COALESCE(f.status, 'lead')) <> 'cancelled'"];
       const params = [];
 
       if (startDate) {
@@ -983,6 +1014,9 @@ router.get("/events", async (req, res) => {
       }
       if (functionStatuses.length) {
         params.push(functionStatuses);
+        whereParts.push(`LOWER(COALESCE(f.status, 'lead')) = ANY($${params.length}::text[])`);
+      } else {
+        params.push(["lead", "confirmed"]);
         whereParts.push(`LOWER(COALESCE(f.status, 'lead')) = ANY($${params.length}::text[])`);
       }
 

@@ -1,13 +1,7 @@
 <% locals.layout = 'layouts/main'; %>
-
-<!-- ?? Workspace -->
-<section class="function-workspace">
-
-  <!-- ?? Body -->
   <div class="function-body py-4 px-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <div>
-        <h2 class="mb-0">Tasks</h2>
         <p class="text-muted small mb-0">Manage follow-ups and assignments for this function.</p>
       </div>
       <button class="btn btn-dark" id="addTaskBtn">
@@ -65,7 +59,6 @@
       <% } %>
     </div>
   </div>
-</section>
 
 <!-- ?? Add/Edit Task Modal -->
 <div class="modal fade" id="taskModal" tabindex="-1" aria-labelledby="taskModalLabel" aria-hidden="true">
@@ -124,14 +117,6 @@
     </div>
   </div>
 </div>
-
-<!-- Shared modals -->
-<%- include('../../partials/functions/modals', {
-  fn,
-  linkedContacts: linkedContacts || [],
-  rooms: rooms || [],
-  eventTypes: eventTypes || []
-}) %>
 
 <script>
   window.fnContext = {

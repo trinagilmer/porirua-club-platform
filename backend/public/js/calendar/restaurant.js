@@ -93,6 +93,8 @@
     const slotMaxTime = allEnds.length ? allEnds.sort().slice(-1)[0] : "23:59";
 
     const slotMinutes = window.calendarConfig?.daySlotMinutes || 30;
+    const today = new Date();
+    const todayIso = `${String(today.getFullYear()).padStart(4, "0")}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     const isWithinService = (dateObj) => {
       if (!hasServices) return true;
       const dow = dateObj.getDay();
@@ -108,7 +110,8 @@
     };
 
     const calendar = new FullCalendar.Calendar(calendarEl, {
-      initialView: "timeGridWeek",
+      initialView: "timeGridDay",
+      initialDate: todayIso,
       locale: "en-nz",
       slotDuration: { minutes: slotMinutes },
       slotLabelInterval: { minutes: slotMinutes },

@@ -2,6 +2,8 @@
 const express = require("express");
 const { pool } = require("../db");
 const { renderNote } = require("../services/templateRenderer");
+const { backfillTemplateHtmlFallback } = require("../services/templateFallback");
+const { sanitizeRichHtml } = require("../services/htmlSanitizer");
 
 const router = express.Router();
 
@@ -90,6 +92,8 @@ router.get("/functions/:id/notes", async (req, res) => {
       ),
     ]);
 
+    const templates = await backfillTemplateHtmlFallback(pool, templatesRes.rows);
+
 res.render("pages/functions/notes", {
   layout: "layouts/main",
   title: `${fn.event_name} — Notes`,
@@ -103,7 +107,7 @@ res.render("pages/functions/notes", {
   linkedContacts: linkedContactsRes.rows,
   rooms: roomsRes.rows,
   eventTypes: eventTypesRes.rows,
-  templates: templatesRes.rows,
+  templates,
   mergeFields: mergeFieldsRes.rows,
 
   // ✅ required for layout safety
@@ -130,8 +134,9 @@ router.post("/functions/:id/notes/new", async (req, res) => {
   const { id: functionId } = req.params;
   const { content, content_json, rendered_html, note_type } = req.body;
   const userId = req.session.user?.id || null;
+  const safeRenderedHtml = sanitizeRichHtml(rendered_html);
 
-  if (!(content || content_json || rendered_html)) {
+  if (!(content || content_json || safeRenderedHtml)) {
     return res
       .status(400)
       .json({ success: false, message: "Note content required" });
@@ -147,7 +152,7 @@ router.post("/functions/:id/notes/new", async (req, res) => {
         functionId,
         content || null,
         content_json || null,
-        rendered_html || null,
+        safeRenderedHtml || null,
         note_type || null,
         userId,
       ]
@@ -169,6 +174,7 @@ router.post("/functions/notes/:noteId/update", async (req, res) => {
   const { noteId } = req.params;
   const { content, content_json, rendered_html, note_type } = req.body;
   const userId = req.session.user?.id || null;
+  const safeRenderedHtml = sanitizeRichHtml(rendered_html);
 
   try {
     await pool.query(
@@ -183,7 +189,7 @@ router.post("/functions/notes/:noteId/update", async (req, res) => {
       [
         content || null,
         content_json || null,
-        rendered_html || null,
+        safeRenderedHtml || null,
         note_type || null,
         userId,
         noteId,

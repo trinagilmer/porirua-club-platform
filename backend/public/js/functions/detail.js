@@ -9,7 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const fnUUID = window.fnContext?.id;
   const overlay = document.getElementById("contactOverlay");
   const addPanel = document.getElementById("addContactPanel");
-  const openAddBtn = document.getElementById("openAddPanelBtn");
+  const openAddBtns = document.querySelectorAll("[data-open-add-contact]");
   const closeAddPanelBtn = document.getElementById("closeAddPanel");
   const tabNew = document.getElementById("tabNew");
   const tabExisting = document.getElementById("tabExisting");
@@ -58,7 +58,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (tabsBar) tabsBar.style.display = "";
   };
 
-  openAddBtn?.addEventListener("click", openPanel);
+  openAddBtns.forEach((btn) => btn.addEventListener("click", openPanel));
   closeAddPanelBtn?.addEventListener("click", closePanel);
   overlay?.addEventListener("click", () => {
     if (addPanel.classList.contains("panel-open")) closePanel();

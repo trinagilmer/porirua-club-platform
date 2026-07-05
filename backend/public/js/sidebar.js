@@ -202,7 +202,7 @@ console.log("?? Sidebar script loaded");
   window.addEventListener("resize", syncMobileTabs);
 
   document.addEventListener("click", (event) => {
-    const openAdd = event.target.closest("#openAddPanelBtn");
+    const openAdd = event.target.closest("[data-open-add-contact]");
     if (openAdd) {
       closeSidebar();
       hideTabs();

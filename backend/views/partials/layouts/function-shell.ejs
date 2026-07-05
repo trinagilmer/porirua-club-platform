@@ -1,10 +1,14 @@
-<main class="function-layout-two-col">
-  <!-- 🧭 Sidebar -->
-  <%- include('../functions/sidebar', { fn, linkedContacts, rooms, eventTypes, roomAllocations }) %>
+<main class="function-layout-two-col function-layout-two-col--simple">
+  <%- include('../functions/sidebar', {
+    fn,
+    linkedContacts: linkedContacts || [],
+    rooms: rooms || [],
+    eventTypes: eventTypes || [],
+    roomAllocations: roomAllocations || [],
+    activeTab: typeof activeTab !== 'undefined' && activeTab ? activeTab : 'overview'
+  }) %>
 
-  <!-- 🧩 Main Workspace -->
-  <section class="function-workspace">
-    <!-- 🔹 Fixed Title Bar -->
+  <section class="function-workspace function-workspace--simple">
     <%- include('../functions/title', { 
       fn, 
       title, 
@@ -12,16 +16,7 @@
       pageName: typeof activeTab !== 'undefined' && activeTab ? activeTab : 'overview' 
     }) %>
 
-    <!-- 🔹 Tabs (fixed under title) -->
-    <div class="function-tabs-wrapper">
-      <%- include('../functions/tabs', { 
-        fn, 
-        activeTab: typeof activeTab !== 'undefined' && activeTab ? activeTab : 'overview' 
-      }) %>
-    </div>
-
-    <!-- 🔹 Scrollable Body -->
-    <div class="function-body">
+    <div class="function-body function-body--simple">
       <% const viewToInclude = `../../pages/functions/${activeTab || 'overview'}`; %>
       <%- include(viewToInclude, { 
         fn, 

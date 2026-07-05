@@ -2,6 +2,30 @@
 <% locals.layout = 'layouts/main'; %>
 
 <div class="function-dashboard container-fluid py-4">
+<%
+  function buildFunctionsLink(overrides) {
+    const merged = {
+      status: statusFilter || 'active',
+      mine: myOnly ? 'true' : '',
+      q: q || '',
+      eventType: eventType || '',
+      dateFrom: dateFrom || '',
+      dateTo: dateTo || '',
+      page: page || 1,
+      ...(overrides || {}),
+    };
+    const params = new URLSearchParams();
+    Object.keys(merged).forEach((key) => {
+      const value = merged[key];
+      if (value === null || value === undefined || value === '') return;
+      if (key === 'mine' && value !== 'true') return;
+      if (key === 'payment' && value === 'all') return;
+      params.set(key, String(value));
+    });
+    const qs = params.toString();
+    return '/functions' + (qs ? ('?' + qs) : '');
+  }
+%>
 <div class="dashboard-header function-header d-flex justify-content-between align-items-center">
   <h1 class="page-title">Functions Dashboard</h1>
   <a href="/functions/new" class="btn btn-brand">+ Add Function</a>
@@ -15,16 +39,8 @@
       <div class="value">$<%= totals.lead_value %></div>
     </div>
     <div class="kpi">
-      <div class="label">Qualified</div>
-      <div class="value">$<%= totals.qualified_value %></div>
-    </div>
-    <div class="kpi">
       <div class="label">Confirmed</div>
       <div class="value">$<%= totals.confirmed_value %></div>
-    </div>
-    <div class="kpi">
-      <div class="label">Balance Due</div>
-      <div class="value">$<%= totals.balance_due_value %></div>
     </div>
     <div class="kpi">
       <div class="label">Completed YTD</div>
@@ -32,15 +48,76 @@
     </div>
   </div>
 
+  <div class="dashboard-intro mb-3">
+    <h2 class="mb-1">Active bookings at a glance</h2>
+    <p class="mb-0">Use the filters below to focus on leads, confirmed bookings, or cancelled items without the clutter.</p>
+  </div>
+
+  <form class="row g-2 align-items-end mb-3" method="GET" action="/functions">
+    <input type="hidden" name="status" value="<%= statusFilter || 'active' %>">
+    <% if (myOnly) { %>
+      <input type="hidden" name="mine" value="true">
+    <% } %>
+    <div class="col-12 col-md-4">
+      <label class="form-label mb-1">Quick search</label>
+      <input
+        type="text"
+        class="form-control"
+        name="q"
+        value="<%= q || '' %>"
+        placeholder="Event, contact, email, phone"
+      >
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label mb-1">From</label>
+      <input type="date" class="form-control" name="dateFrom" value="<%= dateFrom || '' %>">
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label mb-1">To</label>
+      <input type="date" class="form-control" name="dateTo" value="<%= dateTo || '' %>">
+    </div>
+    <div class="col-12 col-md-2">
+      <label class="form-label mb-1">Event type</label>
+      <select class="form-select" name="eventType">
+        <option value="">All</option>
+        <% (eventTypeOptions || []).forEach(function(type) { %>
+          <option value="<%= type.name %>" <%= eventType === type.name ? 'selected' : '' %>><%= type.name %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div class="col-12 col-md-2 d-flex gap-2">
+      <button class="btn btn-primary flex-grow-1" type="submit">Search</button>
+      <a class="btn btn-outline-secondary" href="<%= buildFunctionsLink({ q: '', eventType: '', dateFrom: '', dateTo: '', page: 1 }) %>">Clear</a>
+    </div>
+  </form>
+
   <!-- Status Filters -->
   <div class="status-filters mb-4">
-    <% ['active','lead','qualified','confirmed','balance_due','completed','cancelled'].forEach(st => { %>
-      <a href="/functions?status=<%= st %>"
+    <% ['active','lead','confirmed','cancelled','unscheduled'].forEach(st => { %>
+      <a href="<%= buildFunctionsLink({ status: st, page: 1 }) %>"
          class="filter-pill <%= statusFilter === st ? 'active' : '' %>">
-        <%= st.replace('_',' ') %>
+        <%= st === 'active' ? 'All active' : st === 'unscheduled' ? 'Unscheduled' : st.charAt(0).toUpperCase() + st.slice(1) %>
       </a>
     <% }) %>
-    <a href="/functions?mine=true" class="filter-pill <%= myOnly ? 'active' : '' %>">My Events</a>
+    <a href="<%= buildFunctionsLink({ mine: myOnly ? '' : 'true', page: 1 }) %>" class="filter-pill <%= myOnly ? 'active' : '' %>">My events</a>
+  </div>
+
+  <div class="status-filters mb-4">
+    <% 
+      const paymentPills = [
+        { key: 'all', label: 'All payments' },
+        { key: 'deposit_due', label: 'Deposit due' },
+        { key: 'balance_due', label: 'Balance due' },
+        { key: 'paid', label: 'Paid' }
+      ];
+    %>
+    <% paymentPills.forEach(function(pill) { %>
+      <% var count = paymentCounts && paymentCounts[pill.key]; %>
+      <% var statusForPill = (pill.key === 'deposit_due' || pill.key === 'balance_due') ? 'confirmed' : (pill.key !== 'all' ? 'all' : statusFilter); %>
+      <a href="<%= buildFunctionsLink({ payment: pill.key, page: 1, status: statusForPill }) %>" class="filter-pill <%= (paymentFilter || 'all') === pill.key ? 'active' : '' %>">
+        <%= pill.label %><% if (count !== null && count !== undefined) { %> <span class="badge bg-secondary"><%= count %></span><% } %>
+      </a>
+    <% }) %>
   </div>
 
   <!-- Functions Table -->
@@ -53,6 +130,9 @@
           <th>Date</th>
           <th>Attendees</th>
           <th>Value ($)</th>
+          <th>Deposit ($)</th>
+          <th>Paid ($)</th>
+          <th>Balance ($)</th>
           <th>Room</th>
           <th>Owner</th>
           <th>Created</th>
@@ -62,11 +142,15 @@
       <tbody>
         <% if (events.length === 0) { %>
           <tr>
-            <td colspan="9" class="text-center py-3 text-muted">
+            <td colspan="12" class="text-center py-3 text-muted">
               No functions found for this view.
+              <% if ((paymentFilter || 'all') !== 'all') { %>
+                <div class="small mt-1">Try <a href="<%= buildFunctionsLink({ payment: 'all', page: 1 }) %>">All payments</a> to remove the payment filter.</div>
+              <% } %>
             </td>
           </tr>
         <% } else { %>
+          <% const statusLabel = (value) => ({ lead: 'Lead', confirmed: 'Confirmed', cancelled: 'Cancelled' }[value] || value || ''); %>
           <% events.forEach(e => { %>
             <tr>
               <!-- Event + Contact -->
@@ -98,7 +182,7 @@
               <!-- Status -->
               <td>
                 <span class="status-badge status-<%= e.status %>">
-                  <%= e.status %>
+                  <%= statusLabel(e.status) %>
                 </span>
               </td>
 
@@ -120,6 +204,15 @@
                 <% } %>
               </td>
 
+              <td>$<%= Number(e.deposit_amount || 0).toFixed(2) %></td>
+              <td>$<%= Number(e.total_paid || 0).toFixed(2) %></td>
+              <td>
+                <% const remaining = Number(e.remaining_due || 0); %>
+                <span class="<%= remaining > 0 ? 'text-danger fw-semibold' : 'text-success' %>">
+                  $<%= remaining.toFixed(2) %>
+                </span>
+              </td>
+
               <td><%= e.room_name || '' %></td>
               <td><%= e.owner_name || '' %></td>
               <td><%= formatNZDate(e.created_at) %></td>
@@ -128,11 +221,37 @@
               <td class="table-actions">
                 <a href="/functions/<%= e.id_uuid %>" class="btn btn-sm btn-outline-primary">View</a>
                 <a href="/functions/<%= e.id_uuid %>/edit" class="btn btn-sm btn-outline-secondary">Edit</a>
+                <form method="POST" action="/functions/<%= e.id_uuid %>/clone" class="d-inline" onsubmit="return confirm('Create a clone of this function?');">
+                  <button type="submit" class="btn btn-sm btn-outline-secondary">Clone</button>
+                </form>
               </td>
             </tr>
           <% }) %>
         <% } %>
       </tbody>
     </table>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mt-3">
+    <small class="text-muted">
+      Showing <%= events.length %> of <%= totalCount || events.length %> functions
+      <% if (q) { %>for "<%= q %>"<% } %>
+      <% if ((paymentFilter || 'all') !== 'all') { %> · payment filter: <%= paymentFilter.replace('_', ' ') %><% } %>
+    </small>
+    <% if ((totalPages || 1) > 1) { %>
+      <nav aria-label="Functions pagination">
+        <ul class="pagination pagination-sm mb-0">
+          <li class="page-item <%= page <= 1 ? 'disabled' : '' %>">
+            <a class="page-link" href="<%= buildFunctionsLink({ page: Math.max(1, page - 1) }) %>">Previous</a>
+          </li>
+          <li class="page-item disabled">
+            <span class="page-link">Page <%= page %> of <%= totalPages %></span>
+          </li>
+          <li class="page-item <%= page >= totalPages ? 'disabled' : '' %>">
+            <a class="page-link" href="<%= buildFunctionsLink({ page: page + 1 }) %>">Next</a>
+          </li>
+        </ul>
+      </nav>
+    <% } %>
   </div>
 </div>

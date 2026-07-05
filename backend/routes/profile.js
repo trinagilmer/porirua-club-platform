@@ -6,6 +6,11 @@ const router = express.Router();
 
 async function ensureUserLandingColumn() {
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS default_landing TEXT;");
+  await pool.query(
+    `UPDATE users
+        SET default_landing = '/calendar/restaurant'
+      WHERE default_landing = '/dashboard/restaurant';`
+  );
 }
 
 function getLandingOptions() {
@@ -18,7 +23,7 @@ function getLandingOptions() {
     { value: "/tasks", label: "Tasks" },
     { value: "/reports", label: "Reports" },
     { value: "/settings", label: "Settings" },
-    { value: "/dashboard/restaurant", label: "Restaurant dashboard" },
+    { value: "/calendar/restaurant", label: "Restaurant calendar" },
   ];
 }
 

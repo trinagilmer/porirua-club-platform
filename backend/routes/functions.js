@@ -1,5 +1,6 @@
 const express = require("express");
 const { randomUUID } = require("crypto");
+const { sanitizeRichHtml } = require("../services/htmlSanitizer");
 const { pool } = require("../db");
 const router = express.Router();
 const { sendMail: graphSendMail } = require("../services/graphService");
@@ -125,14 +126,23 @@ async function recordTaskAssignmentMessage(task, assignedBy, assignedUser, email
 
 router.use(express.json());
 
-const FUNCTION_STATUSES = [
-  "lead",
-  "qualified",
-  "confirmed",
-  "balance_due",
-  "completed",
-  "cancelled",
-];
+const FUNCTION_STATUSES = ["lead", "confirmed", "cancelled"];
+
+function normalizeFunctionStatus(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (["lead", "confirmed", "cancelled"].includes(normalized)) return normalized;
+  if (["qualified", "balance_due", "completed"].includes(normalized)) return "confirmed";
+  return "lead";
+}
+
+function parseBooleanValue(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    return ["true", "1", "yes", "on"].includes(value.trim().toLowerCase());
+  }
+  return false;
+}
 
 async function ensureFunctionCancelColumn() {
   await pool.query("ALTER TABLE functions ADD COLUMN IF NOT EXISTS cancelled_reason TEXT;");
@@ -144,6 +154,11 @@ async function ensureFunctionLeadSourceColumn() {
 
 async function ensureFunctionEndDateColumn() {
   await pool.query("ALTER TABLE functions ADD COLUMN IF NOT EXISTS end_date DATE;");
+}
+
+async function ensureFunctionPaymentColumns() {
+  await pool.query("ALTER TABLE functions ADD COLUMN IF NOT EXISTS deposit_paid BOOLEAN DEFAULT FALSE;");
+  await pool.query("ALTER TABLE functions ADD COLUMN IF NOT EXISTS fully_paid BOOLEAN DEFAULT FALSE;");
 }
 
 async function ensureFunctionRoomAllocationsTable(db = pool) {
@@ -158,6 +173,33 @@ async function ensureFunctionRoomAllocationsTable(db = pool) {
       created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
     );
   `);
+}
+
+let functionDashboardIndexesPromise = null;
+function ensureFunctionDashboardIndexes() {
+  if (!functionDashboardIndexesPromise) {
+    functionDashboardIndexesPromise = (async () => {
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_functions_event_date ON functions(event_date);`
+      );
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_functions_status_lower ON functions(LOWER(status));`
+      );
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_functions_owner_id ON functions(owner_id);`
+      );
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_functions_event_type ON functions(event_type);`
+      );
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_functions_event_name ON functions(event_name);`
+      );
+    })().catch((err) => {
+      functionDashboardIndexesPromise = null;
+      throw err;
+    });
+  }
+  return functionDashboardIndexesPromise;
 }
 
 function getAppBaseUrl(req) {
@@ -602,7 +644,71 @@ function summarizeProposalMenus(items = []) {
     .map((entry) => ({
       ...entry,
       name: entry.name || `Menu #${entry.id}`,
+      is_menu: true,
     }))
+    .sort((a, b) => {
+      const catCompare = (a.category || "").localeCompare(b.category || "");
+      if (catCompare !== 0) return catCompare;
+      return (a.name || "").localeCompare(b.name || "");
+    });
+}
+
+function summarizeStandaloneProposalItems(items = []) {
+  return items
+    .map((item) => {
+      const meta = extractProposalMetadata(item.description || "");
+      if (meta.menu_id) return null;
+      const categoryRaw = String(meta.category || "").trim();
+      const category = categoryRaw.toLowerCase();
+      if (category === "room" || category === "room charge") return null;
+
+      const excluded = String(meta.excluded || "").toLowerCase() === "true";
+      if (excluded) return null;
+
+      const qty = Number(meta.qty || item.qty || 1);
+      const qtySafe = Number.isFinite(qty) && qty > 0 ? qty : 1;
+      const perUnit = derivePerUnitPrice(meta, Number(item.unit_price) || 0);
+      const totalPrice = perUnit * qtySafe;
+
+      const rawCostEach = meta.cost_each !== undefined ? Number(meta.cost_each) : null;
+      const rawCostTotal = meta.cost !== undefined ? Number(meta.cost) : null;
+      let totalCost = 0;
+      if (Number.isFinite(rawCostEach) && rawCostEach >= 0) {
+        totalCost = rawCostEach * qtySafe;
+      } else if (Number.isFinite(rawCostTotal) && rawCostTotal >= 0) {
+        totalCost = rawCostTotal;
+      }
+
+      const label = cleanLabelFromDescription(item.description || "") || "Quote item";
+      const unit = friendlyUnit(meta) || "each";
+
+      return {
+        id: null,
+        quote_item_id: item.id,
+        name: label,
+        category: categoryRaw || "Quote item",
+        qty: qtySafe,
+        unit,
+        total_price: totalPrice,
+        total_cost: totalCost,
+        audit: null,
+        is_menu: false,
+        items: [
+          {
+            label,
+            qty: qtySafe,
+            unit,
+            price: totalPrice,
+            price_each: qtySafe > 0 ? totalPrice / qtySafe : totalPrice,
+            cost: Number.isFinite(totalCost) ? totalCost : null,
+            cost_total: Number.isFinite(totalCost) ? totalCost : null,
+            cost_each: qtySafe > 0 ? totalCost / qtySafe : totalCost,
+            excluded: false,
+          },
+        ],
+      };
+    })
+    .filter(Boolean)
     .sort((a, b) => {
       const catCompare = (a.category || "").localeCompare(b.category || "");
       if (catCompare !== 0) return catCompare;
@@ -648,6 +754,51 @@ function buildMenuItemsByMenu(items = []) {
     map.get(key).push(entry);
   });
   return map;
+}
+
+function summarizeRoomCharges(items = [], fn = {}) {
+  const bookedRoomId = fn?.room_id != null ? String(fn.room_id) : "";
+  const bookedRoomName = fn?.room_name || "";
+
+  const roomItems = items
+    .map((item) => {
+      const meta = extractProposalMetadata(item.description || "");
+      const category = String(meta.category || "").toLowerCase();
+      if (category !== "room" && category !== "room charge") return null;
+
+      const qty = Number(meta.qty || 1);
+      const qtySafe = Number.isFinite(qty) && qty > 0 ? qty : 1;
+      const perUnit = derivePerUnitPrice(meta, Number(item.unit_price) || 0);
+      const total = perUnit * qtySafe;
+      const roomId = meta.room_id != null ? String(meta.room_id) : "";
+      const roomName = String(meta.room_name || "").trim();
+      const roomMatch = Boolean(bookedRoomId && roomId && roomId === bookedRoomId);
+
+      return {
+        id: item.id,
+        label: cleanLabelFromDescription(item.description || "") || "Room charge",
+        qty: qtySafe,
+        unit_price: perUnit,
+        total,
+        room_id: roomId,
+        room_name: roomName,
+        room_match: roomMatch,
+      };
+    })
+    .filter(Boolean);
+
+  const hasItems = roomItems.length > 0;
+  const allMatched = hasItems ? roomItems.every((item) => item.room_match) : false;
+  const mismatches = roomItems.filter((item) => !item.room_match);
+
+  return {
+    booked_room_id: bookedRoomId,
+    booked_room_name: bookedRoomName,
+    has_items: hasItems,
+    all_matched: allMatched,
+    mismatch_count: mismatches.length,
+    items: roomItems,
+  };
 }
 
 function buildFallbackTotals(items = []) {
@@ -707,6 +858,126 @@ function combineDateTimeLocal(dateValue, timeValue, endOfDay = false) {
   let timePart = normalizeTimeValue(timeValue);
   if (!timePart) timePart = endOfDay ? "23:59:00" : "00:00:00";
   return `${datePart} ${timePart}`;
+}
+
+function buildPrimaryRoomSlot({ room_id, event_date, end_date, start_time, end_time }) {
+  const roomId = parseInt(room_id, 10);
+  if (!Number.isInteger(roomId) || !event_date) return null;
+  const hasExplicitTiming = Boolean(start_time || end_time || end_date);
+  if (!hasExplicitTiming) return null;
+  const startAt = combineDateTimeLocal(event_date, start_time, false);
+  const endAt = combineDateTimeLocal(end_date || event_date, end_time, true);
+  if (!startAt || !endAt) return null;
+  return {
+    room_id: roomId,
+    start_at: startAt,
+    end_at: endAt,
+    label: "Main booking",
+  };
+}
+
+async function findRoomConflicts(db, { excludeFunctionId = null, slots = [] } = {}) {
+  const validSlots = (slots || []).filter(
+    (slot) => Number.isInteger(Number(slot.room_id)) && slot.start_at && slot.end_at
+  );
+  if (!validSlots.length) return [];
+
+  const conflicts = [];
+  const seen = new Set();
+
+  for (const slot of validSlots) {
+    const roomId = Number(slot.room_id);
+    const label = slot.label || "Booking";
+
+    const bookingParams = [roomId, slot.start_at, slot.end_at];
+    const allocationParams = [roomId, slot.start_at, slot.end_at];
+    let bookingExclude = "";
+    let allocationExclude = "";
+    if (excludeFunctionId) {
+      bookingParams.push(excludeFunctionId);
+      allocationParams.push(excludeFunctionId);
+      bookingExclude = `AND f.id_uuid <> $4::uuid`;
+      allocationExclude = `AND fra.function_id <> $4::uuid`;
+    }
+
+    const [bookingRes, allocationRes] = await Promise.all([
+      db.query(
+        `
+        SELECT f.id_uuid,
+               f.event_name,
+               f.event_date,
+               f.end_date,
+               f.start_time,
+               f.end_time,
+               r.name AS room_name
+          FROM functions f
+          JOIN rooms r ON r.id = f.room_id
+         WHERE f.room_id = $1
+           AND f.event_date IS NOT NULL
+           AND LOWER(COALESCE(f.status, 'lead')) <> 'cancelled'
+           ${bookingExclude}
+           AND tsrange(
+                 (f.event_date::timestamp + COALESCE(f.start_time, '00:00:00'::time)),
+                 (COALESCE(f.end_date, f.event_date)::timestamp + COALESCE(f.end_time, '23:59:00'::time)),
+                 '[]'
+               ) && tsrange($2::timestamp, $3::timestamp, '[]')
+         ORDER BY f.event_date ASC
+         LIMIT 5;
+        `,
+        bookingParams
+      ),
+      db.query(
+        `
+        SELECT f.id_uuid,
+               f.event_name,
+               f.event_date,
+               f.end_date,
+               fra.start_at,
+               fra.end_at,
+               r.name AS room_name
+          FROM function_room_allocations fra
+          JOIN functions f ON f.id_uuid = fra.function_id
+          JOIN rooms r ON r.id = fra.room_id
+         WHERE fra.room_id = $1
+           AND fra.start_at IS NOT NULL
+           AND fra.end_at IS NOT NULL
+           AND LOWER(COALESCE(f.status, 'lead')) <> 'cancelled'
+           ${allocationExclude}
+           AND tsrange(fra.start_at, fra.end_at, '[]') && tsrange($2::timestamp, $3::timestamp, '[]')
+         ORDER BY fra.start_at ASC
+         LIMIT 5;
+        `,
+        allocationParams
+      ),
+    ]);
+
+    for (const row of [...bookingRes.rows, ...allocationRes.rows]) {
+      const key = `${label}:${row.id_uuid}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const dateStr = row.event_date ? new Date(row.event_date).toLocaleDateString('en-NZ') : 'TBD';
+      conflicts.push({
+        slot_label: label,
+        room_name: row.room_name || "Room",
+        event_name: row.event_name || "Another function",
+        event_date: row.event_date,
+        function_id: row.id_uuid,
+        date_display: dateStr,
+      });
+    }
+  }
+
+  return conflicts;
+}
+
+function formatRoomConflictMessage(conflicts = []) {
+  if (!conflicts.length) return "";
+  const preview = conflicts
+    .slice(0, 2)
+    .map((c) => `${c.room_name}: "${c.event_name}" on ${c.date_display}`)
+    .join("; ");
+  const note = conflicts.length > 2 ? ` (+${conflicts.length - 2} more)` : "";
+  return `⚠️ Room conflict: ${preview}${note}`;
 }
 
 function parseRoomAllocations(body, defaults = {}) {
@@ -769,33 +1040,189 @@ async function loadFunctionFormLookups() {
 ========================================================= */
 router.get("/", async (req, res, next) => {
   try {
+    await ensureFunctionDashboardIndexes();
     const userId = req.session.user?.id || null;
-    const statusFilter = req.query.status || "active";
+    const paymentFilter = String(req.query.payment || "all").trim().toLowerCase();
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    
+    // When payment filter is applied, set appropriate status scope
+    // deposit_due and balance_due only apply to confirmed functions
+    // paid can apply to any status
+    let statusFilter = req.query.status;
+    if (!statusFilter) {
+      if (paymentFilter === "deposit_due" || paymentFilter === "balance_due") {
+        statusFilter = "confirmed";
+      } else if (paymentFilter !== "all") {
+        statusFilter = "all";
+      } else {
+        statusFilter = "active";
+      }
+    }
+    
     const myOnly = req.query.mine === "true";
+    const q = String(req.query.q || "").trim();
+    const eventType = String(req.query.eventType || "").trim();
+    const dateFrom = String(req.query.dateFrom || "").trim();
+    const dateTo = String(req.query.dateTo || "").trim();
+    const pageSize = 50;
+    const offset = (page - 1) * pageSize;
 
     const statusGroups = {
-      active: ["lead", "qualified", "confirmed", "balance_due"],
+      active: ["lead", "confirmed"],
       lead: ["lead"],
-      qualified: ["qualified"],
       confirmed: ["confirmed"],
-      balance_due: ["balance_due"],
-      completed: ["completed"],
       cancelled: ["cancelled"],
+      unscheduled: ["lead", "confirmed", "cancelled"],
+      all: ["lead", "confirmed", "cancelled"],
     };
 
     const statuses = statusGroups[statusFilter] || statusGroups.active;
+    const isActiveView = statusFilter === "active";
+    const isUnscheduledView = statusFilter === "unscheduled";
+    const normalizedStatusSql = `
+      CASE
+        WHEN LOWER(COALESCE(f.status, '')) IN ('lead', 'confirmed', 'cancelled')
+          THEN LOWER(COALESCE(f.status, ''))
+        WHEN LOWER(COALESCE(f.status, '')) IN ('qualified', 'balance_due', 'completed')
+          THEN 'confirmed'
+        ELSE 'lead'
+      END
+    `;
 
-    // 🧩 Base query
+    // KPI conditions: only include myOnly, date range, and search filters (NO status/payment filters)
+    const kpiConditions = ["1=1"];
+    const kpiParams = [];
+
+    if (myOnly && userId) {
+      kpiParams.push(userId);
+      kpiConditions.push(`f.owner_id = $${kpiParams.length}`);
+    }
+
+    if (dateFrom) {
+      kpiParams.push(dateFrom);
+      kpiConditions.push(`f.event_date >= $${kpiParams.length}::date`);
+    }
+
+    if (dateTo) {
+      kpiParams.push(dateTo);
+      kpiConditions.push(`f.event_date <= $${kpiParams.length}::date`);
+    }
+
+    if (eventType) {
+      kpiParams.push(eventType);
+      kpiConditions.push(`LOWER(COALESCE(f.event_type, '')) = LOWER($${kpiParams.length})`);
+    }
+
+    if (q) {
+      kpiParams.push(`%${q}%`);
+      const searchParam = `$${kpiParams.length}`;
+      kpiConditions.push(`(
+        f.event_name ILIKE ${searchParam}
+        OR COALESCE(f.event_type, '') ILIKE ${searchParam}
+        OR EXISTS (
+          SELECT 1
+            FROM function_contacts fc2
+            JOIN contacts c2 ON c2.id = fc2.contact_id
+           WHERE fc2.function_id = f.id_uuid
+             AND (
+               c2.name ILIKE ${searchParam}
+               OR COALESCE(c2.email, '') ILIKE ${searchParam}
+               OR COALESCE(c2.phone, '') ILIKE ${searchParam}
+             )
+        )
+      )`);
+    }
+
+    const kpiWhereClause = kpiConditions.join(" AND ");
+
+    const conditions = ["1=1"];
+    const params = [];
+
+    if (myOnly && userId) {
+      params.push(userId);
+      conditions.push(`f.owner_id = $${params.length}`);
+    }
+
+    if (statuses.length && statusFilter !== "all") {
+      params.push(statuses);
+      conditions.push(`(${normalizedStatusSql}) = ANY($${params.length}::text[])`);
+    }
+
+    if (isActiveView) {
+      conditions.push(`(COALESCE(f.end_date, f.event_date) IS NULL OR COALESCE(f.end_date, f.event_date) >= CURRENT_DATE)`);
+    }
+
+    if (isUnscheduledView) {
+      conditions.push(`f.event_date IS NULL`);
+    }
+
+    if (dateFrom) {
+      params.push(dateFrom);
+      conditions.push(`f.event_date >= $${params.length}::date`);
+    }
+
+    if (dateTo) {
+      params.push(dateTo);
+      conditions.push(`f.event_date <= $${params.length}::date`);
+    }
+
+    if (eventType) {
+      params.push(eventType);
+      conditions.push(`LOWER(COALESCE(f.event_type, '')) = LOWER($${params.length})`);
+    }
+
+    if (q) {
+      params.push(`%${q}%`);
+      const searchParam = `$${params.length}`;
+      conditions.push(`(
+        f.event_name ILIKE ${searchParam}
+        OR COALESCE(f.event_type, '') ILIKE ${searchParam}
+        OR EXISTS (
+          SELECT 1
+            FROM function_contacts fc2
+            JOIN contacts c2 ON c2.id = fc2.contact_id
+           WHERE fc2.function_id = f.id_uuid
+             AND (
+               c2.name ILIKE ${searchParam}
+               OR COALESCE(c2.email, '') ILIKE ${searchParam}
+               OR COALESCE(c2.phone, '') ILIKE ${searchParam}
+             )
+        )
+      )`);
+    }
+
+    if (paymentFilter === "deposit_due") {
+      conditions.push(`COALESCE(fin.deposit_amount, 0) > COALESCE(fin.total_paid, 0)`);
+    } else if (paymentFilter === "balance_due") {
+      conditions.push(`COALESCE(fin.remaining_due, 0) > 0`);
+    } else if (paymentFilter === "paid") {
+      conditions.push(`COALESCE(fin.total_paid, 0) > 0 AND COALESCE(fin.remaining_due, 0) <= 0`);
+    }
+
+    const whereClause = conditions.join(" AND ");
+
     let baseQuery = `
       SELECT 
         f.*, 
         f.id_uuid AS id, 
         r.name AS room_name, 
         u.name AS owner_name,
-        COALESCE(contact_data.contacts, '[]') AS contacts
+        COALESCE(fin.deposit_amount, 0) AS deposit_amount,
+        COALESCE(fin.total_paid, 0) AS total_paid,
+        COALESCE(fin.remaining_due, 0) AS remaining_due,
+        COALESCE(contact_data.contacts, '[]') AS contacts,
+        COUNT(*) OVER() AS total_count
       FROM functions f
       LEFT JOIN rooms r ON f.room_id = r.id
       LEFT JOIN users u ON f.owner_id = u.id
+      LEFT JOIN LATERAL (
+        SELECT pt.deposit_amount, pt.total_paid, pt.remaining_due
+        FROM proposals p
+        JOIN proposal_totals pt ON pt.proposal_id = p.id
+        WHERE p.function_id = f.id_uuid
+        ORDER BY p.created_at DESC, p.id DESC
+        LIMIT 1
+      ) fin ON TRUE
       LEFT JOIN LATERAL (
         SELECT json_agg(
           json_build_object(
@@ -810,30 +1237,73 @@ router.get("/", async (req, res, next) => {
         JOIN contacts c ON fc.contact_id = c.id
         WHERE fc.function_id = f.id_uuid
       ) contact_data ON TRUE
-      WHERE f.status = ANY($1)
+      WHERE ${whereClause}
+      ORDER BY f.event_date ASC NULLS LAST, f.created_at DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2};
     `;
 
-    const params = [statuses];
+    const listParams = [...params, pageSize, offset];
+    const [{ rows: functionEvents }, { rows: totalsRows }, { rows: eventTypeRows }] = await Promise.all([
+      pool.query(baseQuery, listParams),
+      pool.query(
+        `
+        SELECT
+          COALESCE(SUM(CASE WHEN (${normalizedStatusSql}) = 'lead' THEN COALESCE(f.budget, 0) ELSE 0 END), 0) AS lead_value,
+          COALESCE(SUM(CASE WHEN (${normalizedStatusSql}) = 'confirmed' THEN COALESCE(f.totals_price, 0) ELSE 0 END), 0) AS confirmed_value,
+          COALESCE(SUM(CASE WHEN (${normalizedStatusSql}) = 'confirmed' AND COALESCE(f.end_date, f.event_date) < CURRENT_DATE THEN COALESCE(f.totals_price, 0) ELSE 0 END), 0) AS completed_value
+        FROM functions f
+        LEFT JOIN LATERAL (
+          SELECT pt.deposit_amount, pt.total_paid, pt.remaining_due
+          FROM proposals p
+          JOIN proposal_totals pt ON pt.proposal_id = p.id
+          WHERE p.function_id = f.id_uuid
+          ORDER BY p.created_at DESC, p.id DESC
+          LIMIT 1
+        ) fin ON TRUE
+        WHERE ${kpiWhereClause};
+        `,
+        kpiParams
+      ),
+      pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`),
+    ]);
 
-    if (myOnly) {
-      baseQuery += ` AND f.owner_id = $2`;
-      params.push(userId);
-    }
-
-    baseQuery += ` ORDER BY f.event_date ASC;`;
-
-    const { rows: functionEvents } = await pool.query(baseQuery, params);
-
-    // 💰 Totals by status
-    const { rows: totals } = await pool.query(`
+    const { rows: paymentCountRows } = await pool.query(
+      `
       SELECT
-        COALESCE(SUM(CASE WHEN status='lead' THEN totals_price ELSE 0 END),0) AS lead_value,
-        COALESCE(SUM(CASE WHEN status='qualified' THEN totals_price ELSE 0 END),0) AS qualified_value,
-        COALESCE(SUM(CASE WHEN status='confirmed' THEN totals_price ELSE 0 END),0) AS confirmed_value,
-        COALESCE(SUM(CASE WHEN status='balance_due' THEN totals_price ELSE 0 END),0) AS balance_due_value,
-        COALESCE(SUM(CASE WHEN status='completed' THEN totals_price ELSE 0 END),0) AS completed_value
-      FROM functions;
-    `);
+        COUNT(*) FILTER (WHERE 
+          (${normalizedStatusSql}) = 'confirmed' 
+          AND COALESCE(fin.deposit_amount, 0) > COALESCE(fin.total_paid, 0)
+        )::int AS deposit_due,
+        COUNT(*) FILTER (WHERE 
+          (${normalizedStatusSql}) = 'confirmed'
+          AND COALESCE(fin.remaining_due, 0) > 0
+        )::int AS balance_due,
+        COUNT(*) FILTER (WHERE COALESCE(fin.total_paid, 0) > 0 AND COALESCE(fin.remaining_due, 0) <= 0)::int AS paid
+      FROM functions f
+      LEFT JOIN LATERAL (
+        SELECT pt.deposit_amount, pt.total_paid, pt.remaining_due
+        FROM proposals p
+        JOIN proposal_totals pt ON pt.proposal_id = p.id
+        WHERE p.function_id = f.id_uuid
+        ORDER BY p.created_at DESC, p.id DESC
+        LIMIT 1
+      ) fin ON TRUE;
+      `
+    );
+    const paymentCounts = paymentCountRows[0] || {
+      deposit_due: 0,
+      balance_due: 0,
+      paid: 0,
+    };
+
+    const totalCount = Number(functionEvents[0]?.total_count || 0);
+    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
+    const totals = totalsRows[0] || {
+      lead_value: 0,
+      confirmed_value: 0,
+      completed_value: 0,
+    };
 
     // 🖥️ Render dashboard
     res.render("pages/functions/index", {
@@ -841,13 +1311,183 @@ router.get("/", async (req, res, next) => {
       active: "functions",
       user: req.session.user || null,
       events: functionEvents,
-      totals: totals[0],
+      totals,
       statusFilter,
       myOnly,
+      q,
+      eventType,
+      dateFrom,
+      dateTo,
+      paymentFilter,
+      page,
+      pageSize,
+      totalCount,
+      totalPages,
+      eventTypeOptions: eventTypeRows,
+      paymentCounts,
+      statusFilter,
     });
   } catch (err) {
     console.error("❌ Error loading dashboard:", err);
     next(err);
+  }
+});
+
+router.post("/room-conflicts", async (req, res) => {
+  try {
+    await ensureFunctionRoomAllocationsTable();
+    const {
+      function_id,
+      room_id,
+      event_date,
+      end_date,
+      start_time,
+      end_time,
+      allocations,
+    } = req.body || {};
+
+    const primarySlot = buildPrimaryRoomSlot({
+      room_id,
+      event_date,
+      end_date,
+      start_time,
+      end_time,
+    });
+    const allocationSlots = Array.isArray(allocations)
+      ? allocations
+          .map((row, idx) => ({
+            room_id: parseInt(row?.room_id, 10),
+            start_at: row?.start_at || null,
+            end_at: row?.end_at || null,
+            label: `Allocation ${idx + 1}`,
+          }))
+          .filter((row) => Number.isInteger(row.room_id) && row.start_at && row.end_at)
+      : [];
+
+    const conflicts = await findRoomConflicts(pool, {
+      excludeFunctionId: function_id || null,
+      slots: [primarySlot, ...allocationSlots].filter(Boolean),
+    });
+
+    res.json({
+      success: true,
+      hasConflicts: conflicts.length > 0,
+      conflicts,
+      message: formatRoomConflictMessage(conflicts),
+    });
+  } catch (err) {
+    console.error("❌ [Room Conflicts] Error:", err);
+    res.status(500).json({ success: false, error: "Failed to check room conflicts" });
+  }
+});
+
+router.post("/:id/clone", async (req, res) => {
+  const { id: sourceFunctionId } = req.params;
+  const userId = req.session.user?.id || null;
+  const client = await pool.connect();
+
+  try {
+    await ensureFunctionEndDateColumn();
+    await ensureFunctionCancelColumn();
+    await ensureFunctionPaymentColumns();
+    await ensureFunctionRoomAllocationsTable(client);
+
+    await client.query("BEGIN");
+
+    const { rows: sourceRows } = await client.query(
+      `SELECT * FROM functions WHERE id_uuid = $1 LIMIT 1;`,
+      [sourceFunctionId]
+    );
+    const source = sourceRows[0];
+    if (!source) {
+      await client.query("ROLLBACK");
+      return res.status(404).send("Function not found");
+    }
+
+    const cloneId = randomUUID();
+    const cloneName = `${source.event_name || "Function"} (Copy)`;
+
+    await client.query(
+      `
+      INSERT INTO functions (
+        id_uuid,
+        event_name,
+        status,
+        cancelled_reason,
+        event_date,
+        end_date,
+        event_time,
+        start_time,
+        end_time,
+        attendees,
+        budget,
+        totals_price,
+        totals_cost,
+        room_id,
+        event_type,
+        owner_id,
+        deposit_paid,
+        fully_paid,
+        created_at,
+        updated_at,
+        updated_by
+      )
+      VALUES (
+        $1,$2,'lead',NULL,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,FALSE,FALSE,NOW(),NOW(),$15
+      );
+      `,
+      [
+        cloneId,
+        cloneName,
+        source.event_date || null,
+        source.end_date || null,
+        source.event_time || null,
+        source.start_time || null,
+        source.end_time || null,
+        source.attendees || null,
+        source.budget || null,
+        source.totals_price || 0,
+        source.totals_cost || 0,
+        source.room_id || null,
+        source.event_type || null,
+        source.owner_id || null,
+        userId || source.updated_by || null,
+      ]
+    );
+
+    await client.query(
+      `
+      INSERT INTO function_contacts (function_id, contact_id, is_primary)
+      SELECT $1, contact_id, is_primary
+        FROM function_contacts
+       WHERE function_id = $2;
+      `,
+      [cloneId, sourceFunctionId]
+    );
+
+    await client.query(
+      `
+      INSERT INTO function_room_allocations (function_id, room_id, start_at, end_at, notes, created_at)
+      SELECT $1,
+             room_id,
+             start_at,
+             end_at,
+             notes,
+             NOW()
+        FROM function_room_allocations
+       WHERE function_id = $2;
+      `,
+      [cloneId, sourceFunctionId]
+    );
+
+    await client.query("COMMIT");
+    res.redirect(`/functions/${cloneId}/edit`);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("❌ [Function CLONE] Error:", err);
+    res.status(500).send("Failed to clone function");
+  } finally {
+    client.release();
   }
 });
 
@@ -932,6 +1572,7 @@ router.get("/:id/communications", async (req, res, next) => {
     res.render("pages/functions/communications", {
       layout: "layouts/main",
       title: `Communications – ${fn.event_name}`,
+      pageType: "function-detail",
       user: req.session.user || null,
       fn,
       messages,
@@ -955,7 +1596,7 @@ router.get("/new", async (req, res, next) => {
     const lookups = await loadFunctionFormLookups();
     const seedValues = {
       event_name: req.query.event_name || "",
-      event_date: req.query.event_date || req.query.date || "",
+      event_date: req.query.event_date || req.query.date || new Date().toISOString().slice(0, 10),
       end_date: req.query.end_date || "",
       event_time: req.query.event_time || "",
       start_time: req.query.start_time || "",
@@ -998,6 +1639,8 @@ router.post("/new", async (req, res) => {
     status,
     owner_id,
     cancelled_reason,
+    deposit_paid,
+    fully_paid,
   } = req.body || {};
 
   const trimmedName = (event_name || "").trim();
@@ -1007,8 +1650,10 @@ router.post("/new", async (req, res) => {
 
   const newFunctionId = randomUUID();
   const userId = req.session.user?.id || null;
-  const statusValue = (status || "lead").trim() || "lead";
+  const statusValue = normalizeFunctionStatus(status);
   const cancelReasonValue = statusValue === "cancelled" ? (cancelled_reason || "").trim() || null : null;
+  const depositPaidValue = parseBooleanValue(deposit_paid);
+  const fullyPaidValue = parseBooleanValue(fully_paid);
   const endDateValue = end_date || null;
   const eventDateValue = event_date || null;
   let endDateOffsetDays = null;
@@ -1026,6 +1671,27 @@ router.post("/new", async (req, res) => {
   try {
     await ensureFunctionCancelColumn();
     await ensureFunctionEndDateColumn();
+    await ensureFunctionPaymentColumns();
+    await ensureFunctionRoomAllocationsTable();
+    const createConflicts = await findRoomConflicts(pool, {
+      slots: [
+        buildPrimaryRoomSlot({
+          room_id,
+          event_date,
+          end_date,
+          start_time,
+          end_time,
+        }),
+      ].filter(Boolean),
+    });
+    if (createConflicts.length) {
+      return renderCreateError(
+        res,
+        req,
+        formatRoomConflictMessage(createConflicts),
+        req.body || {}
+      );
+    }
     await client.query("BEGIN");
     await client.query(
       `
@@ -1046,12 +1712,14 @@ router.post("/new", async (req, res) => {
         room_id,
         event_type,
         owner_id,
+        deposit_paid,
+        fully_paid,
         created_at,
         updated_at,
         updated_by
       )
       VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW(),NOW(),$17
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),NOW(),$19
       );
       `,
       [
@@ -1071,6 +1739,8 @@ router.post("/new", async (req, res) => {
         room_id ? Number(room_id) : null,
         event_type || null,
         owner_id ? Number(owner_id) : null,
+        depositPaidValue,
+        fullyPaidValue,
         userId || null
       ]
     );
@@ -1117,6 +1787,8 @@ router.post("/new", async (req, res) => {
               room_id,
               event_type,
               owner_id,
+              deposit_paid,
+              fully_paid,
               series_id,
               series_order,
               created_at,
@@ -1124,7 +1796,7 @@ router.post("/new", async (req, res) => {
               updated_by
             )
             VALUES (
-              $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),NOW(),$19
+              $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,NOW(),NOW(),$21
             );
             `,
             [
@@ -1148,6 +1820,8 @@ router.post("/new", async (req, res) => {
               room_id ? Number(room_id) : null,
               event_type || null,
               owner_id ? Number(owner_id) : null,
+              depositPaidValue,
+              fullyPaidValue,
               series.seriesId,
               order,
               userId || null,
@@ -1406,6 +2080,7 @@ router.get("/:id/edit", async (req, res, next) => {
     res.render("pages/functions/edit", {
       layout: "layouts/main",
       title: `Edit — ${fn.event_name}`,
+      pageType: "function-detail",
       user: req.session.user || null,
       fn,
       linkedContacts: linkedContactsRes.rows,
@@ -1442,11 +2117,19 @@ router.post("/:id/edit", async (req, res) => {
     status,
     owner_id,
     cancelled_reason,
+    deposit_paid,
+    fully_paid,
+    notes,
+    notes_delta,
   } = req.body;
 
   const userId = req.session.user?.id || null;
-  const statusValue = (status || "").trim() || "lead";
+  const statusValue = normalizeFunctionStatus(status);
   const cancelReasonValue = statusValue === "cancelled" ? (cancelled_reason || "").trim() || null : null;
+  const depositPaidValue = parseBooleanValue(deposit_paid);
+  const fullyPaidValue = parseBooleanValue(fully_paid);
+  const noteHtmlValue = sanitizeRichHtml(String(notes || "").trim()) || null;
+  const noteDeltaValue = String(notes_delta || "").trim() || null;
   const allocationRows = parseRoomAllocations(req.body, {
     event_date,
     end_date,
@@ -1461,7 +2144,32 @@ router.post("/:id/edit", async (req, res) => {
   try {
     await ensureFunctionCancelColumn();
     await ensureFunctionEndDateColumn();
+    await ensureFunctionPaymentColumns();
     await ensureFunctionRoomAllocationsTable();
+    const editSlots = [
+      buildPrimaryRoomSlot({
+        room_id,
+        event_date,
+        end_date,
+        start_time,
+        end_time,
+      }),
+      ...allocationRows
+        .filter((row) => row.start_at && row.end_at)
+        .map((row, idx) => ({
+          room_id: row.room_id,
+          start_at: row.start_at,
+          end_at: row.end_at,
+          label: `Allocation ${idx + 1}`,
+        })),
+    ].filter(Boolean);
+    const editConflicts = await findRoomConflicts(pool, {
+      excludeFunctionId: functionId,
+      slots: editSlots,
+    });
+    if (editConflicts.length) {
+      return res.status(400).send(formatRoomConflictMessage(editConflicts));
+    }
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -1484,9 +2192,11 @@ router.post("/:id/edit", async (req, res) => {
           status       = $13,
           cancelled_reason = $14,
           owner_id     = $15,
+          deposit_paid = $16,
+          fully_paid   = $17,
           updated_at   = NOW(),
-          updated_by   = COALESCE($16, updated_by)
-        WHERE id_uuid = $17;
+          updated_by   = COALESCE($18, updated_by)
+        WHERE id_uuid = $19;
         `,
         [
           event_name,
@@ -1504,10 +2214,29 @@ router.post("/:id/edit", async (req, res) => {
           statusValue,
           cancelReasonValue,
           owner_id || null,
+          depositPaidValue,
+          fullyPaidValue,
           userId,
           functionId,
         ]
       );
+
+      if (noteHtmlValue) {
+        await client.query(
+          `
+          INSERT INTO function_notes
+            (function_id, content, content_json, rendered_html, note_type, created_by, updated_by, created_at, updated_at)
+          VALUES
+            ($1, NULL, $2, $3, 'general', $4, $4, NOW(), NOW());
+          `,
+          [
+            functionId,
+            noteDeltaValue,
+            noteHtmlValue,
+            userId,
+          ]
+        );
+      }
 
       await client.query(`DELETE FROM function_room_allocations WHERE function_id = $1;`, [
         functionId,
@@ -1709,6 +2438,8 @@ router.get("/:id", async (req, res) => {
       roomsRes,
       eventTypesRes,
       usersRes,
+      categoriesRes,
+      menusRes,
       menuUpdatesRes,
       proposalLookupRes,
       acceptanceRes,
@@ -1816,6 +2547,8 @@ router.get("/:id", async (req, res) => {
       pool.query(`SELECT id, name, capacity FROM rooms ORDER BY name ASC;`),
       pool.query(`SELECT name FROM club_event_types ORDER BY name ASC;`),
       pool.query(`SELECT id, name FROM users ORDER BY name ASC;`),
+      pool.query(`SELECT id, name FROM menu_categories ORDER BY name ASC;`),
+      pool.query(`SELECT id, category_id, name, description, price FROM menus ORDER BY name ASC;`),
       pool.query(
         `SELECT 
            fmu.menu_id, 
@@ -1875,9 +2608,10 @@ router.get("/:id", async (req, res) => {
     const activeProposal = proposalLookupRes.rows[0] || null;
     let proposalItems = [];
     let totalsRow = null;
+    let payments = [];
 
     if (activeProposal) {
-      const [itemsRes, totalsRes] = await Promise.all([
+      const [itemsRes, totalsRes, paymentsRes] = await Promise.all([
         pool.query(
           `SELECT id, description, unit_price
              FROM proposal_items
@@ -1903,16 +2637,25 @@ router.get("/:id", async (req, res) => {
             LIMIT 1;`,
           [activeProposal.id]
         ),
+        pool.query(
+          `SELECT id, payment_type, amount, method, paid_on
+             FROM payments
+            WHERE proposal_id = $1
+            ORDER BY paid_on DESC NULLS LAST, id DESC
+            LIMIT 20;`,
+          [activeProposal.id]
+        ),
       ]);
       proposalItems = itemsRes.rows;
       totalsRow = totalsRes.rows[0] || null;
+      payments = paymentsRes.rows || [];
     }
 
     const menuAuditMap = new Map(
       (menuUpdatesRes.rows || []).map((row) => [String(row.menu_id), row])
     );
     const menuItemsMap = buildMenuItemsByMenu(proposalItems);
-    const overviewMenus = summarizeProposalMenus(proposalItems).map((menu) => {
+    const groupedMenus = summarizeProposalMenus(proposalItems).map((menu) => {
       const audit = menuAuditMap.get(String(menu.id));
       return {
         ...menu,
@@ -1927,6 +2670,13 @@ router.get("/:id", async (req, res) => {
         items: menuItemsMap.get(String(menu.id)) || [],
       };
     });
+    const standaloneItems = summarizeStandaloneProposalItems(proposalItems);
+    const overviewMenus = [...groupedMenus, ...standaloneItems].sort((a, b) => {
+      const catCompare = (a.category || "").localeCompare(b.category || "");
+      if (catCompare !== 0) return catCompare;
+      return (a.name || "").localeCompare(b.name || "");
+    });
+    const roomChargeSummary = summarizeRoomCharges(proposalItems, fn);
 
     const totals =
       totalsRow
@@ -2076,7 +2826,9 @@ router.get("/:id", async (req, res) => {
       tasks: tasksRes.rows,
       overviewNotes,
       overviewMenus,
+      roomChargeSummary,
       totals,
+      payments,
       communications,
       feedbackEntries: feedbackRows,
       contactFeedback: contactFeedbackMap,
@@ -2087,6 +2839,8 @@ router.get("/:id", async (req, res) => {
       grouped,
       activeTab,
       rooms: roomsRes.rows,
+      categories: categoriesRes.rows,
+      menus: menusRes.rows,
       eventTypes: eventTypesRes.rows,
       users: usersRes.rows,
       roomAllocations: allocationsRes.rows || []
@@ -2162,6 +2916,7 @@ router.get("/:id/tasks", async (req, res) => {
       layout: "layouts/main",
       title: `${fn.event_name} — Tasks`,
       pageName: 'Tasks',   // 👈 add this
+      pageType: "function-detail",
       user: req.session.user || null,
       fn,
       tasks,

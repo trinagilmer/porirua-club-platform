@@ -10,6 +10,17 @@
   const roomList = Array.isArray(rooms) ? rooms : [];
   const activeRoom =
     roomList.find((room) => String(room.id) === String(fn?.room_id)) || null;
+  const pageLabels = {
+    overview: "Overview",
+    edit: "Edit",
+    quote: "Quote",
+    tasks: "Tasks",
+    notes: "Notes",
+    communications: "Communications"
+  };
+  const titleSuffix = pageName && pageName !== 'overview'
+    ? (pageLabels[pageName] || String(pageName).charAt(0).toUpperCase() + String(pageName).slice(1))
+    : null;
 %>
 <div class="function-title-bar bg-light border-bottom py-3 mb-3">
   <div class="container d-flex justify-content-between align-items-center flex-wrap gap-3">
@@ -17,7 +28,7 @@
       <h1 class="h4 fw-bold text-success mb-0">
         <% if (fn?.event_name) { %>
           <%= fn.event_name %>
-          <% if (pageName) { %> - <%= pageName %><% } %>
+          <% if (titleSuffix) { %> - <%= titleSuffix %><% } %>
         <% } else { %>
           <%= title || 'Function Details' %>
         <% } %>

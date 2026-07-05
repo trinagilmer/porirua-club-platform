@@ -232,12 +232,23 @@ router.patch('/menu/:id', async (req, res) => {
 router.delete('/menu/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) return res.status(400).send('Invalid id');
-    await pool.query('DELETE FROM menus WHERE id = $1', [id]);
-    res.sendStatus(200);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ success: false, error: 'Invalid id' });
+    }
+    const result = await pool.query('DELETE FROM menus WHERE id = $1 RETURNING id', [id]);
+    if (!result.rowCount) {
+      return res.status(404).json({ success: false, error: 'Menu not found' });
+    }
+    return res.json({ success: true });
   } catch (err) {
     console.error('⚠️  Error deleting menu:', err);
-    res.status(500).send('Error deleting menu');
+    if (err.code === '23503') {
+      return res.status(409).json({
+        success: false,
+        error: 'This menu is linked to quote/proposal data. Remove those links first, then delete the menu.',
+      });
+    }
+    return res.status(500).json({ success: false, error: 'Error deleting menu' });
   }
 });
 

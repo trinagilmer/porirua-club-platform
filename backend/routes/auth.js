@@ -129,13 +129,14 @@ router.post("/login", async (req, res, next) => {
       "/reports",
       "/settings",
       "/tasks",
-      "/dashboard/restaurant",
+      "/calendar/restaurant",
     ]);
     const safePath = (value) => {
       if (!value) return null;
       const cleaned = String(value).trim();
       if (!cleaned.startsWith("/")) return null;
       if (cleaned.startsWith("//")) return null;
+      if (cleaned === "/dashboard/restaurant") return "/calendar/restaurant";
       return allowedLandingPages.has(cleaned) ? cleaned : null;
     };
     const nextUrl = safePath(nextValue);

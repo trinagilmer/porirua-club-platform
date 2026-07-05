@@ -64,6 +64,12 @@
                       data-description="<%= menu.description || '' %>">
                        Edit
                     </button>
+                    <button
+                      class="btn btn-sm btn-outline-danger delete-menu-btn"
+                      data-id="<%= menu.id %>"
+                      data-name="<%= menu.name %>">
+                       Delete
+                    </button>
                   </td>
                 </tr>
               <% }) %>

@@ -14,6 +14,87 @@ document.addEventListener("DOMContentLoaded", () => {
   const addAllocationBtn = document.getElementById("addAllocationRow");
   const allocationTemplate = document.getElementById("allocationRowTemplate");
   const allocationError = document.getElementById("allocationError");
+  const roomConflictWarning = document.getElementById("roomConflictWarning");
+  const roomInput = form.querySelector('[name="room_id"]');
+  const eventDateInput = form.querySelector('[name="event_date"]');
+  const endDateInput = form.querySelector('[name="end_date"]');
+  const startTimeInput = form.querySelector('[name="start_time"]');
+  const endTimeInput = form.querySelector('[name="end_time"]');
+
+  let bypassConflictCheck = false;
+  let conflictCheckInFlight = false;
+  let conflictDebounceTimer = null;
+
+  const setConflictWarning = (message) => {
+    if (!roomConflictWarning) return;
+    if (!message) {
+      roomConflictWarning.classList.add("d-none");
+      roomConflictWarning.textContent = "";
+      return;
+    }
+    roomConflictWarning.textContent = message;
+    roomConflictWarning.classList.remove("d-none");
+  };
+
+  const collectAllocationPayload = () => {
+    const rows = Array.from(form.querySelectorAll(".allocation-row"));
+    return rows
+      .map((row) => {
+        const rowRoom = row.querySelector('select[name="allocation_room_id"]')?.value || "";
+        const sDate = row.querySelector('input[name="allocation_start_date"]')?.value || "";
+        const sTime = row.querySelector('input[name="allocation_start_time"]')?.value || "";
+        const eDate = row.querySelector('input[name="allocation_end_date"]')?.value || "";
+        const eTime = row.querySelector('input[name="allocation_end_time"]')?.value || "";
+        if (!rowRoom || !sDate || !eDate) return null;
+        return {
+          room_id: rowRoom,
+          start_at: `${sDate} ${(sTime || "00:00")}:00`,
+          end_at: `${eDate} ${(eTime || "23:59")}:00`,
+        };
+      })
+      .filter(Boolean);
+  };
+
+  const runConflictCheck = async () => {
+    if (conflictCheckInFlight) return { hasConflicts: false };
+    const roomId = roomInput?.value || "";
+    const eventDate = eventDateInput?.value || "";
+    if (!roomId || !eventDate) {
+      setConflictWarning("");
+      return { hasConflicts: false };
+    }
+
+    conflictCheckInFlight = true;
+    try {
+      const response = await fetch("/functions/room-conflicts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          function_id: window.fnContext?.id || null,
+          room_id: roomId,
+          event_date: eventDate,
+          end_date: endDateInput?.value || eventDate,
+          start_time: startTimeInput?.value || null,
+          end_time: endTimeInput?.value || null,
+          allocations: collectAllocationPayload(),
+        }),
+      });
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error || "Conflict check failed");
+      setConflictWarning(result.hasConflicts ? (result.message || "Room conflict detected.") : "");
+      return result;
+    } catch (error) {
+      console.error(error);
+      return { hasConflicts: false };
+    } finally {
+      conflictCheckInFlight = false;
+    }
+  };
+
+  const scheduleConflictCheck = () => {
+    clearTimeout(conflictDebounceTimer);
+    conflictDebounceTimer = setTimeout(runConflictCheck, 220);
+  };
 
   // 🧠 Prevent accidental double submits
   form.addEventListener("submit", (e) => {
@@ -90,6 +171,7 @@ document.addEventListener("DOMContentLoaded", () => {
           allocationError.classList.add("d-none");
           allocationError.textContent = "";
         }
+        scheduleConflictCheck();
       });
     });
   };
@@ -101,7 +183,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const clone = allocationTemplate.content.cloneNode(true);
     allocationContainer.appendChild(clone);
     bindRemoveButtons(allocationContainer);
+    scheduleConflictCheck();
   });
+
+  [roomInput, eventDateInput, endDateInput, startTimeInput, endTimeInput].forEach((el) => {
+    el?.addEventListener("change", scheduleConflictCheck);
+    el?.addEventListener("input", scheduleConflictCheck);
+  });
+
+  allocationContainer?.addEventListener("change", scheduleConflictCheck);
+  allocationContainer?.addEventListener("input", scheduleConflictCheck);
+
+  runConflictCheck();
 
   // 🧭 Cancel button safety confirmation (optional)
   cancelBtn?.addEventListener("click", (e) => {
@@ -109,5 +202,19 @@ document.addEventListener("DOMContentLoaded", () => {
     if (hasChanges && !confirm("Discard unsaved changes?")) {
       e.preventDefault();
     }
+  });
+
+  form.addEventListener("submit", async (e) => {
+    if (bypassConflictCheck || e.defaultPrevented) return;
+    e.preventDefault();
+    const result = await runConflictCheck();
+    if (result.hasConflicts) {
+      alert(result.message || "Room conflict detected. Please resolve before saving.");
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save Changes";
+      return;
+    }
+    bypassConflictCheck = true;
+    form.requestSubmit();
   });
 });

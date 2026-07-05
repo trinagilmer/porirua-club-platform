@@ -107,7 +107,6 @@ const OPEN_PATHS = [
 const SESSION_OPTIONAL_OPEN_PATHS = [
   "/",
   "/health",
-  "/entertainment",
   "/feedback",
   "/terms",
   "/functions/enquiry",

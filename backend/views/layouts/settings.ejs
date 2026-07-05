@@ -56,6 +56,9 @@
   <% } %>
 
   <!-- 🧭 Navbar -->
+  <%
+    const entertainmentHref = '/entertainment';
+  %>
   <header class="main-header navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
     <div class="container-fluid">
       <a class="navbar-brand logo-link" href="/">
@@ -82,7 +85,7 @@
             <a class="nav-link <%= active === 'restaurant' ? 'active' : '' %>" href="/calendar/restaurant">Restaurant</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link <%= active === 'entertainment' ? 'active' : '' %>" href="/entertainment">Entertainment</a>
+            <a class="nav-link <%= active === 'entertainment' ? 'active' : '' %>" href="<%= entertainmentHref %>">Entertainment</a>
           </li>
           <li class="nav-item">
             <a class="nav-link <%= active === 'inbox' ? 'active' : '' %>" href="/inbox">Inbox</a>
@@ -207,7 +210,10 @@
             <a href="/settings/restaurant/embeds" class="nav-link <%= activeTab === 'restaurant-embeds' ? 'active fw-semibold' : '' %>">
               Embeds
             </a>
-          </nav>
+                  <% const canManageEvents = user.role && ['admin','owner'].includes(user.role.toLowerCase()); %>
+                  <% if (canManageEvents) { %>
+                    <a href="/settings/entertainment/events" class="btn btn-outline-light btn-sm me-2">Manage Events</a>
+                  <% } %>
         </div>
       </div>
       <div class="nav-item">

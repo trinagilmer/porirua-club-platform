@@ -1,7 +1,6 @@
 (function () {
   const STATUS_LABELS = {
     lead: "Lead",
-    qualified: "Qualified",
     confirmed: "Confirmed",
     balance_due: "Balance due",
     completed: "Completed",
@@ -13,10 +12,7 @@
   };
   const DEFAULT_FUNCTION_STATUSES = [
     "lead",
-    "qualified",
     "confirmed",
-    "balance_due",
-    "completed",
   ];
 
   function pad(value) {
@@ -101,6 +97,7 @@
 
     let currentEvents = [];
     let printStyleEl = null;
+    let highlightedWeekKeys = [];
 
     function formatAddLabel(dateObj) {
       if (!dateObj) return "";
@@ -128,32 +125,140 @@
       if (addModalDateField) {
         addModalDateField.textContent = formatAddLabel(dateInfo.date);
       }
+      resetQuickFunctionForm();
       addModal.show();
     }
 
+    function getQuickFunctionParams() {
+      const params = new URLSearchParams();
+      if (state.pendingAdd?.isoDate) params.set("event_date", state.pendingAdd.isoDate);
+      if (state.pendingAdd?.time) params.set("start_time", state.pendingAdd.time);
+      return params;
+    }
+
+    function openQuickFunctionForm() {
+      if (!addChooser || !quickFunctionForm) {
+        const params = getQuickFunctionParams();
+        window.location.href = params.toString() ? `/functions/new?${params.toString()}` : "/functions/new";
+        return;
+      }
+      addChooser.classList.add("d-none");
+      quickFunctionForm.classList.remove("d-none");
+      if (addFooter) addFooter.classList.add("d-none");
+      if (quickFunctionDate && state.pendingAdd?.isoDate) quickFunctionDate.value = state.pendingAdd.isoDate;
+      if (quickFunctionTime && state.pendingAdd?.time) quickFunctionTime.value = state.pendingAdd.time;
+      if (quickFunctionFullFormLink) {
+        const params = getQuickFunctionParams();
+        quickFunctionFullFormLink.href = params.toString() ? `/functions/new?${params.toString()}` : "/functions/new";
+      }
+      if (quickFunctionName) quickFunctionName.focus();
+    }
+
+    function resetQuickFunctionForm() {
+      if (addChooser) addChooser.classList.remove("d-none");
+      if (quickFunctionForm) quickFunctionForm.classList.add("d-none");
+      if (quickEntertainmentForm) quickEntertainmentForm.classList.add("d-none");
+      if (quickRestaurantModule) quickRestaurantModule.classList.add("d-none");
+      if (addFooter) addFooter.classList.remove("d-none");
+      if (quickFunctionForm) quickFunctionForm.reset();
+      if (quickEntertainmentForm) quickEntertainmentForm.reset();
+      if (quickFunctionDate && state.pendingAdd?.isoDate) quickFunctionDate.value = state.pendingAdd.isoDate;
+      if (quickFunctionTime && state.pendingAdd?.time) quickFunctionTime.value = state.pendingAdd.time;
+      if (quickEntertainmentDate && state.pendingAdd?.isoDate) quickEntertainmentDate.value = state.pendingAdd.isoDate;
+      if (quickEntertainmentTime && state.pendingAdd?.time) quickEntertainmentTime.value = state.pendingAdd.time;
+      if (quickFunctionFullFormLink) {
+        const params = getQuickFunctionParams();
+        quickFunctionFullFormLink.href = params.toString() ? `/functions/new?${params.toString()}` : "/functions/new";
+      }
+      if (quickEntertainmentFullFormLink) {
+        const params = getQuickEntertainmentParams();
+        quickEntertainmentFullFormLink.href = params.toString()
+          ? `/settings/entertainment/events?${params.toString()}`
+          : "/settings/entertainment/events";
+      }
+      if (quickEntertainmentStatus) quickEntertainmentStatus.textContent = "";
+      if (quickRestaurantFullFormLink) {
+        quickRestaurantFullFormLink.href = "/calendar/restaurant";
+      }
+      if (quickRestaurantIframe) {
+        quickRestaurantIframe.src = "about:blank";
+      }
+    }
+    function getQuickEntertainmentParams() {
+      const params = new URLSearchParams();
+      if (state.pendingAdd?.isoDate) params.set("prefill_date", state.pendingAdd.isoDate);
+      if (state.pendingAdd?.time) params.set("prefill_time", state.pendingAdd.time);
+      return params;
+    }
+    function openQuickEntertainmentForm() {
+      if (!addChooser || !quickEntertainmentForm) {
+        const params = getQuickEntertainmentParams();
+        const url = params.toString()
+          ? `/settings/entertainment/events?${params.toString()}`
+          : "/settings/entertainment/events";
+        window.location.href = url;
+        return;
+      }
+      addChooser.classList.add("d-none");
+      quickFunctionForm?.classList.add("d-none");
+      quickEntertainmentForm.classList.remove("d-none");
+      if (addFooter) addFooter.classList.add("d-none");
+      if (quickEntertainmentDate && state.pendingAdd?.isoDate) quickEntertainmentDate.value = state.pendingAdd.isoDate;
+      if (quickEntertainmentTime && state.pendingAdd?.time) quickEntertainmentTime.value = state.pendingAdd.time;
+      if (quickEntertainmentFullFormLink) {
+        const params = getQuickEntertainmentParams();
+        quickEntertainmentFullFormLink.href = params.toString()
+          ? `/settings/entertainment/events?${params.toString()}`
+          : "/settings/entertainment/events";
+      }
+      if (quickEntertainmentStatus) quickEntertainmentStatus.textContent = "";
+      if (quickEntertainmentTitle) quickEntertainmentTitle.focus();
+    }
+    function openQuickRestaurantModule() {
+      if (!addChooser || !quickRestaurantModule) {
+        window.location.href = "/calendar/restaurant";
+        return;
+      }
+      addChooser.classList.add("d-none");
+      quickFunctionForm?.classList.add("d-none");
+      quickEntertainmentForm?.classList.add("d-none");
+      quickRestaurantModule.classList.remove("d-none");
+      if (addFooter) addFooter.classList.add("d-none");
+      if (quickRestaurantIframe) {
+        quickRestaurantIframe.src = "/calendar/restaurant";
+      }
+      if (quickRestaurantFullFormLink) {
+        quickRestaurantFullFormLink.href = "/calendar/restaurant";
+      }
+    }
     function handleAddAction(target) {
       if (!state.pendingAdd) return;
+      if (target === "functions") {
+        openQuickFunctionForm();
+        return;
+      }
+      if (target === "entertainment") {
+        openQuickEntertainmentForm();
+        return;
+      }
+      if (target === "restaurant") {
+        openQuickRestaurantModule();
+        return;
+      }
       const params = new URLSearchParams();
       if (state.pendingAdd.isoDate) {
-        if (target === "functions") params.set("event_date", state.pendingAdd.isoDate);
-        else params.set("prefill_date", state.pendingAdd.isoDate);
+        params.set("prefill_date", state.pendingAdd.isoDate);
       }
       if (state.pendingAdd.time) {
-        if (target === "functions") params.set("start_time", state.pendingAdd.time);
-        else params.set("prefill_time", state.pendingAdd.time);
+        params.set("prefill_time", state.pendingAdd.time);
       }
       let baseUrl = "/";
-      if (target === "functions") {
-        baseUrl = "/functions/new";
-      } else if (target === "restaurant") {
+      if (target === "restaurant") {
         baseUrl = "/calendar/restaurant";
-      } else if (target === "entertainment") {
-        baseUrl = "/settings/entertainment";
       }
       const url = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
       window.location.href = url;
     }
-
     function setupConvertOptions(eventType) {
       if (!convertGroup) return;
       const allowed = CONVERT_OPTIONS[eventType] || [];
@@ -210,6 +315,26 @@
     const addModal = addModalEl && window.bootstrap && window.bootstrap.Modal ? new window.bootstrap.Modal(addModalEl) : null;
     const addModalDateField = addModalEl ? addModalEl.querySelector("[data-calendar-add-date]") : null;
     const addTypeButtons = addModalEl ? addModalEl.querySelectorAll("[data-calendar-add-target]") : [];
+    const addChooser = addModalEl ? addModalEl.querySelector("[data-calendar-add-chooser]") : null;
+    const quickFunctionForm = addModalEl ? addModalEl.querySelector("[data-calendar-function-form]") : null;
+    const quickFunctionName = addModalEl ? addModalEl.querySelector("[data-calendar-function-name]") : null;
+    const quickFunctionDate = addModalEl ? addModalEl.querySelector("[data-calendar-function-date]") : null;
+    const quickFunctionTime = addModalEl ? addModalEl.querySelector("[data-calendar-function-time]") : null;
+    const quickFunctionBackBtn = addModalEl ? addModalEl.querySelector("[data-calendar-add-back]") : null;
+    const quickFunctionFullFormLink = addModalEl ? addModalEl.querySelector("[data-calendar-full-form-link]") : null;
+    const quickEntertainmentForm = addModalEl ? addModalEl.querySelector("[data-calendar-entertainment-form]") : null;
+    const quickEntertainmentTitle = addModalEl ? addModalEl.querySelector("[data-calendar-ent-title]") : null;
+    const quickEntertainmentDate = addModalEl ? addModalEl.querySelector("[data-calendar-ent-date]") : null;
+    const quickEntertainmentTime = addModalEl ? addModalEl.querySelector("[data-calendar-ent-time]") : null;
+    const quickEntertainmentBackBtn = addModalEl ? addModalEl.querySelector("[data-calendar-add-back-ent]") : null;
+    const quickEntertainmentFullFormLink = addModalEl ? addModalEl.querySelector("[data-calendar-ent-full-form-link]") : null;
+    const quickEntertainmentStatus = addModalEl ? addModalEl.querySelector("[data-calendar-ent-status]") : null;
+    const quickEntertainmentSubmit = addModalEl ? addModalEl.querySelector("[data-calendar-ent-submit]") : null;
+    const quickRestaurantModule = addModalEl ? addModalEl.querySelector("[data-calendar-restaurant-module]") : null;
+    const quickRestaurantIframe = addModalEl ? addModalEl.querySelector("[data-calendar-restaurant-iframe]") : null;
+    const quickRestaurantBackBtn = addModalEl ? addModalEl.querySelector("[data-calendar-add-back-restaurant]") : null;
+    const quickRestaurantFullFormLink = addModalEl ? addModalEl.querySelector("[data-calendar-restaurant-full-link]") : null;
+    const addFooter = addModalEl ? addModalEl.querySelector("[data-calendar-add-footer]") : null;
     const addViewDayBtn = document.getElementById("calendarAddViewDay");
     const convertGroup = document.getElementById("calendarConvertGroup");
     const convertButtons = convertGroup ? convertGroup.querySelectorAll("[data-convert-target]") : [];
@@ -355,6 +480,7 @@
         if (calendarPrintTitle) calendarPrintTitle.textContent = title;
         if (exitDayViewBtn) exitDayViewBtn.classList.toggle("d-none", viewType !== "timeGridDay");
         calendarEl.classList.toggle("calendar-day-mode", viewType === "timeGridDay");
+        highlightCurrentWeek(view);
         updatePrintLayout(view);
       },
     });
@@ -369,6 +495,57 @@
         handleAddAction(target);
       });
     });
+    if (quickFunctionBackBtn) {
+      quickFunctionBackBtn.addEventListener("click", () => {
+        resetQuickFunctionForm();
+      });
+    }
+    if (quickEntertainmentBackBtn) {
+      quickEntertainmentBackBtn.addEventListener("click", () => {
+        resetQuickFunctionForm();
+      });
+    }
+    if (quickRestaurantBackBtn) {
+      quickRestaurantBackBtn.addEventListener("click", () => {
+        resetQuickFunctionForm();
+      });
+    }
+    if (quickEntertainmentForm) {
+      quickEntertainmentForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(quickEntertainmentForm);
+        if (quickEntertainmentSubmit) quickEntertainmentSubmit.disabled = true;
+        if (quickEntertainmentStatus) quickEntertainmentStatus.textContent = "Saving event...";
+        try {
+          const res = await fetch(quickEntertainmentForm.action, {
+            method: "POST",
+            body: formData,
+            headers: {
+              Accept: "application/json",
+              "X-Requested-With": "XMLHttpRequest",
+            },
+          });
+          const payload = await res.json().catch(() => ({}));
+          if (!res.ok || !payload?.success) {
+            throw new Error(payload?.error || "Unable to create event");
+          }
+          if (quickEntertainmentStatus) quickEntertainmentStatus.textContent = "Event created.";
+          calendar.refetchEvents();
+          window.setTimeout(() => {
+            if (addModal) addModal.hide();
+          }, 250);
+        } catch (err) {
+          if (quickEntertainmentStatus) quickEntertainmentStatus.textContent = err.message || "Failed to create event";
+        } finally {
+          if (quickEntertainmentSubmit) quickEntertainmentSubmit.disabled = false;
+        }
+      });
+    }
+    if (addModalEl) {
+      addModalEl.addEventListener("hidden.bs.modal", () => {
+        resetQuickFunctionForm();
+      });
+    }
     if (addViewDayBtn) {
       addViewDayBtn.addEventListener("click", () => {
         if (!state.pendingAdd?.isoDate) return;
@@ -534,6 +711,38 @@
       const date = new Date(dateInput);
       date.setHours(0, 0, 0, 0);
       return date.toISOString().split("T")[0];
+    }
+
+    function clearCurrentWeekHighlight() {
+      highlightedWeekKeys.forEach((dateKey) => {
+        const cell = calendarEl.querySelector(`[data-date="${dateKey}"]`);
+        if (cell) cell.classList.remove("calendar-current-week");
+      });
+      highlightedWeekKeys = [];
+    }
+
+    function highlightCurrentWeek(view) {
+      clearCurrentWeekHighlight();
+      if (!view || view.type !== "dayGridMonth") return;
+
+      const today = new Date();
+      const weekStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      weekStart.setHours(0, 0, 0, 0);
+      const offset = (weekStart.getDay() + 6) % 7;
+      weekStart.setDate(weekStart.getDate() - offset);
+
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+
+      calendarEl.querySelectorAll(".fc-daygrid-day[data-date]").forEach((cell) => {
+        const dateKey = cell.getAttribute("data-date");
+        if (!dateKey) return;
+        const cellDate = new Date(`${dateKey}T00:00:00`);
+        if (cellDate >= weekStart && cellDate <= weekEnd) {
+          cell.classList.add("calendar-current-week");
+          highlightedWeekKeys.push(dateKey);
+        }
+      });
     }
 
     function groupEventsByDate(events = []) {

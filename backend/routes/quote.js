@@ -16,6 +16,7 @@ router.use(async (req, res, next) => {
 });
 const { pool } = require("../db");
 const { renderNote } = require("../services/templateRenderer");
+const { backfillTemplateHtmlFallback } = require("../services/templateFallback");
 const { sendMail: graphSendMail } = require("../services/graphService");
 const { getAppToken } = require("../utils/graphAuth");
 
@@ -75,7 +76,7 @@ router.get("/proposal/client/:token", async (req, res) => {
 
     const [templatesRes, termsRes, functionNotesRes, contactsRes, roomsRes] = await Promise.all([
       pool.query(
-        `SELECT id, name, category
+        `SELECT id, name, category, content, content_json
            FROM note_templates
           ORDER BY name ASC`
       ),
@@ -105,6 +106,8 @@ router.get("/proposal/client/:token", async (req, res) => {
       ),
       pool.query("SELECT id, name, capacity FROM rooms ORDER BY name ASC"),
     ]);
+
+    await backfillTemplateHtmlFallback(pool, templatesRes.rows);
 
     const saved = { includeItemIds: [], includeContactIds: [], sections: [], terms: "", termIds: [], termIdsExplicit: false };
     // default terms fallback
@@ -1152,7 +1155,7 @@ router.get("/:functionId/quote", async (req, res) => {
 
       const [itemsRes, payRes, totalsRes] = await Promise.all([
         pool.query(
-          `SELECT id, description, unit_price
+          `SELECT id, description, unit_price, client_selectable
              FROM proposal_items
             WHERE proposal_id = $1
             ORDER BY id ASC`,
@@ -1245,7 +1248,7 @@ router.get("/:functionId/quote", async (req, res) => {
       pool.query("SELECT id, name FROM menu_categories ORDER BY name ASC"),
       pool.query("SELECT id, name, type FROM menu_units ORDER BY id ASC"),
       pool.query("SELECT id, category_id, name, description, price FROM menus ORDER BY name ASC"),
-      pool.query("SELECT id, name, category FROM note_templates ORDER BY name ASC"),
+      pool.query("SELECT id, name, category, content, content_json FROM note_templates ORDER BY name ASC"),
       pool.query(
         `SELECT id,
                 COALESCE(NULLIF(name, ''), NULLIF(notes_template, ''), CONCAT('Terms Block #', id)) AS name,
@@ -1263,6 +1266,8 @@ router.get("/:functionId/quote", async (req, res) => {
         [functionId]
       ),
     ]);
+
+    const templates = await backfillTemplateHtmlFallback(pool, templateRes.rows);
 
     if (
       !proposalBuilderSaved.termIds.length &&
@@ -1328,7 +1333,7 @@ router.get("/:functionId/quote", async (req, res) => {
       categories: categoriesRes.rows,
       units: unitsRes.rows,
       menus: menusRes.rows,
-      templates: templateRes.rows,
+      templates,
       proposalBuilderSaved,
       termsLibrary: termsRes.rows,
       functionNotes,
@@ -1395,6 +1400,279 @@ router.post("/:functionId/quote/add-menu", async (req, res) => {
 });
 
 // ------------------------------------------------------
+// Add one-off item to proposal (room/food/drinks/extras/services)
+// ------------------------------------------------------
+router.post("/:functionId/quote/add-item", async (req, res) => {
+  const { functionId } = req.params;
+  const {
+    name,
+    category,
+    room_id,
+    qty,
+    unit_price,
+    cost_each,
+    client_selectable,
+    save_for_reuse,
+    reuse_category_id,
+  } = req.body || {};
+
+  const safeName = String(name || "").trim();
+  const safeCategory = String(category || "").trim();
+  const isRoomCharge = safeCategory.toLowerCase() === "room" || safeCategory.toLowerCase() === "room charge";
+  const requestedRoomId = Number(room_id);
+  const parsedRequestedRoomId = Number.isInteger(requestedRoomId) && requestedRoomId > 0 ? requestedRoomId : null;
+  const parsedQty = Number(qty);
+  const parsedUnitPrice = Number(unit_price);
+  const parsedCostEach = cost_each === undefined || cost_each === null || cost_each === ""
+    ? null
+    : Number(cost_each);
+
+  if (!safeName) {
+    return res.status(400).json({ success: false, error: "Item name is required" });
+  }
+  if (!safeCategory) {
+    return res.status(400).json({ success: false, error: "Category is required" });
+  }
+  if (!Number.isFinite(parsedQty) || parsedQty <= 0) {
+    return res.status(400).json({ success: false, error: "Quantity must be greater than 0" });
+  }
+  if (!Number.isFinite(parsedUnitPrice) || parsedUnitPrice < 0) {
+    return res.status(400).json({ success: false, error: "Unit price must be 0 or greater" });
+  }
+  if (parsedCostEach !== null && (!Number.isFinite(parsedCostEach) || parsedCostEach < 0)) {
+    return res.status(400).json({ success: false, error: "Cost each must be 0 or greater" });
+  }
+
+  const userId = req.session.user?.id || null;
+  const clientSelectable = parseBoolean(client_selectable);
+  const saveForReuse = parseBoolean(save_for_reuse);
+  const reuseCategoryId = Number(reuse_category_id);
+  const parsedReuseCategoryId = Number.isInteger(reuseCategoryId) && reuseCategoryId > 0 ? reuseCategoryId : null;
+  const numericQty = Math.max(1, Math.round(parsedQty));
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const proposalId = await ensureActiveProposal(client, functionId);
+
+    let roomContext = null;
+    if (isRoomCharge) {
+      if (parsedRequestedRoomId) {
+        const requestedRoomRes = await client.query(
+          `SELECT id, name
+             FROM rooms
+            WHERE id = $1
+            LIMIT 1`,
+          [parsedRequestedRoomId]
+        );
+        const requestedRoom = requestedRoomRes.rows[0] || null;
+        if (!requestedRoom) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ success: false, error: "Selected room does not exist." });
+        }
+        await client.query(
+          `UPDATE functions
+              SET room_id = $2,
+                  updated_at = NOW(),
+                  updated_by = COALESCE($3, updated_by)
+            WHERE id_uuid = $1`,
+          [functionId, requestedRoom.id, userId]
+        );
+      }
+
+      const roomRes = await client.query(
+        `SELECT f.room_id, r.name AS room_name
+           FROM functions f
+      LEFT JOIN rooms r ON r.id = f.room_id
+          WHERE f.id_uuid = $1
+          LIMIT 1`,
+        [functionId]
+      );
+      roomContext = roomRes.rows[0] || null;
+      if (!roomContext?.room_id) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          success: false,
+          error: "Set the booked room on the function before adding a room charge.",
+        });
+      }
+    }
+
+    const effectiveName =
+      isRoomCharge && roomContext?.room_name && !safeName.toLowerCase().includes(String(roomContext.room_name).toLowerCase())
+        ? `${safeName} (${roomContext.room_name})`
+        : safeName;
+
+    let description = `${effectiveName} x ${numericQty}`;
+    description = includeMetadata(description, "category", safeCategory);
+    description = includeMetadata(description, "qty", numericQty);
+    description = includeMetadata(description, "base", parsedUnitPrice);
+    description = includeMetadata(description, "quick_item", "true");
+    if (isRoomCharge && roomContext?.room_id) {
+      description = includeMetadata(description, "room_id", roomContext.room_id);
+      description = includeMetadata(description, "room_name", roomContext.room_name || "");
+      description = includeMetadata(description, "room_match", "true");
+    }
+    if (parsedCostEach !== null) {
+      description = includeMetadata(description, "cost_each", parsedCostEach);
+    }
+    if (clientSelectable) {
+      description = includeMetadata(description, "client_selectable", "true");
+      description = includeMetadata(description, "client_allow_qty", "true");
+    }
+
+    const insertRes = await client.query(
+      `INSERT INTO proposal_items (proposal_id, description, unit_price, client_selectable, updated_by)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id`,
+      [proposalId, description, parsedUnitPrice, clientSelectable, userId]
+    );
+
+    await recalcTotals(client, proposalId, userId);
+    await client.query("COMMIT");
+
+    let reusableMenuId = null;
+    let saveWarning = null;
+    if (saveForReuse) {
+      try {
+        let resolvedCategoryId = parsedReuseCategoryId;
+        if (!resolvedCategoryId && safeCategory) {
+          const categoryLookup = await pool.query(
+            `SELECT id
+               FROM menu_categories
+              WHERE LOWER(name) = LOWER($1)
+              LIMIT 1`,
+            [safeCategory]
+          );
+          resolvedCategoryId = categoryLookup.rows[0]?.id || null;
+        }
+
+        const reusableDescription = `Quick item saved from quote (${safeCategory})`;
+        const reusableMenuRes = resolvedCategoryId
+          ? await pool.query(
+              `INSERT INTO menus (category_id, name, description, price)
+               VALUES ($1, $2, $3, $4)
+               RETURNING id`,
+              [resolvedCategoryId, safeName, reusableDescription, parsedUnitPrice]
+            )
+          : await pool.query(
+              `INSERT INTO menus (name, description, price)
+               VALUES ($1, $2, $3)
+               RETURNING id`,
+              [safeName, reusableDescription, parsedUnitPrice]
+            );
+
+        reusableMenuId = reusableMenuRes.rows[0]?.id || null;
+      } catch (reuseErr) {
+        console.error("Error saving one-off item for reuse:", reuseErr);
+        saveWarning = "Item added to quote, but save for reuse failed.";
+      }
+    }
+
+    return res.json({
+      success: true,
+      itemId: insertRes.rows[0]?.id || null,
+      reusableMenuId,
+      saveWarning,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Error adding one-off item:", err);
+    return res.status(500).json({ success: false, error: "Failed to add item" });
+  } finally {
+    client.release();
+  }
+});
+
+// ------------------------------------------------------
+// Sync booked room from quote page (updates calendar room + room charge metadata)
+// ------------------------------------------------------
+router.post("/:functionId/quote/sync-room", async (req, res) => {
+  const { functionId } = req.params;
+  const requestedRoomId = Number(req.body?.room_id);
+  if (!Number.isInteger(requestedRoomId) || requestedRoomId <= 0) {
+    return res.status(400).json({ success: false, error: "Valid room_id is required" });
+  }
+
+  const userId = req.session.user?.id || null;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const roomRes = await client.query(
+      `SELECT id, name
+         FROM rooms
+        WHERE id = $1
+        LIMIT 1`,
+      [requestedRoomId]
+    );
+    const room = roomRes.rows[0] || null;
+    if (!room) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ success: false, error: "Selected room does not exist." });
+    }
+
+    await client.query(
+      `UPDATE functions
+          SET room_id = $2,
+              updated_at = NOW(),
+              updated_by = COALESCE($3, updated_by)
+        WHERE id_uuid = $1`,
+      [functionId, room.id, userId]
+    );
+
+    const activeProposalId = await ensureActiveProposal(client, functionId);
+
+    let roomChargeCount = 0;
+    if (activeProposalId) {
+      const roomItemsRes = await client.query(
+        `SELECT id, description
+           FROM proposal_items
+          WHERE proposal_id = $1
+          ORDER BY id ASC`,
+        [activeProposalId]
+      );
+
+      for (const item of roomItemsRes.rows) {
+        const meta = extractMetadata(item.description || "");
+        const category = String(meta.category || "").toLowerCase();
+        if (category !== "room" && category !== "room charge") continue;
+
+        let updatedDescription = includeMetadata(item.description || "", "room_id", room.id);
+        updatedDescription = includeMetadata(updatedDescription, "room_name", room.name || "");
+        updatedDescription = includeMetadata(updatedDescription, "room_match", "true");
+
+        await client.query(
+          `UPDATE proposal_items
+              SET description = $1,
+                  updated_at = NOW(),
+                  updated_by = COALESCE($3, updated_by)
+            WHERE id = $2`,
+          [updatedDescription, item.id, userId]
+        );
+        roomChargeCount += 1;
+      }
+
+      await recalcTotals(client, activeProposalId, userId);
+    }
+
+    await client.query("COMMIT");
+    return res.json({
+      success: true,
+      room: { id: room.id, name: room.name },
+      roomChargeCount,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Error syncing room from quote:", err);
+    return res.status(500).json({ success: false, error: "Failed to sync room" });
+  } finally {
+    client.release();
+  }
+});
+
+// ------------------------------------------------------
 // Remove menu (base + related items)
 // ------------------------------------------------------
 router.post("/:functionId/quote/remove-menu", async (req, res) => {
@@ -1429,6 +1707,45 @@ router.post("/:functionId/quote/remove-menu", async (req, res) => {
     await client.query("ROLLBACK");
     console.error("Error removing menu:", err);
     res.status(500).json({ success: false, error: "Failed to remove menu" });
+  } finally {
+    client.release();
+  }
+});
+
+// ------------------------------------------------------
+// Remove one-off quote item (single line)
+// ------------------------------------------------------
+router.post("/:functionId/quote/remove-item", async (req, res) => {
+  const { functionId } = req.params;
+  const itemId = Number(req.body?.item_id);
+  if (!Number.isInteger(itemId) || itemId <= 0) {
+    return res.status(400).json({ success: false, error: "item_id is required" });
+  }
+  const userId = req.session.user?.id || null;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const proposalId = await ensureActiveProposal(client, functionId);
+
+    const deleteRes = await client.query(
+      `DELETE FROM proposal_items
+        WHERE id = $1
+          AND proposal_id = $2`,
+      [itemId, proposalId]
+    );
+    if (!deleteRes.rowCount) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ success: false, error: "Quote item not found" });
+    }
+
+    await recalcTotals(client, proposalId, userId);
+    await client.query("COMMIT");
+    return res.json({ success: true });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Error removing quote item:", err);
+    return res.status(500).json({ success: false, error: "Failed to remove item" });
   } finally {
     client.release();
   }
@@ -2010,7 +2327,7 @@ router.get("/:functionId/proposal", async (req, res) => {
         [functionId]
       ),
       pool.query(
-        `SELECT id, name, category
+        `SELECT id, name, category, content, content_json
            FROM note_templates
           ORDER BY name ASC`
       ),
@@ -2040,6 +2357,8 @@ router.get("/:functionId/proposal", async (req, res) => {
       ),
       pool.query("SELECT id, name, capacity FROM rooms ORDER BY name ASC"),
     ]);
+
+    const templates = await backfillTemplateHtmlFallback(pool, templatesRes.rows);
 
     const proposalRow = proposalRes.rows[0] || null;
     const proposalId = proposalRow?.id || null;
@@ -2141,7 +2460,7 @@ router.get("/:functionId/proposal", async (req, res) => {
       fn,
       proposalId,
       proposalItems,
-      templates: templatesRes.rows,
+      templates,
       contacts: contactsRes.rows,
       rooms: roomsRes.rows,
       saved,
