@@ -2096,6 +2096,55 @@ router.use('/menus-builder', (req, res) => {
 
 
 
+/* =========================================================
+   🔗 TEAMUP INTEGRATION SETTINGS
+========================================================= */
+const { getTeamupSettings, saveTeamupSettings } = require("../services/teamupSettings");
+
+router.get("/teamup", ensurePrivileged, async (req, res) => {
+  try {
+    const settings = await getTeamupSettings();
+    const tokenConfigured = Boolean(settings.api_token && settings.api_token.trim());
+    const authTokenConfigured = Boolean(settings.auth_token && settings.auth_token.trim());
+    res.render("settings/teamup", {
+      layout: "layouts/settings",
+      title: "Settings - Teamup Integration",
+      pageType: "settings",
+      activeTab: "teamup",
+      settings,
+      tokenConfigured,
+      authTokenConfigured,
+      success: req.query.success || null,
+      errorMessage: req.query.error || null,
+      user: req.session.user || null,
+    });
+  } catch (err) {
+    console.error("[Settings] Teamup settings load failed:", err);
+    req.flash("flashMessage", "Failed to load Teamup settings.");
+    req.flash("flashType", "error");
+    res.redirect("/settings/overview");
+  }
+});
+
+router.post("/teamup", ensurePrivileged, async (req, res) => {
+  try {
+    const calendarKey = String(req.body.calendar_key || "").trim();
+    const apiToken = String(req.body.api_token || "").trim();
+    const authToken = String(req.body.auth_token || "").trim();
+    const subcalendarIds = String(req.body.subcalendar_ids || "").trim();
+
+    if (!calendarKey) {
+      return res.redirect("/settings/teamup?error=" + encodeURIComponent("Calendar Key is required."));
+    }
+
+    await saveTeamupSettings({ calendarKey, apiToken, authToken, subcalendarIds });
+    res.redirect("/settings/teamup?success=1");
+  } catch (err) {
+    console.error("[Settings] Teamup settings save failed:", err);
+    res.redirect("/settings/teamup?error=" + encodeURIComponent("Unable to save Teamup settings."));
+  }
+});
+
 module.exports = router;
 
 router.get("/calendar", ensurePrivileged, async (req, res) => {

@@ -1,6 +1,7 @@
 const express = require("express");
-const { randomUUID } = require("crypto");
+const { randomUUID, createHash } = require("crypto");
 const { pool } = require("../db");
+const { getTeamupSettings } = require("../services/teamupSettings");
 const { sendMail } = require("../services/graphService");
 const { getAppToken } = require("../utils/graphAuth");
 const recurrenceService = require("../services/recurrenceService");
@@ -20,7 +21,7 @@ const router = express.Router();
 router.use(express.urlencoded({ extended: true }));
 router.use(express.json());
 
-const EVENT_TYPES = ["functions", "restaurant", "entertainment"];
+const EVENT_TYPES = ["functions", "restaurant", "entertainment", "teamup"];
 const FUNCTION_STATUSES = [
   "lead",
   "qualified",
@@ -95,6 +96,274 @@ const RESTAURANT_STATUS_COLOURS = {
   cancelled: "#fecaca",
 };
 const RESTAURANT_STATUSES = new Set(["pending", "confirmed", "seated", "completed", "cancelled"]);
+const TEAMUP_SYNC_LOOKAHEAD_DAYS = 365;
+const TEAMUP_SYNC_LOOKBACK_DAYS = 30;
+const TEAMUP_AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000;
+
+let teamupSyncState = {
+  running: null,
+  lastCompletedAt: 0,
+};
+
+async function getTeamupConfig() {
+  // DB settings take priority over env vars so admin can configure from the UI.
+  try {
+    const dbSettings = await getTeamupSettings();
+    const dbKey = String(dbSettings?.calendar_key || "").trim();
+    const dbToken = String(dbSettings?.api_token || "").trim();
+    if (dbKey && dbToken) {
+      const authToken = String(dbSettings?.auth_token || "").trim();
+      const subcalendarIds = String(dbSettings?.subcalendar_ids || "")
+        .split(",")
+        .map((entry) => Number.parseInt(String(entry || "").trim(), 10))
+        .filter((value) => Number.isInteger(value) && value > 0);
+      return { calendarKey: dbKey, apiToken: dbToken, authToken, subcalendarIds };
+    }
+  } catch (err) {
+    console.warn("[Calendar] Could not load Teamup settings from DB, falling back to env:", err.message);
+  }
+  // Fallback: env vars
+  const calendarKey = String(process.env.TEAMUP_CALENDAR_KEY || "").trim();
+  const apiToken = String(process.env.TEAMUP_API_TOKEN || process.env.TEAMUP_TOKEN || "").trim();
+  const authToken = String(process.env.TEAMUP_AUTH_TOKEN || "").trim();
+  const subcalendarIds = String(process.env.TEAMUP_SUBCALENDAR_IDS || "")
+    .split(",")
+    .map((entry) => Number.parseInt(String(entry || "").trim(), 10))
+    .filter((value) => Number.isInteger(value) && value > 0);
+  if (!calendarKey || !apiToken) return null;
+  return { calendarKey, apiToken, authToken, subcalendarIds };
+}
+
+function getTeamupHeaders(config, extraHeaders = {}) {
+  const headers = {
+    "Teamup-Token": config.apiToken,
+    Accept: "application/json",
+    ...extraHeaders,
+  };
+  if (config?.authToken) {
+    headers.Authorization = `Bearer ${config.authToken}`;
+  }
+  return headers;
+}
+
+function getTeamupConfigStatus() {
+  // Check env vars only (synchronous, used for page render)
+  // DB-sourced config is checked async via getTeamupConfig()
+  const missing = [];
+  if (!String(process.env.TEAMUP_CALENDAR_KEY || "").trim()) {
+    missing.push("TEAMUP_CALENDAR_KEY (or set via Settings → Teamup)");
+  }
+  if (!String(process.env.TEAMUP_API_TOKEN || process.env.TEAMUP_TOKEN || "").trim()) {
+    missing.push("TEAMUP_API_TOKEN (or set via Settings → Teamup)");
+  }
+  return {
+    configured: missing.length === 0,
+    missing,
+  };
+}
+
+function toTeamupIsoDate(dateValue) {
+  const parsed = normaliseDate(dateValue);
+  if (!parsed) return null;
+  return parsed;
+}
+
+function parseTeamupDateTime(value) {
+  if (!value) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return `${raw}T00:00:00Z`;
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
+function hashTeamupPayload(event) {
+  const source = JSON.stringify(event || {});
+  return createHash("sha256").update(source).digest("hex");
+}
+
+async function ensureTeamupEventsTable(db = pool) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS teamup_events (
+      id SERIAL PRIMARY KEY,
+      teamup_event_id BIGINT NOT NULL UNIQUE,
+      teamup_series_id BIGINT NULL,
+      teamup_subcalendar_id BIGINT NULL,
+      title TEXT NOT NULL,
+      starts_at TIMESTAMP WITH TIME ZONE NOT NULL,
+      ends_at TIMESTAMP WITH TIME ZONE NULL,
+      all_day BOOLEAN NOT NULL DEFAULT FALSE,
+      location TEXT NULL,
+      original_description TEXT NULL,
+      local_description_override TEXT NULL,
+      linked_function_id UUID NULL REFERENCES functions(id_uuid) ON DELETE SET NULL,
+      external_url TEXT NULL,
+      source_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+      source_hash TEXT NULL,
+      last_synced_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    );
+  `);
+  await db.query(
+    `CREATE INDEX IF NOT EXISTS idx_teamup_events_starts_at ON teamup_events(starts_at);`
+  );
+  await db.query(
+    `CREATE INDEX IF NOT EXISTS idx_teamup_events_linked_function ON teamup_events(linked_function_id);`
+  );
+  await db.query(
+    `ALTER TABLE teamup_events ADD COLUMN IF NOT EXISTS external_url TEXT NULL;`
+  );
+}
+
+async function fetchTeamupEventsFromApi({ startDate, endDate, config }) {
+  const url = new URL(`https://api.teamup.com/${encodeURIComponent(config.calendarKey)}/events`);
+  url.searchParams.set("startDate", startDate);
+  url.searchParams.set("endDate", endDate);
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: getTeamupHeaders(config),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Teamup API request failed (${res.status}): ${text || res.statusText}`);
+  }
+  const payload = await res.json();
+  const events = Array.isArray(payload?.events)
+    ? payload.events
+    : Array.isArray(payload?.data?.events)
+    ? payload.data.events
+    : [];
+  return events;
+}
+
+async function upsertTeamupEvents(events = [], db = pool) {
+  let upserted = 0;
+  for (const event of events) {
+    const eventIdRaw = event?.id;
+    const teamupEventId = Number.parseInt(String(eventIdRaw || ""), 10);
+    if (!Number.isInteger(teamupEventId)) continue;
+    const startsAt = parseTeamupDateTime(event.start_dt || event.start || event.start_dt_utc);
+    if (!startsAt) continue;
+    const endsAt = parseTeamupDateTime(event.end_dt || event.end || event.end_dt_utc);
+    const sourceHash = hashTeamupPayload(event);
+    const title = String(event.title || "Teamup Event").trim() || "Teamup Event";
+    const notes = event.notes !== undefined && event.notes !== null ? String(event.notes) : null;
+    const location = event.location !== undefined && event.location !== null ? String(event.location) : null;
+    const subcalendarId = Number.parseInt(String(event.subcalendar_id || ""), 10);
+    const seriesId = Number.parseInt(String(event.series_id || ""), 10);
+    const allDay = Boolean(event.all_day);
+    const externalUrl = event.web_url || event.url || null;
+
+    await db.query(
+      `
+      INSERT INTO teamup_events (
+        teamup_event_id,
+        teamup_series_id,
+        teamup_subcalendar_id,
+        title,
+        starts_at,
+        ends_at,
+        all_day,
+        location,
+        original_description,
+        external_url,
+        source_payload,
+        source_hash,
+        last_synced_at,
+        updated_at
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,NOW(),NOW())
+      ON CONFLICT (teamup_event_id)
+      DO UPDATE SET
+        teamup_series_id = EXCLUDED.teamup_series_id,
+        teamup_subcalendar_id = EXCLUDED.teamup_subcalendar_id,
+        title = EXCLUDED.title,
+        starts_at = EXCLUDED.starts_at,
+        ends_at = EXCLUDED.ends_at,
+        all_day = EXCLUDED.all_day,
+        location = EXCLUDED.location,
+        original_description = EXCLUDED.original_description,
+        external_url = EXCLUDED.external_url,
+        source_payload = EXCLUDED.source_payload,
+        source_hash = EXCLUDED.source_hash,
+        last_synced_at = NOW(),
+        updated_at = NOW();
+      `,
+      [
+        teamupEventId,
+        Number.isInteger(seriesId) ? seriesId : null,
+        Number.isInteger(subcalendarId) ? subcalendarId : null,
+        title,
+        startsAt,
+        endsAt,
+        allDay,
+        location,
+        notes,
+        externalUrl,
+        JSON.stringify(event || {}),
+        sourceHash,
+      ]
+    );
+    upserted += 1;
+  }
+  return upserted;
+}
+
+async function syncTeamupEventsRange({ startDate, endDate, force = false, db = pool }) {
+  const config = await getTeamupConfig();
+  if (!config) {
+    return {
+      skipped: true,
+      reason: "TEAMUP_CALENDAR_KEY / TEAMUP_API_TOKEN not configured",
+      fetched: 0,
+      upserted: 0,
+    };
+  }
+  const now = Date.now();
+  if (!force && teamupSyncState.running) {
+    return teamupSyncState.running;
+  }
+  if (!force && now - teamupSyncState.lastCompletedAt < TEAMUP_AUTO_SYNC_INTERVAL_MS) {
+    return {
+      skipped: true,
+      reason: "sync throttled",
+      fetched: 0,
+      upserted: 0,
+    };
+  }
+
+  const runner = (async () => {
+    await ensureTeamupEventsTable(db);
+    const start = toTeamupIsoDate(startDate);
+    const end = toTeamupIsoDate(endDate);
+    if (!start || !end) {
+      throw new Error("Teamup sync requires valid start/end date.");
+    }
+    const events = await fetchTeamupEventsFromApi({ startDate: start, endDate: end, config });
+    const filtered = config.subcalendarIds.length
+      ? events.filter((event) => config.subcalendarIds.includes(Number(event?.subcalendar_id)))
+      : events;
+    const upserted = await upsertTeamupEvents(filtered, db);
+    teamupSyncState.lastCompletedAt = Date.now();
+    return {
+      skipped: false,
+      reason: null,
+      fetched: filtered.length,
+      upserted,
+    };
+  })();
+
+  teamupSyncState.running = runner;
+  try {
+    return await runner;
+  } finally {
+    teamupSyncState.running = null;
+  }
+}
 
 async function ensureEntertainmentFunctionLinkColumn() {
   await pool.query(
@@ -616,6 +885,69 @@ function mapEntertainmentEventRow(row) {
   };
 }
 
+function mapTeamupEventRow(row) {
+  const start = row.starts_at ? new Date(row.starts_at).toISOString() : null;
+  const end = row.ends_at ? new Date(row.ends_at).toISOString() : null;
+  const linked = Boolean(row.linked_function_id);
+  const effectiveDescription =
+    row.local_description_override !== null && row.local_description_override !== undefined
+      ? row.local_description_override
+      : row.original_description;
+  const colour = linked ? "#93c5fd" : "#c7d2fe";
+  return {
+    id: `teamup-${row.id}`,
+    title: row.title || "Teamup Event",
+    start,
+    end,
+    allDay: Boolean(row.all_day),
+    backgroundColor: colour,
+    borderColor: linked ? "#2563eb" : "#6366f1",
+    textColor: "#1f2937",
+    extendedProps: {
+      type: "teamup",
+      sourceId: row.id,
+      teamupEventId: row.teamup_event_id,
+      teamupSubcalendarId: row.teamup_subcalendar_id,
+      status: linked ? "linked" : "unlinked",
+      roomName: linked ? row.function_room_name || "Linked function" : "Teamup",
+      roomNames: row.function_room_name ? [row.function_room_name] : [],
+      description: effectiveDescription || "",
+      originalDescription: row.original_description || "",
+      localDescriptionOverride: row.local_description_override,
+      functionId: row.linked_function_id || null,
+      functionName: row.function_name || null,
+      detailUrl: row.linked_function_id ? `/functions/${row.linked_function_id}` : null,
+      externalUrl: row.external_url || null,
+    },
+  };
+}
+
+async function fetchTeamupEventsBetween(startDate, endDate) {
+  await ensureTeamupEventsTable();
+  const params = [];
+  const where = [];
+  if (startDate) {
+    params.push(startDate);
+    where.push(`te.starts_at::date >= $${params.length}`);
+  }
+  if (endDate) {
+    params.push(endDate);
+    where.push(`te.starts_at::date <= $${params.length}`);
+  }
+  const query = `
+    SELECT te.*,
+           fn.event_name AS function_name,
+           rm.name AS function_room_name
+      FROM teamup_events te
+      LEFT JOIN functions fn ON fn.id_uuid = te.linked_function_id
+      LEFT JOIN rooms rm ON rm.id = fn.room_id
+      ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+      ORDER BY te.starts_at ASC, te.id ASC;
+  `;
+  const { rows } = await pool.query(query, params);
+  return rows;
+}
+
 async function createRestaurantBooking(payload, options = {}) {
   const partyName = (payload.partyName || "").trim();
   const bookingDate = normaliseDate(payload.bookingDate);
@@ -916,6 +1248,11 @@ async function acquireGraphToken() {
 router.get("/", async (req, res) => {
   try {
     const daySlotMinutes = await fetchCalendarSettings();
+    // Check DB-sourced config first; fall back to env-based status for display
+    const dbConfig = await getTeamupConfig().catch(() => null);
+    const teamupConfigStatus = dbConfig
+      ? { configured: true, missing: [] }
+      : getTeamupConfigStatus();
     const { rows: roomsRaw } = await pool.query(
       `SELECT id, name, capacity, color_code
          FROM rooms
@@ -932,8 +1269,10 @@ router.get("/", async (req, res) => {
       active: "calendar",
       pageType: "calendar",
       rooms,
+      teamupConfigStatus,
       calendarConfig: {
         daySlotMinutes,
+        teamupConfigured: teamupConfigStatus.configured,
       },
       pageCss: ["https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css"],
       pageJs: [
@@ -947,12 +1286,110 @@ router.get("/", async (req, res) => {
   }
 });
 
+router.get("/teamup/connection-test", async (req, res) => {
+  try {
+    const config = await getTeamupConfig();
+    if (!config) {
+      return res.status(400).json({
+        success: false,
+        error: "Teamup credentials are not configured. Go to Settings → Teamup Integration to add them.",
+      });
+    }
+
+    // Diagnostic: show first 6 + last 4 chars so user can verify correct key was saved
+    const tok = config.apiToken || "";
+    const tokenPreview = tok.length > 10
+      ? `${tok.slice(0, 6)}${"*".repeat(Math.max(0, tok.length - 10))}${tok.slice(-4)}`
+      : tok.length > 0 ? "***" : "(empty)";
+
+    // Step 1: validate API key via Teamup's dedicated check-access endpoint
+    const checkRes = await fetch("https://api.teamup.com/check-access", {
+      headers: getTeamupHeaders(config),
+    });
+    if (!checkRes.ok) {
+      const body = await checkRes.json().catch(() => ({}));
+      const msg = body?.error?.message || body?.error?.title || `API key rejected (${checkRes.status})`;
+      return res.status(400).json({
+        success: false,
+        error: `API key invalid: ${msg}`,
+        tokenPreview,
+        hint: "Check the API key was copied in full with no spaces. Teamup sends it by email after sign-up.",
+      });
+    }
+
+    // Step 2: verify the calendar key by fetching today's events
+    const today = formatLocalDate(new Date());
+    const tomorrow = addDaysToDateString(today, 1);
+    const events = await fetchTeamupEventsFromApi({ startDate: today, endDate: tomorrow, config });
+    const filteredCount = config.subcalendarIds?.length
+      ? events.filter((event) => config.subcalendarIds.includes(Number(event?.subcalendar_id))).length
+      : events.length;
+    return res.json({
+      success: true,
+      message: "Teamup API connection successful.",
+      eventsFetched: events.length,
+      eventsAfterSubcalendarFilter: filteredCount,
+      tokenPreview,
+    });
+  } catch (err) {
+    console.error("[Calendar] Teamup connection test failed:", err);
+    if (String(err.message || "").includes('login_required')) {
+      return res.status(400).json({
+        success: false,
+        error: "API key is accepted, but this calendar key requires Teamup account authentication. Add the optional Bearer Auth Token in Settings → Teamup Integration.",
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      error: err.message || "Unable to connect to Teamup API.",
+    });
+  }
+});
+
+router.get("/teamup/subcalendars", async (req, res) => {
+  try {
+    const config = await getTeamupConfig();
+    if (!config) {
+      return res.status(400).json({
+        success: false,
+        error: "Teamup credentials are not configured. Go to Settings → Teamup Integration to add them.",
+      });
+    }
+    const url = new URL(`https://api.teamup.com/${encodeURIComponent(config.calendarKey)}/subcalendars`);
+    const response = await fetch(url.toString(), {
+      headers: getTeamupHeaders(config),
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`Teamup API error (${response.status}): ${text || response.statusText}`);
+    }
+    const payload = await response.json();
+    const subcalendars = Array.isArray(payload?.subcalendars) ? payload.subcalendars : [];
+    return res.json({
+      success: true,
+      subcalendars: subcalendars.map((sub) => ({
+        id: sub.id,
+        name: sub.name,
+        color: sub.color,
+        active: sub.active !== false,
+      })),
+    });
+  } catch (err) {
+    console.error("[Calendar] Teamup subcalendars fetch failed:", err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || "Unable to load subcalendars.",
+    });
+  }
+});
+
 router.get("/events", async (req, res) => {
   try {
     const types = parseTypes(req.query.include);
     const includeFunctions = types.includes("functions");
     const includeRestaurant = types.includes("restaurant");
     const includeEntertainment = types.includes("entertainment");
+    const includeTeamup = types.includes("teamup");
     const roomIds = parseRoomFilter(req.query.rooms);
     const functionStatuses = parseFunctionStatusFilter(req.query.statuses);
     const startDate = normaliseDate(req.query.start);
@@ -1083,10 +1520,153 @@ router.get("/events", async (req, res) => {
       shows.forEach((row) => events.push(mapEntertainmentEventRow(row)));
     }
 
+    if (includeTeamup) {
+      const now = new Date();
+      const autoStart = startDate || addDaysToDateString(formatLocalDate(now), -TEAMUP_SYNC_LOOKBACK_DAYS);
+      const autoEnd = endDate || addDaysToDateString(formatLocalDate(now), TEAMUP_SYNC_LOOKAHEAD_DAYS);
+      try {
+        await syncTeamupEventsRange({ startDate: autoStart, endDate: autoEnd, force: false });
+      } catch (teamupErr) {
+        console.warn("[Calendar] Teamup auto-sync skipped:", teamupErr.message);
+      }
+      const teamupRows = await fetchTeamupEventsBetween(startDate, endDate);
+      teamupRows.forEach((row) => events.push(mapTeamupEventRow(row)));
+    }
+
     res.json(events);
   } catch (err) {
     console.error("[Calendar] Failed to load events:", err);
     res.status(500).json({ success: false, error: "Unable to load calendar events." });
+  }
+});
+
+router.post("/teamup/sync", async (req, res) => {
+  try {
+    const startDate = normaliseDate(req.body?.start || req.query?.start);
+    const endDate = normaliseDate(req.body?.end || req.query?.end);
+    const today = formatLocalDate(new Date());
+    const effectiveStart = startDate || addDaysToDateString(today, -TEAMUP_SYNC_LOOKBACK_DAYS);
+    const effectiveEnd = endDate || addDaysToDateString(today, TEAMUP_SYNC_LOOKAHEAD_DAYS);
+    const result = await syncTeamupEventsRange({
+      startDate: effectiveStart,
+      endDate: effectiveEnd,
+      force: true,
+    });
+    res.json({
+      success: true,
+      startDate: effectiveStart,
+      endDate: effectiveEnd,
+      ...result,
+    });
+  } catch (err) {
+    console.error("[Calendar] Teamup sync failed:", err);
+    res.status(500).json({ success: false, error: err.message || "Unable to sync Teamup events." });
+  }
+});
+
+router.get("/teamup/functions", async (req, res) => {
+  try {
+    const query = String(req.query.q || "").trim();
+    const includeFunctionId = String(req.query.includeFunctionId || "").trim();
+    const unlinkedOnly = ["1", "true", "yes"].includes(String(req.query.unlinkedOnly || "").toLowerCase());
+    const params = [];
+    const whereParts = ["LOWER(COALESCE(f.status, 'lead')) <> 'cancelled'"];
+    if (query) {
+      params.push(`%${query.toLowerCase()}%`);
+      whereParts.push(`LOWER(COALESCE(f.event_name, '')) LIKE $${params.length}`);
+    }
+    if (unlinkedOnly) {
+      if (includeFunctionId) {
+        params.push(includeFunctionId);
+        whereParts.push(`(te.id IS NULL OR f.id_uuid = $${params.length})`);
+      } else {
+        whereParts.push("te.id IS NULL");
+      }
+    }
+    const { rows } = await pool.query(
+      `
+      SELECT f.id_uuid, f.event_name, f.event_date, f.status
+        FROM functions f
+        LEFT JOIN teamup_events te ON te.linked_function_id = f.id_uuid
+       WHERE ${whereParts.join(" AND ")}
+       GROUP BY f.id_uuid, f.event_name, f.event_date, f.status
+       ORDER BY f.event_date DESC NULLS LAST, f.event_name ASC
+       LIMIT 150;
+      `,
+      params
+    );
+    res.json({ success: true, items: rows });
+  } catch (err) {
+    console.error("[Calendar] Teamup function lookup failed:", err);
+    res.status(500).json({ success: false, error: "Unable to load functions." });
+  }
+});
+
+router.post("/teamup/:id/description", async (req, res) => {
+  try {
+    const eventId = Number.parseInt(String(req.params.id || ""), 10);
+    if (!Number.isInteger(eventId)) {
+      return res.status(400).json({ success: false, error: "Invalid Teamup event id." });
+    }
+    const incoming = req.body?.description;
+    const value = incoming === undefined || incoming === null ? null : String(incoming);
+    await ensureTeamupEventsTable();
+    const { rows } = await pool.query(
+      `
+      UPDATE teamup_events
+         SET local_description_override = $1,
+             updated_at = NOW()
+       WHERE id = $2
+       RETURNING id;
+      `,
+      [value && value.trim().length ? value : null, eventId]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ success: false, error: "Teamup event not found." });
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("[Calendar] Teamup description update failed:", err);
+    res.status(500).json({ success: false, error: "Unable to update Teamup description." });
+  }
+});
+
+router.post("/teamup/:id/link", async (req, res) => {
+  try {
+    const eventId = Number.parseInt(String(req.params.id || ""), 10);
+    if (!Number.isInteger(eventId)) {
+      return res.status(400).json({ success: false, error: "Invalid Teamup event id." });
+    }
+    const functionIdRaw = String(req.body?.functionId || "").trim();
+    let functionId = null;
+    if (functionIdRaw) {
+      const { rows: fnRows } = await pool.query(
+        `SELECT id_uuid FROM functions WHERE id_uuid = $1 LIMIT 1;`,
+        [functionIdRaw]
+      );
+      if (!fnRows.length) {
+        return res.status(404).json({ success: false, error: "Function not found." });
+      }
+      functionId = fnRows[0].id_uuid;
+    }
+    await ensureTeamupEventsTable();
+    const { rows } = await pool.query(
+      `
+      UPDATE teamup_events
+         SET linked_function_id = $1,
+             updated_at = NOW()
+       WHERE id = $2
+       RETURNING id;
+      `,
+      [functionId, eventId]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ success: false, error: "Teamup event not found." });
+    }
+    return res.json({ success: true, linkedFunctionId: functionId });
+  } catch (err) {
+    console.error("[Calendar] Teamup link update failed:", err);
+    res.status(500).json({ success: false, error: "Unable to update Teamup link." });
   }
 });
 

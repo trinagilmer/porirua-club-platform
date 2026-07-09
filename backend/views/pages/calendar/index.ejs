@@ -48,6 +48,33 @@
           <% } %>
         </div>
 
+        <div class="mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <label class="form-label mb-0">Teamup Integration</label>
+          </div>
+          <% if (!(teamupConfigStatus && teamupConfigStatus.configured)) { %>
+            <div class="alert alert-warning py-2 mb-2" role="alert">
+              Teamup import is not configured yet.
+              <% if (teamupConfigStatus && Array.isArray(teamupConfigStatus.missing) && teamupConfigStatus.missing.length) { %>
+                <div class="small mt-1">Missing: <%= teamupConfigStatus.missing.join(', ') %></div>
+              <% } %>
+            </div>
+          <% } else { %>
+            <div class="alert alert-success py-2 mb-2" role="alert">
+              Teamup credentials are configured.
+            </div>
+          <% } %>
+          <div class="d-grid gap-2">
+            <button type="button" class="btn btn-outline-primary btn-sm" id="teamupConnectionTestBtn">
+              Test Teamup Connection
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" id="teamupSyncNowBtn">
+              Sync Teamup Now
+            </button>
+          </div>
+          <p class="small text-muted mt-2 mb-0" id="teamupConnectionStatus" aria-live="polite"></p>
+        </div>
+
         <div class="row g-3 align-items-center">
           <div class="col-12">
             <span class="form-label d-block">Show bookings</span>
@@ -60,6 +87,9 @@
 
               <input class="btn-check" type="checkbox" id="toggleEntertainment" data-calendar-type="entertainment">
               <label class="btn btn-outline-primary btn-sm" for="toggleEntertainment">Entertainment</label>
+
+              <input class="btn-check" type="checkbox" id="toggleTeamup" data-calendar-type="teamup">
+              <label class="btn btn-outline-primary btn-sm" for="toggleTeamup">Teamup</label>
             </div>
             <small class="text-muted d-block mt-1">Toggle any combination to focus the calendar.</small>
           </div>
@@ -191,6 +221,39 @@
           <dt class="col-sm-3 text-muted small text-uppercase">Guests</dt>
           <dd class="col-sm-9" data-calendar-field="attendees">--</dd>
         </dl>
+
+        <div id="calendarTeamupEditor" class="d-none border-top mt-3 pt-3">
+          <p class="text-muted text-uppercase small mb-2">Teamup Controls</p>
+          <div class="mb-3">
+            <label class="form-label" for="calendarTeamupDescription">Description</label>
+            <textarea class="form-control" id="calendarTeamupDescription" rows="4" data-calendar-teamup-description></textarea>
+            <div class="d-flex justify-content-end mt-2">
+              <button type="button" class="btn btn-sm btn-outline-primary" data-calendar-teamup-save-description>
+                Save description
+              </button>
+            </div>
+          </div>
+          <div>
+            <label class="form-label" for="calendarTeamupFunctionLookup">Linked function</label>
+            <input
+              type="text"
+              class="form-control"
+              id="calendarTeamupFunctionLookup"
+              data-calendar-teamup-function-lookup
+              list="calendarTeamupFunctionOptions"
+              placeholder="Not linked"
+            >
+            <datalist id="calendarTeamupFunctionOptions" data-calendar-teamup-function-options></datalist>
+            <input type="hidden" id="calendarTeamupFunctionValue" data-calendar-teamup-function value="">
+            <small class="text-muted d-block mt-1">Type to search unlinked functions by name.</small>
+            <div class="d-flex justify-content-end mt-2">
+              <button type="button" class="btn btn-sm btn-outline-primary" data-calendar-teamup-save-link>
+                Save link
+              </button>
+            </div>
+          </div>
+          <p class="small text-muted mt-2 mb-0" data-calendar-teamup-status></p>
+        </div>
       </div>
       <div class="modal-footer justify-content-between">
         <div class="text-muted small">Use the buttons to open the full details.</div>

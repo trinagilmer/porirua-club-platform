@@ -9,6 +9,8 @@
     cancelled: "Cancelled",
     published: "Published",
     scheduled: "Scheduled",
+    linked: "Linked",
+    unlinked: "Unlinked",
   };
   const DEFAULT_FUNCTION_STATUSES = [
     "lead",
@@ -49,6 +51,14 @@
     )} -> ${endDate.toLocaleDateString("en-NZ", optionsDate)} ${endDate.toLocaleTimeString("en-NZ", optionsTime)}`;
   }
 
+  function htmlToPlainText(value) {
+    const raw = String(value || "");
+    if (!raw.includes("<")) return raw;
+    const parser = document.createElement("div");
+    parser.innerHTML = raw;
+    return (parser.textContent || parser.innerText || "").trim();
+  }
+
   function ensureAtLeastFunctions(selectedTypes) {
     if (!selectedTypes.size) {
       selectedTypes.add("functions");
@@ -58,6 +68,42 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
+    const teamupTestBtn = document.getElementById("teamupConnectionTestBtn");
+    const teamupSyncBtn = document.getElementById("teamupSyncNowBtn");
+    const teamupStatusEl = document.getElementById("teamupConnectionStatus");
+
+    async function runTeamupConnectionTest() {
+      if (!teamupTestBtn) return;
+      teamupTestBtn.disabled = true;
+      if (teamupStatusEl) teamupStatusEl.textContent = "Testing Teamup connection...";
+      try {
+        const res = await fetch("/calendar/teamup/connection-test", {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok || !payload?.success) {
+          throw new Error(payload?.error || "Teamup connection test failed");
+        }
+        const fetched = Number(payload.eventsAfterSubcalendarFilter || payload.eventsFetched || 0);
+        if (teamupStatusEl) {
+          teamupStatusEl.textContent = `Connected. Teamup API reachable (${fetched} events in test range).`;
+        }
+      } catch (err) {
+        if (teamupStatusEl) {
+          teamupStatusEl.textContent = err.message || "Unable to connect to Teamup";
+        }
+      } finally {
+        teamupTestBtn.disabled = false;
+      }
+    }
+
+    if (teamupTestBtn) {
+      teamupTestBtn.addEventListener("click", () => {
+        runTeamupConnectionTest();
+      });
+    }
+
     const calendarEl = document.getElementById("functionCalendar");
     if (!calendarEl || !window.FullCalendar) return;
 
@@ -78,6 +124,14 @@
           attendees: modalEl.querySelector('[data-calendar-field="attendees"]'),
           link: modalEl.querySelector('[data-calendar-action="open-function"]'),
           eventLink: modalEl.querySelector('[data-calendar-action="open-event"]'),
+          teamupEditor: modalEl.querySelector("#calendarTeamupEditor"),
+          teamupDescription: modalEl.querySelector("[data-calendar-teamup-description]"),
+          teamupFunction: modalEl.querySelector("[data-calendar-teamup-function]"),
+          teamupFunctionLookup: modalEl.querySelector("[data-calendar-teamup-function-lookup]"),
+          teamupFunctionOptions: modalEl.querySelector("[data-calendar-teamup-function-options]"),
+          teamupStatus: modalEl.querySelector("[data-calendar-teamup-status]"),
+          teamupSaveDescription: modalEl.querySelector("[data-calendar-teamup-save-description]"),
+          teamupSaveLink: modalEl.querySelector("[data-calendar-teamup-save-link]"),
         }
       : {};
 
@@ -87,6 +141,8 @@
       functionStatuses: new Set(DEFAULT_FUNCTION_STATUSES),
       pendingAdd: null,
       selectedEvent: null,
+      teamupFunctionSearchTimer: null,
+      teamupFunctionLookupMap: new Map(),
     };
 
     const CONVERT_OPTIONS = {
@@ -98,6 +154,129 @@
     let currentEvents = [];
     let printStyleEl = null;
     let highlightedWeekKeys = [];
+
+    function formatTeamupFunctionLabel(fn) {
+      const datePart = fn.event_date ? ` (${fn.event_date})` : "";
+      return `${fn.event_name || "Untitled function"}${datePart}`;
+    }
+
+    async function loadTeamupFunctionOptions(query = "", selectedFunctionId = "", selectedFunctionName = "") {
+      if (!modalFields.teamupFunctionOptions || !modalFields.teamupFunction) return;
+      const q = String(query || "").trim();
+      const params = new URLSearchParams();
+      if (q) params.set("q", q);
+      params.set("unlinkedOnly", "1");
+      if (selectedFunctionId) params.set("includeFunctionId", selectedFunctionId);
+      const url = `/calendar/teamup/functions?${params.toString()}`;
+      const res = await fetch(url);
+      const payload = await res.json();
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error || "Unable to load functions");
+      }
+      const optionsList = modalFields.teamupFunctionOptions;
+      optionsList.innerHTML = "";
+      state.teamupFunctionLookupMap.clear();
+
+      let selectedLabel = "";
+      payload.items.forEach((fn) => {
+        const opt = document.createElement("option");
+        const label = formatTeamupFunctionLabel(fn);
+        opt.value = label;
+        optionsList.appendChild(opt);
+        state.teamupFunctionLookupMap.set(label, fn.id_uuid);
+        if (selectedFunctionId && fn.id_uuid === selectedFunctionId) {
+          selectedLabel = label;
+        }
+      });
+
+      if (selectedFunctionId && !selectedLabel) {
+        selectedLabel = selectedFunctionName || "Linked function";
+        state.teamupFunctionLookupMap.set(selectedLabel, selectedFunctionId);
+        const selectedOption = document.createElement("option");
+        selectedOption.value = selectedLabel;
+        optionsList.appendChild(selectedOption);
+      }
+
+      if (selectedFunctionId) {
+        modalFields.teamupFunction.value = selectedFunctionId;
+        if (modalFields.teamupFunctionLookup) {
+          modalFields.teamupFunctionLookup.value = selectedLabel;
+        }
+      } else if (modalFields.teamupFunctionLookup && !q) {
+        modalFields.teamupFunction.value = "";
+        modalFields.teamupFunctionLookup.value = "";
+      }
+    }
+
+    function scheduleTeamupFunctionSearch(selectedFunctionId = "", selectedFunctionName = "") {
+      const query = modalFields.teamupFunctionLookup ? modalFields.teamupFunctionLookup.value : "";
+      if (state.teamupFunctionSearchTimer) {
+        window.clearTimeout(state.teamupFunctionSearchTimer);
+      }
+      state.teamupFunctionSearchTimer = window.setTimeout(() => {
+        loadTeamupFunctionOptions(query, selectedFunctionId, selectedFunctionName).catch((err) => {
+          if (modalFields.teamupStatus) {
+            modalFields.teamupStatus.textContent = err.message || "Unable to load functions";
+          }
+        });
+      }, 250);
+    }
+
+    async function saveTeamupDescription() {
+      if (!state.selectedEvent || state.selectedEvent.type !== "teamup") return;
+      const eventId = state.selectedEvent.id;
+      const value = modalFields.teamupDescription ? modalFields.teamupDescription.value : "";
+      if (modalFields.teamupSaveDescription) modalFields.teamupSaveDescription.disabled = true;
+      if (modalFields.teamupStatus) modalFields.teamupStatus.textContent = "Saving description...";
+      try {
+        const res = await fetch(`/calendar/teamup/${eventId}/description`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description: value }),
+        });
+        const payload = await res.json();
+        if (!res.ok || !payload?.success) {
+          throw new Error(payload?.error || "Unable to save description");
+        }
+        if (modalFields.teamupStatus) modalFields.teamupStatus.textContent = "Description saved.";
+        calendar.refetchEvents();
+      } catch (err) {
+        if (modalFields.teamupStatus) {
+          modalFields.teamupStatus.textContent = err.message || "Unable to save description";
+        }
+      } finally {
+        if (modalFields.teamupSaveDescription) modalFields.teamupSaveDescription.disabled = false;
+      }
+    }
+
+    async function saveTeamupLink() {
+      if (!state.selectedEvent || state.selectedEvent.type !== "teamup") return;
+      const eventId = state.selectedEvent.id;
+      const functionId = modalFields.teamupFunction ? modalFields.teamupFunction.value : "";
+      if (modalFields.teamupSaveLink) modalFields.teamupSaveLink.disabled = true;
+      if (modalFields.teamupStatus) modalFields.teamupStatus.textContent = "Saving link...";
+      try {
+        const res = await fetch(`/calendar/teamup/${eventId}/link`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ functionId }),
+        });
+        const payload = await res.json();
+        if (!res.ok || !payload?.success) {
+          throw new Error(payload?.error || "Unable to save link");
+        }
+        if (modalFields.teamupStatus) {
+          modalFields.teamupStatus.textContent = functionId ? "Link saved." : "Link removed.";
+        }
+        calendar.refetchEvents();
+      } catch (err) {
+        if (modalFields.teamupStatus) {
+          modalFields.teamupStatus.textContent = err.message || "Unable to save link";
+        }
+      } finally {
+        if (modalFields.teamupSaveLink) modalFields.teamupSaveLink.disabled = false;
+      }
+    }
 
     function formatAddLabel(dateObj) {
       if (!dateObj) return "";
@@ -411,6 +590,8 @@
               modalFields.contact.textContent = extended.contact_email || extended.contact_phone || info.event.title;
             } else if (eventType === "entertainment") {
               modalFields.contact.textContent = extended.organiser || "Entertainment";
+            } else if (eventType === "teamup") {
+              modalFields.contact.textContent = "Teamup calendar";
             } else {
               modalFields.contact.textContent = extended.contactName || "Not assigned";
             }
@@ -430,6 +611,10 @@
               } else {
                 modalFields.attendees.textContent = "Public event";
               }
+            } else if (eventType === "teamup") {
+              modalFields.attendees.textContent = extended.functionId
+                ? `Linked to ${extended.functionName || "function"}`
+                : "Not linked to a function";
             } else {
               const attendees = extended.attendees || 0;
               modalFields.attendees.textContent = `${attendees} guests`;
@@ -441,6 +626,9 @@
             if (eventType === "entertainment") {
               label = extended.functionId ? "Open function" : "Open event";
             }
+            if (eventType === "teamup") {
+              label = "Open linked function";
+            }
             modalFields.link.textContent = label;
             modalFields.link.href = extended.detailUrl;
             modalFields.link.classList.remove("d-none");
@@ -450,15 +638,44 @@
           if (modalFields.eventLink) {
             if (eventType === "entertainment" && extended.eventUrl && extended.functionId) {
               modalFields.eventLink.href = extended.eventUrl;
+              modalFields.eventLink.textContent = "Open event";
+              modalFields.eventLink.classList.remove("d-none");
+            } else if (eventType === "teamup" && extended.externalUrl) {
+              modalFields.eventLink.href = extended.externalUrl;
+              modalFields.eventLink.textContent = "Open Teamup";
               modalFields.eventLink.classList.remove("d-none");
             } else {
               modalFields.eventLink.classList.add("d-none");
+            }
+          }
+          if (modalFields.teamupEditor) {
+            if (eventType === "teamup") {
+              modalFields.teamupEditor.classList.remove("d-none");
+              if (modalFields.teamupDescription) {
+                modalFields.teamupDescription.value = htmlToPlainText(extended.description || "");
+              }
+              if (modalFields.teamupFunctionLookup) {
+                modalFields.teamupFunctionLookup.value = "";
+              }
+              if (modalFields.teamupStatus) {
+                modalFields.teamupStatus.textContent = "";
+              }
+              loadTeamupFunctionOptions("", extended.functionId || "", extended.functionName || "")
+                .catch((err) => {
+                  if (modalFields.teamupStatus) {
+                    modalFields.teamupStatus.textContent = err.message || "Unable to load functions";
+                  }
+                });
+            } else {
+              modalFields.teamupEditor.classList.add("d-none");
             }
           }
           state.selectedEvent = {
             id: extended.sourceId || info.event.id,
             type: eventType,
             title: info.event.title || "Booking",
+            functionId: extended.functionId || "",
+            functionName: extended.functionName || "",
           };
           setupConvertOptions(eventType);
           modal.show();
@@ -488,6 +705,47 @@
     calendar.render();
     setPrintOrientation(calendar.view?.type || "dayGridMonth");
     updatePrintLayout(calendar.view);
+
+    async function runTeamupSyncNow() {
+      if (!teamupSyncBtn) return;
+      teamupSyncBtn.disabled = true;
+      if (teamupStatusEl) teamupStatusEl.textContent = "Syncing Teamup events...";
+      try {
+        const res = await fetch("/calendar/teamup/sync", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({}),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok || !payload?.success) {
+          throw new Error(payload?.error || "Teamup sync failed");
+        }
+        const count = Number(payload.upserted || 0);
+        if (teamupStatusEl) {
+          teamupStatusEl.textContent = `Teamup sync complete. ${count} events updated.`;
+        }
+        const teamupToggle = document.querySelector('[data-calendar-type="teamup"]');
+        const shouldRefresh = teamupToggle ? teamupToggle.checked : false;
+        if (shouldRefresh) {
+          calendar.refetchEvents();
+        }
+      } catch (err) {
+        if (teamupStatusEl) {
+          teamupStatusEl.textContent = err.message || "Unable to sync Teamup events";
+        }
+      } finally {
+        teamupSyncBtn.disabled = false;
+      }
+    }
+
+    if (teamupSyncBtn) {
+      teamupSyncBtn.addEventListener("click", () => {
+        runTeamupSyncNow();
+      });
+    }
 
     addTypeButtons.forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -559,6 +817,54 @@
         handleConversion(target);
       });
     });
+
+    if (modalFields.teamupSaveDescription) {
+      modalFields.teamupSaveDescription.addEventListener("click", () => {
+        saveTeamupDescription();
+      });
+    }
+
+    if (modalFields.teamupSaveLink) {
+      modalFields.teamupSaveLink.addEventListener("click", () => {
+        saveTeamupLink();
+      });
+    }
+
+    if (modalFields.teamupFunctionLookup) {
+      modalFields.teamupFunctionLookup.addEventListener("input", () => {
+        const typed = String(modalFields.teamupFunctionLookup.value || "").trim();
+        if (!typed) {
+          if (modalFields.teamupFunction) modalFields.teamupFunction.value = "";
+        }
+        const matchedId = state.teamupFunctionLookupMap.get(typed);
+        if (matchedId && modalFields.teamupFunction) {
+          modalFields.teamupFunction.value = matchedId;
+        }
+        scheduleTeamupFunctionSearch(
+          state.selectedEvent?.functionId || "",
+          state.selectedEvent?.functionName || ""
+        );
+      });
+      modalFields.teamupFunctionLookup.addEventListener("change", () => {
+        const typed = String(modalFields.teamupFunctionLookup.value || "").trim();
+        if (!typed) {
+          if (modalFields.teamupFunction) modalFields.teamupFunction.value = "";
+          return;
+        }
+        const matchedId = state.teamupFunctionLookupMap.get(typed);
+        if (modalFields.teamupFunction) {
+          modalFields.teamupFunction.value = matchedId || "";
+        }
+      });
+      modalFields.teamupFunctionLookup.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        scheduleTeamupFunctionSearch(
+          state.selectedEvent?.functionId || "",
+          state.selectedEvent?.functionName || ""
+        );
+      });
+    }
 
     const roomButtons = document.querySelectorAll(".calendar-room-btn");
     const fallbackPalette = [
