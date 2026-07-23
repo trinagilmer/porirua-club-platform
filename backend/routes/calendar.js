@@ -217,6 +217,9 @@ async function ensureTeamupEventsTable(db = pool) {
   await db.query(
     `ALTER TABLE teamup_events ADD COLUMN IF NOT EXISTS external_url TEXT NULL;`
   );
+  await db.query(
+    `ALTER TABLE public.teamup_events ENABLE ROW LEVEL SECURITY;`
+  );
 }
 
 async function fetchTeamupEventsFromApi({ startDate, endDate, config }) {

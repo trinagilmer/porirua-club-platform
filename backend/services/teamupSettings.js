@@ -13,6 +13,7 @@ async function ensureTeamupSettingsTable(db = pool) {
     );
   `);
   await db.query(`ALTER TABLE teamup_settings ADD COLUMN IF NOT EXISTS auth_token TEXT NOT NULL DEFAULT '';`);
+  await db.query(`ALTER TABLE public.teamup_settings ENABLE ROW LEVEL SECURITY;`);
 }
 
 async function getTeamupSettings(db = pool) {
