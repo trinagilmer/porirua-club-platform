@@ -22,10 +22,11 @@
       No rooms configured yet. Add your first room or space.
     </div>
   <% } else { %>
-    <div class="list-group shadow-sm">
+    <div class="d-flex flex-column gap-2">
       <% rooms.forEach(room => { %>
-        <div class="list-group-item d-flex justify-content-between align-items-center">
-          <div class="d-flex align-items-center gap-3">
+        <section class="border rounded bg-white p-3 shadow-sm">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="d-flex align-items-center gap-3">
             <span
               class="rounded-circle border flex-shrink-0"
               style="width:18px;height:18px;background:<%= room.color_code || '#6BB4DE' %>;border-color:rgba(15,23,42,0.12)!important;"
@@ -38,8 +39,8 @@
               <small class="text-muted ms-2">Colour: <%= room.color_code %></small>
             <% } %>
             </div>
-          </div>
-          <div>
+            </div>
+            <div>
             <button class="btn btn-sm btn-outline-secondary"
                     data-id="<%= room.id %>"
                     data-name="<%= room.name %>"
@@ -59,8 +60,34 @@
               <input type="hidden" name="id" value="<%= room.id %>">
               <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
             </form>
+            </div>
           </div>
-        </div>
+
+          <div class="border-top mt-3 pt-3">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+              <span class="small fw-semibold me-1">Available facilities</span>
+              <% ((facilitiesByRoom && facilitiesByRoom[String(room.id)]) || []).forEach(facility => { %>
+                <form action="/settings/spaces/facilities/delete" method="POST" class="d-inline-flex">
+                  <input type="hidden" name="id" value="<%= facility.id %>">
+                  <button type="submit" class="btn btn-sm btn-light border" title="Remove <%= facility.name %>">
+                    <%= facility.name %> <i class="bi bi-x-lg ms-1" aria-hidden="true"></i>
+                  </button>
+                </form>
+              <% }) %>
+              <% if (!((facilitiesByRoom && facilitiesByRoom[String(room.id)]) || []).length) { %>
+                <span class="small text-muted">None configured</span>
+              <% } %>
+            </div>
+            <form action="/settings/spaces/facilities/add" method="POST" class="d-flex gap-2" style="max-width: 430px;">
+              <input type="hidden" name="room_id" value="<%= room.id %>">
+              <label class="visually-hidden" for="facilityName<%= room.id %>">New facility for <%= room.name %></label>
+              <input id="facilityName<%= room.id %>" type="text" name="name" class="form-control form-control-sm" placeholder="Add facility" required>
+              <button type="submit" class="btn btn-sm btn-outline-primary flex-shrink-0">
+                <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Add
+              </button>
+            </form>
+          </div>
+        </section>
       <% }) %>
     </div>
   <% } %>

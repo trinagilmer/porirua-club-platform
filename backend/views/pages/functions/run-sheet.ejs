@@ -28,6 +28,8 @@
   const endTimeFormatted = formatTime(endTime);
   const safeNotes = Array.isArray(notes) ? notes : [];
   const safeMenus = Array.isArray(menus) ? menus : [];
+  const safeFacilities = Array.isArray(facilities) ? facilities : [];
+  const safeCateringSchedule = Array.isArray(cateringSchedule) ? cateringSchedule : [];
   const safeAllocations = Array.isArray(roomAllocations) ? roomAllocations : [];
   const formatAllocDate = (value) => {
     if (!value) return '';
@@ -48,8 +50,17 @@
 %>
 
 <style>
+  .run-sheet,
+  .run-sheet p,
+  .run-sheet span,
+  .run-sheet div,
+  .run-sheet li,
+  .run-sheet .small,
+  .run-sheet small {
+    font-size: 16px;
+  }
   .run-sheet table {
-    font-size: 12.5px;
+    font-size: 16px;
   }
   .run-sheet table th,
   .run-sheet table td {
@@ -64,8 +75,17 @@
     min-width: 220px;
   }
   @media print {
+    .run-sheet,
+    .run-sheet p,
+    .run-sheet span,
+    .run-sheet div,
+    .run-sheet li,
+    .run-sheet .small,
+    .run-sheet small {
+      font-size: 16px !important;
+    }
     .run-sheet table {
-      font-size: 12.5px;
+      font-size: 16px;
     }
     .run-sheet table th,
     .run-sheet table td {
@@ -106,6 +126,10 @@
         <div class="run-sheet-summary__group">
           <p class="text-muted text-uppercase small mb-1">Room</p>
           <p class="fw-semibold mb-3"><%= roomName || 'Unassigned' %></p>
+          <% if (safeFacilities.length) { %>
+            <p class="text-muted text-uppercase small mb-1">Facilities</p>
+            <p class="fw-semibold mb-3"><%= safeFacilities.map(facility => facility.name).join(', ') %></p>
+          <% } %>
           <p class="text-muted text-uppercase small mb-1">Guests</p>
           <p class="fw-semibold mb-0"><%= attendees || 0 %></p>
           <% if (safeAllocations.length) { %>
@@ -132,6 +156,32 @@
     </div>
   </section>
 
+  <% if (safeCateringSchedule.length || dietaryRequirements) { %>
+    <section class="card mb-4 shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Food service &amp; dietary requirements</h5>
+        <% if (safeCateringSchedule.length) { %>
+          <div class="table-responsive">
+            <table class="table align-middle mb-<%= dietaryRequirements ? '3' : '0' %>">
+              <thead><tr><th style="width: 120px;">Time</th><th style="width: 180px;">Service</th><th>Description</th></tr></thead>
+              <tbody>
+                <% safeCateringSchedule.forEach(row => { %>
+                  <tr><td class="fw-semibold"><%= row.time || 'Time TBC' %></td><td><%= row.label || 'Food service' %></td><td><%= row.description || '' %></td></tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+        <% if (dietaryRequirements) { %>
+          <div class="<%= safeCateringSchedule.length ? 'border-top pt-3' : '' %>">
+            <p class="text-muted text-uppercase mb-1">Dietary requirements</p>
+            <p class="fw-semibold mb-0" style="white-space: pre-wrap;"><%= dietaryRequirements %></p>
+          </div>
+        <% } %>
+      </div>
+    </section>
+  <% } %>
+
   <% if (safeNotes.length) { %>
     <section class="card mb-4 shadow-sm">
       <div class="card-body">
@@ -153,8 +203,8 @@
     <section class="card shadow-sm">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="card-title mb-0">Catering / Menus</h5>
-          <span class="badge bg-light text-dark"><%= safeMenus.length %> menus</span>
+          <h5 class="card-title mb-0">Quote items</h5>
+          <span class="badge bg-light text-dark"><%= safeMenus.length %> line<%= safeMenus.length === 1 ? '' : 's' %></span>
         </div>
         <div class="vstack gap-4">
           <% safeMenus.forEach(function(menu) { %>
@@ -172,11 +222,17 @@
                   <thead>
                     <tr>
                       <th scope="col" style="min-width: 240px;">Item</th>
-                      <th scope="col" style="width: 90px;">Quantity</th>
-                      <th scope="col" style="width: 90px;">Unit</th>
+                      <% if (typeof includeQuantities === 'undefined' || includeQuantities) { %>
+                        <th scope="col" style="width: 90px;">Quantity</th>
+                        <th scope="col" style="width: 90px;">Unit</th>
+                      <% } %>
                       <% if (typeof includeCosts !== 'undefined' && includeCosts) { %>
                         <th scope="col" style="width: 110px;">Cost</th>
-                        <th scope="col" style="width: 110px;">Line Total</th>
+                        <th scope="col" style="width: 110px;">Cost total</th>
+                      <% } %>
+                      <% if (typeof includePrices !== 'undefined' && includePrices) { %>
+                        <th scope="col" style="width: 110px;">Sale price</th>
+                        <th scope="col" style="width: 110px;">Sale total</th>
                       <% } %>
                     </tr>
                   </thead>
@@ -184,8 +240,10 @@
                     <% (menu.items || []).forEach(function(item) { %>
                       <tr>
                         <td><%= item.label || 'Item' %></td>
-                        <td><%= item.qty || 0 %></td>
-                        <td><%= item.unit || '' %></td>
+                        <% if (typeof includeQuantities === 'undefined' || includeQuantities) { %>
+                          <td><%= item.qty || 0 %></td>
+                          <td><%= item.unit || '' %></td>
+                        <% } %>
                         <% if (typeof includeCosts !== 'undefined' && includeCosts) { 
                              const qtyVal = (item.qty && !isNaN(Number(item.qty))) ? Number(item.qty) : 0;
                              const unitCost = Number.isFinite(Number(item.cost_each))
@@ -200,11 +258,21 @@
                           <td><%= '$' + unitCost.toFixed(2) %></td>
                           <td><%= '$' + lineCost.toFixed(2) %></td>
                         <% } %>
+                        <% if (typeof includePrices !== 'undefined' && includePrices) {
+                             const qtyPriceVal = (item.qty && !isNaN(Number(item.qty))) ? Number(item.qty) : 0;
+                             const saleEach = Number.isFinite(Number(item.price_each))
+                               ? Number(item.price_each)
+                               : (qtyPriceVal > 0 ? Number(item.price || 0) / qtyPriceVal : Number(item.price || 0));
+                             const saleTotal = Number.isFinite(Number(item.price)) ? Number(item.price) : saleEach * qtyPriceVal;
+                        %>
+                          <td><%= '$' + saleEach.toFixed(2) %></td>
+                          <td><%= '$' + saleTotal.toFixed(2) %></td>
+                        <% } %>
                       </tr>
                     <% }) %>
                     <% if (!(menu.items || []).length) { %>
                       <tr>
-                        <td colspan="<%= (includeCosts ? 5 : 3) %>" class="text-muted text-center">No items recorded for this menu.</td>
+                        <td colspan="<%= 1 + (includeQuantities ? 2 : 0) + (includeCosts ? 2 : 0) + (includePrices ? 2 : 0) %>" class="text-muted text-center">No quote items recorded.</td>
                       </tr>
                     <% } %>
                   </tbody>
@@ -232,9 +300,9 @@
               <tr>
                 <td class="border-0"></td>
                 <td class="border-0 text-end run-sheet__totals" style="width: 220px;">
-                  <div class="fw-semibold mb-1" style="font-size: 13.5px;">Totals</div>
-                  <div style="font-size: 12.5px;">
-                    <div>Price: $<%= totalPriceAll.toFixed(2) %></div>
+                  <div class="fw-semibold mb-1">Totals</div>
+                  <div>
+                    <% if (typeof includePrices !== 'undefined' && includePrices) { %><div>Sale: $<%= totalPriceAll.toFixed(2) %></div><% } %>
                     <% if (typeof includeCosts !== 'undefined' && includeCosts) { %>
                       <div>Cost: $<%= totalCostAll.toFixed(2) %></div>
                     <% } %>
@@ -243,6 +311,20 @@
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </section>
+  <% } %>
+
+  <% if (typeof includeInvoice !== 'undefined' && includeInvoice && invoiceDetails) { %>
+    <section class="card mt-4 shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Payment / invoice details</h5>
+        <div class="row g-2 small">
+          <div class="col-sm-3">Quoted <strong class="d-block">$<%= Number(invoiceDetails.subtotal || 0).toFixed(2) %></strong></div>
+          <div class="col-sm-3">Discount <strong class="d-block">$<%= Number(invoiceDetails.discount_amount || 0).toFixed(2) %></strong></div>
+          <div class="col-sm-3">Paid <strong class="d-block">$<%= Number(invoiceDetails.total_paid || 0).toFixed(2) %></strong></div>
+          <div class="col-sm-3">Balance <strong class="d-block">$<%= Number(invoiceDetails.remaining_due || 0).toFixed(2) %></strong></div>
         </div>
       </div>
     </section>

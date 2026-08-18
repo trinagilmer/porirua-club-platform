@@ -9,7 +9,7 @@ const REPORT_TYPES = [
   { value: "payments-balance", label: "Payments & balance", category: "Functions" },
   { value: "booking-pipeline", label: "Booking pipeline", category: "Functions" },
   { value: "revenue-by-room", label: "Revenue by room", category: "Functions" },
-  { value: "revenue-by-menu", label: "Revenue by menu", category: "Functions" },
+  { value: "revenue-by-menu", label: "Revenue by quote category", category: "Functions" },
   { value: "upcoming-functions", label: "Upcoming functions", category: "Functions" },
   { value: "cancellations", label: "Cancellations", category: "Functions" },
   { value: "restaurant", label: "Restaurant bookings", category: "Restaurant" },
@@ -42,8 +42,8 @@ const REPORT_CARDS = [
     category: "Functions",
   },
   {
-    title: "Revenue by menu",
-    description: "Understand menu contribution based on quoted items.",
+    title: "Revenue by quote category",
+    description: "Compare revenue, cost, and profit across quoted categories.",
     type: "revenue-by-menu",
     icon: "bi-journal-text",
     category: "Functions",
@@ -636,53 +636,96 @@ async function loadRevenueByRoomReport(range) {
 
 async function loadRevenueByMenuReport(range) {
   const params = [formatDateInput(range.start), formatDateInput(range.end)];
-  const { rows } = await pool.query(
+  const { rows: itemRows } = await pool.query(
     `
     WITH latest_proposals AS (
       SELECT DISTINCT ON (p.function_id) p.id, p.function_id, p.created_at
         FROM proposals p
        ORDER BY p.function_id, p.created_at DESC
     )
-    SELECT COALESCE(m.name, 'Unassigned') AS menu_name,
-           COUNT(DISTINCT f.id_uuid) AS function_count,
-           COUNT(*) AS item_count,
-           COALESCE(SUM(pi.unit_price), 0) AS revenue
+    SELECT f.id_uuid AS function_id,
+           pi.id AS item_id,
+           pi.description,
+           pi.unit_price
       FROM functions f
       JOIN latest_proposals lp ON lp.function_id = f.id_uuid
       JOIN proposal_items pi ON pi.proposal_id = lp.id
-      LEFT JOIN menus m
-        ON m.id = NULLIF(substring(pi.description from '\\[menu_id:(\\d+)\\]'), '')::int
      WHERE f.event_date BETWEEN $1 AND $2
        AND COALESCE(f.status, '') <> 'cancelled'
-       AND pi.description ~ '\\[menu_id:\\d+\\]'
        AND pi.description NOT ILIKE '%[excluded:true]%'
-     GROUP BY COALESCE(m.name, 'Unassigned')
-     ORDER BY revenue DESC;
+     ORDER BY pi.id ASC;
     `,
     params
   );
+  const categoryMap = new Map();
+  itemRows.forEach((item) => {
+    const metadata = {};
+    String(item.description || "").replace(/\[([a-z_]+):([^\]]+)\]/gi, (_match, key, value) => {
+      metadata[String(key).toLowerCase()] = value;
+      return _match;
+    });
+    const categoryName = String(metadata.category || "Other").trim() || "Other";
+    const quantity = Math.max(1, Number(metadata.qty) || 1);
+    const storedPrice = Number(item.unit_price) || 0;
+    const basePrice = Number(metadata.base);
+    const revenue = Number.isFinite(basePrice) ? basePrice * quantity : storedPrice * quantity;
+    const costEach = Number(metadata.cost_each);
+    const costTotal = Number(metadata.cost);
+    const cost = Number.isFinite(costEach)
+      ? costEach * quantity
+      : Number.isFinite(costTotal)
+        ? costTotal
+        : 0;
+    const current = categoryMap.get(categoryName) || {
+      category_name: categoryName,
+      functionIds: new Set(),
+      item_count: 0,
+      revenue: 0,
+      cost: 0,
+    };
+    current.functionIds.add(item.function_id);
+    current.item_count += 1;
+    current.revenue += revenue;
+    current.cost += cost;
+    categoryMap.set(categoryName, current);
+  });
+  const rows = [...categoryMap.values()]
+    .map((row) => ({
+      category_name: row.category_name,
+      function_count: row.functionIds.size,
+      item_count: row.item_count,
+      revenue: row.revenue,
+      cost: row.cost,
+      profit: row.revenue - row.cost,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
   const summary = rows.reduce(
     (acc, row) => {
       acc.totalRevenue += Number(row.revenue) || 0;
+      acc.totalCost += Number(row.cost) || 0;
       acc.totalItems += Number(row.item_count) || 0;
       return acc;
     },
-    { totalRevenue: 0, totalItems: 0 }
+    { totalRevenue: 0, totalCost: 0, totalItems: 0 }
   );
+  summary.totalProfit = summary.totalRevenue - summary.totalCost;
   return {
     rows,
     summary,
     meta: {
       summary: [
-        { label: "Menus", value: rows.length },
+        { label: "Categories", value: rows.length },
         { label: "Items", value: summary.totalItems },
         { label: "Revenue", value: summary.totalRevenue, format: "currency" },
+        { label: "Profit", value: summary.totalProfit, format: "currency" },
       ],
       columns: [
-        { label: "Menu", key: "menu_name" },
+        { label: "Category", key: "category_name" },
         { label: "Functions", key: "function_count" },
         { label: "Items", key: "item_count" },
         { label: "Revenue", key: "revenue", format: "currency" },
+        { label: "Cost", key: "cost", format: "currency" },
+        { label: "Profit", key: "profit", format: "currency" },
       ],
     },
   };
@@ -1034,17 +1077,21 @@ router.get("/export", ensurePrivileged, async (req, res) => {
       });
     } else if (type === "revenue-by-menu") {
       sheet.columns = [
-        { header: "Menu", key: "menu_name", width: 24 },
+        { header: "Category", key: "category_name", width: 24 },
         { header: "Functions", key: "function_count", width: 12 },
         { header: "Items", key: "item_count", width: 10 },
         { header: "Revenue", key: "revenue", width: 14 },
+        { header: "Cost", key: "cost", width: 14 },
+        { header: "Profit", key: "profit", width: 14 },
       ];
       rows.forEach((row) => {
         sheet.addRow({
-          menu_name: row.menu_name,
+          category_name: row.category_name,
           function_count: row.function_count || 0,
           item_count: row.item_count || 0,
           revenue: formatCurrency(row.revenue),
+          cost: formatCurrency(row.cost),
+          profit: formatCurrency(row.profit),
         });
       });
     } else if (type === "upcoming-functions") {

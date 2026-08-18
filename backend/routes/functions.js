@@ -11,6 +11,7 @@ const {
   getFunctionSettings,
   DEFAULT_FUNCTION_ENQUIRY_SETTINGS,
 } = require("../services/functionSettings");
+const { ensureRoomFacilityTables } = require("../services/roomFacilitySchema");
 
 
 // 🧩 Utility: normalizeRecipients
@@ -144,6 +145,26 @@ function parseBooleanValue(value) {
   return false;
 }
 
+function parsePositiveIntegerList(value) {
+  const values = Array.isArray(value) ? value : value === undefined ? [] : [value];
+  return [...new Set(values.map(Number).filter((item) => Number.isInteger(item) && item > 0))];
+}
+
+function parseCateringSchedule(body = {}) {
+  const times = Array.isArray(body.catering_time) ? body.catering_time : [body.catering_time];
+  const labels = Array.isArray(body.catering_label) ? body.catering_label : [body.catering_label];
+  const descriptions = Array.isArray(body.catering_description)
+    ? body.catering_description
+    : [body.catering_description];
+  const rowCount = Math.min(20, Math.max(times.length, labels.length, descriptions.length));
+
+  return Array.from({ length: rowCount }, (_, index) => ({
+    time: String(times[index] || "").trim().slice(0, 5),
+    label: String(labels[index] || "").trim().slice(0, 80),
+    description: String(descriptions[index] || "").trim().slice(0, 500),
+  })).filter((row) => row.time || row.label || row.description);
+}
+
 async function ensureFunctionCancelColumn() {
   await pool.query("ALTER TABLE functions ADD COLUMN IF NOT EXISTS cancelled_reason TEXT;");
 }
@@ -159,6 +180,15 @@ async function ensureFunctionEndDateColumn() {
 async function ensureFunctionPaymentColumns() {
   await pool.query("ALTER TABLE functions ADD COLUMN IF NOT EXISTS deposit_paid BOOLEAN DEFAULT FALSE;");
   await pool.query("ALTER TABLE functions ADD COLUMN IF NOT EXISTS fully_paid BOOLEAN DEFAULT FALSE;");
+}
+
+async function ensureFunctionCateringColumns() {
+  await pool.query(
+    "ALTER TABLE functions ADD COLUMN IF NOT EXISTS catering_schedule JSONB NOT NULL DEFAULT '[]'::jsonb;"
+  );
+  await pool.query(
+    "ALTER TABLE functions ADD COLUMN IF NOT EXISTS dietary_requirements TEXT;"
+  );
 }
 
 async function ensureFunctionRoomAllocationsTable(db = pool) {
@@ -866,8 +896,15 @@ function buildPrimaryRoomSlot({ room_id, event_date, end_date, start_time, end_t
   const hasExplicitTiming = Boolean(start_time || end_time || end_date);
   if (!hasExplicitTiming) return null;
   const startAt = combineDateTimeLocal(event_date, start_time, false);
-  const endAt = combineDateTimeLocal(end_date || event_date, end_time, true);
+  let endAt = combineDateTimeLocal(end_date || event_date, end_time, true);
   if (!startAt || !endAt) return null;
+  const startDate = new Date(startAt.replace(" ", "T"));
+  const endDate = new Date(endAt.replace(" ", "T"));
+  if (!Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime()) && endDate < startDate) {
+    endDate.setDate(endDate.getDate() + 1);
+    const nextDate = [endDate.getFullYear(), String(endDate.getMonth() + 1).padStart(2, "0"), String(endDate.getDate()).padStart(2, "0")].join("-");
+    endAt = `${nextDate} ${normalizeTimeValue(end_time) || "23:59:00"}`;
+  }
   return {
     room_id: roomId,
     start_at: startAt,
@@ -878,7 +915,12 @@ function buildPrimaryRoomSlot({ room_id, event_date, end_date, start_time, end_t
 
 async function findRoomConflicts(db, { excludeFunctionId = null, slots = [] } = {}) {
   const validSlots = (slots || []).filter(
-    (slot) => Number.isInteger(Number(slot.room_id)) && slot.start_at && slot.end_at
+    (slot) => {
+      if (!Number.isInteger(Number(slot.room_id)) || !slot.start_at || !slot.end_at) return false;
+      const startAt = new Date(String(slot.start_at).replace(" ", "T"));
+      const endAt = new Date(String(slot.end_at).replace(" ", "T"));
+      return Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) || endAt >= startAt;
+    }
   );
   if (!validSlots.length) return [];
 
@@ -918,7 +960,12 @@ async function findRoomConflicts(db, { excludeFunctionId = null, slots = [] } = 
            ${bookingExclude}
            AND tsrange(
                  (f.event_date::timestamp + COALESCE(f.start_time, '00:00:00'::time)),
-                 (COALESCE(f.end_date, f.event_date)::timestamp + COALESCE(f.end_time, '23:59:00'::time)),
+                 CASE
+                   WHEN (COALESCE(f.end_date, f.event_date)::timestamp + COALESCE(f.end_time, '23:59:00'::time))
+                        < (f.event_date::timestamp + COALESCE(f.start_time, '00:00:00'::time))
+                   THEN (COALESCE(f.end_date, f.event_date)::timestamp + COALESCE(f.end_time, '23:59:00'::time)) + INTERVAL '1 day'
+                   ELSE (COALESCE(f.end_date, f.event_date)::timestamp + COALESCE(f.end_time, '23:59:00'::time))
+                 END,
                  '[]'
                ) && tsrange($2::timestamp, $3::timestamp, '[]')
          ORDER BY f.event_date ASC
@@ -943,7 +990,11 @@ async function findRoomConflicts(db, { excludeFunctionId = null, slots = [] } = 
            AND fra.end_at IS NOT NULL
            AND LOWER(COALESCE(f.status, 'lead')) <> 'cancelled'
            ${allocationExclude}
-           AND tsrange(fra.start_at, fra.end_at, '[]') && tsrange($2::timestamp, $3::timestamp, '[]')
+           AND tsrange(
+                 fra.start_at,
+                 CASE WHEN fra.end_at < fra.start_at THEN fra.end_at + INTERVAL '1 day' ELSE fra.end_at END,
+                 '[]'
+               ) && tsrange($2::timestamp, $3::timestamp, '[]')
          ORDER BY fra.start_at ASC
          LIMIT 5;
         `,
@@ -2056,6 +2107,7 @@ router.get("/:id/edit", async (req, res, next) => {
   const { id: functionId } = req.params;
 
   try {
+    await ensureFunctionCateringColumns();
     // 1️⃣ Load function details
     const { rows: fnRows } = await pool.query(
       `SELECT * FROM functions WHERE id_uuid = $1;`,
@@ -2066,8 +2118,21 @@ router.get("/:id/edit", async (req, res, next) => {
     if (!fn) return res.status(404).send("Function not found");
 
     // 2️⃣ Load related data concurrently
-    await ensureFunctionRoomAllocationsTable();
-    const [linkedContactsRes, roomsRes, eventTypesRes, usersRes, allocationsRes] = await Promise.all([
+    await Promise.all([ensureFunctionRoomAllocationsTable(), ensureRoomFacilityTables(pool)]);
+    const [
+      linkedContactsRes,
+      roomsRes,
+      eventTypesRes,
+      usersRes,
+      allocationsRes,
+      facilitiesRes,
+      notesRes,
+      proposalRes,
+      tasksRes,
+      communicationsRes,
+      feedbackRes,
+      paymentsRes,
+    ] = await Promise.all([
       pool.query(`
         SELECT c.id, c.name, c.email, c.phone, fc.is_primary
         FROM contacts c
@@ -2088,8 +2153,113 @@ router.get("/:id/edit", async (req, res, next) => {
          ORDER BY fra.start_at NULLS FIRST, r.name ASC;
         `,
         [functionId]
+      ),
+      pool.query(
+        `
+        SELECT rf.id, rf.room_id, rf.name, rf.sort_order,
+               (frfs.function_id IS NOT NULL) AS selected
+          FROM room_facilities rf
+          LEFT JOIN function_room_facility_selections frfs
+            ON frfs.facility_id = rf.id
+           AND frfs.function_id = $1
+         WHERE rf.active = TRUE
+         ORDER BY rf.room_id, rf.sort_order, rf.name ASC;
+        `,
+        [functionId]
+      ),
+      pool.query(
+        `SELECT id, note_type, rendered_html, content, created_at, updated_at
+           FROM function_notes
+          WHERE function_id = $1
+          ORDER BY created_at DESC;`,
+        [functionId]
+      ),
+      pool.query(
+        `SELECT p.id, pt.subtotal, pt.discount_amount, pt.total_paid, pt.remaining_due
+           FROM proposals p
+      LEFT JOIN proposal_totals pt ON pt.proposal_id = p.id
+          WHERE p.function_id = $1
+          ORDER BY p.created_at DESC
+          LIMIT 1;`,
+        [functionId]
+      ),
+      pool.query(
+        `SELECT id, title, status, due_at
+           FROM tasks
+          WHERE function_id = $1
+          ORDER BY CASE WHEN status = 'open' THEN 0 ELSE 1 END, due_at NULLS LAST, created_at DESC
+          LIMIT 4;`,
+        [functionId]
+      ),
+      pool.query(
+        `SELECT * FROM (
+           SELECT subject, message_type AS type,
+                  COALESCE(sent_at, received_at, created_at) AS activity_at
+             FROM messages
+            WHERE related_function::text = $1::text
+           UNION ALL
+           SELECT subject, COALESCE(channel, 'proposal') AS type, created_at AS activity_at
+             FROM communications
+            WHERE function_id::text = $1::text
+         ) activity
+         ORDER BY activity_at DESC NULLS LAST
+         LIMIT 4;`,
+        [functionId]
+      ),
+      pool.query(
+        `SELECT rating_overall, status, completed_at, sent_at
+           FROM feedback_responses
+          WHERE entity_type = 'function'
+            AND entity_id::text = $1::text
+          ORDER BY completed_at DESC NULLS LAST, sent_at DESC NULLS LAST
+          LIMIT 3;`,
+        [functionId]
+      ),
+      pool.query(
+        `SELECT pay.id, pay.amount, pay.method, pay.paid_on
+           FROM payments pay
+           JOIN proposals p ON p.id = pay.proposal_id
+          WHERE p.function_id = $1
+          ORDER BY pay.paid_on DESC NULLS LAST, pay.id DESC
+          LIMIT 4;`,
+        [functionId]
       )
     ]);
+
+    const activeProposal = proposalRes.rows[0] || null;
+    let quoteLines = [];
+    if (activeProposal) {
+      const { rows: proposalItems } = await pool.query(
+        `SELECT id, description, unit_price
+           FROM proposal_items
+          WHERE proposal_id = $1
+          ORDER BY id ASC;`,
+        [activeProposal.id]
+      );
+      quoteLines = proposalItems.map((item) => {
+        const metadata = extractProposalMetadata(item.description || "");
+        const quantity = Math.max(1, Number(metadata.qty) || 1);
+        const salePriceEach = derivePerUnitPrice(metadata, Number(item.unit_price) || 0);
+        const totalCost = Number(metadata.cost);
+        const costEach = Number.isFinite(Number(metadata.cost_each))
+          ? Number(metadata.cost_each)
+          : Number.isFinite(totalCost)
+            ? totalCost / quantity
+            : 0;
+        const label = cleanLabelFromDescription(item.description || "")
+          .replace(/\s+x\s+\d+(?:\.\d+)?$/i, "")
+          .trim();
+        return {
+          id: item.id,
+          name: label || "Quote item",
+          category: metadata.category || "Other",
+          quantity,
+          costEach,
+          salePriceEach,
+          included: String(metadata.excluded || "").toLowerCase() !== "true",
+        };
+      });
+    }
 
     // 3️⃣ Render edit page
     res.render("pages/functions/edit", {
@@ -2103,6 +2273,19 @@ router.get("/:id/edit", async (req, res, next) => {
       eventTypes: eventTypesRes.rows,
       users: usersRes.rows,
       roomAllocations: allocationsRes.rows || [],
+      roomFacilities: facilitiesRes.rows || [],
+      allNotes: notesRes.rows || [],
+      recentTasks: tasksRes.rows || [],
+      recentCommunications: communicationsRes.rows || [],
+      recentFeedback: feedbackRes.rows || [],
+      recentPayments: paymentsRes.rows || [],
+      quoteLines,
+      quoteTotals: activeProposal || {
+        subtotal: fn.totals_price || 0,
+        discount_amount: 0,
+        total_paid: 0,
+        remaining_due: fn.totals_price || 0,
+      },
       activeTab: "edit"
     });
 
@@ -2125,8 +2308,6 @@ router.post("/:id/edit", async (req, res) => {
     end_time,
     attendees,
     budget,
-    totals_price,
-    totals_cost,
     room_id,
     event_type,
     status,
@@ -2136,6 +2317,7 @@ router.post("/:id/edit", async (req, res) => {
     fully_paid,
     notes,
     notes_delta,
+    dietary_requirements,
   } = req.body;
 
   const userId = req.session.user?.id || null;
@@ -2145,6 +2327,9 @@ router.post("/:id/edit", async (req, res) => {
   const fullyPaidValue = parseBooleanValue(fully_paid);
   const noteHtmlValue = sanitizeRichHtml(String(notes || "").trim()) || null;
   const noteDeltaValue = String(notes_delta || "").trim() || null;
+  const cateringSchedule = parseCateringSchedule(req.body);
+  const dietaryRequirementsValue = String(dietary_requirements || "").trim().slice(0, 4000) || null;
+  const facilityIds = parsePositiveIntegerList(req.body.facility_ids);
   const allocationRows = parseRoomAllocations(req.body, {
     event_date,
     end_date,
@@ -2160,7 +2345,8 @@ router.post("/:id/edit", async (req, res) => {
     await ensureFunctionCancelColumn();
     await ensureFunctionEndDateColumn();
     await ensureFunctionPaymentColumns();
-    await ensureFunctionRoomAllocationsTable();
+    await ensureFunctionCateringColumns();
+    await Promise.all([ensureFunctionRoomAllocationsTable(), ensureRoomFacilityTables(pool)]);
     const editSlots = [
       buildPrimaryRoomSlot({
         room_id,
@@ -2200,15 +2386,15 @@ router.post("/:id/edit", async (req, res) => {
           end_time     = $6,
           attendees    = $7,
           budget       = $8,
-          totals_price = $9,
-          totals_cost  = $10,
-          room_id      = $11,
-          event_type   = $12,
-          status       = $13,
-          cancelled_reason = $14,
-          owner_id     = $15,
-          deposit_paid = $16,
-          fully_paid   = $17,
+          room_id      = $9,
+          event_type   = $10,
+          status       = $11,
+          cancelled_reason = $12,
+          owner_id     = $13,
+          deposit_paid = $14,
+          fully_paid   = $15,
+          catering_schedule = $16::jsonb,
+          dietary_requirements = $17,
           updated_at   = NOW(),
           updated_by   = COALESCE($18, updated_by)
         WHERE id_uuid = $19;
@@ -2222,8 +2408,6 @@ router.post("/:id/edit", async (req, res) => {
           end_time || null,
           attendees || null,
           budget || null,
-          totals_price || 0,
-          totals_cost || 0,
           room_id || null,
           event_type || null,
           statusValue,
@@ -2231,6 +2415,8 @@ router.post("/:id/edit", async (req, res) => {
           owner_id || null,
           depositPaidValue,
           fullyPaidValue,
+          JSON.stringify(cateringSchedule),
+          dietaryRequirementsValue,
           userId,
           functionId,
         ]
@@ -2250,6 +2436,31 @@ router.post("/:id/edit", async (req, res) => {
             noteHtmlValue,
             userId,
           ]
+        );
+      }
+
+      let validFacilityIds = [];
+      if (room_id && facilityIds.length) {
+        const { rows: validFacilities } = await client.query(
+          `SELECT id
+             FROM room_facilities
+            WHERE room_id = $1
+              AND active = TRUE
+              AND id = ANY($2::int[]);`,
+          [room_id, facilityIds]
+        );
+        validFacilityIds = validFacilities.map((facility) => facility.id);
+      }
+
+      await client.query(
+        `DELETE FROM function_room_facility_selections WHERE function_id = $1;`,
+        [functionId]
+      );
+      if (validFacilityIds.length) {
+        await client.query(
+          `INSERT INTO function_room_facility_selections (function_id, facility_id)
+           SELECT $1, UNNEST($2::int[]);`,
+          [functionId, validFacilityIds]
         );
       }
 
@@ -2289,7 +2500,7 @@ router.post("/:id/edit", async (req, res) => {
     }
 
     console.log(`✅ Function updated successfully (UUID: ${functionId}, Name: ${event_name})`);
-    res.redirect(`/functions/${functionId}`);
+    res.redirect(`/functions/${functionId}/edit`);
 
   } catch (err) {
     console.error("❌ Error updating function:", err);
@@ -2302,11 +2513,22 @@ router.post("/:id/edit", async (req, res) => {
 router.get("/:id/run-sheet", async (req, res) => {
   try {
     const functionId = req.params.id.trim();
+    await ensureFunctionCateringColumns();
     const notesParam = req.query.notes;
     const menusParam = req.query.menus;
+    const itemsParam = req.query.items;
+    const categoriesParam = req.query.categories;
     const includeCosts = String(req.query.costs || "").toLowerCase() === "true";
+    const includePrices = String(req.query.prices || "").toLowerCase() === "true";
+    const includeInvoice = String(req.query.invoice || "").toLowerCase() === "true";
+    const includeFacilities = String(req.query.facilities || "true").toLowerCase() !== "false";
+    const includeQuantities = String(req.query.quantities || "true").toLowerCase() !== "false";
+    const includeCateringSchedule = String(req.query.catering || "true").toLowerCase() !== "false";
+    const includeDietaryRequirements = String(req.query.dietary || "true").toLowerCase() !== "false";
     const skipNotes = typeof notesParam === "string" && notesParam.toLowerCase() === "none";
     const skipMenus = typeof menusParam === "string" && menusParam.toLowerCase() === "none";
+    const skipItems = typeof itemsParam === "string" && itemsParam.toLowerCase() === "none";
+    const skipCategories = typeof categoriesParam === "string" && categoriesParam.toLowerCase() === "none";
     const noteFilters = skipNotes
       ? []
       : parseIdList(notesParam)
@@ -2317,6 +2539,17 @@ router.get("/:id/run-sheet", async (req, res) => {
       : parseIdList(menusParam)
           .map(Number)
           .filter((n) => Number.isInteger(n));
+    const itemFilters = skipItems
+      ? []
+      : parseIdList(itemsParam)
+          .map(Number)
+          .filter((n) => Number.isInteger(n));
+    const categoryFilters = skipCategories
+      ? []
+      : String(categoriesParam || "")
+          .split(",")
+          .map((value) => value.trim().toLowerCase())
+          .filter(Boolean);
 
     const { rows: fnRows } = await pool.query(
       `SELECT f.*, r.name AS room_name
@@ -2331,8 +2564,8 @@ router.get("/:id/run-sheet", async (req, res) => {
       return res.status(404).send("Function not found");
     }
 
-    await ensureFunctionRoomAllocationsTable();
-    const [notesRes, proposalLookupRes, allocationsRes] = await Promise.all([
+    await Promise.all([ensureFunctionRoomAllocationsTable(), ensureRoomFacilityTables(pool)]);
+    const [notesRes, proposalLookupRes, allocationsRes, facilitiesRes] = await Promise.all([
       pool.query(
         `SELECT id, note_type, rendered_html, content, created_at, updated_at
            FROM function_notes
@@ -2341,10 +2574,11 @@ router.get("/:id/run-sheet", async (req, res) => {
         [functionId]
       ),
       pool.query(
-        `SELECT id, status
-           FROM proposals
-          WHERE function_id = $1
-          ORDER BY created_at DESC
+          `SELECT p.id, p.status, pt.subtotal, pt.discount_amount, pt.total_paid, pt.remaining_due
+            FROM proposals p
+        LEFT JOIN proposal_totals pt ON pt.proposal_id = p.id
+           WHERE p.function_id = $1
+           ORDER BY p.created_at DESC
           LIMIT 1`,
         [functionId]
       ),
@@ -2356,6 +2590,15 @@ router.get("/:id/run-sheet", async (req, res) => {
          WHERE fra.function_id = $1
          ORDER BY fra.start_at NULLS FIRST, r.name ASC;
         `,
+        [functionId]
+      ),
+      pool.query(
+        `SELECT rf.id, rf.name
+           FROM function_room_facility_selections frfs
+           JOIN room_facilities rf ON rf.id = frfs.facility_id
+          WHERE frfs.function_id = $1
+            AND rf.active = TRUE
+          ORDER BY rf.sort_order, rf.name ASC;`,
         [functionId]
       ),
     ]);
@@ -2374,17 +2617,56 @@ router.get("/:id/run-sheet", async (req, res) => {
       proposalItems = itemsRes;
     }
 
+    const selectedQuoteItems = (skipItems || skipCategories
+      ? []
+      : itemFilters.length
+        ? proposalItems.filter((item) => itemFilters.includes(Number(item.id)))
+        : proposalItems
+    )
+      .filter((item) => String(extractProposalMetadata(item.description).excluded || "").toLowerCase() !== "true")
+      .filter((item) => {
+        if (!categoryFilters.length) return true;
+        const category = extractProposalMetadata(item.description || "").category || "Other";
+        return categoryFilters.includes(String(category).trim().toLowerCase());
+      })
+      .map((item) => {
+        const metadata = extractProposalMetadata(item.description || "");
+        const quantity = Math.max(1, Number(metadata.qty) || 1);
+        const salePriceEach = derivePerUnitPrice(metadata, Number(item.unit_price) || 0);
+        const costEach = Number.isFinite(Number(metadata.cost_each))
+          ? Number(metadata.cost_each)
+          : Number.isFinite(Number(metadata.cost))
+            ? Number(metadata.cost) / quantity
+            : 0;
+        return {
+          id: item.id,
+          name: cleanLabelFromDescription(item.description || "") || "Quote item",
+          category: metadata.category || "Other",
+          items: [{
+            label: cleanLabelFromDescription(item.description || "") || "Quote item",
+            qty: quantity,
+            unit: friendlyUnit(metadata) || "each",
+            cost_each: costEach,
+            cost_total: costEach * quantity,
+            price_each: salePriceEach,
+            price: salePriceEach * quantity,
+          }],
+        };
+      });
+
     const menuItemsMap = buildMenuItemsByMenu(proposalItems);
     const menuSummary = summarizeProposalMenus(proposalItems).map((menu) => ({
       ...menu,
       items: (menuItemsMap.get(String(menu.id)) || []).filter((item) => !item.excluded),
     }));
 
-    const selectedMenus = skipMenus
-      ? []
-      : menuFilters.length
-      ? menuSummary.filter((menu) => menuFilters.includes(Number(menu.id)))
-      : menuSummary;
+    const selectedMenus = itemsParam !== undefined || categoriesParam !== undefined
+      ? selectedQuoteItems
+      : skipMenus
+        ? []
+        : menuFilters.length
+          ? menuSummary.filter((menu) => menuFilters.includes(Number(menu.id)))
+          : [...menuSummary, ...summarizeStandaloneProposalItems(proposalItems)];
     const selectedNotes = skipNotes
       ? []
       : noteFilters.length
@@ -2404,9 +2686,18 @@ router.get("/:id/run-sheet", async (req, res) => {
       attendees: fn.attendees,
       roomName: fn.room_name,
       roomAllocations: allocationsRes.rows || [],
+      facilities: includeFacilities ? facilitiesRes.rows || [] : [],
       notes: selectedNotes,
       menus: selectedMenus,
       includeCosts,
+      includePrices,
+      includeQuantities,
+      includeInvoice,
+      cateringSchedule: includeCateringSchedule && Array.isArray(fn.catering_schedule)
+        ? fn.catering_schedule
+        : [],
+      dietaryRequirements: includeDietaryRequirements ? fn.dietary_requirements : null,
+      invoiceDetails: activeProposal,
     });
   } catch (err) {
     console.error("[Run Sheet] Error:", err);
@@ -2418,6 +2709,9 @@ router.get("/:id/run-sheet", async (req, res) => {
    🧭 FUNCTION DETAIL VIEW — Full (Sidebar + Timeline, UUID Safe, Clean Version)
 ========================================================= */
 router.get("/:id", async (req, res) => {
+  if (!req.query.legacy) {
+    return res.redirect(`/functions/${req.params.id.trim()}/edit`);
+  }
   try {
     const functionId = req.params.id.trim(); // UUID, trimmed for safety
     const activeTab = req.query.tab || "overview";

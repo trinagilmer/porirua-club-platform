@@ -1,19 +1,43 @@
 <!-- 🛠️ pages/functions/edit.ejs -->
 <% locals.layout = 'layouts/main'; %>
+<%
+  const savedCateringSchedule = Array.isArray(fn.catering_schedule) ? fn.catering_schedule : [];
+  const cateringRows = savedCateringSchedule.length ? savedCateringSchedule : [{ time: '', label: '', description: '' }];
+%>
+<style>
+  .function-form-card,
+  .function-form-card .form-label,
+  .function-form-card .form-check-label,
+  .function-form-card .form-control,
+  .function-form-card .form-select,
+  .function-form-card .text-muted,
+  .function-form-card .small,
+  .function-form-card table { font-size: 1rem !important; }
+  .catering-service-row { display: grid; grid-template-columns: 110px minmax(140px, 0.8fr) minmax(220px, 1.6fr) 38px; gap: 8px; align-items: end; }
+  @media (max-width: 767.98px) { .catering-service-row { grid-template-columns: 1fr; } }
+</style>
     <!-- 🔹 Body -->
     <div class="function-body py-4 px-4">
 
-      <p class="text-muted mb-3">Update the booking details and save a note with any important changes.</p>
-
-      <div class="d-flex justify-content-end gap-2 mb-2">
-        <a href="/functions/<%= fn.id_uuid %>" class="btn btn-outline-secondary">Cancel</a>
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <p class="text-muted small mb-0">Update the booking, room setup and pricing from one screen.</p>
+        <div class="d-flex flex-wrap gap-2">
+        <a href="/functions/<%= fn.id_uuid %>/tasks" class="btn btn-sm btn-outline-secondary"><i class="bi bi-check2-square me-1"></i>Tasks</a>
+        <a href="/functions/<%= fn.id_uuid %>/communications" class="btn btn-sm btn-outline-secondary"><i class="bi bi-envelope me-1"></i>Communications</a>
+        <% if (quoteTotals && quoteTotals.id) { %><a href="/functions/<%= fn.id_uuid %>/proposal/preview" class="btn btn-sm btn-outline-secondary"><i class="bi bi-eye me-1"></i>Proposal</a><% } %>
+        <form method="POST" action="/functions/<%= fn.id_uuid %>/clone" class="d-inline" onsubmit="return confirm('Create a copy of this function?');"><button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-files me-1"></i>Clone</button></form>
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editRunSheetModal">
+          <i class="bi bi-clipboard-check me-1"></i>Run sheet
+        </button>
+        <a href="/functions" class="btn btn-outline-secondary">Back</a>
         <button type="submit" form="editFunctionForm" class="btn btn-primary">Save Changes</button>
+        </div>
       </div>
 
       <!-- 🧾 Edit Form -->
-      <form id="editFunctionForm" method="POST" action="/functions/<%= fn.id_uuid %>/edit" class="card p-4 shadow-sm function-form-card">
+      <form id="editFunctionForm" method="POST" action="/functions/<%= fn.id_uuid %>/edit" class="d-flex flex-column gap-2 function-form-card">
         <!-- 🔹 ESSENTIALS SECTION -->
-        <div class="mb-4">
+        <section class="border rounded bg-white p-3 shadow-sm function-required-info">
           <p class="quote-kicker mb-2">Essential details</p>
           <div class="row g-3">
             <div class="col-md-6">
@@ -65,14 +89,72 @@
               </select>
             </div>
 
+            <div class="col-12 border-top pt-2">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <label class="form-label fw-semibold mb-0">Food service times</label>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="addCateringTime"><i class="bi bi-plus-lg me-1"></i>Add time</button>
+              </div>
+              <div id="cateringScheduleRows" class="d-flex flex-column gap-2">
+                <% cateringRows.forEach(row => { %>
+                  <div class="catering-service-row">
+                    <div><label class="form-label mb-1">Time</label><input type="time" name="catering_time" class="form-control" value="<%= row.time || '' %>"></div>
+                    <div><label class="form-label mb-1">Service</label><input type="text" name="catering_label" class="form-control" value="<%= row.label || '' %>" placeholder="Morning tea, lunch, dinner..."></div>
+                    <div><label class="form-label mb-1">Description</label><input type="text" name="catering_description" class="form-control" value="<%= row.description || '' %>" placeholder="What should be served or prepared"></div>
+                    <button type="button" class="btn btn-outline-danger remove-catering-time" title="Remove service time"><i class="bi bi-trash"></i></button>
+                  </div>
+                <% }) %>
+              </div>
+              <div class="mt-2"><label class="form-label fw-semibold mb-1">Dietary requirements</label><textarea name="dietary_requirements" class="form-control" rows="2" placeholder="Allergies, dietary needs, quantities, or special preparation"><%= fn.dietary_requirements || '' %></textarea></div>
+            </div>
+
             <div class="col-12">
               <div id="roomConflictWarning" class="alert alert-warning d-none py-2 px-3 mb-0" role="alert"></div>
             </div>
+
+            <div class="col-12" id="roomFacilitiesSection">
+              <label class="form-label fw-semibold mb-1">Room facilities</label>
+              <div class="d-flex flex-wrap gap-2" id="roomFacilityChoices">
+                <% (roomFacilities || []).forEach(facility => { %>
+                  <label class="form-check form-check-inline border rounded px-2 py-1 m-0 room-facility-option" data-room-id="<%= facility.room_id %>">
+                    <input class="form-check-input ms-0 me-2" type="checkbox" name="facility_ids" value="<%= facility.id %>" <%= facility.selected ? 'checked' : '' %>>
+                    <span class="form-check-label"><%= facility.name %></span>
+                  </label>
+                <% }) %>
+                <span class="text-muted small" id="roomFacilitiesEmpty">Choose a room to see its available facilities.</span>
+              </div>
+            </div>
+            <div class="col-12 border-top pt-2">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                <span class="fw-semibold">Contacts</span>
+                <% if ((linkedContacts || []).length) { %>
+                  <% linkedContacts.forEach(contact => { %><span><%= contact.name %><% if (contact.is_primary) { %> <span class="badge text-bg-light">Primary</span><% } %><% if (contact.email) { %> <span class="text-muted"><%= contact.email %></span><% } %></span><% }) %>
+                <% } else { %><span class="text-muted">No contacts linked</span><% } %>
+                <button type="button" class="btn btn-sm btn-outline-primary ms-auto" data-open-add-contact><i class="bi bi-person-plus me-1"></i>Add contact</button>
+              </div>
+            </div>
           </div>
-        </div>
+        </section>
+
+        <section class="border rounded bg-white p-3 shadow-sm">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <p class="quote-kicker mb-0">Notes &amp; room setup</p>
+            <% if ((allNotes || []).length) { %><span class="small text-muted"><%= allNotes.length %> saved note<%= allNotes.length === 1 ? '' : 's' %></span><% } %>
+          </div>
+          <% if ((allNotes || []).length) { %>
+            <div class="row g-2 mb-2">
+              <% allNotes.slice(0, 3).forEach(note => { %>
+                <div class="col-lg-4"><div class="border rounded p-2 h-100 small function-edit-note-preview"><%- note.rendered_html || note.content || '<span class="text-muted">Empty note</span>' %></div></div>
+              <% }) %>
+            </div>
+          <% } %>
+          <label class="form-label small mb-1">Add room setup information or another note</label>
+          <div id="editNoteEditor" style="background: #fff;"></div>
+          <input type="hidden" name="notes" id="editNotesHidden" />
+          <input type="hidden" name="notes_delta" id="editNotesDeltaHidden" />
+        </section>
 
         <!-- 🔹 STATUS & PAYMENTS SECTION -->
-        <div class="border-top pt-4 mb-4">
+        <section class="border rounded bg-white p-3 shadow-sm">
           <p class="quote-kicker mb-2">Status &amp; payments</p>
           <div class="row g-3">
             <div class="col-md-4">
@@ -114,31 +196,79 @@
               <textarea name="cancelled_reason" class="form-control" rows="2" placeholder="Add a note for why this function was cancelled."><%= fn.cancelled_reason || '' %></textarea>
             </div>
           </div>
-        </div>
+        </section>
 
-        <!-- 🔹 QUOTE TOTALS SECTION -->
-        <div class="border-top pt-4 mb-4">
-          <p class="quote-kicker mb-2">Quote totals (read-only)</p>
-          <div class="row g-3">
-            <div class="col-md-4">
-              <label class="form-label">Total Price</label>
-              <div class="form-control-plaintext fw-semibold">${<%= Number(fn.totals_price || 0).toFixed(2) %></div>
+        <section class="border rounded bg-white p-3 shadow-sm" id="editQuoteSection">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <p class="quote-kicker mb-0">Quote</p>
+            <a href="/functions/<%= fn.id_uuid %>/quote" class="btn btn-sm btn-outline-secondary">Advanced quote</a>
+          </div>
+          <div id="quoteEditMessage" class="alert d-none py-2 px-3 small"></div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-2" id="editQuoteTable">
+              <thead><tr><th style="min-width:190px">Description</th><th style="width:130px">Category</th><th style="width:85px">Qty</th><th style="width:115px">Cost each</th><th style="width:125px">Sale each</th><th class="text-end" style="width:115px">Line total</th><th style="width:80px"></th></tr></thead>
+              <tbody>
+                <% (quoteLines || []).forEach(line => { %>
+                  <tr data-quote-item-id="<%= line.id %>">
+                    <td><input type="text" class="form-control form-control-sm quote-line-name" value="<%= line.name %>" aria-label="Quote description"></td><td><input type="text" class="form-control form-control-sm quote-line-category" value="<%= line.category %>" list="quoteCategoryOptions" aria-label="Quote category"></td>
+                    <td><input type="number" class="form-control form-control-sm quote-line-qty" min="1" step="1" value="<%= line.quantity %>"></td>
+                    <td><input type="number" class="form-control form-control-sm quote-line-cost" min="0" step="0.01" value="<%= Number(line.costEach).toFixed(2) %>"></td>
+                    <td><input type="number" class="form-control form-control-sm quote-line-price" min="0" step="0.01" value="<%= Number(line.salePriceEach).toFixed(2) %>"></td>
+                    <td class="text-end fw-semibold quote-line-total">$<%= (Number(line.quantity) * Number(line.salePriceEach)).toFixed(2) %></td>
+                    <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger quote-line-remove" title="Remove quote line"><i class="bi bi-trash"></i></button></td>
+                  </tr>
+                <% }) %>
+                <tr id="newQuoteLineRow">
+                  <td><input type="text" class="form-control form-control-sm" id="newQuoteName" placeholder="New line description"></td>
+                  <td><input type="text" class="form-control form-control-sm" id="newQuoteCategory" value="Other" placeholder="Category" list="quoteCategoryOptions"></td>
+                  <td><input type="number" class="form-control form-control-sm" id="newQuoteQty" min="1" step="1" value="1"></td>
+                  <td><input type="number" class="form-control form-control-sm" id="newQuoteCost" min="0" step="0.01" value="0"></td>
+                  <td><input type="number" class="form-control form-control-sm" id="newQuotePrice" min="0" step="0.01" value="0"></td>
+                  <td class="text-end fw-semibold" id="newQuoteLineTotal">$0.00</td><td class="text-end"><button type="button" class="btn btn-sm btn-primary" id="addQuoteLineBtn" title="Add quote line"><i class="bi bi-plus-lg"></i></button></td>
+                </tr>
+              </tbody>
+            </table>
+            <datalist id="quoteCategoryOptions"><option value="Room hire"><option value="Food"><option value="Drinks"><option value="Equipment"><option value="Staffing"><option value="Entertainment"><option value="Other"></datalist>
+          </div>
+          <div class="d-flex flex-wrap justify-content-end gap-3 small border-top pt-2" id="editQuoteTotals" data-discount="<%= Number(quoteTotals.discount_amount || 0) %>" data-paid="<%= Number(quoteTotals.total_paid || 0) %>">
+            <span>Cost <strong id="editQuoteCostTotal">$<%= Number(fn.totals_cost || 0).toFixed(2) %></strong></span>
+            <span>Sale <strong id="editQuoteSaleTotal">$<%= Number(fn.totals_price || 0).toFixed(2) %></strong></span>
+            <span>Profit <strong id="editQuoteProfitTotal">$<%= Number((fn.totals_price || 0) - (fn.totals_cost || 0)).toFixed(2) %></strong></span>
+            <span>Paid <strong id="editQuotePaidTotal">$<%= Number(quoteTotals.total_paid || 0).toFixed(2) %></strong></span>
+            <span>Balance <strong id="editQuoteBalanceTotal">$<%= Number(quoteTotals.remaining_due || 0).toFixed(2) %></strong></span>
+          </div>
+        </section>
+
+        <details class="border rounded bg-white p-3 shadow-sm">
+          <summary class="quote-kicker">Activity &amp; follow-up</summary>
+          <div class="row g-3 pt-3 small">
+            <div class="col-lg-3 col-md-6">
+              <div class="d-flex justify-content-between align-items-center mb-2"><strong>Tasks</strong><a href="/functions/<%= fn.id_uuid %>/tasks">View all</a></div>
+              <% (recentTasks || []).forEach(task => { %><div class="border-top py-2"><span class="d-block"><%= task.title %></span><span class="text-muted"><%= task.status || 'open' %><% if (task.due_at) { %> · <%= new Date(task.due_at).toLocaleDateString('en-NZ') %><% } %></span></div><% }) %>
+              <% if (!(recentTasks || []).length) { %><span class="text-muted">No tasks.</span><% } %>
             </div>
-
-            <div class="col-md-4">
-              <label class="form-label">Total Cost</label>
-              <div class="form-control-plaintext fw-semibold">${<%= Number(fn.totals_cost || 0).toFixed(2) %></div>
+            <div class="col-lg-3 col-md-6">
+              <div class="d-flex justify-content-between align-items-center mb-2"><strong>Communications</strong><a href="/functions/<%= fn.id_uuid %>/communications">View all</a></div>
+              <% (recentCommunications || []).forEach(item => { %><div class="border-top py-2"><span class="d-block text-truncate"><%= item.subject || 'Message' %></span><span class="text-muted"><%= item.type || 'message' %><% if (item.activity_at) { %> · <%= new Date(item.activity_at).toLocaleDateString('en-NZ') %><% } %></span></div><% }) %>
+              <% if (!(recentCommunications || []).length) { %><span class="text-muted">No communications.</span><% } %>
             </div>
-
-            <div class="col-md-4">
-              <label class="form-label">Profit</label>
-              <div class="form-control-plaintext fw-semibold">${<%= Number((fn.totals_price || 0) - (fn.totals_cost || 0)).toFixed(2) %></div>
+            <div class="col-lg-3 col-md-6">
+              <div class="d-flex justify-content-between align-items-center mb-2"><strong>Payments</strong><a href="/functions/<%= fn.id_uuid %>/quote">Manage</a></div>
+              <% (recentPayments || []).forEach(payment => { %><div class="border-top py-2 d-flex justify-content-between gap-2"><span><%= payment.method || 'Payment' %><% if (payment.paid_on) { %><span class="text-muted d-block"><%= new Date(payment.paid_on).toLocaleDateString('en-NZ') %></span><% } %></span><strong>$<%= Number(payment.amount || 0).toFixed(2) %></strong></div><% }) %>
+              <% if (!(recentPayments || []).length) { %><span class="text-muted">No payments recorded.</span><% } %>
+            </div>
+            <div class="col-lg-3 col-md-6">
+              <div class="d-flex justify-content-between align-items-center mb-2"><strong>Feedback</strong><a href="/feedback">Open feedback</a></div>
+              <% (recentFeedback || []).forEach(entry => { %><div class="border-top py-2"><span class="d-block"><%= entry.rating_overall ? `${entry.rating_overall}/5` : 'Awaiting rating' %></span><span class="text-muted"><%= entry.status || 'pending' %><% if (entry.completed_at || entry.sent_at) { %> · <%= new Date(entry.completed_at || entry.sent_at).toLocaleDateString('en-NZ') %><% } %></span></div><% }) %>
+              <% if (!(recentFeedback || []).length) { %><span class="text-muted">No feedback yet.</span><% } %>
             </div>
           </div>
-        </div>
+        </details>
 
         <!-- 🔹 ADDITIONAL INFO SECTION -->
-        <div class="border-top pt-4 mb-4">
+        <details class="border rounded bg-white p-3 shadow-sm">
+          <summary class="quote-kicker">Additional details &amp; room allocations</summary>
+          <div class="pt-3">
           <p class="quote-kicker mb-2">Additional info (optional)</p>
           <div class="row g-3">
             <div class="col-md-4">
@@ -151,9 +281,9 @@
               <input type="number" step="0.01" name="budget" class="form-control" value="<%= fn.budget || '' %>" />
             </div>
           </div>
-        </div>
+          </div>
 
-        <div class="border-top pt-4 mb-4">
+        <div class="border-top pt-3 mt-3">
           <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
             <p class="quote-kicker mb-0">Additional room allocations</p>
             <button type="button" class="btn btn-sm btn-outline-primary" id="addAllocationRow">
@@ -203,22 +333,49 @@
             <% }) %>
           </div>
         </div>
-
-        <!-- 🔹 NOTES SECTION -->
-        <div class="border-top pt-4 mb-4">
-          <p class="quote-kicker mb-2">Add a note for this update</p>
-          <label class="form-label">These notes will be saved to the function's notes timeline</label>
-          <div id="editNoteEditor" style="background: #fff;"></div>
-          <input type="hidden" name="notes" id="editNotesHidden" />
-          <input type="hidden" name="notes_delta" id="editNotesDeltaHidden" />
-        </div>
+        </details>
 
         <div class="mt-4 d-flex justify-content-end gap-2">
-          <a href="/functions/<%= fn.id_uuid %>" class="btn btn-outline-secondary">Cancel</a>
+          <a href="/functions" class="btn btn-outline-secondary">Back</a>
           <button type="submit" class="btn btn-primary">Save Changes</button>
         </div>
       </form>
     </div>
+
+    <template id="cateringTimeTemplate">
+      <div class="catering-service-row">
+        <div><label class="form-label mb-1">Time</label><input type="time" name="catering_time" class="form-control"></div>
+        <div><label class="form-label mb-1">Service</label><input type="text" name="catering_label" class="form-control" placeholder="Morning tea, lunch, dinner..."></div>
+        <div><label class="form-label mb-1">Description</label><input type="text" name="catering_description" class="form-control" placeholder="What should be served or prepared"></div>
+        <button type="button" class="btn btn-outline-danger remove-catering-time" title="Remove service time"><i class="bi bi-trash"></i></button>
+      </div>
+    </template>
+
+<div class="modal fade" id="editRunSheetModal" tabindex="-1" aria-labelledby="editRunSheetModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="editRunSheetModalLabel">Build run sheet</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+      <div class="mb-3"><p class="fw-semibold small mb-2">Notes</p><div class="d-flex flex-wrap gap-2">
+        <% (allNotes || []).forEach(note => { %><label class="form-check border rounded px-2 py-1 m-0"><input class="form-check-input ms-0 me-2" type="checkbox" name="run_sheet_notes" value="<%= note.id %>" checked><span class="form-check-label small"><%= note.note_type || 'Note' %> · <%= new Date(note.created_at).toLocaleDateString('en-NZ') %></span></label><% }) %>
+        <% if (!(allNotes || []).length) { %><span class="text-muted small">No saved notes.</span><% } %>
+      </div></div>
+      <div class="mb-3"><p class="fw-semibold small mb-2">Quote categories</p><div class="d-flex flex-wrap gap-2">
+        <% [...new Set((quoteLines || []).map(line => line.category || 'Other'))].forEach(category => { %><label class="form-check border rounded px-2 py-1 m-0"><input class="form-check-input ms-0 me-2" type="checkbox" name="run_sheet_categories" value="<%= category %>" checked><span class="form-check-label small"><%= category %></span></label><% }) %>
+        <% if (!(quoteLines || []).length) { %><span class="text-muted small">No quote categories.</span><% } %>
+      </div></div>
+      <div class="row g-2">
+        <div class="col-sm-6"><label class="form-check"><input class="form-check-input" type="checkbox" id="runSheetFacilities" checked><span class="form-check-label">Show room facilities</span></label></div>
+        <div class="col-sm-6"><label class="form-check"><input class="form-check-input" type="checkbox" id="runSheetCatering" checked><span class="form-check-label">Show food service times</span></label></div>
+        <div class="col-sm-6"><label class="form-check"><input class="form-check-input" type="checkbox" id="runSheetDietary" checked><span class="form-check-label">Show dietary requirements</span></label></div>
+        <div class="col-sm-6"><label class="form-check"><input class="form-check-input" type="checkbox" id="runSheetQuantities" checked><span class="form-check-label">Show quantities</span></label></div>
+        <div class="col-sm-6"><label class="form-check"><input class="form-check-input" type="checkbox" id="runSheetCosts"><span class="form-check-label">Show cost details</span></label></div>
+        <div class="col-sm-6"><label class="form-check"><input class="form-check-input" type="checkbox" id="runSheetPrices"><span class="form-check-label">Show sale prices</span></label></div>
+        <div class="col-sm-6"><label class="form-check"><input class="form-check-input" type="checkbox" id="runSheetInvoice"><span class="form-check-label">Show payment / invoice details</span></label></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-primary" id="editRunSheetPreviewBtn">Preview / print</button></div>
+  </div></div>
+</div>
 
 <!-- ⚙️ Scripts -->
 <script>
@@ -282,7 +439,7 @@
       if (!container || !editor) return;
       container.style.height = "auto";
       editor.style.height = "auto";
-      const nextHeight = Math.max(220, editor.scrollHeight + 8);
+      const nextHeight = Math.max(120, editor.scrollHeight + 8);
       container.style.height = `${nextHeight}px`;
     };
 
@@ -299,8 +456,217 @@
   });
 </script>
 
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const roomSelect = document.querySelector('[name="room_id"]');
+    const facilityOptions = [...document.querySelectorAll(".room-facility-option")];
+    const facilitiesEmpty = document.getElementById("roomFacilitiesEmpty");
+    const refreshFacilities = () => {
+      const roomId = roomSelect?.value || "";
+      let visibleCount = 0;
+      facilityOptions.forEach((option) => {
+        const visible = Boolean(roomId) && option.dataset.roomId === roomId;
+        option.classList.toggle("d-none", !visible);
+        option.querySelector("input").disabled = !visible;
+        if (visible) visibleCount += 1;
+      });
+      if (facilitiesEmpty) {
+        facilitiesEmpty.textContent = roomId
+          ? "No facilities have been configured for this room."
+          : "Choose a room to see its available facilities.";
+        facilitiesEmpty.classList.toggle("d-none", visibleCount > 0);
+      }
+    };
+    roomSelect?.addEventListener("change", refreshFacilities);
+    refreshFacilities();
+
+    const money = (value) => `$${Number(value || 0).toFixed(2)}`;
+    const quoteRows = () => [...document.querySelectorAll("tr[data-quote-item-id]")];
+    const refreshQuoteTotals = () => {
+      let cost = 0;
+      let sale = 0;
+      quoteRows().forEach((row) => {
+        const qty = Number(row.querySelector(".quote-line-qty")?.value) || 0;
+        const costEach = Number(row.querySelector(".quote-line-cost")?.value) || 0;
+        const priceEach = Number(row.querySelector(".quote-line-price")?.value) || 0;
+        cost += qty * costEach;
+        sale += qty * priceEach;
+        row.querySelector(".quote-line-total").textContent = money(qty * priceEach);
+      });
+      const draftQty = Number(document.getElementById("newQuoteQty")?.value) || 0;
+      const draftCost = Number(document.getElementById("newQuoteCost")?.value) || 0;
+      const draftPrice = Number(document.getElementById("newQuotePrice")?.value) || 0;
+      const hasDraft = Boolean(document.getElementById("newQuoteName")?.value.trim());
+      document.getElementById("newQuoteLineTotal").textContent = money(draftQty * draftPrice);
+      if (hasDraft) {
+        cost += draftQty * draftCost;
+        sale += draftQty * draftPrice;
+      }
+      document.getElementById("editQuoteCostTotal").textContent = money(cost);
+      document.getElementById("editQuoteSaleTotal").textContent = money(sale);
+      document.getElementById("editQuoteProfitTotal").textContent = money(sale - cost);
+      const totals = document.getElementById("editQuoteTotals");
+      const discount = Number(totals?.dataset.discount) || 0;
+      const paid = Number(totals?.dataset.paid) || 0;
+      document.getElementById("editQuotePaidTotal").textContent = money(paid);
+      document.getElementById("editQuoteBalanceTotal").textContent = money(sale - discount - paid);
+    };
+    const request = async (url, body) => {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.success === false) throw new Error(payload.error || "Quote update failed");
+      return payload;
+    };
+    const showQuoteError = (error) => {
+      const message = document.getElementById("quoteEditMessage");
+      message.textContent = error.message || String(error);
+      message.className = "alert alert-danger py-2 px-3 small";
+    };
+    const clearQuoteError = () => {
+      const message = document.getElementById("quoteEditMessage");
+      message.className = "alert d-none py-2 px-3 small";
+      message.textContent = "";
+    };
+    const dirtyQuoteRows = new Set();
+    const quoteSaveTimers = new Map();
+    const quoteSaveChains = new Map();
+
+    const persistQuoteRow = (row) => {
+      const itemId = row.dataset.quoteItemId;
+      const payload = {
+        name: row.querySelector(".quote-line-name").value.trim(),
+        category: row.querySelector(".quote-line-category").value || "Other",
+        qty: Number(row.querySelector(".quote-line-qty").value) || 1,
+        cost_each: Number(row.querySelector(".quote-line-cost").value) || 0,
+        unit_price: Number(row.querySelector(".quote-line-price").value) || 0,
+      };
+      if (!payload.name) {
+        const error = new Error("Quote description is required");
+        showQuoteError(error);
+        return Promise.reject(error);
+      }
+
+      const previous = quoteSaveChains.get(row) || Promise.resolve();
+      const next = previous
+        .catch(() => {})
+        .then(() => request(`/functions/proposal-items/${itemId}/update-line`, payload))
+        .then(() => {
+          if (!quoteSaveTimers.has(row)) {
+            dirtyQuoteRows.delete(row);
+            row.classList.remove("table-warning");
+          }
+          clearQuoteError();
+          refreshQuoteTotals();
+        })
+        .catch((error) => {
+          row.classList.add("table-warning");
+          showQuoteError(error);
+          throw error;
+        });
+      quoteSaveChains.set(row, next);
+      return next;
+    };
+
+    const queueQuoteRowSave = (row, immediate = false) => {
+      dirtyQuoteRows.add(row);
+      row.classList.add("table-warning");
+      clearTimeout(quoteSaveTimers.get(row));
+      quoteSaveTimers.delete(row);
+      if (immediate) return persistQuoteRow(row);
+      const timer = setTimeout(() => {
+        quoteSaveTimers.delete(row);
+        persistQuoteRow(row).catch(() => {});
+      }, 500);
+      quoteSaveTimers.set(row, timer);
+      return Promise.resolve();
+    };
+
+    window.waitForQuoteUpdates = async () => {
+      const rowsToFlush = [...dirtyQuoteRows];
+      rowsToFlush.forEach((row) => {
+        clearTimeout(quoteSaveTimers.get(row));
+        quoteSaveTimers.delete(row);
+        persistQuoteRow(row).catch(() => {});
+      });
+      await Promise.all([...quoteSaveChains.values()]);
+    };
+
+    quoteRows().forEach((row) => {
+      const itemId = row.dataset.quoteItemId;
+      const inputs = [...row.querySelectorAll("input")];
+      inputs.forEach((input) => {
+        input.addEventListener("input", () => {
+          refreshQuoteTotals();
+          queueQuoteRowSave(row);
+        });
+        input.addEventListener("change", () => {
+          queueQuoteRowSave(row, true).catch(() => {});
+        });
+      });
+      row.querySelector(".quote-line-remove")?.addEventListener("click", async () => {
+        try {
+          await request(`/functions/<%= fn.id_uuid %>/quote/remove-item`, { item_id: Number(itemId) });
+          row.remove();
+          refreshQuoteTotals();
+        } catch (error) {
+          showQuoteError(error);
+        }
+      });
+    });
+
+    document.getElementById("addQuoteLineBtn")?.addEventListener("click", async () => {
+      const button = document.getElementById("addQuoteLineBtn");
+      button.disabled = true;
+      try {
+        await request(`/functions/<%= fn.id_uuid %>/quote/add-item`, {
+          name: document.getElementById("newQuoteName").value,
+          category: document.getElementById("newQuoteCategory").value || "Other",
+          qty: Number(document.getElementById("newQuoteQty").value) || 1,
+          cost_each: Number(document.getElementById("newQuoteCost").value) || 0,
+          unit_price: Number(document.getElementById("newQuotePrice").value) || 0,
+        });
+        window.location.reload();
+      } catch (error) {
+        showQuoteError(error);
+        button.disabled = false;
+      }
+    });
+    ["newQuoteName", "newQuoteQty", "newQuoteCost", "newQuotePrice"].forEach((id) => {
+      document.getElementById(id)?.addEventListener("input", refreshQuoteTotals);
+    });
+    refreshQuoteTotals();
+
+    document.getElementById("editRunSheetPreviewBtn")?.addEventListener("click", async () => {
+      try {
+        await window.waitForQuoteUpdates?.();
+      } catch (error) {
+        showQuoteError(error);
+        return;
+      }
+      const params = new URLSearchParams();
+      const notes = [...document.querySelectorAll('[name="run_sheet_notes"]:checked')].map((input) => input.value);
+      const categories = [...document.querySelectorAll('[name="run_sheet_categories"]:checked')].map((input) => input.value);
+      params.set("notes", notes.length ? notes.join(",") : "none");
+      if (categories.length) categories.forEach((category) => params.append("categories", category));
+      else params.set("categories", "none");
+      params.set("facilities", document.getElementById("runSheetFacilities").checked);
+      params.set("catering", document.getElementById("runSheetCatering").checked);
+      params.set("dietary", document.getElementById("runSheetDietary").checked);
+      params.set("quantities", document.getElementById("runSheetQuantities").checked);
+      params.set("costs", document.getElementById("runSheetCosts").checked);
+      params.set("prices", document.getElementById("runSheetPrices").checked);
+      params.set("invoice", document.getElementById("runSheetInvoice").checked);
+      window.open(`/functions/<%= fn.id_uuid %>/run-sheet?${params.toString()}`, "_blank");
+    });
+  });
+</script>
+
 <!-- JS Controller -->
-<script src="/js/functions/edit.js" defer></script>
+<script src="/js/functions/edit.js?v=20260818-quote-fix" defer></script>
 
 <template id="allocationRowTemplate">
   <div class="border rounded-3 p-3 allocation-row">

@@ -2072,11 +2072,96 @@ router.post("/:proposalId/payments", async (req, res) => {
 });
 
 // ------------------------------------------------------
+// Update a complete one-off proposal line atomically
+// ------------------------------------------------------
+router.post("/proposal-items/:id/update-line", async (req, res) => {
+  const id = Number(req.params.id);
+  const name = String(req.body?.name || "").replace(/[\[\]]/g, "").trim().slice(0, 240);
+  const category = String(req.body?.category || "Other")
+    .replace(/[\[\]]/g, "")
+    .trim()
+    .slice(0, 80) || "Other";
+  const qty = Number(req.body?.qty);
+  const unitPrice = Number(req.body?.unit_price);
+  const costEach = Number(req.body?.cost_each);
+
+  if (
+    !Number.isInteger(id) || id <= 0 || !name || !Number.isFinite(qty) || qty <= 0 ||
+    !Number.isFinite(unitPrice) || unitPrice < 0 || !Number.isFinite(costEach) || costEach < 0
+  ) {
+    return res.status(400).json({ success: false, error: "Invalid quote line" });
+  }
+
+  const userId = req.session.user?.id || null;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(
+      `SELECT proposal_id, description
+         FROM proposal_items
+        WHERE id = $1
+        LIMIT 1`,
+      [id]
+    );
+    if (!rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ success: false, error: "Item not found" });
+    }
+
+    const proposalId = rows[0].proposal_id;
+    const metadata = extractMetadata(rows[0].description || "");
+    metadata.category = category;
+    metadata.qty = qty;
+    metadata.base = unitPrice;
+    metadata.cost_each = costEach;
+    delete metadata.cost;
+    delete metadata.excluded;
+
+    const metadataText = Object.entries(metadata)
+      .filter(([, value]) => value !== undefined && value !== null && value !== "")
+      .map(([key, value]) => `[${key}:${value}]`)
+      .join(" ");
+    const description = `${name} x ${qty}${metadataText ? ` ${metadataText}` : ""}`;
+
+    await client.query(
+      `UPDATE proposal_items
+          SET description = $1,
+              unit_price = $2,
+              updated_at = NOW(),
+              updated_by = COALESCE($4, updated_by)
+        WHERE id = $3`,
+      [description, unitPrice, id, userId]
+    );
+    await recalcTotals(client, proposalId, userId);
+
+    const { rows: totalRows } = await client.query(
+      `SELECT f.totals_price, f.totals_cost,
+              COALESCE(pt.total_paid, 0) AS total_paid,
+              COALESCE(pt.remaining_due, 0) AS remaining_due
+         FROM proposals p
+         JOIN functions f ON f.id_uuid = p.function_id
+    LEFT JOIN proposal_totals pt ON pt.proposal_id = p.id
+        WHERE p.id = $1`,
+      [proposalId]
+    );
+
+    await client.query("COMMIT");
+    res.json({ success: true, totals: totalRows[0] || null });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Error updating quote line:", err);
+    res.status(500).json({ success: false, error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// ------------------------------------------------------
 // Update proposal item price + include toggle
 // ------------------------------------------------------
 router.post("/proposal-items/:id/price", async (req, res) => {
   const id = Number(req.params.id);
-  const { unit_price, include = true, cost_total, cost_each } = req.body || {};
+  const { unit_price, include = true, cost_total, cost_each, category } = req.body || {};
   if (!Number.isInteger(id) || id <= 0 || unit_price === undefined) {
     return res.status(400).json({ success: false, error: "Invalid input" });
   }
@@ -2138,6 +2223,12 @@ router.post("/proposal-items/:id/price", async (req, res) => {
     if (parseBoolean(include)) {
       if (Number.isFinite(numericUnitPrice)) {
         meta.base = numericUnitPrice;
+      }
+      if (category !== undefined) {
+        meta.category = String(category || "Other")
+          .replace(/[\[\]]/g, "")
+          .trim()
+          .slice(0, 80) || "Other";
       }
       const metaString = Object.entries(meta)
         .filter(([, value]) => value !== undefined && value !== null && value !== "")

@@ -40,6 +40,7 @@ const {
 } = require("../services/functionSettings");
 const { backfillTemplateHtmlFallback } = require("../services/templateFallback");
 const { sanitizeRichHtml } = require("../services/htmlSanitizer");
+const { ensureRoomFacilityTables } = require("../services/roomFacilitySchema");
 
 const CALENDAR_SLOT_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
 const DEFAULT_CALENDAR_SLOT = 30;
@@ -1718,8 +1719,23 @@ router.get("/event-types", async (req, res) => {
 ========================================================= */
 router.get("/spaces", async (req, res) => {
   try {
-    await ensureRoomColorCodeColumn();
-    const { rows: rooms } = await pool.query("SELECT * FROM rooms ORDER BY name ASC;");
+    await Promise.all([ensureRoomColorCodeColumn(), ensureRoomFacilityTables(pool)]);
+    const [{ rows: rooms }, { rows: facilities }] = await Promise.all([
+      pool.query("SELECT * FROM rooms ORDER BY name ASC;"),
+      pool.query(`
+        SELECT id, room_id, name, sort_order
+          FROM room_facilities
+         WHERE active = TRUE
+         ORDER BY room_id, sort_order, name ASC;
+      `),
+    ]);
+
+    const facilitiesByRoom = facilities.reduce((grouped, facility) => {
+      const roomId = String(facility.room_id);
+      if (!grouped[roomId]) grouped[roomId] = [];
+      grouped[roomId].push(facility);
+      return grouped;
+    }, {});
 
     res.render("settings/spaces", {
       layout: "layouts/settings",
@@ -1727,6 +1743,7 @@ router.get("/spaces", async (req, res) => {
       pageType: "settings",
       activeTab: "spaces",
       rooms,
+      facilitiesByRoom,
       user: req.session.user || null,
     });
   } catch (err) {
@@ -1895,6 +1912,60 @@ router.post("/spaces/edit", async (req, res) => {
     req.flash("flashMessage", "❌ Failed to update room.");
     req.flash("flashType", "error");
     res.redirect("/settings/spaces");
+  }
+});
+
+router.post("/spaces/facilities/add", async (req, res) => {
+  try {
+    await ensureRoomFacilityTables(pool);
+    const roomId = parseOptionalInteger(req.body.room_id);
+    const name = String(req.body.name || "").trim();
+    if (!roomId || !name) {
+      req.flash("flashMessage", "Please choose a room and enter a facility name.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/spaces");
+    }
+
+    await pool.query(
+      `INSERT INTO room_facilities (room_id, name)
+       VALUES ($1, $2)
+       ON CONFLICT (room_id, LOWER(name))
+       DO UPDATE SET active = TRUE, updated_at = NOW();`,
+      [roomId, name]
+    );
+    req.flash("flashMessage", `Facility "${name}" added.`);
+    req.flash("flashType", "success");
+    return res.redirect("/settings/spaces");
+  } catch (err) {
+    console.error("Error adding room facility:", err);
+    req.flash("flashMessage", "Failed to add room facility.");
+    req.flash("flashType", "error");
+    return res.redirect("/settings/spaces");
+  }
+});
+
+router.post("/spaces/facilities/delete", async (req, res) => {
+  try {
+    await ensureRoomFacilityTables(pool);
+    const facilityId = parseOptionalInteger(req.body.id);
+    if (!facilityId) {
+      req.flash("flashMessage", "Invalid room facility.");
+      req.flash("flashType", "warning");
+      return res.redirect("/settings/spaces");
+    }
+
+    await pool.query(
+      `UPDATE room_facilities SET active = FALSE, updated_at = NOW() WHERE id = $1;`,
+      [facilityId]
+    );
+    req.flash("flashMessage", "Room facility removed.");
+    req.flash("flashType", "success");
+    return res.redirect("/settings/spaces");
+  } catch (err) {
+    console.error("Error removing room facility:", err);
+    req.flash("flashMessage", "Failed to remove room facility.");
+    req.flash("flashType", "error");
+    return res.redirect("/settings/spaces");
   }
 });
 

@@ -45,9 +45,13 @@ describe("functions form", () => {
     expect(rows[0]).toBeDefined();
 
     const overviewRes = await agent.get(`/functions/${rows[0].id_uuid}`);
-    expect(overviewRes.status).toBe(200);
-    expect(overviewRes.text).toContain("Quick booking summary");
-    expect(overviewRes.text).not.toContain("Function ID");
+    expect(overviewRes.status).toBe(302);
+    expect(overviewRes.headers.location).toBe(`/functions/${rows[0].id_uuid}/edit`);
+
+    const editRes = await agent.get(overviewRes.headers.location);
+    expect(editRes.status).toBe(200);
+    expect(editRes.text).toContain("Update the booking, room setup and pricing from one screen.");
+    expect(editRes.text).toContain("Notes &amp; room setup");
   });
 
   test("create function stores simplified payment flags", async () => {
@@ -73,6 +77,114 @@ describe("functions form", () => {
       deposit_paid: true,
       fully_paid: true,
     });
+  });
+
+  test("edit saves room facilities without overwriting quote totals", async () => {
+    const agent = createAgent();
+    await login(agent, email, password);
+
+    const suffix = Date.now();
+    const { rows: roomRows } = await pool.query(
+      `INSERT INTO rooms (name, capacity) VALUES ($1, 80) RETURNING id;`,
+      [`Facility Test Room ${suffix}`]
+    );
+    const roomId = roomRows[0].id;
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS room_facilities (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_room_facilities_room_name
+        ON room_facilities (room_id, LOWER(name));
+      CREATE TABLE IF NOT EXISTS function_room_facility_selections (
+        function_id UUID NOT NULL REFERENCES functions(id_uuid) ON DELETE CASCADE,
+        facility_id INTEGER NOT NULL REFERENCES room_facilities(id) ON DELETE CASCADE,
+        created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (function_id, facility_id)
+      );
+    `);
+    const { rows: facilityRows } = await pool.query(
+      `INSERT INTO room_facilities (room_id, name) VALUES ($1, 'Projector') RETURNING id;`,
+      [roomId]
+    );
+    const facilityId = facilityRows[0].id;
+    const { rows: functionRows } = await pool.query(
+      `INSERT INTO functions (event_name, event_date, room_id, status, totals_price, totals_cost, created_at, updated_at)
+       VALUES ($1, CURRENT_DATE, $2, 'confirmed', 1250, 700, NOW(), NOW())
+       RETURNING id_uuid;`,
+      [`Facility Edit Test ${suffix}`, roomId]
+    );
+    const functionId = functionRows[0].id_uuid;
+
+    const editRes = await agent.post(`/functions/${functionId}/edit`).type("form").send({
+      event_name: `Facility Edit Test ${suffix}`,
+      event_date: new Date().toISOString().slice(0, 10),
+      room_id: roomId,
+      status: "confirmed",
+      facility_ids: facilityId,
+      catering_time: ["10:30", "18:00"],
+      catering_label: ["Morning tea", "Dinner"],
+      catering_description: ["Tea, coffee and slices", "Buffet service"],
+      dietary_requirements: "Two gluten-free meals and one nut allergy",
+    });
+    expect(editRes.status).toBe(302);
+
+    const { rows: savedRows } = await pool.query(
+            `SELECT f.totals_price, f.totals_cost, f.catering_schedule,
+              f.dietary_requirements, frfs.facility_id
+         FROM functions f
+         LEFT JOIN function_room_facility_selections frfs ON frfs.function_id = f.id_uuid
+        WHERE f.id_uuid = $1;`,
+      [functionId]
+    );
+    expect(Number(savedRows[0].totals_price)).toBe(1250);
+    expect(Number(savedRows[0].totals_cost)).toBe(700);
+    expect(savedRows[0].facility_id).toBe(facilityId);
+    expect(savedRows[0].catering_schedule).toEqual([
+      { time: "10:30", label: "Morning tea", description: "Tea, coffee and slices" },
+      { time: "18:00", label: "Dinner", description: "Buffet service" },
+    ]);
+    expect(savedRows[0].dietary_requirements).toBe("Two gluten-free meals and one nut allergy");
+
+    const runSheetRes = await agent.get(`/functions/${functionId}/run-sheet?facilities=true&catering=true&dietary=true&items=none`);
+    expect(runSheetRes.status).toBe(200);
+    expect(runSheetRes.text).toContain("Projector");
+    expect(runSheetRes.text).toContain("Morning tea");
+    expect(runSheetRes.text).toContain("Buffet service");
+    expect(runSheetRes.text).toContain("Two gluten-free meals and one nut allergy");
+
+    const hiddenCateringRes = await agent.get(
+      `/functions/${functionId}/run-sheet?facilities=true&catering=false&dietary=false&items=none`
+    );
+    expect(hiddenCateringRes.status).toBe(200);
+    expect(hiddenCateringRes.text).not.toContain("Morning tea");
+    expect(hiddenCateringRes.text).not.toContain("Two gluten-free meals and one nut allergy");
+  });
+
+  test("room conflict check accepts an overnight booking range", async () => {
+    const agent = createAgent();
+    await login(agent, email, password);
+    const suffix = Date.now();
+    const { rows: roomRows } = await pool.query(
+      `INSERT INTO rooms (name, capacity) VALUES ($1, 40) RETURNING id;`,
+      [`Overnight Test Room ${suffix}`]
+    );
+
+    const response = await agent.post("/functions/room-conflicts").send({
+      room_id: roomRows[0].id,
+      event_date: new Date().toISOString().slice(0, 10),
+      start_time: "19:00",
+      end_time: "01:00",
+      allocations: [],
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ success: true, hasConflicts: false });
   });
 
   test("active dashboards hide cancelled and past functions", async () => {
@@ -177,6 +289,70 @@ describe("functions form", () => {
     expect(item.description).toContain("[cost_each:20]");
     expect(item.description).toContain("[client_selectable:true]");
 
+    const categoryRes = await agent.post(`/functions/proposal-items/${item.id}/price`).send({
+      unit_price: 45,
+      cost_each: 20,
+      category: "Equipment",
+      include: true,
+    });
+    expect(categoryRes.status).toBe(200);
+
+    const {
+      rows: [updatedItem],
+    } = await pool.query(`SELECT description FROM proposal_items WHERE id = $1;`, [item.id]);
+    expect(updatedItem.description).toContain("[category:Equipment]");
+
+    const includedRunSheet = await agent.get(
+      `/functions/${fn.id_uuid}/run-sheet?categories=Equipment&prices=true`
+    );
+    expect(includedRunSheet.status).toBe(200);
+    expect(includedRunSheet.text).toContain("Portable bar setup");
+
+    const excludedRunSheet = await agent.get(
+      `/functions/${fn.id_uuid}/run-sheet?categories=Food&prices=true`
+    );
+    expect(excludedRunSheet.status).toBe(200);
+    expect(excludedRunSheet.text).not.toContain("Portable bar setup");
+
+    const updateLineRes = await agent
+      .post(`/functions/proposal-items/${item.id}/update-line`)
+      .send({
+        name: "Evening service team",
+        category: "Staffing",
+        qty: 4,
+        cost_each: 25,
+        unit_price: 55,
+      });
+    expect(updateLineRes.status).toBe(200);
+    expect(updateLineRes.body).toMatchObject({ success: true });
+    expect(Number(updateLineRes.body.totals.totals_price)).toBeCloseTo(220, 2);
+    expect(Number(updateLineRes.body.totals.totals_cost)).toBeCloseTo(100, 2);
+
+    const {
+      rows: [savedLine],
+    } = await pool.query(
+      `SELECT pi.description, pi.unit_price, f.totals_price, f.totals_cost
+         FROM proposal_items pi
+         JOIN proposals p ON p.id = pi.proposal_id
+         JOIN functions f ON f.id_uuid = p.function_id
+        WHERE pi.id = $1;`,
+      [item.id]
+    );
+    expect(savedLine.description).toContain("Evening service team x 4");
+    expect(savedLine.description).toContain("[category:Staffing]");
+    expect(savedLine.description).toContain("[qty:4]");
+    expect(savedLine.description).toContain("[base:55]");
+    expect(savedLine.description).toContain("[cost_each:25]");
+    expect(Number(savedLine.unit_price)).toBeCloseTo(55, 2);
+    expect(Number(savedLine.totals_price)).toBeCloseTo(220, 2);
+    expect(Number(savedLine.totals_cost)).toBeCloseTo(100, 2);
+
+    const editPageRes = await agent.get(`/functions/${fn.id_uuid}/edit`);
+    expect(editPageRes.status).toBe(200);
+    expect(editPageRes.text).toContain('value="Evening service team"');
+    expect(editPageRes.text).toContain('value="4"');
+    expect(editPageRes.text).toContain('value="55.00"');
+
     const {
       rows: [totals],
     } = await pool.query(
@@ -187,8 +363,8 @@ describe("functions form", () => {
       [proposal.id]
     );
 
-    expect(Number(totals.subtotal)).toBeCloseTo(135, 2);
-    expect(Number(totals.remaining_due)).toBeCloseTo(135, 2);
+    expect(Number(totals.subtotal)).toBeCloseTo(220, 2);
+    expect(Number(totals.remaining_due)).toBeCloseTo(220, 2);
 
     const {
       rows: [fnTotals],
@@ -200,8 +376,8 @@ describe("functions form", () => {
       [fn.id_uuid]
     );
 
-    expect(Number(fnTotals.totals_price)).toBeCloseTo(135, 2);
-    expect(Number(fnTotals.totals_cost)).toBeCloseTo(60, 2);
+    expect(Number(fnTotals.totals_price)).toBeCloseTo(220, 2);
+    expect(Number(fnTotals.totals_cost)).toBeCloseTo(100, 2);
   });
 
   test("quote add-item rejects invalid payload", async () => {

@@ -20,8 +20,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const endDateInput = form.querySelector('[name="end_date"]');
   const startTimeInput = form.querySelector('[name="start_time"]');
   const endTimeInput = form.querySelector('[name="end_time"]');
+  const cateringRows = document.getElementById("cateringScheduleRows");
+  const cateringTemplate = document.getElementById("cateringTimeTemplate");
+  const addCateringTime = document.getElementById("addCateringTime");
 
   let bypassConflictCheck = false;
+  let conflictSubmitInFlight = false;
   let conflictCheckInFlight = false;
   let conflictDebounceTimer = null;
 
@@ -98,6 +102,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 🧠 Prevent accidental double submits
   form.addEventListener("submit", (e) => {
+    if (!bypassConflictCheck) return;
     if (saveBtn.disabled) {
       e.preventDefault();
       return;
@@ -178,6 +183,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
   bindRemoveButtons();
 
+  const bindCateringRemoveButtons = (root = document) => {
+    root.querySelectorAll(".remove-catering-time").forEach((button) => {
+      if (button.dataset.bound === "1") return;
+      button.dataset.bound = "1";
+      button.addEventListener("click", () => {
+        button.closest(".catering-service-row")?.remove();
+      });
+    });
+  };
+
+  bindCateringRemoveButtons();
+  addCateringTime?.addEventListener("click", () => {
+    if (!cateringRows || !cateringTemplate) return;
+    cateringRows.appendChild(cateringTemplate.content.cloneNode(true));
+    bindCateringRemoveButtons(cateringRows);
+    cateringRows.querySelector(".catering-service-row:last-child input")?.focus();
+  });
+
   addAllocationBtn?.addEventListener("click", () => {
     if (!allocationContainer || !allocationTemplate) return;
     const clone = allocationTemplate.content.cloneNode(true);
@@ -207,14 +230,30 @@ document.addEventListener("DOMContentLoaded", () => {
   form.addEventListener("submit", async (e) => {
     if (bypassConflictCheck || e.defaultPrevented) return;
     e.preventDefault();
+    if (conflictSubmitInFlight) return;
+    conflictSubmitInFlight = true;
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving...";
+    try {
+      if (typeof window.waitForQuoteUpdates === "function") {
+        await window.waitForQuoteUpdates();
+      }
+    } catch (error) {
+      conflictSubmitInFlight = false;
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save Changes";
+      return;
+    }
     const result = await runConflictCheck();
     if (result.hasConflicts) {
       alert(result.message || "Room conflict detected. Please resolve before saving.");
+      conflictSubmitInFlight = false;
       saveBtn.disabled = false;
       saveBtn.textContent = "Save Changes";
       return;
     }
     bypassConflictCheck = true;
+    saveBtn.disabled = false;
     form.requestSubmit();
   });
 });
