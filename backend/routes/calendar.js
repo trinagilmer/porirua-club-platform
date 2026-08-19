@@ -25,6 +25,7 @@ const EVENT_TYPES = ["functions", "restaurant", "entertainment", "teamup"];
 const FATHERS_DAY_BOOKING_DATE = "2026-09-06";
 const FATHERS_DAY_MENU_LABEL = "Father's Day Buffet";
 const FATHERS_DAY_BOOKING_TIMES = ["11:00", "12:15", "13:30", "17:00"];
+const FATHERS_DAY_BOOKING_PATH = "/calendar/restaurant/book/fathers-day";
 const FUNCTION_STATUSES = [
   "lead",
   "qualified",
@@ -1890,6 +1891,9 @@ router.post("/restaurant/bookings", async (req, res) => {
 
 router.get("/restaurant/book", async (req, res) => {
   try {
+    if (normaliseDate(req.query.booking_date) === FATHERS_DAY_BOOKING_DATE) {
+      return res.redirect(FATHERS_DAY_BOOKING_PATH);
+    }
     const embed = req.query.embed === "1";
     await ensureRestaurantServiceBookingLimitColumn();
     const { rows: services } = await pool.query(
@@ -1936,6 +1940,9 @@ router.get("/restaurant/book", async (req, res) => {
 
 router.post("/restaurant/book", async (req, res) => {
   try {
+    if (normaliseDate(req.body.booking_date) === FATHERS_DAY_BOOKING_DATE) {
+      return res.redirect(FATHERS_DAY_BOOKING_PATH);
+    }
     const embed = req.query.embed === "1";
     await createRestaurantBooking({
       partyName: req.body.party_name,

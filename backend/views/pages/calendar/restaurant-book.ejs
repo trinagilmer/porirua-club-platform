@@ -282,6 +282,10 @@
     };
 
     const setDate = (dateStr) => {
+      if (dateStr === "2026-09-06") {
+        window.location.assign("/calendar/restaurant/book/fathers-day");
+        return;
+      }
       hiddenDate.value = dateStr;
       dateLabelEl.textContent = `Selected: ${dateStr}`;
       renderSlots(dateStr);

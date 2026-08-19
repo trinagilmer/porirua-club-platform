@@ -60,6 +60,21 @@ describe("restaurant booking flows", () => {
     expect(res.text).not.toContain("main-nav");
   });
 
+  test("normal form redirects Father's Day requests to the dedicated form", async () => {
+    const getResponse = await request(server).get(
+      "/calendar/restaurant/book?booking_date=2026-09-06"
+    );
+    const postResponse = await request(server)
+      .post("/calendar/restaurant/book")
+      .type("form")
+      .send({ booking_date: "2026-09-06" });
+
+    expect(getResponse.status).toBe(302);
+    expect(getResponse.headers.location).toBe("/calendar/restaurant/book/fathers-day");
+    expect(postResponse.status).toBe(302);
+    expect(postResponse.headers.location).toBe("/calendar/restaurant/book/fathers-day");
+  });
+
   test("admin booking create succeeds", async () => {
     const agent = request.agent(server);
     try {
