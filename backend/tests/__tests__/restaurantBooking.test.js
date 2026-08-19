@@ -49,6 +49,17 @@ describe("restaurant booking flows", () => {
     expect([302, 200]).toContain(res.status);
   });
 
+  test("Father's Day form is standalone and fixed to the event date", async () => {
+    const res = await request(server).get("/calendar/restaurant/book/fathers-day");
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain("Father&#39;s Day Buffet");
+    expect(res.text).toContain("Eastwood Restaurant");
+    expect(res.text).toContain('value="2026-09-06"');
+    expect(res.text).not.toContain("portal-sidebar");
+    expect(res.text).not.toContain("main-nav");
+  });
+
   test("admin booking create succeeds", async () => {
     const agent = request.agent(server);
     try {

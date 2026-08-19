@@ -22,6 +22,9 @@ router.use(express.urlencoded({ extended: true }));
 router.use(express.json());
 
 const EVENT_TYPES = ["functions", "restaurant", "entertainment", "teamup"];
+const FATHERS_DAY_BOOKING_DATE = "2026-09-06";
+const FATHERS_DAY_MENU_LABEL = "Father's Day Buffet";
+const FATHERS_DAY_BOOKING_TIMES = ["11:00", "12:15", "13:30", "17:00"];
 const FUNCTION_STATUSES = [
   "lead",
   "qualified",
@@ -690,6 +693,27 @@ async function fetchServiceById(serviceId, db = pool) {
   return rows[0] || null;
 }
 
+async function fetchFathersDayServices(db = pool) {
+  await ensureRestaurantServiceBookingLimitColumn(db);
+  const { rows } = await db.query(
+    `
+    SELECT id, name, day_of_week, start_time, end_time, slot_minutes,
+           max_online_party_size,
+           special_menu_label, special_menu_price, special_menu_start, special_menu_end,
+           special_menu_only
+      FROM restaurant_services
+     WHERE active = TRUE
+       AND day_of_week = 0
+         AND (
+           LOWER(name) LIKE '%father%'
+           OR LOWER(COALESCE(special_menu_label, '')) LIKE '%father%'
+         )
+     ORDER BY start_time ASC;
+    `
+  );
+  return rows;
+}
+
 async function findServiceForSlot(bookingDate, bookingTime, explicitServiceId, db = pool) {
   await ensureRestaurantServiceBookingLimitColumn(db);
   const targetDate = normaliseDate(bookingDate);
@@ -969,6 +993,12 @@ async function createRestaurantBooking(payload, options = {}) {
   if (!service) {
     throw new Error("No service matches the requested time.");
   }
+  const specialMenuActive = isSpecialMenuActive(service, bookingDate);
+  const menuType =
+    payload.menuType ||
+    (specialMenuActive && service.special_menu_only ? service.special_menu_label : null);
+  const menuPrice =
+    payload.price ?? (menuType && specialMenuActive ? service.special_menu_price : null);
 
   if (exceedsOnlinePartySize(service, size, payload.channel)) {
     const error = new Error("Online booking exceeds maximum diners per booking.");
@@ -1004,7 +1034,7 @@ async function createRestaurantBooking(payload, options = {}) {
       (party_name, booking_date, booking_time, size, status, menu_type, price,
        owner_id, service_id, zone_id, table_id, channel,
        contact_email, contact_phone, contact_id, notes, created_at, updated_at)
-    VALUES ($1,$2,$3,$4,$5,NULL,NULL,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW(),NOW())
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW(),NOW())
     RETURNING *;
     `,
     [
@@ -1013,6 +1043,8 @@ async function createRestaurantBooking(payload, options = {}) {
       timeStringFromMinutes(slotStart).slice(0, 8),
       size,
       payload.status || "pending",
+      menuType,
+      menuPrice,
       payload.ownerId || null,
       service.id,
       zoneId,
@@ -1994,6 +2026,78 @@ router.post("/restaurant/book", async (req, res) => {
         },
       });
     }
+  }
+});
+
+router.get("/restaurant/book/fathers-day", async (req, res) => {
+  try {
+    const services = await fetchFathersDayServices();
+    res.render("pages/calendar/restaurant-book-fathers-day", {
+      layout: false,
+      title: "Eastwood Restaurant Father's Day Buffet Booking",
+      services,
+      bookingDate: FATHERS_DAY_BOOKING_DATE,
+      bookingTimes: FATHERS_DAY_BOOKING_TIMES,
+      menuLabel: FATHERS_DAY_MENU_LABEL,
+      success: req.query.success === "1",
+      errorMessage: null,
+      formData: {},
+    });
+  } catch (err) {
+    console.error("[Restaurant Calendar] Failed to load Father's Day form:", err);
+    res.status(500).send("Unable to load the Father's Day booking form.");
+  }
+});
+
+router.post("/restaurant/book/fathers-day", async (req, res) => {
+  let services = [];
+  try {
+    services = await fetchFathersDayServices();
+    const [serviceIdValue, bookingTimeValue] = String(req.body.booking_slot || "").split("|");
+    const serviceId = Number(serviceIdValue);
+    const bookingTime = normaliseTime(bookingTimeValue);
+    const service = services.find((item) => Number(item.id) === serviceId);
+    if (!service || !bookingTime) {
+      throw new Error("Please choose an available service time.");
+    }
+    if (!FATHERS_DAY_BOOKING_TIMES.includes(bookingTime.slice(0, 5))) {
+      throw new Error("Please choose an available service time.");
+    }
+    if (bookingTime < service.start_time || bookingTime > service.end_time) {
+      throw new Error("That time is outside the selected service.");
+    }
+
+    await createRestaurantBooking({
+      partyName: req.body.party_name,
+      bookingDate: FATHERS_DAY_BOOKING_DATE,
+      bookingTime,
+      size: req.body.size,
+      serviceId,
+      menuType: FATHERS_DAY_MENU_LABEL,
+      price: service.special_menu_price || null,
+      notes: req.body.notes,
+      contactEmail: req.body.contact_email,
+      contactPhone: req.body.contact_phone,
+      channel: "online",
+      status: "pending",
+    });
+    res.redirect("/calendar/restaurant/book/fathers-day?success=1");
+  } catch (err) {
+    console.error("[Restaurant Calendar] Father's Day booking failed:", err);
+    const message = isCapacityError(err)
+      ? CAPACITY_CONTACT_MESSAGE
+      : err.message || "Unable to submit booking";
+    res.status(400).render("pages/calendar/restaurant-book-fathers-day", {
+      layout: false,
+      title: "Eastwood Restaurant Father's Day Buffet Booking",
+      services,
+      bookingDate: FATHERS_DAY_BOOKING_DATE,
+      bookingTimes: FATHERS_DAY_BOOKING_TIMES,
+      menuLabel: FATHERS_DAY_MENU_LABEL,
+      success: false,
+      errorMessage: message,
+      formData: req.body,
+    });
   }
 });
 
