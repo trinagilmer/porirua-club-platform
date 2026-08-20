@@ -89,8 +89,16 @@
 
     const allStarts = services.map((s) => (s.start_time || "06:00").slice(0, 5));
     const allEnds = services.map((s) => (s.end_time || "23:59").slice(0, 5));
-    const slotMinTime = allStarts.length ? allStarts.sort()[0] : "06:00";
-    const slotMaxTime = allEnds.length ? allEnds.sort().slice(-1)[0] : "23:59";
+    const slotMinTime = window.restaurantCanManage
+      ? "00:00"
+      : allStarts.length
+        ? allStarts.sort()[0]
+        : "06:00";
+    const slotMaxTime = window.restaurantCanManage
+      ? "24:00"
+      : allEnds.length
+        ? allEnds.sort().slice(-1)[0]
+        : "23:59";
 
     const slotMinutes = window.calendarConfig?.daySlotMinutes || 30;
     const today = new Date();
@@ -198,7 +206,7 @@
         window.requestAnimationFrame(updateCrowdedSlotHeights);
       },
       selectAllow: (selectionInfo) => {
-        return isWithinService(selectionInfo.start);
+        return window.restaurantCanManage || isWithinService(selectionInfo.start);
       },
       eventSources: closedBlocks.length
         ? [
@@ -239,11 +247,6 @@
           services.find((s) => Number(s.day_of_week) === dow) ||
           services[0] ||
           null;
-
-        if (services.length && !isWithinService(dateLocal)) {
-          alert("This time is outside the configured service windows.");
-          return;
-        }
 
         const setVal = (id, val) => {
           const el = document.getElementById(id);

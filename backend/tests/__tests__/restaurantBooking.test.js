@@ -1,5 +1,6 @@
 const request = require("supertest");
 const { app, login } = require("../helpers/app");
+const { pool } = require("../../db");
 
 function pad(value) {
   return String(value).padStart(2, "0");
@@ -92,6 +93,51 @@ describe("restaurant booking flows", () => {
         });
       expect([302, 200]).toContain(res.status);
     } finally {
+      if (typeof agent.close === "function") {
+        await agent.close();
+      }
+    }
+  });
+
+  test("chef can create a booking outside the service window", async () => {
+    const agent = request.agent(server);
+    const partyName = `Outside service window ${Date.now()}`;
+    const { rows: userRows } = await pool.query(
+      `SELECT role FROM users WHERE email = $1 LIMIT 1;`,
+      [email]
+    );
+    const originalRole = userRows[0]?.role || "owner";
+    try {
+      await pool.query(`UPDATE users SET role = 'chef' WHERE email = $1;`, [email]);
+      await login(agent, email, password);
+      await pool.query(`UPDATE users SET role = $1 WHERE email = $2;`, [originalRole, email]);
+
+      const pageRes = await agent.get("/calendar/restaurant");
+      expect(pageRes.status).toBe(200);
+      expect(pageRes.text).toContain("window.restaurantCanManage = true");
+
+      const res = await agent
+        .post("/calendar/restaurant/bookings")
+        .type("form")
+        .send({
+          booking_date: bookingDate,
+          booking_time: "10:15",
+          party_name: partyName,
+          size: 2,
+          status: "confirmed",
+        });
+
+      expect(res.status).toBe(302);
+      expect(res.headers.location).toBe("/calendar/restaurant?success=1");
+
+      const { rows } = await pool.query(
+        `SELECT booking_time FROM restaurant_bookings WHERE party_name = $1 LIMIT 1;`,
+        [partyName]
+      );
+      expect(rows[0]?.booking_time).toBe("10:15:00");
+    } finally {
+      await pool.query(`UPDATE users SET role = $1 WHERE email = $2;`, [originalRole, email]);
+      await pool.query(`DELETE FROM restaurant_bookings WHERE party_name = $1;`, [partyName]);
       if (typeof agent.close === "function") {
         await agent.close();
       }

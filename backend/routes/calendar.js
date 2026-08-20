@@ -715,7 +715,13 @@ async function fetchFathersDayServices(db = pool) {
   return rows;
 }
 
-async function findServiceForSlot(bookingDate, bookingTime, explicitServiceId, db = pool) {
+async function findServiceForSlot(
+  bookingDate,
+  bookingTime,
+  explicitServiceId,
+  db = pool,
+  allowOutsideWindow = false
+) {
   await ensureRestaurantServiceBookingLimitColumn(db);
   const targetDate = normaliseDate(bookingDate);
   if (!targetDate) return null;
@@ -769,6 +775,15 @@ async function findServiceForSlot(bookingDate, bookingTime, explicitServiceId, d
         max_covers_effective: override?.max_covers_per_slot ?? service.max_covers_per_slot,
       };
     }
+  }
+  if (allowOutsideWindow && rows.length) {
+    const service = rows[0];
+    const override = await fetchOverrideForService(service.id, targetDate, db);
+    return {
+      ...service,
+      slot_minutes_effective: override?.slot_minutes || service.slot_minutes,
+      max_covers_effective: override?.max_covers_per_slot ?? service.max_covers_per_slot,
+    };
   }
   return null;
 }
@@ -990,10 +1005,19 @@ async function createRestaurantBooking(payload, options = {}) {
   if (!size) throw new Error("Party size is required.");
 
   const db = options.db || pool;
-  const service = await findServiceForSlot(bookingDate, bookingTime, explicitServiceId, db);
+  const allowOutsideWindow = Boolean(options.allowOutsideWindow);
+  const service = await findServiceForSlot(
+    bookingDate,
+    bookingTime,
+    explicitServiceId,
+    db,
+    allowOutsideWindow
+  );
   if (!service) {
     throw new Error("No service matches the requested time.");
   }
+  const outsideServiceWindow =
+    bookingTime < service.start_time || bookingTime > service.end_time;
   const specialMenuActive = isSpecialMenuActive(service, bookingDate);
   const menuType =
     payload.menuType ||
@@ -1016,18 +1040,20 @@ async function createRestaurantBooking(payload, options = {}) {
     ));
 
   const { slotStart, slotEnd } = computeSlotBounds(service, bookingTime);
-  await ensureRestaurantCapacity(
-    {
-      bookingDate,
-      service,
-      slotStart,
-      slotEnd,
-      partySize: size,
-      channel: payload.channel || "internal",
-      excludeBookingId: null,
-    },
-    db
-  );
+  if (!allowOutsideWindow || !outsideServiceWindow) {
+    await ensureRestaurantCapacity(
+      {
+        bookingDate,
+        service,
+        slotStart,
+        slotEnd,
+        partySize: size,
+        channel: payload.channel || "internal",
+        excludeBookingId: null,
+      },
+      db
+    );
+  }
 
   const result = await db.query(
     `
@@ -1041,7 +1067,9 @@ async function createRestaurantBooking(payload, options = {}) {
     [
       partyName,
       bookingDate,
-      timeStringFromMinutes(slotStart).slice(0, 8),
+      allowOutsideWindow && outsideServiceWindow
+        ? bookingTime
+        : timeStringFromMinutes(slotStart).slice(0, 8),
       size,
       payload.status || "pending",
       menuType,
@@ -1765,7 +1793,7 @@ router.get("/restaurant", async (req, res) => {
       zones: zonesRes.rows,
       tables: tablesRes.rows,
       upcomingBookings: bookingsRes.rows,
-      canManage: isPrivileged(req),
+      canManage: Boolean(req.session?.user),
       message: req.query.success ? "Booking saved." : null,
       errorMessage: req.query.error || null,
       prefillBooking: {
@@ -1829,9 +1857,6 @@ router.get("/restaurant/events", async (req, res) => {
 });
 
 router.post("/restaurant/bookings", async (req, res) => {
-  if (!isPrivileged(req)) {
-    return res.redirect("/calendar/restaurant?error=Admin access required");
-  }
   const recurrenceFrequency = String(req.body.recurrence_frequency || "none").toLowerCase();
   const recurrence = recurrenceService.parseRecurrenceForm(req.body);
   if (recurrenceFrequency !== "none" && !recurrence) {
@@ -1874,7 +1899,7 @@ router.post("/restaurant/bookings", async (req, res) => {
           ...payload,
           bookingDate: date,
         },
-        { db: client, suppressEmail }
+        { db: client, suppressEmail, allowOutsideWindow: true }
       );
     }
     await client.query("COMMIT");

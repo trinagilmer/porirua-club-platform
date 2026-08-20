@@ -371,13 +371,8 @@
               <label class="form-label">Service</label>
               <select name="service_id" id="rb-service" class="form-select form-select-sm">
                 <option value="">Auto detect</option>
-                <% (services || []).filter(function(s){ return s.special_menu_label; }).forEach(function(service) { 
-                     const start = service.special_menu_start ? new Date(service.special_menu_start).toLocaleDateString('en-NZ') : null;
-                     const end = service.special_menu_end ? new Date(service.special_menu_end).toLocaleDateString('en-NZ') : null;
-                     const window = start && end ? `${start} - ${end}` : (start ? `From ${start}` : (end ? `Until ${end}` : ''));
-                     const price = service.special_menu_price ? ` ($${Number(service.special_menu_price).toFixed(2)})` : '';
-                %>
-                  <option value="<%= service.id %>"><%= service.special_menu_label %><%= price %><% if (window) { %> - <%= window %><% } %></option>
+                <% (services || []).forEach(function(service) { %>
+                  <option value="<%= service.id %>"><%= dayNames[service.day_of_week] %> - <%= service.name %> (<%= service.start_time.slice(0,5) %>-<%= service.end_time.slice(0,5) %>)</option>
                 <% }) %>
               </select>
             </div>
